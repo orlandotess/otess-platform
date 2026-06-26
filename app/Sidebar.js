@@ -8,6 +8,7 @@ const links = [
   { href: '/trabajos',  label: 'Trabajos',   icon: '🔧' },
   { href: '/field',     label: 'Field App',  icon: '📱' },
   { href: '/facturas',  label: 'Facturas',   icon: '🧾' },
+  { href: '/horario',   label: 'Horario',    icon: '⏱' },
 ];
 
 export default function Sidebar() {
