@@ -31,6 +31,12 @@ export default function FieldApp() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoSuccess, setPhotoSuccess] = useState('');
   const [allJobs, setAllJobs] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [jobNotes, setJobNotes] = useState([]);
+  const [jobChecklist, setJobChecklist] = useState([]);
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const fileRef2 = useRef();
   const fileRef = useRef();
 
   useEffect(() => {
@@ -253,13 +259,77 @@ export default function FieldApp() {
         {tab==='projects' && <div>
           <div style={{padding:'20px 20px 16px'}}><div style={{fontSize:26,fontWeight:700}}>Projects</div></div>
           {allJobs.length===0?<div style={{...card,textAlign:'center',padding:'60px 20px',color:'#aaa'}}><div style={{fontSize:48,marginBottom:12}}>📋</div><div>No active projects</div></div>
-          :allJobs.map(j=><div key={j.id} style={card}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          :allJobs.map(j=><div key={j.id} style={{...card,cursor:'pointer'}} onClick={()=>setSelectedJob(j)}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div><div style={{fontWeight:700}}>{j.title}</div><div style={{fontSize:13,color:'#888'}}>{j.clients?.name}</div></div>
             <span style={{fontSize:11,fontWeight:700,color:SC[j.status],background:SC[j.status]+'18',padding:'4px 10px',borderRadius:20}}>{SL[j.status]}</span>
           </div></div>)}
         </div>}
 
       </div>
+
+      {selectedJob && (
+        <div style={{position:'fixed',inset:0,background:BG,zIndex:150,display:'flex',flexDirection:'column',maxWidth:430,margin:'0 auto'}}>
+          <div style={{background:'#fff',padding:'16px 20px',display:'flex',alignItems:'center',gap:12,borderBottom:'1px solid #dde1e7'}}>
+            <button onClick={()=>setSelectedJob(null)} style={{background:'none',border:'none',cursor:'pointer',fontSize:22,color:'#333'}}>←</button>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:16}}>{selectedJob.title}</div>
+              <div style={{fontSize:12,color:'#888'}}>{selectedJob.clients?.name}</div>
+            </div>
+            <button onClick={()=>handleClockIn(selectedJob.id)} style={{background:ORANGE,color:'#fff',border:'none',borderRadius:10,padding:'8px 14px',fontSize:13,fontWeight:700,cursor:'pointer'}}>⏱ Clock In</button>
+          </div>
+          <div style={{flex:1,overflowY:'auto',padding:'16px 14px'}}>
+            <div style={{background:'#fff',borderRadius:14,padding:'16px 18px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
+              <div style={{fontWeight:700,fontSize:13,color:'#16223d',marginBottom:12}}>Checklist</div>
+              {jobChecklist.length===0?<p style={{color:'#aaa',fontSize:13}}>Sin ítems.</p>:jobChecklist.map(i=>(
+                <div key={i.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'1px solid #eee',cursor:'pointer'}} onClick={async()=>{
+                  await supabase.from('job_checklist_items').update({completed:!i.completed,completed_at:!i.completed?new Date().toISOString():null}).eq('id',i.id);
+                  setJobChecklist(prev=>prev.map(x=>x.id===i.id?{...x,completed:!i.completed}:x));
+                }}>
+                  <div style={{width:22,height:22,borderRadius:6,border:i.completed?'none':'2px solid #dde1e7',background:i.completed?'#27ae60':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {i.completed&&<span style={{color:'#fff',fontSize:13,fontWeight:900}}>✓</span>}
+                  </div>
+                  <span style={{fontSize:14,textDecoration:i.completed?'line-through':'none',color:i.completed?'#aaa':'#333'}}>{i.description}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{background:'#fff',borderRadius:14,padding:'16px 18px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
+              <div style={{fontWeight:700,fontSize:13,color:'#16223d',marginBottom:12}}>Notas & Fotos</div>
+              <form onSubmit={async(e)=>{
+                e.preventDefault();
+                if(!noteText.trim()&&!pendingPhoto) return;
+                setSavingNote(true);
+                let photoUrl=null;
+                if(pendingPhoto){
+                  const ext=pendingPhoto.name.split('.').pop();
+                  const path=selectedJob.id+'/'+Date.now()+'.'+ext;
+                  const {error}=await supabase.storage.from('job-photos').upload(path,pendingPhoto);
+                  if(!error) photoUrl='https://zisidorwdhrttmdppnbj.supabase.co/storage/v1/object/public/job-photos/'+path;
+                }
+                const {data:note}=await supabase.from('job_notes').insert([{job_id:selectedJob.id,note:noteText.trim()||null,photo_url:photoUrl}]).select().single();
+                if(note) setJobNotes(prev=>[note,...prev]);
+                setNoteText(''); setPendingPhoto(null); setPhotoPreview(null); setSavingNote(false);
+              }}>
+                <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} placeholder="Escribe una nota..." style={{width:'100%',minHeight:80,padding:10,border:'1.5px solid #dde1e7',borderRadius:10,fontSize:14,fontFamily:'inherit',outline:'none',resize:'none',marginBottom:8}} />
+                {photoPreview&&<img src={photoPreview} style={{width:100,height:100,objectFit:'cover',borderRadius:8,marginBottom:8,display:'block'}} />}
+                <input ref={fileRef2} type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPendingPhoto(f);setPhotoPreview(URL.createObjectURL(f));}}} style={{display:'none'}} />
+                <div style={{display:'flex',gap:8}}>
+                  <button type="button" onClick={()=>fileRef2.current?.click()} style={{padding:'8px 14px',background:'#f0f0f0',border:'none',borderRadius:10,fontWeight:600,cursor:'pointer',fontSize:13}}>📷</button>
+                  <button type="submit" disabled={savingNote} style={{flex:1,padding:'8px 14px',background:ORANGE,color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:'pointer',fontSize:13}}>{savingNote?'Guardando...':'Guardar'}</button>
+                </div>
+              </form>
+              <div style={{marginTop:12}}>
+                {jobNotes.map(n=>(
+                  <div key={n.id} style={{padding:'10px 0',borderBottom:'1px solid #eee'}}>
+                    <div style={{fontSize:11,color:'#aaa',marginBottom:6}}>{new Date(n.created_at).toLocaleString('es-PR',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+                    {n.photo_url&&<img src={n.photo_url} style={{width:'100%',maxHeight:200,objectFit:'cover',borderRadius:10,marginBottom:6}} />}
+                    {n.note&&<p style={{fontSize:14,margin:0}}>{n.note}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <button style={{position:'fixed',bottom:80,right:20,width:52,height:52,background:showFab?'#333':ORANGE,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(224,92,42,0.4)',zIndex:99,fontSize:24,color:'#fff'}} onClick={()=>setShowFab(!showFab)}>
         {showFab?'✕':'+'}
