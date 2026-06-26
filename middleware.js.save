@@ -46,5 +46,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-  ['/protected/:path*'],matcher: ['/((?!_next/static|_next/image|favicon.ico|api).*)'],
+  ['/((?!_next/static|_next/image|favicon.ico|api).*)'],matcher: ['/((?!_next/static|_next/image|favicon.ico|api).*)'],
 };
