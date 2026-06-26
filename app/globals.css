@@ -293,3 +293,11 @@ textarea { resize: vertical; min-height: 80px; }
   color: var(--muted);
   margin-top: 4px;
 }
+
+@media print {
+  .sidebar, .page-header .btn, nav, button { display: none !important; }
+  .admin-shell { display: block; }
+  .main-content { margin: 0; padding: 20px; max-width: 100%; }
+  .card { box-shadow: none; border: 1px solid #ddd; }
+  body { background: white; }
+}
