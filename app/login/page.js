@@ -23,7 +23,7 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    window.location.href = '/';
+    setTimeout(() => { window.location.href = '/'; }, 800);window.location.href = '/';
   }
 
   return (
