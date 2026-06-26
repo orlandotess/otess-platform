@@ -1,0 +1,222 @@
+'use client';
+import { useState, useEffect, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  'https://zisidorwdhrttmdppnbj.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inppc2lkb3J3ZGhydHRtZHBwbmJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzA3NDEsImV4cCI6MjA5ODAwNjc0MX0.dKCf0omLnIy3AILNaU8vWj_yrMlJM-Fh9sOui71a7Po'
+);
+
+const ORANGE = '#E05C2A';
+const BG = '#EAEEF2';export default function FieldApp() {
+  const [tab, setTab] = useState('home');
+  const [jobs, setJobs] = useState([]);
+  const [jobFilter, setJobFilter] = useState('today');
+  const [clockedIn, setClockedIn] = useState(false);
+  const [activeEntry, setActiveEntry] = useState(null);
+  const [timeEntries, setTimeEntries] = useState([]);
+  const [techId, setTechId] = useState(null);
+  const [techName, setTechName] = useState('OTESS');
+  const [loading, setLoading] = useState(true);
+  const [elapsed, setElapsed] = useState(0);
+  const [showFab, setShowFab] = useState(false);
+  const [showJobClock, setShowJobClock] = useState(false);
+  const [showJobNote, setShowJobNote] = useState(false);
+  const [showJobPhoto, setShowJobPhoto] = useState(false);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoSuccess, setPhotoSuccess] = useState('');
+  const [allJobs, setAllJobs] = useState([]);
+  const fileRef = useRef();useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) { window.location.replace('/login'); return; }
+      const { data: profile } = await supabase.from('profiles').select('name').eq('id', session.user.id).single();
+      if (profile) setTechName(profile.name);
+      const { data: tech } = await supabase.from('technicians').select('id').ilike('name', profile?.name ?? 'OTESS').single();
+      if (tech) setTechId(tech.id);
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!techId) return;
+    supabase.from('time_entries').select('*').eq('technician_id', techId).is('clocked_out_at', null)
+      .order('clocked_in_at', { ascending: false }).limit(1).single()
+      .then(({ data }) => { if (data) { setClockedIn(true); setActiveEntry(data); } });
+  }, [techId]);
+
+  useEffect(() => {
+    if (!clockedIn || !activeEntry) return;
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - new Date(activeEntry.clocked_in_at)) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [clockedIn, activeEntry]);
+
+  useEffect(() => { loadJobs(); }, [jobFilter]);
+
+  useEffect(() => {
+    supabase.from('jobs').select('id, title, status, clients(name)')
+      .in('status', ['scheduled', 'in_progress'])
+      .order('scheduled_start', { ascending: true }).limit(20)
+      .then(({ data }) => setAllJobs(data ?? []));
+  }, []);
+
+  useEffect(() => {
+    if (!techId) return;
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
+    weekStart.setHours(0,0,0,0);
+    supabase.from('time_entries').select('*').eq('technician_id', techId)
+      .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false })
+      .then(({ data }) => setTimeEntries(data ?? []));
+  }, [techId, clockedIn]);async function loadJobs() {
+    setLoading(true);
+    let q = supabase.from('jobs').select('id, title, status, scheduled_start, clients(name)');
+    const today = new Date(); today.setHours(0,0,0,0);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    if (jobFilter === 'today') q = q.gte('scheduled_start', today.toISOString()).lt('scheduled_start', tomorrow.toISOString());
+    else if (jobFilter === 'upcoming') q = q.gte('scheduled_start', tomorrow.toISOString()).not('status', 'eq', 'completed');
+    else if (jobFilter === 'done') q = q.eq('status', 'completed');
+    const { data } = await q.order('scheduled_start', { ascending: true }).limit(20);
+    setJobs(data ?? []);
+    setLoading(false);
+  }
+
+  async function handleClockIn(jobId = null) {
+    if (!techId) return;
+    const { data } = await supabase.from('time_entries')
+      .insert([{ technician_id: techId, job_id: jobId, clocked_in_at: new Date().toISOString() }])
+      .select().single();
+    if (data) { setClockedIn(true); setActiveEntry(data); setElapsed(0); }
+    setShowFab(false); setShowJobClock(false);
+  }
+
+  async function handleClockOut() {
+    if (!activeEntry) return;
+    await supabase.from('time_entries').update({ clocked_out_at: new Date().toISOString() }).eq('id', activeEntry.id);
+    setClockedIn(false); setActiveEntry(null); setElapsed(0);
+  }
+
+  async function saveNote(e) {
+    e.preventDefault();
+    if (!selectedJob || !noteText.trim()) return;
+    setSavingNote(true);
+    await supabase.from('jobs').update({ notes: noteText }).eq('id', selectedJob.id);
+    setSavingNote(false);
+    setNoteText('');
+    setShowJobNote(false);
+    setShowFab(false);
+  }
+
+  async function uploadPhoto(e) {
+    const file = e.target.files?.[0];
+    if (!file || !selectedJob) return;
+    setUploadingPhoto(true);
+    const ext = file.name.split('.').pop();
+    const path = selectedJob.id + '/' + Date.now() + '.' + ext;
+    const { error } = await supabase.storage.from('job-photos').upload(path, file);
+    setUploadingPhoto(false);
+    if (!error) {
+      setPhotoSuccess('Foto subida exitosamente');
+      setTimeout(() => { setPhotoSuccess(''); setShowJobPhoto(false); setShowFab(false); }, 2000);
+    }
+  }
+
+  const fmtElapsed = s => {
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+  };
+  const fmtHours = entries => {
+    const total = entries.reduce((acc, e) => {
+      if (!e.clocked_out_at) return acc;
+      return acc + (new Date(e.clocked_out_at) - new Date(e.clocked_in_at));
+    }, 0);
+    return (total / 3600000).toFixed(1) + 'h';
+  };const now = new Date();
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const statusColor = { estimate:'#888', scheduled:'#2a4cb5', in_progress:ORANGE, completed:'#27ae60', cancelled:'#b52a2a' };
+  const statusLabel = { estimate:'Estimate', scheduled:'Scheduled', in_progress:'In Progress', completed:'Done', cancelled:'Cancelled' };
+  const dayShort = ['Wed','Thu','Fri','Sat','Sun','Mon','Tue'];
+  const weekDates = dayShort.map((_, i) => {
+    const d = new Date(now);
+    const offset = now.getDay() === 0 ? -4 : now.getDay() >= 3 ? now.getDay() - 3 : now.getDay() + 4;
+    d.setDate(now.getDate() - offset + i);
+    return d.getDate();
+  });
+
+  const s = {
+    shell: { position:'fixed', top:0, left:0, right:0, bottom:0, background:BG, fontFamily:'-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif', display:'flex', flexDirection:'column', maxWidth:430, margin:'0 auto' },
+    page: { flex:1, overflowY:'auto', paddingBottom:80 },
+    nav: { position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:430, background:'#fff', borderTop:'1px solid #dde1e7', display:'flex', zIndex:100, paddingBottom:'env(safe-area-inset-bottom,4px)' },
+    navBtn: (active) => ({ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, padding:'10px 0 6px', background:'none', border:'none', cursor:'pointer', fontSize:10, fontWeight:600, color: active ? ORANGE : '#aaa' }),
+    card: { margin:'0 14px 12px', background:'#fff', borderRadius:14, padding:'16px 18px', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' },
+    clockBtn: (on) => ({ background: on ? '#27ae60' : ORANGE, color:'#fff', border:'none', borderRadius:10, padding:'10px 20px', fontSize:14, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }),
+    filterTab: (active) => ({ padding:'8px 16px', borderRadius:50, fontSize:13, fontWeight:600, cursor:'pointer', border: active ? 'none' : '1.5px solid #dde1e7', background: active ? '#1a1a1a' : '#fff', color: active ? '#fff' : '#333' }),
+    fab: { position:'fixed', bottom:80, right:20, width:52, height:52, background: showFab ? '#333' : ORANGE, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', border:'none', cursor:'pointer', boxShadow:'0 4px 16px rgba(224,92,42,0.4)', zIndex:99, fontSize:24, color:'#fff' },
+    modal: { position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:200 },
+    modalContent: { background:'#fff', borderRadius:'20px 20px 0 0', padding:'24px 20px', width:'100%', maxWidth:430 },
+    fabMenu: { position:'fixed', bottom:140, right:20, zIndex:98, display:'flex', flexDirection:'column', gap:10, alignItems:'flex-end' },
+    fabMenuItem: (color) => ({ background: color || ORANGE, color:'#fff', border:'none', borderRadius:50, padding:'10px 18px', fontSize:14, fontWeight:700, cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.2)', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:8 }),
+  };
+
+  const NavIcon = ({ tab: t, icon, label }) => (
+    <button style={s.navBtn(tab === t)} onClick={() => { setTab(t);
+return (
+    <div style={s.shell}>
+      <div style={s.page}>
+
+        {tab === 'home' && (
+          <div>
+            <div style={{ padding:'20px 20px 8px', display:'flex', justifyContent:'flex-end' }}>
+              <span style={{ fontSize:11, fontWeight:600, color:'#888', letterSpacing:'0.08em', textTransform:'uppercase' }}>
+                {days[now.getDay()].toUpperCase()}, {months[now.getMonth()]} {now.getDate()}
+              </span>
+            </div>
+            <div style={{ padding:'0 20px 20px' }}>
+              <div style={{ fontSize:27, fontWeight:700 }}>{greeting}, {techName}</div>
+            </div>
+            <div style={s.card}>
+              <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                <div style={{ width:40, height:40, background:BG, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>⏱</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:600, fontSize:15 }}>{clockedIn ? 'Clocked in' : 'Not clocked in'}</div>
+                  <div style={{ fontSize:12, color:'#888', marginTop:2 }}>
+                    {clockedIn ? fmtElapsed(elapsed) : 'Tap to start your shift'}
+                  </div>
+                </div>
+                <button style={s.clockBtn(clockedIn)} onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
+                  {clockedIn ? 'Clock Out' : 'Clock In'}
+                </button>
+              </div>
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'4px 20px 12px' }}>
+              <span style={{ fontSize:17, fontWeight:700 }}>Today's{tab === 'jobs' && (
+          <div>
+            <div style={{ padding:'20px 20px 16px' }}>
+              <div style={{ fontSize:26, fontWeight:700, marginBottom:14 }}>Jobs</div>
+              <div style={{ background:'#fff', borderRadius:12, padding:'12px 16px', display:'flex', alignItems:'center', gap:10, boxShadow:'0 1px 4px rgba(0,0,0,0.06)', marginBottom:14 }}>
+                <span style={{ fontSize:16 }}>🔍</span>
+                <input placeholder="Search jobs or customer..." style={{ border:'none', background:'none', fontSize:15, outline:'none', width:'100%' }} />
+              </div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {['today','upcoming','done','all'].map(f => (
+                  <button key={f} style={s.filterTab(jobFilter === f)} onClick={() => { setJobFilter(f); loadJobs(); }}>
+                    {f === 'today' ? 'Today' : f === 'upcoming' ? 'Upcoming' : f === 'done' ? 'Done' : 'All'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={s.card}>
+              {loading
+                ? <div style={{ textAlign:'center', padding:'32px 0', color:'#888' }}>Loading...</div>
+                : jobs.length === 0
+                  ? <div style={{ textAlign:'center', padding:'32px 0', color:'#888', fontSize:15 }}>No jobs here.</div>
+                  : jobs.map(j => (
+                    <div key={j.id} style={{ padding:'12px 0', borderBottom:'1px solid #eee' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between',
