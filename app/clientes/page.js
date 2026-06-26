@@ -58,3 +58,4 @@ export default async function ClientesPage() {
     </div>
   );
 }
+export const dynamic = 'force-dynamic';
