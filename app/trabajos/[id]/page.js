@@ -81,7 +81,6 @@ export default async function TrabajoDetail({ params }) {
           templates={templates ?? []}
           clientType={clientType}
           totals={{ subProd, taxProd, subLabor, taxLabor, total }}
-          fmt={fmt}
         />
       </main>
     </div>
