@@ -20,6 +20,7 @@ const statusOptions = [
 
 export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, fmt }) {
   const router = useRouter();
+  const fmt = n => `$${Number(n).toFixed(2)}`;
   const [tab, setTab] = useState('info');
   const [status, setStatus] = useState(job.status);
   const [techId, setTechId] = useState(job.technician_id ?? '');
