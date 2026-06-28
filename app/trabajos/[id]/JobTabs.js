@@ -21,6 +21,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [techId, setTechId] = useState(job.technician_id ?? '');
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [schedStart, setSchedStart] = useState(job.scheduled_start ? new Date(job.scheduled_start).toISOString().slice(0, 16) : '');
+  const [schedEnd, setSchedEnd] = useState(job.scheduled_end ? new Date(job.scheduled_end).toISOString().slice(0, 16) : '');
+  const [savingSchedule, setSavingSchedule] = useState(false);
+
+  async function saveSchedule() {
+    setSavingSchedule(true);
+    await supabase.from('jobs').update({
+      scheduled_start: schedStart || null,
+      scheduled_end: schedEnd || null,
+    }).eq('id', job.id);
+    setSavingSchedule(false);
+    setEditingSchedule(false);
+    router.refresh();
+  }
 
   // Notes state
   const [notesList, setNotesList] = useState(notes);
@@ -140,10 +155,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     const { data: newNote } = await supabase.from('job_notes').insert([{
       job_id: job.id, note: noteText.trim() || null, photo_url: photoUrl,
     }]).select().single();
-    if (newNote) setNotesList(prev => [newNote, ...prev]);
+    if (newNote) setNotesList(prev => [{ ...newNote, photo_url: null }, ...prev]);
     setNoteText(''); setPendingPhoto(null); setPendingPhotoPreview(null); setSavingNote(false);
-    // Reload to get signed URLs for new photos
-    if (photoUrl) router.refresh();
+    if (photoUrl) window.location.reload();
   }
 
   async function deleteNote(noteId) {
