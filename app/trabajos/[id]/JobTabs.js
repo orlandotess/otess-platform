@@ -1,4 +1,3 @@
-// v2
 'use client';
 import { useState, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
@@ -34,18 +33,55 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
 
   // Checklist state
   const [checklistItems, setChecklistItems] = useState(checklist);
-  const [newItem, setNewItem] = useState('');
-  const [addingItem, setAddingItem] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [newGroup, setNewGroup] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('');
-  const groups = [...new Set(checklistItems.map(i => i.group_name).filter(Boolean))];
+  const [newGroupName, setNewGroupName] = useState('');
+  const [addingGroup, setAddingGroup] = useState(false);
+  const [groupMenuOpen, setGroupMenuOpen] = useState(null);
+  const [newItemText, setNewItemText] = useState({});
+  const [addingItemGroup, setAddingItemGroup] = useState(null);
 
-  function addGroup() {
-    if (!newGroup.trim()) return;
-    if (!groups.includes(newGroup.trim())) setSelectedGroup(newGroup.trim());
-    setSelectedGroup(newGroup.trim());
-    setNewGroup('');
+  const groups = [...new Set(checklistItems.map(i => i.group_name || ''))];
+  const ungrouped = checklistItems.filter(i => !i.group_name);
+  const groupedMap = {};
+  checklistItems.forEach(i => {
+    const g = i.group_name || '__none__';
+    if (!groupedMap[g]) groupedMap[g] = [];
+    groupedMap[g].push(i);
+  });
+
+  async function addGroup() {
+    if (!newGroupName.trim()) return;
+    setAddingGroup(false);
+    setNewGroupName('');
+    // Just add it locally — items will be added to it
+    setGroupMenuOpen(null);
+    // Create a placeholder so group appears
+    setChecklistItems(prev => [...prev, {
+      id: '__placeholder__' + Date.now(),
+      job_id: job.id,
+      description: '',
+      group_name: newGroupName.trim(),
+      completed: false,
+      sort_order: prev.length,
+      __placeholder: true,
+    }]);
+  }
+
+  async function addItemToGroup(groupName) {
+    const text = newItemText[groupName ?? '__none__'] ?? '';
+    if (!text.trim()) return;
+    const { data } = await supabase.from('job_checklist_items').insert([{
+      job_id: job.id,
+      description: text.trim(),
+      sort_order: checklistItems.filter(i => !i.__placeholder).length,
+      group_name: groupName || null,
+    }]).select().single();
+    if (data) setChecklistItems(prev => [
+      ...prev.filter(i => !(i.__placeholder && i.group_name === groupName)),
+      data,
+    ]);
+    setNewItemText(prev => ({ ...prev, [groupName ?? '__none__']: '' }));
+    setAddingItemGroup(null);
   }
 
   async function renameGroup(oldName) {
@@ -53,6 +89,14 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     if (!newName || newName === oldName) return;
     await supabase.from('job_checklist_items').update({ group_name: newName }).eq('job_id', job.id).eq('group_name', oldName);
     setChecklistItems(prev => prev.map(i => i.group_name === oldName ? { ...i, group_name: newName } : i));
+    setGroupMenuOpen(null);
+  }
+
+  async function deleteGroup(groupName) {
+    if (!confirm(`¿Eliminar el grupo "${groupName}" y todos sus ítems?`)) return;
+    await supabase.from('job_checklist_items').delete().eq('job_id', job.id).eq('group_name', groupName);
+    setChecklistItems(prev => prev.filter(i => i.group_name !== groupName));
+    setGroupMenuOpen(null);
   }
 
   async function updateStatus(val) {
@@ -119,22 +163,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setNotesList(prev => prev.filter(n => n.id !== noteId));
   }
 
-  // ─── Checklist ───
-  async function addItem(e) {
-    e.preventDefault();
-    if (!newItem.trim()) return;
-    setAddingItem(true);
-    const { data } = await supabase.from('job_checklist_items').insert([{
-      job_id: job.id,
-      description: newItem.trim(),
-      sort_order: checklistItems.length,
-      group_name: selectedGroup || null,
-    }]).select().single();
-    if (data) setChecklistItems(prev => [...prev, data]);
-    setNewItem('');
-    setAddingItem(false);
-  }
-
+  // ─── Checklist item actions ───
   async function toggleItem(itemId, completed) {
     await supabase.from('job_checklist_items').update({
       completed: !completed,
@@ -413,7 +442,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       {/* ─── CHECKLIST TAB ─── */}
       {tab === 'checklist' && (
         <div style={{ maxWidth: 700 }}>
-          {checklistItems.length > 0 && (
+          {/* Progress */}
+          {checklistItems.filter(i => !i.__placeholder).length > 0 && (
             <div className="card" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={{ fontWeight: 700, fontSize: 14 }}>Progreso</span>
@@ -422,94 +452,121 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <div style={{ background: 'var(--border)', borderRadius: 50, height: 8 }}>
                 <div style={{ background: progress === 100 ? 'var(--ok)' : 'var(--amber)', borderRadius: 50, height: 8, width: `${progress}%`, transition: 'width 0.3s' }} />
               </div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{completedCount} de {checklistItems.length} completados</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{completedCount} de {checklistItems.filter(i => !i.__placeholder).length} completados</div>
             </div>
           )}
 
-          <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Agregar ítem</p>
-              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setShowTemplates(!showTemplates)}>
-                📋 Usar plantilla
-              </button>
-            </div>
-
-            {showTemplates && (
-              <div style={{ marginBottom: 16, background: 'var(--bg)', borderRadius: 10, padding: 12 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>PLANTILLAS DISPONIBLES</p>
-                {templates.length === 0
-                  ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No hay plantillas. <a href="/admin/plantillas" style={{ color: 'var(--amber)' }}>Crear una →</a></p>
-                  : templates.map(t => (
-                    <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t.checklist_template_items?.length ?? 0} ítems</div>
-                      </div>
-                      <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => applyTemplate(t)}>Aplicar</button>
-                    </div>
-                  ))
-                }
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-              <input value={newGroup} onChange={e => setNewGroup(e.target.value)} placeholder="Nombre del grupo (opcional)..." style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }} onClick={addGroup}>+ Grupo</button>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)} style={{ padding: '10px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', minWidth: 140 }}>
-                <option value="">Sin grupo</option>
-                {groups.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-              <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="Descripción del ítem..."
-                onKeyDown={e => e.key === 'Enter' && addItem(e)}
-                style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-              <button type="button" className="btn btn-primary" disabled={addingItem} onClick={addItem}>+ Agregar</button>
-            </div>
+          {/* Toolbar */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+            <button className="btn btn-primary" onClick={() => setAddingGroup(true)} style={{ whiteSpace: 'nowrap' }}>+ Nuevo grupo</button>
+            <button className="btn btn-ghost" onClick={() => setShowTemplates(!showTemplates)} style={{ whiteSpace: 'nowrap' }}>📋 Plantilla</button>
           </div>
 
-          <div className="card">
-            {checklistItems.length === 0 ? (
-              <div className="empty"><p>Sin ítems. Agrega uno arriba o usa una plantilla.</p></div>
-            ) : (
-              (() => {
-                const grouped = {};
-                checklistItems.forEach(item => {
-                  const g = item.group_name || '';
-                  if (!grouped[g]) grouped[g] = [];
-                  grouped[g].push(item);
-                });
-                return Object.entries(grouped).map(([groupName, items]) => (
-                  <div key={groupName} style={{ marginBottom: 16 }}>
+          {/* New group input */}
+          {addingGroup && (
+            <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
+              <input autoFocus value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addGroup()}
+                placeholder="Nombre del grupo..." style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+              <button className="btn btn-primary" onClick={addGroup}>Crear</button>
+              <button className="btn btn-ghost" onClick={() => { setAddingGroup(false); setNewGroupName(''); }}>Cancelar</button>
+            </div>
+          )}
+
+          {/* Templates */}
+          {showTemplates && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>PLANTILLAS</p>
+              {templates.length === 0
+                ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No hay plantillas. <a href="/admin/plantillas" style={{ color: 'var(--amber)' }}>Crear una →</a></p>
+                : templates.map(t => (
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t.checklist_template_items?.length ?? 0} ítems</div>
+                    </div>
+                    <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => { applyTemplate(t); setShowTemplates(false); }}>Aplicar</button>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+
+          {/* Group cards */}
+          {Object.keys(groupedMap).length === 0 && (
+            <div className="card empty"><p>Sin ítems. Crea un grupo o agrega ítems directamente.</p></div>
+          )}
+
+          {Object.entries(groupedMap).map(([groupKey, items]) => {
+            const groupName = groupKey === '__none__' ? null : groupKey;
+            const realItems = items.filter(i => !i.__placeholder);
+            return (
+              <div key={groupKey} className="card" style={{ marginBottom: 16 }}>
+                {/* Group header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>
+                    {groupName ?? 'Sin grupo'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     {groupName && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📁 {groupName}</div>
-                        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-                        <button onClick={() => renameGroup(groupName)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}>✏️</button>
+                      <div style={{ position: 'relative' }}>
+                        <button onClick={() => setGroupMenuOpen(groupMenuOpen === groupKey ? null : groupKey)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
+                        {groupMenuOpen === groupKey && (
+                          <>
+                            <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setGroupMenuOpen(null)} />
+                            <div style={{ position: 'absolute', right: 0, top: 28, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
+                              <button onClick={() => renameGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
+                              <button onClick={() => deleteGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar grupo</button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
-                    {items.map(item => (
-                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-                        <div onClick={() => toggleItem(item.id, item.completed)}
-                          style={{ width: 22, height: 22, borderRadius: 6, border: item.completed ? 'none' : '2px solid var(--border)', background: item.completed ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                          {item.completed && <span style={{ color: '#fff', fontSize: 13, fontWeight: 900 }}>✓</span>}
-                        </div>
-                        <span style={{ flex: 1, fontSize: 14, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--muted)' : 'var(--text)' }}>
-                          {item.description}
-                        </span>
-                        {item.completed && item.completed_at && (
-                          <span style={{ fontSize: 11, color: 'var(--muted)' }} suppressHydrationWarning>
-                            {new Date(item.completed_at).toLocaleDateString('es-PR')}
-                          </span>
-                        )}
-                        <button onClick={() => deleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button>
-                      </div>
-                    ))}
                   </div>
-                ));
-              })()
-            )}
-          </div>
+                </div>
+
+                {/* Items */}
+                {realItems.map(item => (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                    <div onClick={() => toggleItem(item.id, item.completed)}
+                      style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #ccc', background: item.completed ? '#27ae60' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
+                      {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--muted)' : 'var(--text)' }}>
+                        {item.description}
+                      </div>
+                      {item.completed && item.completed_at && (
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }} suppressHydrationWarning>
+                          Completado el {new Date(item.completed_at).toLocaleDateString('es-PR')}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => deleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, marginTop: 2 }}>×</button>
+                  </div>
+                ))}
+
+                {/* Add item inline */}
+                {addingItemGroup === groupKey ? (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <input autoFocus value={newItemText[groupKey] ?? ''}
+                      onChange={e => setNewItemText(prev => ({ ...prev, [groupKey]: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && addItemToGroup(groupName)}
+                      placeholder="Descripción del ítem..."
+                      style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                    <button className="btn btn-primary" style={{ fontSize: 13, padding: '6px 12px' }} onClick={() => addItemToGroup(groupName)}>Agregar</button>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }} onClick={() => setAddingItemGroup(null)}>×</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setAddingItemGroup(groupKey)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 600, padding: '4px 0' }}>
+                    + Nuevo ítem
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
