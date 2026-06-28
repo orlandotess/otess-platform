@@ -37,6 +37,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [newGroupName, setNewGroupName] = useState('');
   const [addingGroup, setAddingGroup] = useState(false);
   const [groupMenuOpen, setGroupMenuOpen] = useState(null);
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(null);
   const [newItemText, setNewItemText] = useState({});
   const [addingItemGroup, setAddingItemGroup] = useState(null);
 
@@ -409,12 +410,27 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               {templates.length === 0
                 ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No hay plantillas. <a href="/admin/plantillas" style={{ color: 'var(--amber)' }}>Crear una →</a></p>
                 : templates.map(t => (
-                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</div>
                       <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t.checklist_template_items?.length ?? 0} ítems</div>
                     </div>
-                    <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => { applyTemplate(t); setShowTemplates(false); }}>Aplicar</button>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => { applyTemplate(t); setShowTemplates(false); }}>Aplicar</button>
+                      <div style={{ position: 'relative' }}>
+                        <button onClick={() => setTemplateMenuOpen(templateMenuOpen === t.id ? null : t.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
+                        {templateMenuOpen === t.id && (
+                          <>
+                            <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setTemplateMenuOpen(null)} />
+                            <div style={{ position: 'absolute', right: 0, top: 28, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
+                              <button onClick={() => { applyTemplate(t); setShowTemplates(false); setTemplateMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✅ Aplicar</button>
+                              <button onClick={() => { setShowTemplates(false); setTemplateMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✕ Cancelar</button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ))
               }
