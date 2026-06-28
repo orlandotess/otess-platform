@@ -123,11 +123,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     e.preventDefault();
     if (!newItem.trim()) return;
     setAddingItem(true);
-    console.log('Adding item:', { job_id: job.id, description: newItem.trim(), group_name: selectedGroup || null });
     const { data } = await supabase.from('job_checklist_items').insert([{
       job_id: job.id,
       description: newItem.trim(),
       sort_order: checklistItems.length,
+      group_name: selectedGroup || null,
     }]).select().single();
     if (data) setChecklistItems(prev => [...prev, data]);
     setNewItem('');
@@ -455,14 +455,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <input value={newGroup} onChange={e => setNewGroup(e.target.value)} placeholder="Nombre del grupo (opcional)..." style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
               <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }} onClick={addGroup}>+ Grupo</button>
             </div>
-            <form onSubmit={addItem} style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
               <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)} style={{ padding: '10px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', minWidth: 140 }}>
                 <option value="">Sin grupo</option>
                 {groups.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
-              <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="Descripción del ítem..." style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-              <button type="submit" className="btn btn-primary" disabled={addingItem}>+ Agregar</button>
-            </form>
+              <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="Descripción del ítem..."
+                onKeyDown={e => e.key === 'Enter' && addItem(e)}
+                style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+              <button type="button" className="btn btn-primary" disabled={addingItem} onClick={addItem}>+ Agregar</button>
+            </div>
           </div>
 
           <div className="card">
