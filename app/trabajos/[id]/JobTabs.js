@@ -142,6 +142,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     }]).select().single();
     if (newNote) setNotesList(prev => [newNote, ...prev]);
     setNoteText(''); setPendingPhoto(null); setPendingPhotoPreview(null); setSavingNote(false);
+    // Reload to get signed URLs for new photos
+    if (photoUrl) router.refresh();
   }
 
   async function deleteNote(noteId) {
