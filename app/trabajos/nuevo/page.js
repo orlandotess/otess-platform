@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { useRouter } from 'next/navigation';
+import Sidebar from '../../Sidebar';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
@@ -32,18 +34,20 @@ export default function NuevoTrabajo() {
       .then(({ data }) => setContacts(data ?? []));
   }, [form.client_id]);
 
-  // When property selected, fill address
   useEffect(() => {
     if (!form.property_id) return;
     const p = properties.find(p => p.id === form.property_id);
-    if (p) set('street', p.street ?? ''), set('city', p.city ?? ''), set('state', p.state ?? 'PR'), set('zip', p.zip ?? '');
+    if (p) {
+      setForm(f => ({ ...f, street: p.street ?? '', city: p.city ?? '', state: p.state ?? 'PR', zip: p.zip ?? '' }));
+    }
   }, [form.property_id]);
 
-  // When contact selected, fill contact fields
   useEffect(() => {
     if (!form.contact_id) return;
     const c = contacts.find(c => c.id === form.contact_id);
-    if (c) set('contact_name', c.name ?? ''), set('contact_phone', c.phone ?? ''), set('contact_email', c.email ?? '');
+    if (c) {
+      setForm(f => ({ ...f, contact_name: c.name ?? '', contact_phone: c.phone ?? '', contact_email: c.email ?? '' }));
+    }
   }, [form.contact_id]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -181,8 +185,6 @@ export default function NuevoTrabajo() {
                   <input value={form.zip} onChange={e => set('zip', e.target.value)} placeholder="00901" />
                 </div>
               </div>
-
-              {/* Map buttons */}
               {fullAddress && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                   <a href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`} target="_blank" rel="noopener noreferrer"
