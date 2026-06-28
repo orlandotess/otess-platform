@@ -436,28 +436,69 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
 
               {expandedContact === c.id && (
                 <div style={{ marginTop: 16, borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                    {c.phone && (
-                      <div>
-                        <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Teléfono</p>
-                        <a href={`tel:${c.phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                          📞 {c.phone}
-                        </a>
-                      </div>
-                    )}
-                    {c.email && (
-                      <div>
-                        <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Email</p>
-                        <a href={`mailto:${c.email}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                          ✉️ {c.email}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                  {c.property_id && (
+                  {editingContact === c.id ? (
                     <div>
-                      <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Propiedad asociada</p>
-                      <div style={{ fontSize: 14, color: 'var(--amber)', fontWeight: 600 }}>📍 {properties.find(p => p.id === c.property_id)?.name ?? '—'}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                          <label>Nombre</label>
+                          <input value={editContactData.name ?? ''} onChange={e => setEditContactData(d => ({ ...d, name: e.target.value }))} />
+                        </div>
+                        <div className="form-group">
+                          <label>Teléfono</label>
+                          <input value={editContactData.phone ?? ''} onChange={e => setEditContactData(d => ({ ...d, phone: e.target.value }))} placeholder="787-000-0000" />
+                        </div>
+                        <div className="form-group">
+                          <label>Email</label>
+                          <input type="email" value={editContactData.email ?? ''} onChange={e => setEditContactData(d => ({ ...d, email: e.target.value }))} placeholder="contacto@email.com" />
+                        </div>
+                        {properties.length > 0 && (
+                          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                            <label>Propiedad asociada</label>
+                            <select value={editContactData.property_id ?? ''} onChange={e => setEditContactData(d => ({ ...d, property_id: e.target.value || null }))}>
+                              <option value="">— Sin propiedad —</option>
+                              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button className="btn btn-primary" onClick={() => saveEditContact(c.id)} disabled={savingEditContact}>
+                          {savingEditContact ? 'Guardando...' : '💾 Guardar'}
+                        </button>
+                        <button className="btn btn-ghost" onClick={() => setEditingContact(null)}>Cancelar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => { setEditingContact(c.id); setEditContactData({ name: c.name, phone: c.phone ?? '', email: c.email ?? '', property_id: c.property_id ?? '' }); }}>
+                          ✏️ Editar
+                        </button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                        {c.phone && (
+                          <div>
+                            <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Teléfono</p>
+                            <a href={`tel:${c.phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                              📞 {c.phone}
+                            </a>
+                          </div>
+                        )}
+                        {c.email && (
+                          <div>
+                            <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Email</p>
+                            <a href={`mailto:${c.email}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                              ✉️ {c.email}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                      {c.property_id && (
+                        <div>
+                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Propiedad asociada</p>
+                          <div style={{ fontSize: 14, color: 'var(--amber)', fontWeight: 600 }}>📍 {properties.find(p => p.id === c.property_id)?.name ?? '—'}</div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
