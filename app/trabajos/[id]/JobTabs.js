@@ -36,6 +36,23 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [newItem, setNewItem] = useState('');
   const [addingItem, setAddingItem] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [newGroup, setNewGroup] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('');
+  const groups = [...new Set(checklistItems.map(i => i.group_name).filter(Boolean))];
+
+  function addGroup() {
+    if (!newGroup.trim()) return;
+    if (!groups.includes(newGroup.trim())) setSelectedGroup(newGroup.trim());
+    setSelectedGroup(newGroup.trim());
+    setNewGroup('');
+  }
+
+  async function renameGroup(oldName) {
+    const newName = prompt(`Renombrar grupo "${oldName}":`, oldName);
+    if (!newName || newName === oldName) return;
+    await supabase.from('job_checklist_items').update({ group_name: newName }).eq('job_id', job.id).eq('group_name', oldName);
+    setChecklistItems(prev => prev.map(i => i.group_name === oldName ? { ...i, group_name: newName } : i));
+  }
 
   async function updateStatus(val) {
     setStatus(val);
@@ -54,7 +71,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     await supabase.from('job_notes').delete().eq('job_id', job.id);
     await supabase.from('job_checklist_items').delete().eq('job_id', job.id);
     await supabase.from('jobs').delete().eq('id', job.id);
-   window.location.replace('/trabajos');
+    router.push('/trabajos');
   }
 
   // ─── Notes & Photos ───
@@ -433,7 +450,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </div>
             )}
 
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+              <input value={newGroup} onChange={e => setNewGroup(e.target.value)} placeholder="Nombre del grupo (opcional)..." style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }} onClick={addGroup}>+ Grupo</button>
+            </div>
             <form onSubmit={addItem} style={{ display: 'flex', gap: 10 }}>
+              <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)} style={{ padding: '10px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', minWidth: 140 }}>
+                <option value="">Sin grupo</option>
+                {groups.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
               <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="Descripción del ítem..." style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
               <button type="submit" className="btn btn-primary" disabled={addingItem}>+ Agregar</button>
             </form>
@@ -443,23 +468,42 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             {checklistItems.length === 0 ? (
               <div className="empty"><p>Sin ítems. Agrega uno arriba o usa una plantilla.</p></div>
             ) : (
-              checklistItems.map(item => (
-                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-                  <div onClick={() => toggleItem(item.id, item.completed)}
-                    style={{ width: 22, height: 22, borderRadius: 6, border: item.completed ? 'none' : '2px solid var(--border)', background: item.completed ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                    {item.completed && <span style={{ color: '#fff', fontSize: 13, fontWeight: 900 }}>✓</span>}
+              (() => {
+                const grouped = {};
+                checklistItems.forEach(item => {
+                  const g = item.group_name || '';
+                  if (!grouped[g]) grouped[g] = [];
+                  grouped[g].push(item);
+                });
+                return Object.entries(grouped).map(([groupName, items]) => (
+                  <div key={groupName} style={{ marginBottom: 16 }}>
+                    {groupName && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--navy)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📁 {groupName}</div>
+                        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                        <button onClick={() => renameGroup(groupName)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}>✏️</button>
+                      </div>
+                    )}
+                    {items.map(item => (
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                        <div onClick={() => toggleItem(item.id, item.completed)}
+                          style={{ width: 22, height: 22, borderRadius: 6, border: item.completed ? 'none' : '2px solid var(--border)', background: item.completed ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                          {item.completed && <span style={{ color: '#fff', fontSize: 13, fontWeight: 900 }}>✓</span>}
+                        </div>
+                        <span style={{ flex: 1, fontSize: 14, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--muted)' : 'var(--text)' }}>
+                          {item.description}
+                        </span>
+                        {item.completed && item.completed_at && (
+                          <span style={{ fontSize: 11, color: 'var(--muted)' }} suppressHydrationWarning>
+                            {new Date(item.completed_at).toLocaleDateString('es-PR')}
+                          </span>
+                        )}
+                        <button onClick={() => deleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button>
+                      </div>
+                    ))}
                   </div>
-                  <span style={{ flex: 1, fontSize: 14, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--muted)' : 'var(--text)' }}>
-                    {item.description}
-                  </span>
-                  {item.completed && item.completed_at && (
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }} suppressHydrationWarning>
-                      {new Date(item.completed_at).toLocaleDateString('es-PR')}
-                    </span>
-                  )}
-                  <button onClick={() => deleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button>
-                </div>
-              ))
+                ));
+              })()
             )}
           </div>
         </div>
