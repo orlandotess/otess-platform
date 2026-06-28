@@ -69,7 +69,7 @@ export default function FieldApp() {
   useEffect(() => { loadJobs(); }, [jobFilter]);
 
   useEffect(() => {
-    supabase.from('jobs').select('id, title, status, scheduled_start, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)')
+    supabase.from('jobs').select('id, title, status, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)')
       .in('status', ['scheduled', 'in_progress'])
       .order('scheduled_start', { ascending: true }).limit(20)
       .then(({ data }) => setAllJobs(data ?? []));
@@ -87,7 +87,7 @@ export default function FieldApp() {
 
   async function loadJobs() {
     setLoading(true);
-    let q = supabase.from('jobs').select('id, title, status, scheduled_start, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)');
+    let q = supabase.from('jobs').select('id, title, status, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)');
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
     if (jobFilter === 'today') q = q.gte('scheduled_start', today.toISOString()).lt('scheduled_start', tomorrow.toISOString());
