@@ -37,6 +37,29 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
   const [contact, setContact] = useState({ name: '', phone: '', email: '', property_id: '' });
   const [savingContact, setSavingContact] = useState(false);
 
+  const [editingProp, setEditingProp] = useState(null);
+  const [editPropData, setEditPropData] = useState({});
+  const [savingEditProp, setSavingEditProp] = useState(false);
+  const [editingContact, setEditingContact] = useState(null);
+  const [editContactData, setEditContactData] = useState({});
+  const [savingEditContact, setSavingEditContact] = useState(false);
+
+  async function saveEditProperty(propId) {
+    setSavingEditProp(true);
+    await supabase.from('client_properties').update(editPropData).eq('id', propId);
+    setProperties(prev => prev.map(p => p.id === propId ? { ...p, ...editPropData } : p));
+    setEditingProp(null);
+    setSavingEditProp(false);
+  }
+
+  async function saveEditContact(contactId) {
+    setSavingEditContact(true);
+    await supabase.from('client_contacts').update(editContactData).eq('id', contactId);
+    setContacts(prev => prev.map(c => c.id === contactId ? { ...c, ...editContactData } : c));
+    setEditingContact(null);
+    setSavingEditContact(false);
+  }
+
   const [jobCount, setJobCount] = useState(0);
   const [expandedProp, setExpandedProp] = useState(null);
   const [expandedContact, setExpandedContact] = useState(null);
@@ -264,45 +287,84 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
 
               {expandedProp === p.id && (
                 <div style={{ marginTop: 16, borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
-                  {/* Dirección y mapas */}
-                  {(p.street || p.city) && (
-                    <div style={{ marginBottom: 16 }}>
-                      <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Dirección</p>
-                      {p.street && <div style={{ fontSize: 14 }}>{p.street}</div>}
-                      {p.city && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{p.city}{p.state ? `, ${p.state}` : ''}{p.zip ? ` ${p.zip}` : ''}</div>}
-                      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                          🗺️ Google Maps
-                        </a>
-                        <a href={`https://maps.apple.com/?q=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                          🍎 Apple Maps
-                        </a>
-                        <a href={`https://waze.com/ul?q=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                          🚗 Waze
-                        </a>
+                  {editingProp === p.id ? (
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                          <label>Nombre</label>
+                          <input value={editPropData.name ?? ''} onChange={e => setEditPropData(d => ({ ...d, name: e.target.value }))} />
+                        </div>
+                        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                          <label>Dirección</label>
+                          <input value={editPropData.street ?? ''} onChange={e => setEditPropData(d => ({ ...d, street: e.target.value }))} placeholder="Calle y número" />
+                        </div>
+                        <div className="form-group">
+                          <label>Ciudad</label>
+                          <input value={editPropData.city ?? ''} onChange={e => setEditPropData(d => ({ ...d, city: e.target.value }))} placeholder="San Juan" />
+                        </div>
+                        <div className="form-group">
+                          <label>Estado</label>
+                          <input value={editPropData.state ?? ''} onChange={e => setEditPropData(d => ({ ...d, state: e.target.value }))} placeholder="PR" />
+                        </div>
+                        <div className="form-group">
+                          <label>Zip</label>
+                          <input value={editPropData.zip ?? ''} onChange={e => setEditPropData(d => ({ ...d, zip: e.target.value }))} placeholder="00901" />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button className="btn btn-primary" onClick={() => saveEditProperty(p.id)} disabled={savingEditProp}>
+                          {savingEditProp ? 'Guardando...' : '💾 Guardar'}
+                        </button>
+                        <button className="btn btn-ghost" onClick={() => setEditingProp(null)}>Cancelar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => { setEditingProp(p.id); setEditPropData({ name: p.name, street: p.street ?? '', city: p.city ?? '', state: p.state ?? 'PR', zip: p.zip ?? '' }); }}>
+                          ✏️ Editar
+                        </button>
+                      </div>
+                      {/* Dirección y mapas */}
+                      {(p.street || p.city) && (
+                        <div style={{ marginBottom: 16 }}>
+                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Dirección</p>
+                          {p.street && <div style={{ fontSize: 14 }}>{p.street}</div>}
+                          {p.city && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{p.city}{p.state ? `, ${p.state}` : ''}{p.zip ? ` ${p.zip}` : ''}</div>}
+                          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                              🗺️ Google Maps
+                            </a>
+                            <a href={`https://maps.apple.com/?q=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                              🍎 Apple Maps
+                            </a>
+                            <a href={`https://waze.com/ul?q=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                              🚗 Waze
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                      {/* Contactos asociados */}
+                      <div>
+                        <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Contactos asociados</p>
+                        {contacts.filter(c => c.property_id === p.id).length === 0
+                          ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin contactos asociados.</p>
+                          : contacts.filter(c => c.property_id === p.id).map(c => (
+                            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
+                              </div>
+                              {c.phone && <a href={`tel:${c.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#27ae60', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {c.phone}</a>}
+                              {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'var(--navy)', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
+                            </div>
+                          ))
+                        }
                       </div>
                     </div>
                   )}
-
-                  {/* Contactos asociados */}
-                  <div>
-                    <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Contactos asociados</p>
-                    {contacts.filter(c => c.property_id === p.id).length === 0
-                      ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin contactos asociados.</p>
-                      : contacts.filter(c => c.property_id === p.id).map(c => (
-                        <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
-                          </div>
-                          {c.phone && <a href={`tel:${c.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#27ae60', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {c.phone}</a>}
-                          {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'var(--navy)', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
-                        </div>
-                      ))
-                    }
-                  </div>
                 </div>
               )}
             </div>
