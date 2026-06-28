@@ -44,11 +44,11 @@ export default async function TrabajoDetail({ params }) {
       if (!note.photo_url) return note;
       try {
         const url = new URL(note.photo_url);
-        const pathParts = url.pathname.split('/job-photos/');
+        const pathParts = url.pathname.split('/Job-photos/');
         const filePath = pathParts[1];
         if (!filePath) return note;
         const { data } = await supabase.storage
-          .from('job-photos')
+          .from('Job-photos')
           .createSignedUrl(filePath, 3600);
         return { ...note, photo_url: data?.signedUrl ?? note.photo_url };
       } catch {
