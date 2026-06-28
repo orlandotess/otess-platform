@@ -55,14 +55,10 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
       await supabase.from('job_checklist_items').delete().in('job_id', jobIds);
       await supabase.from('jobs').delete().eq('client_id', client.id);
     }
-    await supabase.from('invoices').delete().eq('client_id', client.id);
-    await supabase.from('client_addresses').delete().eq('client_id', client.id);
     await supabase.from('client_contacts').delete().eq('client_id', client.id);
     await supabase.from('client_properties').delete().eq('client_id', client.id);
     await supabase.from('clients').delete().eq('id', client.id);
-    window.location.replace('/clientes');
-  }
-
+    window.location.href = '/clientes';
   }
 
   async function saveProperty(e) {
