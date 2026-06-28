@@ -50,11 +50,14 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
     console.log('Deleting client:', client.id);
     const { data: clientJobs } = await supabase.from('jobs').select('id').eq('client_id', client.id);
     const jobIds = clientJobs?.map(j => j.id) ?? [];
-    if (jobIds.length > 0) {
+   if (jobIds.length > 0) {
       await supabase.from('job_line_items').delete().in('job_id', jobIds);
       await supabase.from('job_notes').delete().in('job_id', jobIds);
       await supabase.from('job_checklist_items').delete().in('job_id', jobIds);
+      await supabase.from('time_entries').delete().in('job_id', jobIds);
+      await supabase.from('invoices').delete().in('job_id', jobIds);
       await supabase.from('jobs').delete().eq('client_id', client.id);
+    }
     }
     await supabase.from('client_contacts').delete().eq('client_id', client.id);
     await supabase.from('client_properties').delete().eq('client_id', client.id);
