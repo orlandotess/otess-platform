@@ -189,8 +189,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setShowTemplates(false);
   }
 
-  const completedCount = checklistItems.filter(i => i.completed).length;
-  const progress = checklistItems.length > 0 ? Math.round((completedCount / checklistItems.length) * 100) : 0;
+  const completedCount = checklistItems.filter(i => i.completed && !i.__placeholder).length;
+  const progress = checklistItems.filter(i => !i.__placeholder).length > 0 ? Math.round((completedCount / checklistItems.filter(i => !i.__placeholder).length) * 100) : 0;
 
   const tabStyle = (t) => ({
     padding: '10px 20px',
