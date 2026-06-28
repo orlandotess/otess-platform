@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
-import PayrollClient from './PayrollClient';
+import PayrollClient from './PayrollCliente';
 
 function getWeekRange(offset = 0) {
   const now = new Date();
