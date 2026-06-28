@@ -75,7 +75,7 @@ function PeriodSection({ label, revenue, ivu, payroll, fmt }) {
         <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0 }}>{label}</h2>
         <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>{revenue.count} facturas</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Facturado</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--navy)' }}>{fmt(revenue.total)}</div>
@@ -91,6 +91,25 @@ function PeriodSection({ label, revenue, ivu, payroll, fmt }) {
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Payroll</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: '#e05c2a' }}>{fmt(payroll)}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16, padding: '12px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Sub. Productos</div>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{fmt(revenue.subProducts)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Sub. Labor</div>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{fmt(revenue.subLabor)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>IVU Productos</div>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{fmt(revenue.taxProducts)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>IVU Labor</div>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{fmt(revenue.taxLabor)}</div>
         </div>
       </div>
       <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
