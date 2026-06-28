@@ -38,6 +38,8 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
   const [savingContact, setSavingContact] = useState(false);
 
   const [jobCount, setJobCount] = useState(0);
+  const [expandedProp, setExpandedProp] = useState(null);
+  const [expandedContact, setExpandedContact] = useState(null);
 
   async function handleDeleteClick() {
     const { count } = await supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('client_id', client.id);
@@ -53,6 +55,8 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
       await supabase.from('job_line_items').delete().in('job_id', jobIds);
       await supabase.from('job_notes').delete().in('job_id', jobIds);
       await supabase.from('job_checklist_items').delete().in('job_id', jobIds);
+      await supabase.from('time_entries').delete().in('job_id', jobIds);
+      await supabase.from('invoices').delete().in('job_id', jobIds);
       await supabase.from('jobs').delete().eq('client_id', client.id);
     }
     await supabase.from('invoices').delete().eq('client_id', client.id);
@@ -239,36 +243,68 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
             <div className="card empty"><p>No hay propiedades. Agrega la primera arriba.</p></div>
           ) : properties.map(p => (
             <div key={p.id} className="card" style={{ marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{p.name}</div>
                     {p.is_primary && <span className="badge badge-green">Principal</span>}
                   </div>
-                  {p.street && <div style={{ fontSize: 13, color: 'var(--muted)' }}>{p.street}</div>}
-                  {p.city && <div style={{ fontSize: 13, color: 'var(--muted)' }}>{p.city}, {p.state} {p.zip}</div>}
-                  <div style={{ marginTop: 8 }}>
-                    {contacts.filter(c => c.property_id === p.id).map(c => (
-                      <div key={c.id} style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', gap: 12 }}>
-                        <span>👤 {c.name}</span>
-                        {c.phone && <span>📞 {c.phone}</span>}
-                        {c.email && <span>✉️ {c.email}</span>}
-                      </div>
-                    ))}
-                  </div>
+                  {p.street && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{p.street}{p.city ? `, ${p.city}` : ''}{p.state ? `, ${p.state}` : ''}</div>}
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   {!p.is_primary && (
-                    <button onClick={() => setPrimary(p.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}>
-                      Marcar principal
-                    </button>
+                    <button onClick={() => setPrimary(p.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}>Principal</button>
                   )}
-                  <Link href={`/clientes/${client.id}/propiedades/${p.id}`} className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}>
-                    Ver →
-                  </Link>
+                  <button onClick={() => setExpandedProp(expandedProp === p.id ? null : p.id)} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>
+                    {expandedProp === p.id ? 'Cerrar ↑' : 'Ver →'}
+                  </button>
                   <button onClick={() => deleteProperty(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
                 </div>
               </div>
+
+              {expandedProp === p.id && (
+                <div style={{ marginTop: 16, borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
+                  {/* Dirección y mapas */}
+                  {(p.street || p.city) && (
+                    <div style={{ marginBottom: 16 }}>
+                      <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Dirección</p>
+                      {p.street && <div style={{ fontSize: 14 }}>{p.street}</div>}
+                      {p.city && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{p.city}{p.state ? `, ${p.state}` : ''}{p.zip ? ` ${p.zip}` : ''}</div>}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                          🗺️ Google Maps
+                        </a>
+                        <a href={`https://maps.apple.com/?q=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                          🍎 Apple Maps
+                        </a>
+                        <a href={`https://waze.com/ul?q=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                          🚗 Waze
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contactos asociados */}
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Contactos asociados</p>
+                    {contacts.filter(c => c.property_id === p.id).length === 0
+                      ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin contactos asociados.</p>
+                      : contacts.filter(c => c.property_id === p.id).map(c => (
+                        <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
+                          </div>
+                          {c.phone && <a href={`tel:${c.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#27ae60', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {c.phone}</a>}
+                          {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'var(--navy)', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -320,27 +356,50 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
             <div className="card empty"><p>No hay contactos. Agrega el primero arriba.</p></div>
           ) : contacts.map(c => (
             <div key={c.id} className="card" style={{ marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{c.name}</div>
                     {c.is_primary && <span className="badge badge-green">Principal</span>}
                   </div>
-                  {c.phone && <div style={{ fontSize: 13, color: 'var(--muted)' }}>📞 {c.phone}</div>}
-                  {c.email && <div style={{ fontSize: 13, color: 'var(--muted)' }}>✉️ {c.email}</div>}
-                  {c.property_id && (
-                    <div style={{ fontSize: 12, color: 'var(--amber)', marginTop: 4 }}>
-                      📍 {properties.find(p => p.id === c.property_id)?.name}
-                    </div>
-                  )}
+                  {c.phone && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{c.phone}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <Link href={`/clientes/${client.id}/contactos/${c.id}`} className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}>
-                    Ver →
-                  </Link>
+                  <button onClick={() => setExpandedContact(expandedContact === c.id ? null : c.id)} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>
+                    {expandedContact === c.id ? 'Cerrar ↑' : 'Ver →'}
+                  </button>
                   <button onClick={() => deleteContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
                 </div>
               </div>
+
+              {expandedContact === c.id && (
+                <div style={{ marginTop: 16, borderTop: '1.5px solid var(--border)', paddingTop: 16 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                    {c.phone && (
+                      <div>
+                        <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Teléfono</p>
+                        <a href={`tel:${c.phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                          📞 {c.phone}
+                        </a>
+                      </div>
+                    )}
+                    {c.email && (
+                      <div>
+                        <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Email</p>
+                        <a href={`mailto:${c.email}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                          ✉️ {c.email}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                  {c.property_id && (
+                    <div>
+                      <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Propiedad asociada</p>
+                      <div style={{ fontSize: 14, color: 'var(--amber)', fontWeight: 600 }}>📍 {properties.find(p => p.id === c.property_id)?.name ?? '—'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
