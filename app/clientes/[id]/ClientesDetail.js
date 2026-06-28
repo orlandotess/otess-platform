@@ -58,7 +58,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
     await supabase.from('client_contacts').delete().eq('client_id', client.id);
     await supabase.from('client_properties').delete().eq('client_id', client.id);
     await supabase.from('clients').delete().eq('id', client.id);
-    window.location.href = '/clientes';
+    window.location.replace('/clientes');
   }
 
   async function saveProperty(e) {
