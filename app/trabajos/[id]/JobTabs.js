@@ -54,7 +54,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     await supabase.from('job_notes').delete().eq('job_id', job.id);
     await supabase.from('job_checklist_items').delete().eq('job_id', job.id);
     await supabase.from('jobs').delete().eq('id', job.id);
-    router.push('/trabajos');
+   window.location.replace('/trabajos');
   }
 
   // ─── Notes & Photos ───
