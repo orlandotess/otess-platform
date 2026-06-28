@@ -288,22 +288,36 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  {job.scheduled_start && (
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Inicio</div>
-                      <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_start).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-                    </div>
-                  )}
-                  {job.scheduled_end && (
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Fin</div>
-                      <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_end).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-                    </div>
-                  )}
-                  {!job.scheduled_start && !job.scheduled_end && (
-                    <p style={{ color: 'var(--muted)', fontSize: 13, gridColumn: '1/-1' }}>Sin fecha programada.</p>
-                  )}
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {job.scheduled_start && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Inicio</div>
+                        <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_start).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                      </div>
+                    )}
+                    {job.scheduled_end && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Fin</div>
+                        <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_end).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                      </div>
+                    )}
+                    {!job.scheduled_start && !job.scheduled_end && (
+                      <p style={{ color: 'var(--muted)', fontSize: 13, gridColumn: '1/-1' }}>Sin fecha programada.</p>
+                    )}
+                  </div>
+                  {job.scheduled_start && job.scheduled_end && (() => {
+                    const diff = new Date(job.scheduled_end) - new Date(job.scheduled_start);
+                    const hours = Math.floor(diff / 3600000);
+                    const mins = Math.floor((diff % 3600000) / 60000);
+                    const duration = hours > 0 && mins > 0 ? `${hours}h ${mins}min` : hours > 0 ? `${hours}h` : `${mins}min`;
+                    return (
+                      <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                        <span style={{ fontSize: 13 }}>⏱</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{duration} de trabajo</span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               {job.notes && (
