@@ -38,7 +38,10 @@ export default async function AccountingPayroll({ searchParams }) {
     dateEnd = new Date(year, 11, 31, 23, 59, 59).toISOString();
   }
 
-  const [{ data: technicians }, { data: entries }] = await Promise.all([
+  const periodStart = dateStart.slice(0, 10);
+  const periodEnd = dateEnd.slice(0, 10);
+
+  const [{ data: technicians }, { data: entries }, { data: adjustments }] = await Promise.all([
     supabase.from('technicians').select('*').order('name'),
     supabase.from('time_entries')
       .select('*')
@@ -46,10 +49,15 @@ export default async function AccountingPayroll({ searchParams }) {
       .lte('clocked_in_at', dateEnd)
       .not('clocked_out_at', 'is', null)
       .order('clocked_in_at'),
+    supabase.from('payroll_adjustments')
+      .select('*')
+      .eq('period_start', periodStart)
+      .eq('period_end', periodEnd),
   ]);
 
   const techs = technicians ?? [];
   const ents = entries ?? [];
+  const adjs = adjustments ?? [];
   const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
@@ -58,7 +66,7 @@ export default async function AccountingPayroll({ searchParams }) {
 
   const techStats = techs.map(tech => {
     const techEntries = ents.filter(e => e.technician_id === tech.id);
-    let regularHours = 0, overtimeHours = 0;
+    let rawRegular = 0, rawOvertime = 0;
     const byDay = {};
     techEntries.forEach(e => {
       const day = e.clocked_in_at.slice(0, 10);
@@ -66,15 +74,33 @@ export default async function AccountingPayroll({ searchParams }) {
       byDay[day] += (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000;
     });
     Object.values(byDay).forEach(hours => {
-      if (hours > 8) { regularHours += 8; overtimeHours += hours - 8; }
-      else regularHours += hours;
+      if (hours > 8) { rawRegular += 8; rawOvertime += hours - 8; }
+      else rawRegular += hours;
     });
+
+    // Apply overrides if they exist
+    const adj = adjs.find(a => a.technician_id === tech.id);
+    const regularHours = adj?.regular_hours_override ?? rawRegular;
+    const overtimeHours = adj?.overtime_hours_override ?? rawOvertime;
+    const hasOverride = adj?.regular_hours_override !== null && adj?.regular_hours_override !== undefined;
+
     const rate = Number(tech.hourly_rate ?? 0);
     const regularPay = regularHours * rate;
     const overtimePay = overtimeHours * rate * 1.5;
     const grossPay = regularPay + overtimePay;
     const retention = grossPay * 0.10;
-    return { ...tech, regularHours, overtimeHours, totalHours: regularHours + overtimeHours, regularPay, overtimePay, grossPay, retention, netPay: grossPay - retention };
+
+    return {
+      ...tech,
+      regularHours,
+      overtimeHours,
+      regularHoursRaw: rawRegular,
+      overtimeHoursRaw: rawOvertime,
+      totalHours: regularHours + overtimeHours,
+      regularPay, overtimePay, grossPay, retention,
+      netPay: grossPay - retention,
+      hasOverride,
+    };
   });
 
   const totalGross = techStats.reduce((a, t) => a + t.grossPay, 0);
@@ -82,10 +108,11 @@ export default async function AccountingPayroll({ searchParams }) {
   const totalNet = techStats.reduce((a, t) => a + t.netPay, 0);
   const totalHours = techStats.reduce((a, t) => a + t.totalHours, 0);
 
-  // For year view - fetch all entries of the year
   const { data: allYearEntries } = view === 'year' ? await supabase
-    .from('time_entries').select('*').gte('clocked_in_at', new Date(year, 0, 1).toISOString())
-    .lte('clocked_in_at', new Date(year, 11, 31, 23, 59, 59).toISOString()).not('clocked_out_at', 'is', null) : { data: ents };
+    .from('time_entries').select('*')
+    .gte('clocked_in_at', new Date(year, 0, 1).toISOString())
+    .lte('clocked_in_at', new Date(year, 11, 31, 23, 59, 59).toISOString())
+    .not('clocked_out_at', 'is', null) : { data: ents };
 
   const monthlyPayroll = months.map((m, i) => {
     const mStart = new Date(year, i, 1).toISOString();
@@ -193,14 +220,12 @@ export default async function AccountingPayroll({ searchParams }) {
 
         <PayrollClient
           techStats={techStats}
-          totalGross={totalGross}
-          totalRetention={totalRetention}
-          totalNet={totalNet}
-          totalHours={totalHours}
           monthlyPayroll={monthlyPayroll}
           view={view}
           year={year}
           months={months}
+          periodStart={periodStart}
+          periodEnd={periodEnd}
         />
       </main>
     </div>
