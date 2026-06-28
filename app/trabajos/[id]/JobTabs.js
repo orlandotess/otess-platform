@@ -40,8 +40,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [newItemText, setNewItemText] = useState({});
   const [addingItemGroup, setAddingItemGroup] = useState(null);
 
-  const groups = [...new Set(checklistItems.map(i => i.group_name || ''))];
-  const ungrouped = checklistItems.filter(i => !i.group_name);
   const groupedMap = {};
   checklistItems.forEach(i => {
     const g = i.group_name || '__none__';
@@ -52,10 +50,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   async function addGroup() {
     if (!newGroupName.trim()) return;
     setAddingGroup(false);
-    setNewGroupName('');
-    // Just add it locally — items will be added to it
-    setGroupMenuOpen(null);
-    // Create a placeholder so group appears
     setChecklistItems(prev => [...prev, {
       id: '__placeholder__' + Date.now(),
       job_id: job.id,
@@ -65,10 +59,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       sort_order: prev.length,
       __placeholder: true,
     }]);
+    setNewGroupName('');
   }
 
   async function addItemToGroup(groupName) {
-    const text = newItemText[groupName ?? '__none__'] ?? '';
+    const key = groupName ?? '__none__';
+    const text = newItemText[key] ?? '';
     if (!text.trim()) return;
     const { data } = await supabase.from('job_checklist_items').insert([{
       job_id: job.id,
@@ -80,14 +76,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       ...prev.filter(i => !(i.__placeholder && i.group_name === groupName)),
       data,
     ]);
-    setNewItemText(prev => ({ ...prev, [groupName ?? '__none__']: '' }));
+    setNewItemText(prev => ({ ...prev, [key]: '' }));
     setAddingItemGroup(null);
   }
 
   async function renameGroup(oldName) {
     const newName = prompt(`Renombrar grupo "${oldName}":`, oldName);
     if (!newName || newName === oldName) return;
-    await supabase.from('job_checklist_items').update({ group_name: newName }).eq('job_id', job.id).eq('group_name', oldName);
+    await supabase.from('job_checklist_items').update({ group_name: newName })
+      .eq('job_id', job.id).eq('group_name', oldName);
     setChecklistItems(prev => prev.map(i => i.group_name === oldName ? { ...i, group_name: newName } : i));
     setGroupMenuOpen(null);
   }
@@ -116,10 +113,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     await supabase.from('job_notes').delete().eq('job_id', job.id);
     await supabase.from('job_checklist_items').delete().eq('job_id', job.id);
     await supabase.from('jobs').delete().eq('id', job.id);
-    router.push('/trabajos');
+    window.location.replace('/trabajos');
   }
 
-  // ─── Notes & Photos ───
   function handleFileSelect(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -131,31 +127,20 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     e.preventDefault();
     if (!noteText.trim() && !pendingPhoto) return;
     setSavingNote(true);
-
     let photoUrl = null;
-
     if (pendingPhoto) {
       setUploadingPhoto(true);
       const ext = pendingPhoto.name.split('.').pop();
       const path = `${job.id}/${Date.now()}.${ext}`;
       const { error } = await supabase.storage.from('job-photos').upload(path, pendingPhoto);
-      if (!error) {
-        photoUrl = `${SUPABASE_URL}/storage/v1/object/public/job-photos/${path}`;
-      }
+      if (!error) photoUrl = `${SUPABASE_URL}/storage/v1/object/public/job-photos/${path}`;
       setUploadingPhoto(false);
     }
-
     const { data: newNote } = await supabase.from('job_notes').insert([{
-      job_id: job.id,
-      note: noteText.trim() || null,
-      photo_url: photoUrl,
+      job_id: job.id, note: noteText.trim() || null, photo_url: photoUrl,
     }]).select().single();
-
     if (newNote) setNotesList(prev => [newNote, ...prev]);
-    setNoteText('');
-    setPendingPhoto(null);
-    setPendingPhotoPreview(null);
-    setSavingNote(false);
+    setNoteText(''); setPendingPhoto(null); setPendingPhotoPreview(null); setSavingNote(false);
   }
 
   async function deleteNote(noteId) {
@@ -163,7 +148,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setNotesList(prev => prev.filter(n => n.id !== noteId));
   }
 
-  // ─── Checklist item actions ───
   async function toggleItem(itemId, completed) {
     await supabase.from('job_checklist_items').update({
       completed: !completed,
@@ -178,10 +162,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   }
 
   async function applyTemplate(template) {
-    const items = template.checklist_template_items?.sort((a, b) => a.sort_order - b.sort_order) ?? [];
-    const toInsert = items.map((it, idx) => ({
-      job_id: job.id,
-      description: it.description,
+    const its = template.checklist_template_items?.sort((a, b) => a.sort_order - b.sort_order) ?? [];
+    const toInsert = its.map((it, idx) => ({
+      job_id: job.id, description: it.description,
       sort_order: checklistItems.length + idx,
     }));
     const { data } = await supabase.from('job_checklist_items').insert(toInsert).select();
@@ -190,29 +173,25 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   }
 
   const completedCount = checklistItems.filter(i => i.completed && !i.__placeholder).length;
-  const progress = checklistItems.filter(i => !i.__placeholder).length > 0 ? Math.round((completedCount / checklistItems.filter(i => !i.__placeholder).length) * 100) : 0;
+  const realCount = checklistItems.filter(i => !i.__placeholder).length;
+  const progress = realCount > 0 ? Math.round((completedCount / realCount) * 100) : 0;
 
   const tabStyle = (t) => ({
-    padding: '10px 20px',
-    fontWeight: tab === t ? 700 : 500,
-    color: tab === t ? 'var(--navy)' : 'var(--muted)',
-    cursor: 'pointer',
-    background: 'none',
-    border: 'none',
-    borderBottom: tab === t ? '2px solid var(--navy)' : '2px solid transparent',
-    fontSize: 14,
+    padding: '10px 20px', fontWeight: tab === t ? 700 : 500,
+    color: tab === t ? 'var(--navy)' : 'var(--muted)', cursor: 'pointer',
+    background: 'none', border: 'none',
+    borderBottom: tab === t ? '2px solid var(--navy)' : '2px solid transparent', fontSize: 14,
   });
 
   return (
     <div>
-      {/* Tab bar */}
       <div style={{ display: 'flex', borderBottom: '1.5px solid var(--border)', marginBottom: 20, background: '#fff', borderRadius: '12px 12px 0 0', padding: '0 8px' }}>
         <button style={tabStyle('info')} onClick={() => setTab('info')}>📋 Info</button>
         <button style={tabStyle('notes')} onClick={() => setTab('notes')}>
           📸 Notas & Fotos {notesList.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{notesList.length}</span>}
         </button>
         <button style={tabStyle('checklist')} onClick={() => setTab('checklist')}>
-          ✅ Checklist {checklistItems.length > 0 && <span style={{ background: progress === 100 ? '#e6f4ee' : 'var(--bg)', color: progress === 100 ? '#1a7a4a' : 'var(--muted)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{completedCount}/{checklistItems.length}</span>}
+          ✅ Checklist {realCount > 0 && <span style={{ background: progress === 100 ? '#e6f4ee' : 'var(--bg)', color: progress === 100 ? '#1a7a4a' : 'var(--muted)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{completedCount}/{realCount}</span>}
         </button>
       </div>
 
@@ -220,7 +199,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       {tab === 'info' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Cliente */}
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Cliente</p>
@@ -232,47 +210,23 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </span>
               {(job.clients?.phone || job.clients?.email) && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                  {job.clients?.phone && (
-                    <a href={`tel:${job.clients.phone}`}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                      📞 {job.clients.phone}
-                    </a>
-                  )}
-                  {job.clients?.email && (
-                    <a href={`mailto:${job.clients.email}`}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                      ✉️ {job.clients.email}
-                    </a>
-                  )}
+                  {job.clients?.phone && <a href={`tel:${job.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.clients.phone}</a>}
+                  {job.clients?.email && <a href={`mailto:${job.clients.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.clients.email}</a>}
                 </div>
               )}
             </div>
 
-            {/* Contacto encargado */}
             {(job.contact_name || job.contact_phone || job.contact_email) && (
               <div className="card">
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>👤 Contacto encargado</p>
                 {job.contact_name && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>{job.contact_name}</div>}
-                {(job.contact_phone || job.contact_email) && (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {job.contact_phone && (
-                      <a href={`tel:${job.contact_phone}`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                        📞 {job.contact_phone}
-                      </a>
-                    )}
-                    {job.contact_email && (
-                      <a href={`mailto:${job.contact_email}`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                        ✉️ {job.contact_email}
-                      </a>
-                    )}
-                  </div>
-                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {job.contact_phone && <a href={`tel:${job.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.contact_phone}</a>}
+                  {job.contact_email && <a href={`mailto:${job.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.contact_email}</a>}
+                </div>
               </div>
             )}
 
-            {/* Propiedad */}
             {(job.street || job.city || job.property_name) && (
               <div className="card">
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>📍 Propiedad</p>
@@ -281,24 +235,14 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 {job.city && <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 10 }}>{job.city}{job.state ? `, ${job.state}` : ''}{job.zip ? ` ${job.zip}` : ''}</div>}
                 {(job.street || job.city) && (
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                      🗺️ Google Maps
-                    </a>
-                    <a href={`https://maps.apple.com/?q=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                      🍎 Apple Maps
-                    </a>
-                    <a href={`https://waze.com/ul?q=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                      🚗 Waze
-                    </a>
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Google Maps</a>
+                    <a href={`https://maps.apple.com/?q=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🍎 Apple Maps</a>
+                    <a href={`https://waze.com/ul?q=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🚗 Waze</a>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Detalles */}
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Detalles</p>
               {job.description && <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 12 }}>{job.description}</p>}
@@ -327,9 +271,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Líneas de trabajo</p>
               {!items?.length ? <p style={{ color: 'var(--muted)', fontSize: 14 }}>Sin líneas.</p> : (
                 <table>
-                  <thead>
-                    <tr><th>Descripción</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Precio</th><th style={{ textAlign: 'right' }}>Subtotal</th></tr>
-                  </thead>
+                  <thead><tr><th>Descripción</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Precio</th><th style={{ textAlign: 'right' }}>Subtotal</th></tr></thead>
                   <tbody>
                     {items.map(it => (
                       <tr key={it.id}>
@@ -353,7 +295,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
-
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Técnico asignado</p>
               <select value={techId} onChange={e => assignTech(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}>
@@ -361,7 +302,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
-
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Resumen IVU</p>
               {clientType === 'b2b' && <div style={{ background: '#e8eeff', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#2a4cb5', fontWeight: 600 }}>Cliente B2B — Labor al 4%</div>}
@@ -379,7 +319,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 <span>Total</span><span>{fmt(totals.total)}</span>
               </div>
             </div>
-
             <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5', width: '100%', justifyContent: 'center' }} onClick={() => setShowDelete(true)}>
               🗑 Eliminar trabajo
             </button>
@@ -394,11 +333,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Agregar nota o foto</p>
             <form onSubmit={saveNote}>
               <div className="form-group" style={{ marginBottom: 12 }}>
-                <textarea value={noteText} onChange={e => setNoteText(e.target.value)}
-                  placeholder="Escribe una nota..." rows={3}
+                <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Escribe una nota..." rows={3}
                   style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
               </div>
-
               {pendingPhotoPreview && (
                 <div style={{ marginBottom: 12, position: 'relative', display: 'inline-block' }}>
                   <img src={pendingPhotoPreview} alt="preview" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10 }} />
@@ -406,9 +343,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14 }}>×</button>
                 </div>
               )}
-
               <input ref={fileRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
-
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 Foto</button>
                 <button type="submit" className="btn btn-primary" disabled={savingNote || uploadingPhoto} style={{ flex: 1, justifyContent: 'center' }}>
@@ -417,33 +352,27 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </div>
             </form>
           </div>
-
           {notesList.length === 0 ? (
             <div className="empty"><p>No hay notas aún.</p></div>
-          ) : (
-            notesList.map(n => (
-              <div key={n.id} className="card" style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: n.photo_url || n.note ? 10 : 0 }}>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
-                    {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                  <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
+          ) : notesList.map(n => (
+            <div key={n.id} className="card" style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: n.photo_url || n.note ? 10 : 0 }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
+                  {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
-                {n.photo_url && (
-                  <img src={n.photo_url} alt="job photo" style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0 }} />
-                )}
-                {n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0 }}>{n.note}</p>}
+                <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
               </div>
-            ))
-          )}
+              {n.photo_url && <img src={n.photo_url} alt="job photo" style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0 }} />}
+              {n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0 }}>{n.note}</p>}
+            </div>
+          ))}
         </div>
       )}
 
       {/* ─── CHECKLIST TAB ─── */}
       {tab === 'checklist' && (
         <div style={{ maxWidth: 700 }}>
-          {/* Progress */}
-          {checklistItems.filter(i => !i.__placeholder).length > 0 && (
+          {realCount > 0 && (
             <div className="card" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={{ fontWeight: 700, fontSize: 14 }}>Progreso</span>
@@ -452,17 +381,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <div style={{ background: 'var(--border)', borderRadius: 50, height: 8 }}>
                 <div style={{ background: progress === 100 ? 'var(--ok)' : 'var(--amber)', borderRadius: 50, height: 8, width: `${progress}%`, transition: 'width 0.3s' }} />
               </div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{completedCount} de {checklistItems.filter(i => !i.__placeholder).length} completados</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{completedCount} de {realCount} completados</div>
             </div>
           )}
 
-          {/* Toolbar */}
           <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
             <button className="btn btn-primary" onClick={() => setAddingGroup(true)} style={{ whiteSpace: 'nowrap' }}>+ Nuevo grupo</button>
             <button className="btn btn-ghost" onClick={() => setShowTemplates(!showTemplates)} style={{ whiteSpace: 'nowrap' }}>📋 Plantilla</button>
           </div>
 
-          {/* New group input */}
           {addingGroup && (
             <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
               <input autoFocus value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
@@ -473,10 +400,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             </div>
           )}
 
-          {/* Templates */}
           {showTemplates && (
             <div className="card" style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>PLANTILLAS</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>PLANTILLAS</p>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setShowTemplates(false)}>✕ Cancelar</button>
+              </div>
               {templates.length === 0
                 ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No hay plantillas. <a href="/admin/plantillas" style={{ color: 'var(--amber)' }}>Crear una →</a></p>
                 : templates.map(t => (
@@ -492,41 +421,34 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             </div>
           )}
 
-          {/* Group cards */}
           {Object.keys(groupedMap).length === 0 && (
             <div className="card empty"><p>Sin ítems. Crea un grupo o agrega ítems directamente.</p></div>
           )}
 
-          {Object.entries(groupedMap).map(([groupKey, items]) => {
+          {Object.entries(groupedMap).map(([groupKey, groupItems]) => {
             const groupName = groupKey === '__none__' ? null : groupKey;
-            const realItems = items.filter(i => !i.__placeholder);
+            const realItems = groupItems.filter(i => !i.__placeholder);
             return (
               <div key={groupKey} className="card" style={{ marginBottom: 16 }}>
-                {/* Group header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>
-                    {groupName ?? 'Sin grupo'}
+                    {groupName ?? 'General'}
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {groupName && (
-                      <div style={{ position: 'relative' }}>
-                        <button onClick={() => setGroupMenuOpen(groupMenuOpen === groupKey ? null : groupKey)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
-                        {groupMenuOpen === groupKey && (
-                          <>
-                            <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setGroupMenuOpen(null)} />
-                            <div style={{ position: 'absolute', right: 0, top: 28, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
-                              <button onClick={() => renameGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
-                              <button onClick={() => deleteGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar grupo</button>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                  <div style={{ position: 'relative' }}>
+                    <button onClick={() => setGroupMenuOpen(groupMenuOpen === groupKey ? null : groupKey)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
+                    {groupMenuOpen === groupKey && (
+                      <>
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setGroupMenuOpen(null)} />
+                        <div style={{ position: 'absolute', right: 0, top: 28, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
+                          <button onClick={() => renameGroup(groupName ?? 'General')} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
+                          {groupName && <button onClick={() => deleteGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar grupo</button>}
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
 
-                {/* Items */}
                 {realItems.map(item => (
                   <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                     <div onClick={() => toggleItem(item.id, item.completed)}
@@ -547,7 +469,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   </div>
                 ))}
 
-                {/* Add item inline */}
                 {addingItemGroup === groupKey ? (
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                     <input autoFocus value={newItemText[groupKey] ?? ''}
@@ -570,7 +491,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
         </div>
       )}
 
-      {/* Delete modal */}
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
