@@ -172,51 +172,67 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       {tab === 'info' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Cliente */}
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Cliente</p>
                 <a href={`/clientes/${job.client_id}`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>Ver cliente →</a>
               </div>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>{job.clients?.name}</div>
-              {job.clients?.email && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>{job.clients.email}</div>}
-              {job.clients?.phone && <div style={{ color: 'var(--muted)', fontSize: 13 }}>{job.clients.phone}</div>}
-              <span className={`badge ${job.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`} style={{ marginTop: 8, display: 'inline-block' }}>
+              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{job.clients?.name}</div>
+              <span className={`badge ${job.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`} style={{ marginBottom: 12, display: 'inline-block' }}>
                 {job.clients?.client_type === 'b2b' ? 'B2B' : 'Consumidor final'}
               </span>
-            </div>
-
-            <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Detalles</p>
-              {job.description && <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 12 }}>{job.description}</p>}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {job.scheduled_start && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Inicio</div>
-                    <div style={{ fontSize: 14 }}>{new Date(job.scheduled_start).toLocaleString('es-PR')}</div>
-                  </div>
-                )}
-                {job.scheduled_end && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Fin</div>
-                    <div style={{ fontSize: 14 }}>{new Date(job.scheduled_end).toLocaleString('es-PR')}</div>
-                  </div>
-                )}
-              </div>
-              {job.notes && (
-                <div style={{ marginTop: 12, padding: '12px 14px', background: '#f8f9fb', borderRadius: 8, fontSize: 13, color: 'var(--muted)' }}>
-                  <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {job.notes}
+              {(job.clients?.phone || job.clients?.email) && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                  {job.clients?.phone && (
+                    <a href={`tel:${job.clients.phone}`}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                      📞 {job.clients.phone}
+                    </a>
+                  )}
+                  {job.clients?.email && (
+                    <a href={`mailto:${job.clients.email}`}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                      ✉️ {job.clients.email}
+                    </a>
+                  )}
                 </div>
               )}
             </div>
 
+            {/* Contacto encargado */}
+            {(job.contact_name || job.contact_phone || job.contact_email) && (
+              <div className="card">
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>👤 Contacto encargado</p>
+                {job.contact_name && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>{job.contact_name}</div>}
+                {(job.contact_phone || job.contact_email) && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {job.contact_phone && (
+                      <a href={`tel:${job.contact_phone}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                        📞 {job.contact_phone}
+                      </a>
+                    )}
+                    {job.contact_email && (
+                      <a href={`mailto:${job.contact_email}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                        ✉️ {job.contact_email}
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Propiedad */}
             {(job.street || job.city || job.property_name) && (
               <div className="card">
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>📍 Propiedad</p>
                 {job.property_name && <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{job.property_name}</div>}
                 {job.street && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{job.street}</div>}
-                {job.city && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{job.city}{job.state ? `, ${job.state}` : ''}{job.zip ? ` ${job.zip}` : ''}</div>}
+                {job.city && <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 10 }}>{job.city}{job.state ? `, ${job.state}` : ''}{job.zip ? ` ${job.zip}` : ''}</div>}
                 {(job.street || job.city) && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
                       style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
                       🗺️ Google Maps
@@ -234,14 +250,30 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </div>
             )}
 
-            {(job.contact_name || job.contact_phone || job.contact_email) && (
-              <div className="card">
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>👤 Contacto encargado</p>
-                {job.contact_name && <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{job.contact_name}</div>}
-                {job.contact_phone && <div style={{ fontSize: 14, color: 'var(--muted)' }}>📞 {job.contact_phone}</div>}
-                {job.contact_email && <div style={{ fontSize: 14, color: 'var(--muted)' }}>✉️ {job.contact_email}</div>}
+            {/* Detalles */}
+            <div className="card">
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Detalles</p>
+              {job.description && <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 12 }}>{job.description}</p>}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {job.scheduled_start && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Inicio</div>
+                    <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_start).toLocaleString('es-PR')}</div>
+                  </div>
+                )}
+                {job.scheduled_end && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Fin</div>
+                    <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_end).toLocaleString('es-PR')}</div>
+                  </div>
+                )}
               </div>
-            )}
+              {job.notes && (
+                <div style={{ marginTop: 12, padding: '12px 14px', background: '#f8f9fb', borderRadius: 8, fontSize: 13, color: 'var(--muted)' }}>
+                  <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {job.notes}
+                </div>
+              )}
+            </div>
 
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Líneas de trabajo</p>
@@ -344,7 +376,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             notesList.map(n => (
               <div key={n.id} className="card" style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: n.photo_url || n.note ? 10 : 0 }}>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
                     {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </div>
                   <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
@@ -421,7 +453,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     {item.description}
                   </span>
                   {item.completed && item.completed_at && (
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }} suppressHydrationWarning>
                       {new Date(item.completed_at).toLocaleDateString('es-PR')}
                     </span>
                   )}
