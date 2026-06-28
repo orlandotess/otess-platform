@@ -37,8 +37,24 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
   const [contact, setContact] = useState({ name: '', phone: '', email: '', property_id: '' });
   const [savingContact, setSavingContact] = useState(false);
 
+  const [jobCount, setJobCount] = useState(0);
+
+  async function handleDeleteClick() {
+    const { count } = await supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('client_id', client.id);
+    setJobCount(count ?? 0);
+    setShowDelete(true);
+  }
+
   async function deleteClient() {
     setDeleting(true);
+    const { data: clientJobs } = await supabase.from('jobs').select('id').eq('client_id', client.id);
+    const jobIds = clientJobs?.map(j => j.id) ?? [];
+    if (jobIds.length > 0) {
+      await supabase.from('job_line_items').delete().in('job_id', jobIds);
+      await supabase.from('job_notes').delete().in('job_id', jobIds);
+      await supabase.from('job_checklist_items').delete().in('job_id', jobIds);
+      await supabase.from('jobs').delete().eq('client_id', client.id);
+    }
     await supabase.from('client_contacts').delete().eq('client_id', client.id);
     await supabase.from('client_properties').delete().eq('client_id', client.id);
     await supabase.from('clients').delete().eq('id', client.id);
@@ -169,7 +185,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                 </div>
               ))}
             </div>
-            <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5', justifyContent: 'center' }} onClick={() => setShowDelete(true)}>
+            <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5', justifyContent: 'center' }} onClick={handleDeleteClick}>
               🗑 Eliminar cliente
             </button>
           </div>
@@ -245,6 +261,9 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                       Marcar principal
                     </button>
                   )}
+                  <Link href={`/clientes/${client.id}/propiedades/${p.id}`} className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}>
+                    Ver →
+                  </Link>
                   <button onClick={() => deleteProperty(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
                 </div>
               </div>
@@ -313,7 +332,12 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                     </div>
                   )}
                 </div>
-                <button onClick={() => deleteContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Link href={`/clientes/${client.id}/contactos/${c.id}`} className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}>
+                    Ver →
+                  </Link>
+                  <button onClick={() => deleteContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
+                </div>
               </div>
             </div>
           ))}
