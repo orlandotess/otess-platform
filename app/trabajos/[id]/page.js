@@ -18,7 +18,7 @@ export default async function TrabajoDetail({ params }) {
   const { id } = params;
 
   const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }] = await Promise.all([
-    supabase.from('jobs').select('*, clients(name, email, phone, client_type), client_addresses(*)').eq('id', id).single(),
+   supabase.from('jobs').select('*, clients(name, email, phone, client_type), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
     supabase.from('job_line_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('technicians').select('*').order('name'),
     supabase.from('job_notes').select('*').eq('job_id', id).order('created_at', { ascending: false }),
