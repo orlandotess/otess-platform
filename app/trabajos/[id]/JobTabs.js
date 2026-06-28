@@ -1,12 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
-
-const supabase = createClient(
-  'https://zisidorwdhrttmdppnbj.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inppc2lkb3J3ZGhydHRtZHBwbmJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzA3NDEsImV4cCI6MjA5ODAwNjc0MX0.dKCf0omLnIy3AILNaU8vWj_yrMlJM-Fh9sOui71a7Po'
-);
 
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
@@ -151,7 +146,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
 
   const tabStyle = (t) => ({
     padding: '10px 20px',
-    borderBottom: tab === t ? '2px solid var(--navy)' : '2px solid transparent',
     fontWeight: tab === t ? 700 : 500,
     color: tab === t ? 'var(--navy)' : 'var(--muted)',
     cursor: 'pointer',
@@ -282,7 +276,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       {/* ─── NOTES & PHOTOS TAB ─── */}
       {tab === 'notes' && (
         <div style={{ maxWidth: 700 }}>
-          {/* Add note form */}
           <div className="card" style={{ marginBottom: 20 }}>
             <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Agregar nota o foto</p>
             <form onSubmit={saveNote}>
@@ -311,7 +304,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             </form>
           </div>
 
-          {/* Notes feed */}
           {notesList.length === 0 ? (
             <div className="empty"><p>No hay notas aún.</p></div>
           ) : (
@@ -336,7 +328,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       {/* ─── CHECKLIST TAB ─── */}
       {tab === 'checklist' && (
         <div style={{ maxWidth: 700 }}>
-          {/* Progress */}
           {checklistItems.length > 0 && (
             <div className="card" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -350,7 +341,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             </div>
           )}
 
-          {/* Add item */}
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Agregar ítem</p>
@@ -383,7 +373,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             </form>
           </div>
 
-          {/* Checklist items */}
           <div className="card">
             {checklistItems.length === 0 ? (
               <div className="empty"><p>Sin ítems. Agrega uno arriba o usa una plantilla.</p></div>
