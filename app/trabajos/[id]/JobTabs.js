@@ -134,7 +134,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       const ext = pendingPhoto.name.split('.').pop();
       const path = `${job.id}/${Date.now()}.${ext}`;
       const { error } = await supabase.storage.from('Job-photos').upload(path, pendingPhoto);
-      if (!error) photoUrl = `${SUPABASE_URL}/storage/v1/object/public/Job-photos/${path}`;
+      if (!error) photoUrl = path; // Save only the path, not the full URL
       setUploadingPhoto(false);
     }
     const { data: newNote } = await supabase.from('job_notes').insert([{
