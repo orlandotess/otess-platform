@@ -8,10 +8,11 @@ const links = [
   { href: '/clientes',   label: 'Clientes',   icon: '👥' },
   { href: '/trabajos',   label: 'Trabajos',   icon: '🔧' },
   { href: '/facturas',   label: 'Facturas',   icon: '🧾' },
+  { href: '/accounting', label: 'Accounting', icon: '📊' }, // Nueva pestaña
   { href: '/horario',    label: 'Horario',    icon: '⏱' },
   { href: '/field',      label: 'Field App',  icon: '📱' },
   { href: '/admin/plantillas', label: 'Plantillas', icon: '📋' },
-{ href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
+  { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
 ];
 
 export default function Sidebar() {
@@ -49,9 +50,6 @@ export default function Sidebar() {
         >
           🚪 Cerrar sesión
         </button>
-      </div>
-      <div style={{ padding: '8px 20px 16px', fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>
-        app.otesspr.com
       </div>
     </aside>
   );
