@@ -14,10 +14,11 @@ const links = [
 ];
 
 const accountingLinks = [
-  { href: '/accounting',          label: 'Dashboard',  icon: '📊' },
-  { href: '/accounting/facturas', label: 'Facturas',   icon: '🧾' },
-  { href: '/accounting/ivu',      label: 'IVU',        icon: '🏛' },
-  { href: '/accounting/payroll',  label: 'Payroll',    icon: '⏱' },
+  { href: '/accounting',               label: 'Dashboard',   icon: '📊' },
+  { href: '/accounting/facturas',      label: 'Facturas',    icon: '🧾' },
+  { href: '/accounting/ivu',           label: 'IVU',         icon: '🏛' },
+  { href: '/accounting/payroll',       label: 'Payroll',     icon: '⏱' },
+  { href: '/accounting/retenciones',   label: 'Retenciones', icon: '📋' },
 ];
 
 export default function Sidebar() {
