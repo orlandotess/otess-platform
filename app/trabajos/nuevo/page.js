@@ -1,15 +1,28 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Sidebar from '../../Sidebar';
+
+const supabase = createClient(
+  'https://zisidorwdhrttmdppnbj.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inppc2lkb3J3ZGhydHRtZHBwbmJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzA3NDEsImV4cCI6MjA5ODAwNjc0MX0.dKCf0omLnIy3AILNaU8vWj_yrMlJM-Fh9sOui71a7Po'
+);
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
 export default function NuevoTrabajo() {
   const router = useRouter();
   const [clients, setClients] = useState([]);
-  const [form, setForm] = useState({ client_id: '', title: '', description: '', status: 'estimate', scheduled_start: '', scheduled_end: '', notes: '' });
+  const [properties, setProperties] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [form, setForm] = useState({
+    client_id: '', title: '', description: '', status: 'estimate',
+    scheduled_start: '', scheduled_end: '', notes: '',
+    property_id: '', contact_id: '',
+    property_name: '', street: '', city: '', state: 'PR', zip: '',
+    contact_name: '', contact_phone: '', contact_email: '',
+  });
   const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '' }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -17,6 +30,28 @@ export default function NuevoTrabajo() {
   useEffect(() => {
     supabase.from('clients').select('id, name, client_type').order('name').then(({ data }) => setClients(data ?? []));
   }, []);
+
+  useEffect(() => {
+    if (!form.client_id) { setProperties([]); setContacts([]); return; }
+    supabase.from('client_properties').select('*').eq('client_id', form.client_id).order('is_primary', { ascending: false })
+      .then(({ data }) => setProperties(data ?? []));
+    supabase.from('client_contacts').select('*').eq('client_id', form.client_id).order('is_primary', { ascending: false })
+      .then(({ data }) => setContacts(data ?? []));
+  }, [form.client_id]);
+
+  // When property selected, fill address
+  useEffect(() => {
+    if (!form.property_id) return;
+    const p = properties.find(p => p.id === form.property_id);
+    if (p) set('street', p.street ?? ''), set('city', p.city ?? ''), set('state', p.state ?? 'PR'), set('zip', p.zip ?? '');
+  }, [form.property_id]);
+
+  // When contact selected, fill contact fields
+  useEffect(() => {
+    if (!form.contact_id) return;
+    const c = contacts.find(c => c.id === form.contact_id);
+    if (c) set('contact_name', c.name ?? ''), set('contact_phone', c.phone ?? ''), set('contact_email', c.email ?? '');
+  }, [form.contact_id]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const selectedClient = clients.find(c => c.id === form.client_id);
@@ -40,16 +75,28 @@ export default function NuevoTrabajo() {
   const t = calcTotals();
   const fmt = n => `$${n.toFixed(2)}`;
 
+  const fullAddress = [form.street, form.city, form.state, form.zip].filter(Boolean).join(', ');
+  const mapsQuery = encodeURIComponent(fullAddress);
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.client_id || !form.title.trim()) { setError('Cliente y título son requeridos'); return; }
     setSaving(true); setError('');
+
     const { data: job, error: err } = await supabase.from('jobs').insert([{
-      client_id: form.client_id, title: form.title, description: form.description || null,
-      status: form.status, notes: form.notes || null,
-      scheduled_start: form.scheduled_start || null, scheduled_end: form.scheduled_end || null,
+      client_id: form.client_id,
+      title: form.title,
+      description: form.description || null,
+      status: form.status,
+      notes: form.notes || null,
+      scheduled_start: form.scheduled_start || null,
+      scheduled_end: form.scheduled_end || null,
+      property_id: form.property_id || null,
+      contact_id: form.contact_id || null,
     }]).select().single();
+
     if (err) { setError(err.message); setSaving(false); return; }
+
     const lineItems = items.filter(i => i.description.trim()).map((i, idx) => ({
       job_id: job.id, type: i.type, description: i.description,
       quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
@@ -67,6 +114,8 @@ export default function NuevoTrabajo() {
         <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {error && <p style={{ color: 'var(--warn)', fontSize: 14 }}>{error}</p>}
+
+            {/* Info general */}
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
               <div className="form-group">
@@ -105,6 +154,89 @@ export default function NuevoTrabajo() {
               </div>
             </div>
 
+            {/* Propiedad */}
+            <div className="card">
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>📍 Propiedad</p>
+              {properties.length > 0 && (
+                <div className="form-group">
+                  <label>Seleccionar propiedad del cliente</label>
+                  <select value={form.property_id} onChange={e => set('property_id', e.target.value)}>
+                    <option value="">— Seleccionar propiedad —</option>
+                    {properties.map(p => <option key={p.id} value={p.id}>{p.name}{p.is_primary ? ' ★' : ''}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="form-group">
+                <label>Nombre de la propiedad</label>
+                <input value={form.property_name} onChange={e => set('property_name', e.target.value)} placeholder="Ej: Oficina Principal, Almacén Caguas" />
+              </div>
+              <div className="form-group">
+                <label>Dirección</label>
+                <input value={form.street} onChange={e => set('street', e.target.value)} placeholder="Calle y número" />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
+                <div className="form-group">
+                  <label>Ciudad</label>
+                  <input value={form.city} onChange={e => set('city', e.target.value)} placeholder="San Juan" />
+                </div>
+                <div className="form-group">
+                  <label>Estado</label>
+                  <input value={form.state} onChange={e => set('state', e.target.value)} placeholder="PR" />
+                </div>
+                <div className="form-group">
+                  <label>Zip</label>
+                  <input value={form.zip} onChange={e => set('zip', e.target.value)} placeholder="00901" />
+                </div>
+              </div>
+
+              {/* Map buttons */}
+              {fullAddress && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  <a href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                    🗺️ Google Maps
+                  </a>
+                  <a href={`https://maps.apple.com/?q=${mapsQuery}`} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                    🍎 Apple Maps
+                  </a>
+                  <a href={`https://waze.com/ul?q=${mapsQuery}`} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                    🚗 Waze
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Contacto */}
+            <div className="card">
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>👤 Contacto encargado</p>
+              {contacts.length > 0 && (
+                <div className="form-group">
+                  <label>Seleccionar contacto del cliente</label>
+                  <select value={form.contact_id} onChange={e => set('contact_id', e.target.value)}>
+                    <option value="">— Seleccionar contacto —</option>
+                    {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_primary ? ' ★' : ''}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="form-group">
+                <label>Nombre</label>
+                <input value={form.contact_name} onChange={e => set('contact_name', e.target.value)} placeholder="Nombre del contacto" />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-group">
+                  <label>Teléfono</label>
+                  <input value={form.contact_phone} onChange={e => set('contact_phone', e.target.value)} placeholder="787-000-0000" />
+                </div>
+                <div className="form-group">
+                  <label>Email</label>
+                  <input type="email" value={form.contact_email} onChange={e => set('contact_email', e.target.value)} placeholder="contacto@email.com" />
+                </div>
+              </div>
+            </div>
+
+            {/* Líneas */}
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de trabajo</p>
@@ -135,22 +267,17 @@ export default function NuevoTrabajo() {
                 </div>
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>Subtotal productos</span>
-                  <span>{fmt(t.subProd)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>IVU productos (11.5%)</span>
-                  <span>{fmt(t.taxProd)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>Subtotal labor</span>
-                  <span>{fmt(t.subLabor)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>IVU labor ({clientType === 'b2b' ? '4%' : '11.5%'})</span>
-                  <span>{fmt(t.taxLabor)}</span>
-                </div>
+                {[
+                  { label: 'Subtotal productos', value: t.subProd },
+                  { label: 'IVU productos (11.5%)', value: t.taxProd },
+                  { label: 'Subtotal labor', value: t.subLabor },
+                  { label: `IVU labor (${clientType === 'b2b' ? '4%' : '11.5%'})`, value: t.taxLabor },
+                ].map(r => (
+                  <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted)' }}>{r.label}</span>
+                    <span>{fmt(r.value)}</span>
+                  </div>
+                ))}
                 <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '4px 0' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 16 }}>
                   <span>Total</span>
