@@ -1,11 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  'https://zisidorwdhrttmdppnbj.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inppc2lkb3J3ZGhydHRtZHBwbmJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzA3NDEsImV4cCI6MjA5ODAwNjc0MX0.dKCf0omLnIy3AILNaU8vWj_yrMlJM-Fh9sOui71a7Po'
-);
+import { supabase } from '../../lib/supabase';
 
 const ORANGE = '#E05C2A';
 const BG = '#EAEEF2';
@@ -227,7 +222,6 @@ export default function FieldApp() {
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: BG, fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto' }}>
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 80 }}>
 
-        {/* HOME */}
         {tab === 'home' && (
           <div>
             <div style={{ padding: '20px 20px 8px', display: 'flex', justifyContent: 'flex-end' }}>
@@ -259,7 +253,6 @@ export default function FieldApp() {
           </div>
         )}
 
-        {/* JOBS */}
         {tab === 'jobs' && (
           <div>
             <div style={{ padding: '20px 20px 16px' }}>
@@ -285,7 +278,6 @@ export default function FieldApp() {
           </div>
         )}
 
-        {/* TIME */}
         {tab === 'time' && (
           <div>
             <div style={{ padding: '20px 20px 8px', display: 'flex', justifyContent: 'space-between' }}>
@@ -335,7 +327,6 @@ export default function FieldApp() {
           </div>
         )}
 
-        {/* CALENDAR */}
         {tab === 'calendar' && (
           <div>
             <div style={{ padding: '20px 20px 16px' }}><div style={{ fontSize: 26, fontWeight: 700 }}>Calendar</div></div>
@@ -346,7 +337,6 @@ export default function FieldApp() {
           </div>
         )}
 
-        {/* PROJECTS */}
         {tab === 'projects' && (
           <div>
             <div style={{ padding: '20px 20px 16px' }}><div style={{ fontSize: 26, fontWeight: 700 }}>Projects</div></div>
@@ -368,10 +358,8 @@ export default function FieldApp() {
         )}
       </div>
 
-      {/* ─── JOB DETAIL OVERLAY ─── */}
       {detailJob && (
         <div style={{ position: 'fixed', inset: 0, background: BG, zIndex: 150, display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto' }}>
-          {/* Header */}
           <div style={{ background: '#fff', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #dde1e7', flexShrink: 0 }}>
             <button onClick={() => setDetailJob(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#333', padding: 0 }}>←</button>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -381,7 +369,6 @@ export default function FieldApp() {
             <button onClick={() => handleClockIn(detailJob.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>⏱ Clock In</button>
           </div>
 
-          {/* Detail tabs */}
           <div style={{ background: '#fff', display: 'flex', borderBottom: '1px solid #dde1e7', flexShrink: 0 }}>
             {[['info', '📋 Info'], ['checklist', `✅ (${completedCount}/${detailChecklist.length})`], ['notes', `📸 (${detailNotes.length})`]].map(([t, label]) => (
               <button key={t} onClick={() => setDetailTab(t)} style={{ flex: 1, padding: '12px 8px', background: 'none', border: 'none', borderBottom: detailTab === t ? '2px solid ' + ORANGE : '2px solid transparent', fontWeight: detailTab === t ? 700 : 500, color: detailTab === t ? ORANGE : '#888', cursor: 'pointer', fontSize: 13 }}>
@@ -391,8 +378,6 @@ export default function FieldApp() {
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
-
-            {/* INFO TAB */}
             {detailTab === 'info' && (
               <div>
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
@@ -414,7 +399,6 @@ export default function FieldApp() {
               </div>
             )}
 
-            {/* CHECKLIST TAB */}
             {detailTab === 'checklist' && (
               <div>
                 {detailChecklist.length > 0 && (
@@ -450,7 +434,6 @@ export default function FieldApp() {
               </div>
             )}
 
-            {/* NOTES TAB */}
             {detailTab === 'notes' && (
               <div>
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
@@ -464,7 +447,7 @@ export default function FieldApp() {
                           style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 13 }}>×</button>
                       </div>
                     )}
-                    <input ref={fileRef2} type="file" accept="image/*" capture="environment"
+                    <input ref={fileRef2} type="file" accept="image/*"
                       onChange={e => { const f = e.target.files?.[0]; if (f) { setDetailPhoto(f); setDetailPhotoPreview(URL.createObjectURL(f)); } }}
                       style={{ display: 'none' }} />
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -493,7 +476,6 @@ export default function FieldApp() {
         </div>
       )}
 
-      {/* FAB */}
       <button style={{ position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, background: showFab ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 24, color: '#fff' }} onClick={() => setShowFab(!showFab)}>
         {showFab ? '✕' : '+'}
       </button>
@@ -509,7 +491,6 @@ export default function FieldApp() {
         </>
       )}
 
-      {/* Clock In Modal */}
       {showJobClock && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setShowJobClock(false)}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
@@ -526,7 +507,6 @@ export default function FieldApp() {
         </div>
       )}
 
-      {/* Note Modal */}
       {showJobNote && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => { setShowJobNote(false); setFabSelectedJob(null); }}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
@@ -546,7 +526,6 @@ export default function FieldApp() {
         </div>
       )}
 
-      {/* Photo Modal */}
       {showJobPhoto && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => { setShowJobPhoto(false); setFabSelectedJob(null); }}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
@@ -556,7 +535,7 @@ export default function FieldApp() {
                 ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
                 : <div>
                   <div style={{ fontWeight: 600, marginBottom: 16, color: ORANGE }}>{fabSelectedJob.title}</div>
-                  <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={uploadFabPhoto} style={{ display: 'none' }} />
+                  <input ref={fileRef} type="file" accept="image/*" onChange={uploadFabPhoto} style={{ display: 'none' }} />
                   <button onClick={() => fileRef.current?.click()} disabled={uploadingPhoto} style={{ width: '100%', padding: 16, background: '#f0f0f0', border: '2px dashed #dde1e7', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', color: '#555' }}>
                     {uploadingPhoto ? '📤 Subiendo...' : '📷 Tomar foto o elegir de galería'}
                   </button>
@@ -567,7 +546,6 @@ export default function FieldApp() {
         </div>
       )}
 
-      {/* Bottom Nav */}
       <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#fff', borderTop: '1px solid #dde1e7', display: 'flex', zIndex: 100, paddingBottom: 'env(safe-area-inset-bottom,4px)' }}>
         <NavI tab="home" icon="🏠" label="Home" />
         <NavI tab="jobs" icon="📋" label="Jobs" />
