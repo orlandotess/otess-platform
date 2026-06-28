@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-import { supabaseServer as supabase } from '../../lib/supabase';
+import { supabaseServer as supabase } from '../../../lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
