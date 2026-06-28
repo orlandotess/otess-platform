@@ -146,7 +146,7 @@ function PeriodSection({ label, revenue, ivu, payroll, fmt }) {
   );
 }
 
-import AccountingDashboardClient from './AccountingDashboardClient';
+import AccountingDashboardClient from './accounting-dashboard-client';
 
 export default async function AccountingDashboard() {
   const { yearStart, yearEnd, monthStart, monthEnd, weekStart, weekEnd, year, month } = getPeriods();
