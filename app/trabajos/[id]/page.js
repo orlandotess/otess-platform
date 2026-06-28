@@ -63,7 +63,8 @@ export default async function TrabajoDetail({ params }) {
           .createSignedUrl(filePath, 3600);
         console.log('Signed URL result:', { filePath, signedUrl: data?.signedUrl, error });
         return { ...note, photo_url: data?.signedUrl ?? null };
-      } catch {
+      } catch (err) {
+        console.error('Signed URL error:', err);
         return { ...note, photo_url: null };
       }
     })
