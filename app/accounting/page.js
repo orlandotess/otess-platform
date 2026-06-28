@@ -146,6 +146,8 @@ function PeriodSection({ label, revenue, ivu, payroll, fmt }) {
   );
 }
 
+import AccountingDashboardClient from './AccountingDashboardClient';
+
 export default async function AccountingDashboard() {
   const { yearStart, yearEnd, monthStart, monthEnd, weekStart, weekEnd, year, month } = getPeriods();
 
@@ -171,6 +173,25 @@ export default async function AccountingDashboard() {
   const weekInvs = filterInvs(weekStart, weekEnd);
   const monthInvs = filterInvs(monthStart, monthEnd);
   const yearInvs = filterInvs(yearStart, yearEnd);
+
+  // Quarter data
+  const quarters = [
+    { key: 'Q1', start: `${year}-01-01`, end: `${year}-03-31` },
+    { key: 'Q2', start: `${year}-04-01`, end: `${year}-06-30` },
+    { key: 'Q3', start: `${year}-07-01`, end: `${year}-09-30` },
+    { key: 'Q4', start: `${year}-10-01`, end: `${year}-12-31` },
+  ];
+
+  const quarterData = quarters.map(q => {
+    const qInvs = filterInvs(q.start, q.end);
+    const qIds = new Set(qInvs.map(i => i.id));
+    return {
+      key: q.key,
+      revenue: computeRevenue(qInvs),
+      ivu: computeIVU(qIds, lines),
+      payroll: computePayroll(q.start + 'T00:00:00.000Z', q.end + 'T23:59:59.999Z', techs, entries),
+    };
+  });
 
   return (
     <div className="admin-shell">
@@ -209,6 +230,8 @@ export default async function AccountingDashboard() {
           payroll={computePayroll(yearStart, yearEnd, techs, entries)}
           fmt={fmt}
         />
+
+        <AccountingDashboardClient quarterData={quarterData} year={year} />
       </main>
     </div>
   );
