@@ -209,6 +209,40 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               )}
             </div>
 
+            {(job.street || job.city || job.property_name) && (
+              <div className="card">
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>📍 Propiedad</p>
+                {job.property_name && <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{job.property_name}</div>}
+                {job.street && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{job.street}</div>}
+                {job.city && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{job.city}{job.state ? `, ${job.state}` : ''}{job.zip ? ` ${job.zip}` : ''}</div>}
+                {(job.street || job.city) && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                      🗺️ Google Maps
+                    </a>
+                    <a href={`https://maps.apple.com/?q=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                      🍎 Apple Maps
+                    </a>
+                    <a href={`https://waze.com/ul?q=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                      🚗 Waze
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(job.contact_name || job.contact_phone || job.contact_email) && (
+              <div className="card">
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>👤 Contacto encargado</p>
+                {job.contact_name && <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{job.contact_name}</div>}
+                {job.contact_phone && <div style={{ fontSize: 14, color: 'var(--muted)' }}>📞 {job.contact_phone}</div>}
+                {job.contact_email && <div style={{ fontSize: 14, color: 'var(--muted)' }}>✉️ {job.contact_email}</div>}
+              </div>
+            )}
+
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Líneas de trabajo</p>
               {!items?.length ? <p style={{ color: 'var(--muted)', fontSize: 14 }}>Sin líneas.</p> : (
