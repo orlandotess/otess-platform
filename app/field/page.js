@@ -476,6 +476,7 @@ export default function FieldApp() {
                     <div style={{ background: '#eee', borderRadius: 50, height: 8 }}>
                       <div style={{ background: progress === 100 ? '#27ae60' : ORANGE, borderRadius: 50, height: 8, width: progress + '%', transition: 'width 0.3s' }} />
                     </div>
+                    <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{completedCount} de {detailChecklist.length} completados</div>
                   </div>
                 )}
                 <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
@@ -484,19 +485,41 @@ export default function FieldApp() {
                     <button type="submit" style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>+</button>
                   </form>
                 </div>
-                <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                  {detailChecklist.length === 0
-                    ? <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin ítems. Agrega uno arriba.</div>
-                    : detailChecklist.map(item => (
-                      <div key={item.id} onClick={() => toggleCheckItem(item)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
-                        <div style={{ width: 24, height: 24, borderRadius: 6, border: item.completed ? 'none' : '2px solid #dde1e7', background: item.completed ? '#27ae60' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
-                        </div>
-                        <span style={{ fontSize: 14, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? '#aaa' : '#333' }}>{item.description}</span>
+                {detailChecklist.length === 0
+                  ? <div style={{ background: '#fff', borderRadius: 14, padding: '32px 18px', textAlign: 'center', color: '#aaa', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>Sin ítems.</div>
+                  : (() => {
+                    const groupedMap = {};
+                    detailChecklist.forEach(i => {
+                      const g = i.group_name || '__none__';
+                      if (!groupedMap[g]) groupedMap[g] = [];
+                      groupedMap[g].push(i);
+                    });
+                    return Object.entries(groupedMap).map(([groupKey, items]) => (
+                      <div key={groupKey} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                        {groupKey !== '__none__' && (
+                          <div style={{ fontWeight: 700, fontSize: 13, color: ORANGE, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
+                            📁 {groupKey}
+                          </div>
+                        )}
+                        {items.map(item => (
+                          <div key={item.id} onClick={() => toggleCheckItem(item)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
+                            <div style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #dde1e7', background: item.completed ? '#27ae60' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? '#aaa' : '#333' }}>{item.description}</div>
+                              {item.completed && item.completed_at && (
+                                <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+                                  {new Date(item.completed_at).toLocaleDateString('es-PR')}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))
-                  }
-                </div>
+                    ));
+                  })()
+                }
               </div>
             )}
 
