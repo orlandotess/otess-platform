@@ -123,6 +123,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     e.preventDefault();
     if (!newItem.trim()) return;
     setAddingItem(true);
+    console.log('Adding item:', { job_id: job.id, description: newItem.trim(), group_name: selectedGroup || null });
     const { data } = await supabase.from('job_checklist_items').insert([{
       job_id: job.id,
       description: newItem.trim(),
