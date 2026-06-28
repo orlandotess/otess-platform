@@ -10,7 +10,8 @@ const links = [
   { href: '/facturas',   label: 'Facturas',   icon: '🧾' },
   { href: '/horario',    label: 'Horario',    icon: '⏱' },
   { href: '/field',      label: 'Field App',  icon: '📱' },
-  { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
+  { href: '/admin/plantillas', label: 'Plantillas', icon: '📋' },
+{ href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
 ];
 
 export default function Sidebar() {
