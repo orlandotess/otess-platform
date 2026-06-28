@@ -58,9 +58,10 @@ export default async function TrabajoDetail({ params }) {
           filePath = pathParts[1];
           if (!filePath) return note;
         }
-        const { data } = await supabaseAdmin.storage
+        const { data, error } = await supabaseAdmin.storage
           .from('Job-photos')
           .createSignedUrl(filePath, 3600);
+        console.log('Signed URL result:', { filePath, signedUrl: data?.signedUrl, error });
         return { ...note, photo_url: data?.signedUrl ?? null };
       } catch {
         return { ...note, photo_url: null };
