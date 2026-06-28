@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { createClient } from '@supabase/supabase-js';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
-import ClienteDetail from './ClienteDetail';
+import ClienteDetail from './ClientesDetail';
 
 const supabase = createClient(
   'https://zisidorwdhrttmdppnbj.supabase.co',
