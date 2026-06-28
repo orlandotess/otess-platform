@@ -18,7 +18,7 @@ const statusOptions = [
   { value: 'cancelled', label: 'Cancelado' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, fmt }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals })
   const router = useRouter();
   const fmt = n => `$${Number(n).toFixed(2)}`;
   const [tab, setTab] = useState('info');
