@@ -149,7 +149,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       const ext = pendingPhoto.name.split('.').pop();
       const path = `${job.id}/${Date.now()}.${ext}`;
       const { error } = await supabase.storage.from('Job-photos').upload(path, pendingPhoto);
-      if (!error) photoUrl = path; // Save only the path, not the full URL
+      if (!error) photoUrl = path;
       setUploadingPhoto(false);
     }
     const { data: newNote } = await supabase.from('job_notes').insert([{
@@ -261,22 +261,51 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             )}
 
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Detalles</p>
-              {job.description && <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 12 }}>{job.description}</p>}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {job.scheduled_start && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Inicio</div>
-                    <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_start).toLocaleString('es-PR')}</div>
-                  </div>
-                )}
-                {job.scheduled_end && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Fin</div>
-                    <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_end).toLocaleString('es-PR')}</div>
-                  </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Detalles</p>
+                {!editingSchedule && (
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingSchedule(true)}>✏️ Editar fechas</button>
                 )}
               </div>
+              {job.description && <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 12 }}>{job.description}</p>}
+              {editingSchedule ? (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                    <div className="form-group">
+                      <label>Inicio</label>
+                      <input type="datetime-local" value={schedStart} onChange={e => setSchedStart(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label>Fin</label>
+                      <input type="datetime-local" value={schedEnd} onChange={e => setSchedEnd(e.target.value)} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button className="btn btn-primary" onClick={saveSchedule} disabled={savingSchedule}>
+                      {savingSchedule ? 'Guardando...' : '💾 Guardar'}
+                    </button>
+                    <button className="btn btn-ghost" onClick={() => setEditingSchedule(false)}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  {job.scheduled_start && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Inicio</div>
+                      <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_start).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                    </div>
+                  )}
+                  {job.scheduled_end && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Fin</div>
+                      <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_end).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                    </div>
+                  )}
+                  {!job.scheduled_start && !job.scheduled_end && (
+                    <p style={{ color: 'var(--muted)', fontSize: 13, gridColumn: '1/-1' }}>Sin fecha programada.</p>
+                  )}
+                </div>
+              )}
               {job.notes && (
                 <div style={{ marginTop: 12, padding: '12px 14px', background: '#f8f9fb', borderRadius: 8, fontSize: 13, color: 'var(--muted)' }}>
                   <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {job.notes}
