@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { supabase } from '../../lib/supabase';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
@@ -58,4 +61,3 @@ export default async function ClientesPage() {
     </div>
   );
 }
-export const dynamic = 'force-dynamic';
