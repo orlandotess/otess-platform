@@ -4,7 +4,6 @@ import { supabase } from '../../lib/supabase';
 
 const ORANGE = '#E05C2A';
 const BG = '#EAEEF2';
-const SURL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
 export default function FieldApp() {
   const [tab, setTab] = useState('home');
@@ -70,7 +69,7 @@ export default function FieldApp() {
   useEffect(() => { loadJobs(); }, [jobFilter]);
 
   useEffect(() => {
-    supabase.from('jobs').select('id, title, status, scheduled_start, clients(name)')
+    supabase.from('jobs').select('id, title, status, scheduled_start, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)')
       .in('status', ['scheduled', 'in_progress'])
       .order('scheduled_start', { ascending: true }).limit(20)
       .then(({ data }) => setAllJobs(data ?? []));
@@ -88,7 +87,7 @@ export default function FieldApp() {
 
   async function loadJobs() {
     setLoading(true);
-    let q = supabase.from('jobs').select('id, title, status, scheduled_start, clients(name)');
+    let q = supabase.from('jobs').select('id, title, status, scheduled_start, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)');
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
     if (jobFilter === 'today') q = q.gte('scheduled_start', today.toISOString()).lt('scheduled_start', tomorrow.toISOString());
@@ -97,6 +96,23 @@ export default function FieldApp() {
     const { data } = await q.order('scheduled_start', { ascending: true }).limit(20);
     setJobs(data ?? []);
     setLoading(false);
+  }
+
+  async function getSignedUrl(path) {
+    if (!path) return null;
+    if (path.startsWith('http')) {
+      // Old format - extract path
+      try {
+        const url = new URL(path);
+        const parts = url.pathname.split('/Job-photos/');
+        if (parts[1]) {
+          const { data } = await supabase.storage.from('Job-photos').createSignedUrl(parts[1], 3600);
+          return data?.signedUrl ?? null;
+        }
+      } catch { return null; }
+    }
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
   }
 
   async function openJobDetail(job) {
@@ -108,7 +124,13 @@ export default function FieldApp() {
       supabase.from('job_notes').select('*').eq('job_id', job.id).order('created_at', { ascending: false }),
       supabase.from('job_checklist_items').select('*').eq('job_id', job.id).order('sort_order'),
     ]);
-    setDetailNotes(notes ?? []);
+    // Generate signed URLs for photos
+    const notesWithUrls = await Promise.all((notes ?? []).map(async n => {
+      if (!n.photo_url) return n;
+      const signedUrl = await getSignedUrl(n.photo_url);
+      return { ...n, photo_url: signedUrl };
+    }));
+    setDetailNotes(notesWithUrls);
     setDetailChecklist(checklist ?? []);
   }
 
@@ -141,11 +163,10 @@ export default function FieldApp() {
     setUploadingPhoto(true);
     const ext = file.name.split('.').pop();
     const path = fabSelectedJob.id + '/' + Date.now() + '.' + ext;
-    const { error } = await supabase.storage.from('job-photos').upload(path, file);
+    const { error } = await supabase.storage.from('Job-photos').upload(path, file);
     setUploadingPhoto(false);
     if (!error) {
-      const photoUrl = SURL + '/storage/v1/object/public/job-photos/' + path;
-      await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, photo_url: photoUrl }]);
+      await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, photo_url: path }]);
       setPhotoSuccess('Foto subida');
       setTimeout(() => { setPhotoSuccess(''); setShowJobPhoto(false); setShowFab(false); setFabSelectedJob(null); }, 2000);
     }
@@ -155,17 +176,20 @@ export default function FieldApp() {
     e.preventDefault();
     if (!detailNoteText.trim() && !detailPhoto) return;
     setSavingDetailNote(true);
-    let photoUrl = null;
+    let photoPath = null;
     if (detailPhoto) {
       const ext = detailPhoto.name.split('.').pop();
       const path = detailJob.id + '/' + Date.now() + '.' + ext;
-      const { error } = await supabase.storage.from('job-photos').upload(path, detailPhoto);
-      if (!error) photoUrl = SURL + '/storage/v1/object/public/job-photos/' + path;
+      const { error } = await supabase.storage.from('Job-photos').upload(path, detailPhoto);
+      if (!error) photoPath = path;
     }
     const { data: note } = await supabase.from('job_notes').insert([{
-      job_id: detailJob.id, note: detailNoteText.trim() || null, photo_url: photoUrl,
+      job_id: detailJob.id, note: detailNoteText.trim() || null, photo_url: photoPath,
     }]).select().single();
-    if (note) setDetailNotes(prev => [note, ...prev]);
+    if (note) {
+      const signedUrl = photoPath ? await getSignedUrl(photoPath) : null;
+      setDetailNotes(prev => [{ ...note, photo_url: signedUrl }, ...prev]);
+    }
     setDetailNoteText(''); setDetailPhoto(null); setDetailPhotoPreview(null); setSavingDetailNote(false);
   }
 
@@ -358,6 +382,7 @@ export default function FieldApp() {
         )}
       </div>
 
+      {/* Job Detail Overlay */}
       {detailJob && (
         <div style={{ position: 'fixed', inset: 0, background: BG, zIndex: 150, display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto' }}>
           <div style={{ background: '#fff', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #dde1e7', flexShrink: 0 }}>
@@ -378,27 +403,68 @@ export default function FieldApp() {
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
+
+            {/* INFO TAB */}
             {detailTab === 'info' && (
               <div>
+                {/* Status */}
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>Estado</div>
                   <span style={{ fontSize: 13, fontWeight: 700, color: SC[detailJob.status], background: SC[detailJob.status] + '18', padding: '5px 12px', borderRadius: 20 }}>{SL[detailJob.status]}</span>
                 </div>
+
+                {/* Scheduled date */}
                 {detailJob.scheduled_start && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>Fecha programada</div>
                     <div style={{ fontSize: 14 }}>{new Date(detailJob.scheduled_start).toLocaleString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                   </div>
                 )}
+
+                {/* Cliente */}
                 {detailJob.clients?.name && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>Cliente</div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>{detailJob.clients.name}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>{detailJob.clients.name}</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {detailJob.clients?.phone && <a href={`tel:${detailJob.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {detailJob.clients.phone}</a>}
+                      {detailJob.clients?.email && <a href={`mailto:${detailJob.clients.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#16223d', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {detailJob.clients.email}</a>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Contacto encargado */}
+                {(detailJob.contact_name || detailJob.contact_phone || detailJob.contact_email) && (
+                  <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>👤 Contacto encargado</div>
+                    {detailJob.contact_name && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>{detailJob.contact_name}</div>}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {detailJob.contact_phone && <a href={`tel:${detailJob.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {detailJob.contact_phone}</a>}
+                      {detailJob.contact_email && <a href={`mailto:${detailJob.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#16223d', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {detailJob.contact_email}</a>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Propiedad */}
+                {(detailJob.property_name || detailJob.street || detailJob.city) && (
+                  <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>📍 Propiedad</div>
+                    {detailJob.property_name && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detailJob.property_name}</div>}
+                    {detailJob.street && <div style={{ fontSize: 14, color: '#555' }}>{detailJob.street}</div>}
+                    {detailJob.city && <div style={{ fontSize: 14, color: '#555', marginBottom: 10 }}>{detailJob.city}{detailJob.state ? `, ${detailJob.state}` : ''}{detailJob.zip ? ` ${detailJob.zip}` : ''}</div>}
+                    {(detailJob.street || detailJob.city) && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([detailJob.street, detailJob.city, detailJob.state, detailJob.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Maps</a>
+                        <a href={`https://maps.apple.com/?q=${encodeURIComponent([detailJob.street, detailJob.city, detailJob.state, detailJob.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🍎 Apple</a>
+                        <a href={`https://waze.com/ul?q=${encodeURIComponent([detailJob.street, detailJob.city, detailJob.state, detailJob.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🚗 Waze</a>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
+            {/* CHECKLIST TAB */}
             {detailTab === 'checklist' && (
               <div>
                 {detailChecklist.length > 0 && (
@@ -434,6 +500,7 @@ export default function FieldApp() {
               </div>
             )}
 
+            {/* NOTES TAB */}
             {detailTab === 'notes' && (
               <div>
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
@@ -476,6 +543,7 @@ export default function FieldApp() {
         </div>
       )}
 
+      {/* FAB */}
       <button style={{ position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, background: showFab ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 24, color: '#fff' }} onClick={() => setShowFab(!showFab)}>
         {showFab ? '✕' : '+'}
       </button>
