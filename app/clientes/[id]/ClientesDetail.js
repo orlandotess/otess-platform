@@ -1,13 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
-const supabase = createClient(
-  'https://zisidorwdhrttmdppnbj.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inppc2lkb3J3ZGhydHRtZHBwbmJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzA3NDEsImV4cCI6MjA5ODAwNjc0MX0.dKCf0omLnIy3AILNaU8vWj_yrMlJM-Fh9sOui71a7Po'
-);
 
 const statusJob = {
   estimate: { cls: 'badge-gray', label: 'Estimado' },
@@ -48,7 +43,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
     router.push('/clientes');
   }
 
-    async function saveProperty(e) {
+  async function saveProperty(e) {
     e.preventDefault();
     setSavingProp(true);
     const { data } = await supabase.from('client_properties').insert([{
@@ -63,7 +58,6 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
     }
     setSavingProp(false);
   }
-
 
   async function deleteProperty(propId) {
     await supabase.from('client_properties').delete().eq('id', propId);
