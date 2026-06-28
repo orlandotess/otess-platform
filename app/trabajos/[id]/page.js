@@ -43,16 +43,20 @@ export default async function TrabajoDetail({ params }) {
     (notes ?? []).map(async (note) => {
       if (!note.photo_url) return note;
       try {
-        const url = new URL(note.photo_url);
-        const pathParts = url.pathname.split('/Job-photos/');
-        const filePath = pathParts[1];
-        if (!filePath) return note;
+        // Handle both old full URLs and new path-only format
+        let filePath = note.photo_url;
+        if (note.photo_url.startsWith('http')) {
+          const url = new URL(note.photo_url);
+          const pathParts = url.pathname.split('/Job-photos/');
+          filePath = pathParts[1];
+          if (!filePath) return note;
+        }
         const { data } = await supabase.storage
           .from('Job-photos')
           .createSignedUrl(filePath, 3600);
-        return { ...note, photo_url: data?.signedUrl ?? note.photo_url };
+        return { ...note, photo_url: data?.signedUrl ?? null };
       } catch {
-        return note;
+        return { ...note, photo_url: null };
       }
     })
   );
