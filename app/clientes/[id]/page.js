@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { createClient } from '@supabase/supabase-js';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
-import ClienteDetail from './ClientesDetail';
+import ClientesDetail from './ClientesDetail';
 
 const supabase = createClient(
   'https://zisidorwdhrttmdppnbj.supabase.co',
@@ -14,10 +14,12 @@ const supabase = createClient(
 export default async function ClienteDetailPage({ params }) {
   const { id } = params;
 
-  const [{ data: client }, { data: jobs }, { data: invoices }] = await Promise.all([
-    supabase.from('clients').select('*, client_addresses(*)').eq('id', id).single(),
-    supabase.from('jobs').select('id, title, status, scheduled_start').eq('client_id', id).order('scheduled_start', { ascending: false }),
+  const [{ data: client }, { data: jobs }, { data: invoices }, { data: properties }, { data: contacts }] = await Promise.all([
+    supabase.from('clients').select('*').eq('id', id).single(),
+    supabase.from('jobs').select('id, title, status, scheduled_start, property_id, contact_id').eq('client_id', id).order('scheduled_start', { ascending: false }),
     supabase.from('invoices').select('id, invoice_number, total, status, created_at').eq('client_id', id).order('created_at', { ascending: false }),
+    supabase.from('client_properties').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
+    supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
   ]);
 
   if (!client) return (
@@ -39,19 +41,25 @@ export default async function ClienteDetailPage({ params }) {
         <div className="page-header">
           <div>
             <div className="page-title">{client.name}</div>
+            {client.company && <div style={{ color: 'var(--muted)', fontSize: 14, marginTop: 2 }}>{client.company}</div>}
             <span className={`badge ${client.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`} style={{ marginTop: 6, display: 'inline-block' }}>
               {client.client_type === 'b2b' ? 'B2B' : 'Consumidor final'}
             </span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <Link href="/clientes" className="btn btn-ghost">← Clientes</Link>
-            <Link href={`/clientes/${id}/editar`} className="btn btn-primary">✏️ Editar</Link>
+            <Link href={`/trabajos/nuevo?client=${id}`} className="btn btn-primary">🔧 Nuevo trabajo</Link>
           </div>
         </div>
 
-        <ClienteDetail client={client} jobs={jobs ?? []} invoices={invoices ?? []} />
+        <ClientesDetail
+          client={client}
+          jobs={jobs ?? []}
+          invoices={invoices ?? []}
+          properties={properties ?? []}
+          contacts={contacts ?? []}
+        />
       </main>
     </div>
   );
 }
- 
