@@ -47,6 +47,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
 
   async function deleteClient() {
     setDeleting(true);
+    console.log('Deleting client:', client.id);
     const { data: clientJobs } = await supabase.from('jobs').select('id').eq('client_id', client.id);
     const jobIds = clientJobs?.map(j => j.id) ?? [];
     if (jobIds.length > 0) {
