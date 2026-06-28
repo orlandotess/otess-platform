@@ -415,13 +415,20 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
       {/* Delete modal */}
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar cliente?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente.</p>
+            {jobCount > 0 ? (
+              <div style={{ background: '#fef3cd', border: '1.5px solid #f59e0b', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>⚠️ Este cliente tiene {jobCount} trabajo{jobCount > 1 ? 's' : ''} existente{jobCount > 1 ? 's' : ''}.</p>
+                <p style={{ fontSize: 13, color: '#92400e' }}>Al eliminar el cliente se borrarán también todos sus trabajos, notas, fotos y checklists.</p>
+              </div>
+            ) : (
+              <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente.</p>
+            )}
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn" onClick={deleteClient} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar todo'}
               </button>
               <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
             </div>
