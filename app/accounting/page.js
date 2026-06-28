@@ -1,4 +1,3 @@
-
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -32,6 +31,10 @@ function computeRevenue(invs) {
     total: invs.reduce((a, i) => a + Number(i.total ?? 0), 0),
     collected: paid.reduce((a, i) => a + Number(i.total ?? 0), 0),
     outstanding: pending.reduce((a, i) => a + Number(i.total ?? 0), 0),
+    subProducts: invs.reduce((a, i) => a + Number(i.subtotal_products ?? 0), 0),
+    subLabor: invs.reduce((a, i) => a + Number(i.subtotal_labor ?? 0), 0),
+    taxProducts: invs.reduce((a, i) => a + Number(i.tax_products ?? 0), 0),
+    taxLabor: invs.reduce((a, i) => a + Number(i.tax_labor ?? 0), 0),
     count: invs.length,
   };
 }
@@ -128,7 +131,7 @@ export default async function AccountingDashboard() {
   const { yearStart, yearEnd, monthStart, monthEnd, weekStart, weekEnd, year, month } = getPeriods();
 
   const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }] = await Promise.all([
-    supabase.from('invoices').select('id, status, total, issued_at').order('issued_at', { ascending: false }),
+    supabase.from('invoices').select('id, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at').order('issued_at', { ascending: false }),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount'),
     supabase.from('technicians').select('id, hourly_rate'),
     supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at').not('clocked_out_at', 'is', null).gte('clocked_in_at', yearStart).lte('clocked_in_at', yearEnd),
