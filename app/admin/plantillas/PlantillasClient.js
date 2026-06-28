@@ -1,12 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
-
-const supabase = createClient(
-  'https://zisidorwdhrttmdppnbj.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inppc2lkb3J3ZGhydHRtZHBwbmJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzA3NDEsImV4cCI6MjA5ODAwNjc0MX0.dKCf0omLnIy3AILNaU8vWj_yrMlJM-Fh9sOui71a7Po'
-);
 
 export default function PlantillasClient({ templates: initial }) {
   const router = useRouter();
@@ -108,7 +103,7 @@ export default function PlantillasClient({ templates: initial }) {
 
             {expanded === t.id && t.checklist_template_items?.length > 0 && (
               <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                {t.checklist_template_items.sort((a, b) => a.sort_order - b.sort_order).map((item, idx) => (
+                {t.checklist_template_items.sort((a, b) => a.sort_order - b.sort_order).map((item) => (
                   <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                     <div style={{ width: 20, height: 20, borderRadius: 5, border: '2px solid var(--border)', flexShrink: 0 }} />
                     <span style={{ fontSize: 14 }}>{item.description}</span>
