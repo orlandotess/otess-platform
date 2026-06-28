@@ -18,7 +18,7 @@ export default async function TrabajoDetail({ params }) {
   const { id } = params;
 
   const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }] = await Promise.all([
-   supabase.from('jobs').select('*, clients(name, email, phone, client_type), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
+    supabase.from('jobs').select('*, clients(name, email, phone, client_type), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
     supabase.from('job_line_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('technicians').select('*').order('name'),
     supabase.from('job_notes').select('*').eq('job_id', id).order('created_at', { ascending: false }),
@@ -38,6 +38,25 @@ export default async function TrabajoDetail({ params }) {
     </div>
   );
 
+  // Generate signed URLs for notes with photos (1 hour expiry)
+  const notesWithSignedUrls = await Promise.all(
+    (notes ?? []).map(async (note) => {
+      if (!note.photo_url) return note;
+      try {
+        const url = new URL(note.photo_url);
+        const pathParts = url.pathname.split('/job-photos/');
+        const filePath = pathParts[1];
+        if (!filePath) return note;
+        const { data } = await supabase.storage
+          .from('job-photos')
+          .createSignedUrl(filePath, 3600);
+        return { ...note, photo_url: data?.signedUrl ?? note.photo_url };
+      } catch {
+        return note;
+      }
+    })
+  );
+
   const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
   const clientType = job.clients?.client_type ?? 'final';
 
@@ -49,7 +68,6 @@ export default async function TrabajoDetail({ params }) {
     else { subLabor += base; taxLabor += base * rate; }
   });
   const total = subProd + taxProd + subLabor + taxLabor;
-  const fmt = n => `$${Number(n).toFixed(2)}`;
   const b = statusBadge[job.status] ?? statusBadge.estimate;
 
   return (
@@ -71,7 +89,7 @@ export default async function TrabajoDetail({ params }) {
           job={job}
           items={items ?? []}
           technicians={technicians ?? []}
-          notes={notes ?? []}
+          notes={notesWithSignedUrls}
           checklist={checklist ?? []}
           templates={templates ?? []}
           clientType={clientType}
