@@ -1,4 +1,3 @@
-// v2
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
@@ -91,6 +90,14 @@ export default function NuevoTrabajo() {
       scheduled_end: form.scheduled_end || null,
       property_id: form.property_id || null,
       contact_id: form.contact_id || null,
+      property_name: form.property_name || null,
+      street: form.street || null,
+      city: form.city || null,
+      state: form.state || null,
+      zip: form.zip || null,
+      contact_name: form.contact_name || null,
+      contact_phone: form.contact_phone || null,
+      contact_email: form.contact_email || null,
     }]).select().single();
 
     if (err) { setError(err.message); setSaving(false); return; }
