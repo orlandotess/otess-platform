@@ -2,28 +2,36 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
+import { useState } from 'react';
 
 const links = [
   { href: '/',           label: 'Dashboard',  icon: '⊞' },
   { href: '/clientes',   label: 'Clientes',   icon: '👥' },
   { href: '/trabajos',   label: 'Trabajos',   icon: '🔧' },
-  { href: '/facturas',   label: 'Facturas',   icon: '🧾' },
-  { href: '/accounting', label: 'Accounting', icon: '📊' }, // Nueva pestaña
-  { href: '/horario',    label: 'Horario',    icon: '⏱' },
   { href: '/field',      label: 'Field App',  icon: '📱' },
   { href: '/admin/plantillas', label: 'Plantillas', icon: '📋' },
   { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
 ];
 
+const accountingLinks = [
+  { href: '/accounting',          label: 'Dashboard',  icon: '📊' },
+  { href: '/accounting/facturas', label: 'Facturas',   icon: '🧾' },
+  { href: '/accounting/ivu',      label: 'IVU',        icon: '🏛' },
+  { href: '/accounting/payroll',  label: 'Payroll',    icon: '⏱' },
+];
+
 export default function Sidebar() {
   const path = usePathname();
   const router = useRouter();
+  const [accountingOpen, setAccountingOpen] = useState(path.startsWith('/accounting') || path.startsWith('/facturas') || path.startsWith('/horario'));
 
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
   }
+
+  const isActive = (href) => href === '/' ? path === '/' : path.startsWith(href);
 
   return (
     <aside className="sidebar">
@@ -36,12 +44,43 @@ export default function Sidebar() {
           <Link
             key={l.href}
             href={l.href}
-            className={path === l.href || (l.href !== '/' && path.startsWith(l.href)) ? 'active' : ''}
+            className={isActive(l.href) ? 'active' : ''}
           >
             <span>{l.icon}</span>
             {l.label}
           </Link>
         ))}
+
+        {/* Accounting group */}
+        <button
+          onClick={() => setAccountingOpen(!accountingOpen)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+            padding: '10px 16px', background: accountingOpen ? 'rgba(255,255,255,0.08)' : 'none',
+            border: 'none', color: 'rgba(255,255,255,0.85)', cursor: 'pointer',
+            fontSize: 14, fontWeight: 600, borderRadius: 8, textAlign: 'left',
+          }}
+        >
+          <span>💰</span>
+          Accounting
+          <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>{accountingOpen ? '▼' : '▶'}</span>
+        </button>
+
+        {accountingOpen && (
+          <div style={{ paddingLeft: 16 }}>
+            {accountingLinks.map(l => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={isActive(l.href) ? 'active' : ''}
+                style={{ fontSize: 13 }}
+              >
+                <span>{l.icon}</span>
+                {l.label}
+              </Link>
+            ))}
+          </div>
+        )}
       </nav>
       <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
         <button
