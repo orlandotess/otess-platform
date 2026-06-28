@@ -1,10 +1,10 @@
-
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
+import PayrollClient from './PayrollClient';
 
 function getWeekRange(offset = 0) {
   const now = new Date();
@@ -20,7 +20,7 @@ function getWeekRange(offset = 0) {
 }
 
 export default async function AccountingPayroll({ searchParams }) {
-  const view = searchParams?.view ?? 'month'; // month | year | week
+  const view = searchParams?.view ?? 'month';
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
   const month = searchParams?.month !== undefined ? parseInt(searchParams.month) : new Date().getMonth();
   const weekOffset = parseInt(searchParams?.week ?? '0');
@@ -41,7 +41,7 @@ export default async function AccountingPayroll({ searchParams }) {
   const [{ data: technicians }, { data: entries }] = await Promise.all([
     supabase.from('technicians').select('*').order('name'),
     supabase.from('time_entries')
-      .select('*, technicians(name)')
+      .select('*')
       .gte('clocked_in_at', dateStart)
       .lte('clocked_in_at', dateEnd)
       .not('clocked_out_at', 'is', null)
@@ -50,50 +50,31 @@ export default async function AccountingPayroll({ searchParams }) {
 
   const techs = technicians ?? [];
   const ents = entries ?? [];
-  const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
-  const fmtH = h => `${Number(h).toFixed(1)}h`;
-
   const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
+  const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+  const fmtH = h => `${Number(h).toFixed(1)}h`;
 
-  // Compute per-technician stats
   const techStats = techs.map(tech => {
     const techEntries = ents.filter(e => e.technician_id === tech.id);
     let regularHours = 0, overtimeHours = 0;
-
-    // Group by day for overtime calculation (>8h/day = OT at 1.5x)
     const byDay = {};
     techEntries.forEach(e => {
       const day = e.clocked_in_at.slice(0, 10);
       if (!byDay[day]) byDay[day] = 0;
       byDay[day] += (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000;
     });
-
     Object.values(byDay).forEach(hours => {
       if (hours > 8) { regularHours += 8; overtimeHours += hours - 8; }
       else regularHours += hours;
     });
-
     const rate = Number(tech.hourly_rate ?? 0);
     const regularPay = regularHours * rate;
     const overtimePay = overtimeHours * rate * 1.5;
     const grossPay = regularPay + overtimePay;
     const retention = grossPay * 0.10;
-    const netPay = grossPay - retention;
-
-    return {
-      ...tech,
-      regularHours,
-      overtimeHours,
-      totalHours: regularHours + overtimeHours,
-      regularPay,
-      overtimePay,
-      grossPay,
-      retention,
-      netPay,
-      entryCount: techEntries.length,
-    };
+    return { ...tech, regularHours, overtimeHours, totalHours: regularHours + overtimeHours, regularPay, overtimePay, grossPay, retention, netPay: grossPay - retention };
   });
 
   const totalGross = techStats.reduce((a, t) => a + t.grossPay, 0);
@@ -101,11 +82,15 @@ export default async function AccountingPayroll({ searchParams }) {
   const totalNet = techStats.reduce((a, t) => a + t.netPay, 0);
   const totalHours = techStats.reduce((a, t) => a + t.totalHours, 0);
 
-  // Monthly breakdown for year view
+  // For year view - fetch all entries of the year
+  const { data: allYearEntries } = view === 'year' ? await supabase
+    .from('time_entries').select('*').gte('clocked_in_at', new Date(year, 0, 1).toISOString())
+    .lte('clocked_in_at', new Date(year, 11, 31, 23, 59, 59).toISOString()).not('clocked_out_at', 'is', null) : { data: ents };
+
   const monthlyPayroll = months.map((m, i) => {
     const mStart = new Date(year, i, 1).toISOString();
     const mEnd = new Date(year, i + 1, 0, 23, 59, 59).toISOString();
-    const mEntries = ents.filter(e => e.clocked_in_at >= mStart && e.clocked_in_at <= mEnd);
+    const mEntries = (allYearEntries ?? ents).filter(e => e.clocked_in_at >= mStart && e.clocked_in_at <= mEnd);
     let gross = 0;
     techs.forEach(tech => {
       const te = mEntries.filter(e => e.technician_id === tech.id);
@@ -147,7 +132,6 @@ export default async function AccountingPayroll({ searchParams }) {
                 ))}
               </div>
             </div>
-
             {view === 'week' && (
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Semana</label>
@@ -158,7 +142,6 @@ export default async function AccountingPayroll({ searchParams }) {
                 </div>
               </div>
             )}
-
             {(view === 'month' || view === 'year') && (
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Año</label>
@@ -172,7 +155,6 @@ export default async function AccountingPayroll({ searchParams }) {
                 </div>
               </div>
             )}
-
             {view === 'month' && (
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Mes</label>
@@ -209,99 +191,17 @@ export default async function AccountingPayroll({ searchParams }) {
           </div>
         </div>
 
-        {/* Per technician breakdown */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Por técnico</p>
-          {techStats.every(t => t.totalHours === 0) ? (
-            <div className="empty"><p>No hay entradas de tiempo para este período.</p></div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Técnico</th>
-                    <th style={{ textAlign: 'right' }}>Tarifa/h</th>
-                    <th style={{ textAlign: 'right' }}>Horas Reg.</th>
-                    <th style={{ textAlign: 'right' }}>Horas OT</th>
-                    <th style={{ textAlign: 'right' }}>Total Horas</th>
-                    <th style={{ textAlign: 'right' }}>Pay Regular</th>
-                    <th style={{ textAlign: 'right' }}>Pay OT (1.5x)</th>
-                    <th style={{ textAlign: 'right' }}>Gross Pay</th>
-                    <th style={{ textAlign: 'right' }}>Retención (10%)</th>
-                    <th style={{ textAlign: 'right' }}>Net Pay</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {techStats.filter(t => t.totalHours > 0).map(t => (
-                    <tr key={t.id}>
-                      <td style={{ fontWeight: 700 }}>{t.name}</td>
-                      <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(t.hourly_rate)}/h</td>
-                      <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmtH(t.regularHours)}</td>
-                      <td style={{ textAlign: 'right', color: t.overtimeHours > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmtH(t.overtimeHours)}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtH(t.totalHours)}</td>
-                      <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(t.regularPay)}</td>
-                      <td style={{ textAlign: 'right', color: t.overtimePay > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmt(t.overtimePay)}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(t.grossPay)}</td>
-                      <td style={{ textAlign: 'right', color: 'var(--warn)' }}>{fmt(t.retention)}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--ok)' }}>{fmt(t.netPay)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: '2px solid var(--border)' }}>
-                    <td colSpan={4} style={{ fontWeight: 700, paddingTop: 12 }}>TOTAL</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmtH(totalHours)}</td>
-                    <td colSpan={2} style={{ paddingTop: 12 }}></td>
-                    <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totalGross)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--warn)', paddingTop: 12 }}>{fmt(totalRetention)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--ok)', paddingTop: 12 }}>{fmt(totalNet)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Monthly breakdown for year view */}
-        {view === 'year' && (
-          <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Desglose mensual {year}</p>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Mes</th>
-                    <th style={{ textAlign: 'right' }}>Gross Pay</th>
-                    <th style={{ textAlign: 'right' }}>Retención (10%)</th>
-                    <th style={{ textAlign: 'right' }}>Net Pay</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyPayroll.map(m => (
-                    <tr key={m.idx} style={{ opacity: m.gross === 0 ? 0.4 : 1 }}>
-                      <td>
-                        <Link href={`/accounting/payroll?view=month&year=${year}&month=${m.idx}`} style={{ color: 'var(--amber)', fontWeight: 600 }}>
-                          {m.name}
-                        </Link>
-                      </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(m.gross)}</td>
-                      <td style={{ textAlign: 'right', color: 'var(--warn)' }}>{fmt(m.gross * 0.1)}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--ok)' }}>{fmt(m.net)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: '2px solid var(--border)' }}>
-                    <td style={{ fontWeight: 700, paddingTop: 12 }}>TOTAL</td>
-                    <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totalGross)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--warn)', paddingTop: 12 }}>{fmt(totalRetention)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--ok)', paddingTop: 12 }}>{fmt(totalNet)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-        )}
+        <PayrollClient
+          techStats={techStats}
+          totalGross={totalGross}
+          totalRetention={totalRetention}
+          totalNet={totalNet}
+          totalHours={totalHours}
+          monthlyPayroll={monthlyPayroll}
+          view={view}
+          year={year}
+          months={months}
+        />
       </main>
     </div>
   );
