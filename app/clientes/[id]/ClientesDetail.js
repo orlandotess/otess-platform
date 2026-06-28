@@ -48,7 +48,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
     router.push('/clientes');
   }
 
-  async function saveProperty(e) {
+    async function saveProperty(e) {
     e.preventDefault();
     setSavingProp(true);
     const { data } = await supabase.from('client_properties').insert([{
@@ -56,11 +56,14 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
       ...prop,
       is_primary: properties.length === 0,
     }]).select().single();
-    if (data) setProperties(prev => [...prev, data]);
-    setProp({ name: '', street: '', city: '', state: 'PR', zip: '' });
-    setShowPropForm(false);
+    if (data) {
+      setProperties(prev => [...prev, data]);
+      setProp({ name: '', street: '', city: '', state: 'PR', zip: '' });
+      setShowPropForm(false);
+    }
     setSavingProp(false);
   }
+
 
   async function deleteProperty(propId) {
     await supabase.from('client_properties').delete().eq('id', propId);
