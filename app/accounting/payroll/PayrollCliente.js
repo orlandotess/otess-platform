@@ -2,33 +2,55 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 
-export default function PayrollClient({ techStats, totalGross, totalRetention, totalNet, totalHours, monthlyPayroll, view, year, months }) {
-  const [editing, setEditing] = useState(null); // tech id being edited
-  const [editRate, setEditRate] = useState('');
-  const [editHours, setEditHours] = useState({}); // { entryId: hours }
+export default function PayrollClient({ techStats: initialStats, monthlyPayroll, view, year, months, periodStart, periodEnd }) {
+  const [stats, setStats] = useState(initialStats);
+  const [editing, setEditing] = useState(null);
+  const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
-  const [stats, setStats] = useState(techStats);
 
   const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
   const fmtH = h => `${Number(h).toFixed(1)}h`;
 
   function startEdit(tech) {
     setEditing(tech.id);
-    setEditRate(tech.hourly_rate ?? 0);
+    setEditData({
+      rate: tech.hourly_rate ?? 0,
+      regular: tech.regularHours.toFixed(1),
+      overtime: tech.overtimeHours.toFixed(1),
+    });
   }
 
-  async function saveRate(tech) {
+  function recalc(rate, regular, overtime) {
+    const r = parseFloat(rate) || 0;
+    const rh = parseFloat(regular) || 0;
+    const oh = parseFloat(overtime) || 0;
+    const regularPay = rh * r;
+    const overtimePay = oh * r * 1.5;
+    const grossPay = regularPay + overtimePay;
+    const retention = grossPay * 0.10;
+    return { regularHours: rh, overtimeHours: oh, totalHours: rh + oh, regularPay, overtimePay, grossPay, retention, netPay: grossPay - retention };
+  }
+
+  async function saveTech(tech) {
     setSaving(true);
-    const newRate = parseFloat(editRate);
+    const newRate = parseFloat(editData.rate) || 0;
+    const newRegular = parseFloat(editData.regular) || 0;
+    const newOvertime = parseFloat(editData.overtime) || 0;
+
+    // Save rate to technicians table
     await supabase.from('technicians').update({ hourly_rate: newRate }).eq('id', tech.id);
-    setStats(prev => prev.map(t => {
-      if (t.id !== tech.id) return t;
-      const regularPay = t.regularHours * newRate;
-      const overtimePay = t.overtimeHours * newRate * 1.5;
-      const grossPay = regularPay + overtimePay;
-      const retention = grossPay * 0.10;
-      return { ...t, hourly_rate: newRate, regularPay, overtimePay, grossPay, retention, netPay: grossPay - retention };
-    }));
+
+    // Save hour overrides to payroll_adjustments
+    await supabase.from('payroll_adjustments').upsert({
+      technician_id: tech.id,
+      period_start: periodStart,
+      period_end: periodEnd,
+      regular_hours_override: newRegular !== tech.regularHoursRaw ? newRegular : null,
+      overtime_hours_override: newOvertime !== tech.overtimeHoursRaw ? newOvertime : null,
+    }, { onConflict: 'technician_id,period_start,period_end' });
+
+    const updated = recalc(newRate, newRegular, newOvertime);
+    setStats(prev => prev.map(t => t.id === tech.id ? { ...t, hourly_rate: newRate, ...updated } : t));
     setEditing(null);
     setSaving(false);
   }
@@ -40,7 +62,6 @@ export default function PayrollClient({ techStats, totalGross, totalRetention, t
 
   return (
     <>
-      {/* Per technician breakdown */}
       <div className="card" style={{ marginBottom: 20 }}>
         <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Por técnico</p>
         {stats.every(t => t.totalHours === 0) ? (
@@ -64,19 +85,33 @@ export default function PayrollClient({ techStats, totalGross, totalRetention, t
                 </tr>
               </thead>
               <tbody>
-                {stats.filter(t => t.totalHours > 0).map(t => (
+                {stats.filter(t => t.totalHours > 0 || editing === t.id).map(t => (
                   <tr key={t.id}>
                     <td style={{ fontWeight: 700 }}>{t.name}</td>
                     <td style={{ textAlign: 'right' }}>
                       {editing === t.id ? (
-                        <input type="number" value={editRate} onChange={e => setEditRate(e.target.value)}
+                        <input type="number" value={editData.rate} onChange={e => setEditData(d => ({ ...d, rate: e.target.value }))}
+                          style={{ width: 80, padding: '4px 8px', border: '1.5px solid var(--amber)', borderRadius: 6, fontSize: 13, textAlign: 'right', outline: 'none' }} />
+                      ) : <span style={{ color: 'var(--muted)' }}>{fmt(t.hourly_rate)}/h</span>}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {editing === t.id ? (
+                        <input type="number" step="0.1" value={editData.regular} onChange={e => setEditData(d => ({ ...d, regular: e.target.value }))}
                           style={{ width: 80, padding: '4px 8px', border: '1.5px solid var(--amber)', borderRadius: 6, fontSize: 13, textAlign: 'right', outline: 'none' }} />
                       ) : (
-                        <span style={{ color: 'var(--muted)' }}>{fmt(t.hourly_rate)}/h</span>
+                        <span style={{ color: t.hasOverride ? 'var(--amber)' : 'var(--muted)' }}>
+                          {fmtH(t.regularHours)}{t.hasOverride ? ' ✏️' : ''}
+                        </span>
                       )}
                     </td>
-                    <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmtH(t.regularHours)}</td>
-                    <td style={{ textAlign: 'right', color: t.overtimeHours > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmtH(t.overtimeHours)}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {editing === t.id ? (
+                        <input type="number" step="0.1" value={editData.overtime} onChange={e => setEditData(d => ({ ...d, overtime: e.target.value }))}
+                          style={{ width: 80, padding: '4px 8px', border: '1.5px solid var(--amber)', borderRadius: 6, fontSize: 13, textAlign: 'right', outline: 'none' }} />
+                      ) : (
+                        <span style={{ color: t.overtimeHours > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmtH(t.overtimeHours)}</span>
+                      )}
+                    </td>
                     <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtH(t.totalHours)}</td>
                     <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(t.regularPay)}</td>
                     <td style={{ textAlign: 'right', color: t.overtimePay > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmt(t.overtimePay)}</td>
@@ -86,7 +121,7 @@ export default function PayrollClient({ techStats, totalGross, totalRetention, t
                     <td>
                       {editing === t.id ? (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => saveRate(t)} disabled={saving}>
+                          <button className="btn btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => saveTech(t)} disabled={saving}>
                             {saving ? '...' : '💾'}
                           </button>
                           <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditing(null)}>✕</button>
@@ -114,7 +149,6 @@ export default function PayrollClient({ techStats, totalGross, totalRetention, t
         )}
       </div>
 
-      {/* Monthly breakdown for year view */}
       {view === 'year' && (
         <div className="card">
           <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Desglose mensual {year}</p>
