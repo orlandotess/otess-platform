@@ -5,13 +5,15 @@ import { useRouter } from 'next/navigation';
 
 const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
 
-export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0 }) {
+export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person' }) {
   const router = useRouter();
   const [showPayment, setShowPayment] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
   const [showEditNumber, setShowEditNumber] = useState(false);
+  const [showEditBillTo, setShowEditBillTo] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [newNumber, setNewNumber] = useState(invoiceNumber || '');
+  const [billTo, setBillTo] = useState(initialBillTo);
   const [payment, setPayment] = useState({ amount: balance || '', method: 'cash', reference: '', notes: '', paid_at: new Date().toISOString().split('T')[0] });
   const [emailTo, setEmailTo] = useState(clientEmail || '');
   const [saving, setSaving] = useState(false);
@@ -68,6 +70,13 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
     router.refresh();
   }
 
+  async function saveBillTo(e) {
+    e.preventDefault();
+    await supabase.from('invoices').update({ bill_to: billTo }).eq('id', invoiceId);
+    setShowEditBillTo(false);
+    router.refresh();
+  }
+
   async function deleteInvoice() {
     setDeleting(true);
     await supabase.from('payments').delete().eq('invoice_id', invoiceId);
@@ -90,6 +99,9 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       <button className="btn btn-ghost" onClick={() => window.print()}>🖨️ PDF</button>
       <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 Email</button>
       <button className="btn btn-ghost" onClick={() => { setNewNumber(invoiceNumber); setShowEditNumber(true); }}>✏️ # Factura</button>
+      {clientCompany && (
+        <button className="btn btn-ghost" onClick={() => setShowEditBillTo(true)}>👤 Facturar a</button>
+      )}
       {status === 'draft' && <button className="btn btn-primary" onClick={() => updateStatus('sent')}>📤 Enviar</button>}
       {status === 'sent' && (
         <>
@@ -100,6 +112,37 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {status === 'paid' && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Pagada</span>}
       {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Enviado</span>}
       <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
+
+      {/* Edit bill to */}
+      {showEditBillTo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Facturar a</h2>
+            <form onSubmit={saveBillTo}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'person' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'person' ? '#f0f4ff' : '#fff' }}>
+                  <input type="radio" name="bill_to" value="person" checked={billTo === 'person'} onChange={() => setBillTo('person')} />
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{clientName}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Persona</div>
+                  </div>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'company' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'company' ? '#f0f4ff' : '#fff' }}>
+                  <input type="radio" name="bill_to" value="company" checked={billTo === 'company'} onChange={() => setBillTo('company')} />
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{clientCompany}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Empresa</div>
+                  </div>
+                </label>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditBillTo(false)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Edit invoice number */}
       {showEditNumber && (
