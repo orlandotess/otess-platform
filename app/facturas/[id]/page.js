@@ -52,6 +52,7 @@ export default async function FacturaDetail({ params }) {
             billTo={inv.bill_to ?? 'person'}
             clientProperties={clientProperties}
             propertyId={inv.property_id ?? null}
+            terms={inv.terms ?? ''}
           />
         </div>
 
