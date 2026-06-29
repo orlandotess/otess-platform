@@ -14,10 +14,22 @@ export default async function FacturaDetail({ params }) {
     supabase.from('payments').select('*').eq('invoice_id', id).order('paid_at'),
   ]);
 
+
+
   if (!inv) return <div style={{ padding: 40 }}>Factura no encontrada</div>;
 
   const totalPaid = payments?.reduce((a, p) => a + Number(p.amount), 0) ?? 0;
   const balance = Number(inv.total) - totalPaid;
+
+  // Account balance — all pending invoices for this client
+  const clientId = inv?.client_id;
+  const { data: clientInvoices } = clientId ? await supabase
+    .from('invoices')
+    .select('id, total, status')
+    .eq('client_id', clientId)
+    .in('status', ['sent', 'draft'])
+    .neq('id', id) : { data: [] };
+  const accountBalance = (clientInvoices ?? []).reduce((a, i) => a + Number(i.total ?? 0), 0) + balance;
   const primaryAddr = inv.clients?.client_addresses?.find(a => a.is_primary) ?? inv.clients?.client_addresses?.[0];
   const clientProperties = inv.clients?.client_properties ?? [];
   const property = inv.property_id
@@ -158,6 +170,11 @@ export default async function FacturaDetail({ params }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 16, fontWeight: 700, color: balance > 0 ? 'var(--warn)' : 'var(--ok)' }}>
                     <span>Balance</span><span>${balance.toFixed(2)}</span>
                   </div>
+                  {accountBalance > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, fontWeight: 600, color: 'var(--muted)', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                      <span>Balance de cuenta</span><span>${accountBalance.toFixed(2)}</span>
+                    </div>
+                  )}
                 </>
               )}
             </div>
