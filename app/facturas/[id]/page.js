@@ -22,7 +22,7 @@ export default async function FacturaDetail({ params }) {
   const balance = Number(inv.total) - totalPaid;
 
   // Account balance — all pending invoices for this client
-  const clientId = inv?.client_id;
+  const clientId = inv?.client_id ?? inv?.clients?.id ?? null;
   const { data: clientInvoices } = clientId ? await supabase
     .from('invoices')
     .select('id, total, status')
