@@ -1,250 +1,248 @@
-'use client';
-import { useState } from 'react';
-import { supabase } from '../../../lib/supabase';
-import { useRouter } from 'next/navigation';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
+import { supabaseServer as supabase } from '../../../lib/supabase';
+import Sidebar from '../../Sidebar';
+import Link from 'next/link';
 
-export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person' }) {
-  const router = useRouter();
-  const [showPayment, setShowPayment] = useState(false);
-  const [showEmail, setShowEmail] = useState(false);
-  const [showEditNumber, setShowEditNumber] = useState(false);
-  const [showEditBillTo, setShowEditBillTo] = useState(false);
-  const [showDelete, setShowDelete] = useState(false);
-  const [newNumber, setNewNumber] = useState(invoiceNumber || '');
-  const [billTo, setBillTo] = useState(initialBillTo);
-  const [payment, setPayment] = useState({ amount: balance || '', method: 'cash', reference: '', notes: '', paid_at: new Date().toISOString().split('T')[0] });
-  const [emailTo, setEmailTo] = useState(clientEmail || '');
-  const [saving, setSaving] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+const statusBadge = {
+  draft:     { cls: 'badge-gray',  label: 'Borrador' },
+  sent:      { cls: 'badge-blue',  label: 'Enviada' },
+  paid:      { cls: 'badge-green', label: 'Pagada' },
+  cancelled: { cls: 'badge-red',   label: 'Cancelada' },
+};
 
-  async function updateStatus(newStatus) {
-    await supabase.from('invoices').update({ status: newStatus }).eq('id', invoiceId);
-    router.refresh();
-  }
-
-  async function savePayment(e) {
-    e.preventDefault();
-    setSaving(true);
-    await supabase.from('payments').insert([{
-      invoice_id: invoiceId,
-      amount: parseFloat(payment.amount),
-      method: payment.method,
-      reference: payment.reference || null,
-      notes: payment.notes || null,
-      paid_at: payment.paid_at,
-    }]);
-    const { data: allPayments } = await supabase.from('payments').select('amount').eq('invoice_id', invoiceId);
-    const { data: inv } = await supabase.from('invoices').select('total').eq('id', invoiceId).single();
-    const totalPaid = allPayments?.reduce((a, p) => a + Number(p.amount), 0) ?? 0;
-    if (totalPaid >= Number(inv?.total)) {
-      await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoiceId);
-    }
-    setSaving(false);
-    setShowPayment(false);
-    router.refresh();
-  }
-
-  async function sendEmail(e) {
-    e.preventDefault();
-    setSending(true);
-    const res = await fetch('/api/send-invoice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invoiceId, toEmail: emailTo }),
-    });
-    const data = await res.json();
-    setSending(false);
-    if (data.success) { setEmailSent(true); setShowEmail(false); router.refresh(); }
-    else alert('Error: ' + data.error);
-  }
-
-  async function saveNumber(e) {
-    e.preventDefault();
-    if (!newNumber.trim()) return;
-    await supabase.from('invoices').update({ invoice_number: newNumber.trim() }).eq('id', invoiceId);
-    setShowEditNumber(false);
-    router.refresh();
-  }
-
-  async function saveBillTo(e) {
-    e.preventDefault();
-    await supabase.from('invoices').update({ bill_to: billTo }).eq('id', invoiceId);
-    setShowEditBillTo(false);
-    router.refresh();
-  }
-
-  async function deleteInvoice() {
-    setDeleting(true);
-    await supabase.from('payments').delete().eq('invoice_id', invoiceId);
-    await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId);
-    await supabase.from('invoices').delete().eq('id', invoiceId);
-    router.push('/facturas');
-  }
-
-  if (showPaymentOnly) {
-    return (
-      <>
-        <button className="btn btn-amber" onClick={() => setShowPayment(true)}>+ Registrar pago</button>
-        {showPayment && <PaymentModal payment={payment} setPayment={setPayment} onSave={savePayment} onClose={() => setShowPayment(false)} saving={saving} balance={balance} />}
-      </>
-    );
-  }
-
-  return (
-    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-      <button className="btn btn-ghost" onClick={() => window.print()}>🖨️ PDF</button>
-      <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 Email</button>
-      <button className="btn btn-ghost" onClick={() => { setNewNumber(invoiceNumber); setShowEditNumber(true); }}>✏️ # Factura</button>
-      {clientCompany && (
-        <button className="btn btn-ghost" onClick={() => setShowEditBillTo(true)}>👤 Facturar a</button>
-      )}
-      {status === 'draft' && <button className="btn btn-primary" onClick={() => updateStatus('sent')}>📤 Enviar</button>}
-      {status === 'sent' && (
-        <>
-          <button className="btn btn-amber" onClick={() => setShowPayment(true)}>💰 Pago</button>
-          <button className="btn btn-ghost" onClick={() => updateStatus('cancelled')}>Cancelar</button>
-        </>
-      )}
-      {status === 'paid' && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Pagada</span>}
-      {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Enviado</span>}
-      <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
-
-      {/* Edit bill to */}
-      {showEditBillTo && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Facturar a</h2>
-            <form onSubmit={saveBillTo}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'person' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'person' ? '#f0f4ff' : '#fff' }}>
-                  <input type="radio" name="bill_to" value="person" checked={billTo === 'person'} onChange={() => setBillTo('person')} />
-                  <div>
-                    <div style={{ fontWeight: 700 }}>{clientName}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Persona</div>
-                  </div>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'company' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'company' ? '#f0f4ff' : '#fff' }}>
-                  <input type="radio" name="bill_to" value="company" checked={billTo === 'company'} onChange={() => setBillTo('company')} />
-                  <div>
-                    <div style={{ fontWeight: 700 }}>{clientCompany}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Empresa</div>
-                  </div>
-                </label>
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEditBillTo(false)}>Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit invoice number */}
-      {showEditNumber && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Editar número de factura</h2>
-            <form onSubmit={saveNumber}>
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Número de factura</label>
-                <input value={newNumber} onChange={e => setNewNumber(e.target.value)} placeholder="INV-1001" required />
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEditNumber(false)}>Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete confirmation */}
-      {showDelete && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar factura?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Se eliminarán también los pagos asociados. Esta acción no se puede deshacer.</p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-ghost" onClick={deleteInvoice} disabled={deleting}
-                style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
-              </button>
-              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Email modal */}
-      {showEmail && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Enviar factura por email</h2>
-            <form onSubmit={sendEmail}>
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Email del cliente</label>
-                <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="cliente@email.com" required />
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" disabled={sending} style={{ flex: 1, justifyContent: 'center' }}>
-                  {sending ? 'Enviando...' : '📧 Enviar'}
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEmail(false)}>Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showPayment && <PaymentModal payment={payment} setPayment={setPayment} onSave={savePayment} onClose={() => setShowPayment(false)} saving={saving} balance={balance} />}
-    </div>
-  );
+function getWeekRange(offset = 0) {
+  const now = new Date();
+  const day = now.getDay();
+  const diffToMon = (day + 6) % 7;
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - diffToMon + (offset * 7));
+  weekStart.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+  return { weekStart, weekEnd };
 }
 
-function PaymentModal({ payment, setPayment, onSave, onClose, saving, balance }) {
-  const set = (k, v) => setPayment(p => ({ ...p, [k]: v }));
+export default async function AccountingFacturas({ searchParams }) {
+  const view = searchParams?.view ?? 'month';
+  const year = parseInt(searchParams?.year ?? new Date().getFullYear());
+  const month = searchParams?.month !== undefined && searchParams.month !== '' ? parseInt(searchParams.month) : null;
+  const weekOffset = parseInt(searchParams?.week ?? '0');
+  const status = searchParams?.status ?? 'all';
+
+  let dateStart, dateEnd, periodLabel;
+  const currentYear = new Date().getFullYear();
+  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  if (view === 'week') {
+    const { weekStart, weekEnd } = getWeekRange(weekOffset);
+    dateStart = weekStart.toISOString().slice(0, 10);
+    dateEnd = weekEnd.toISOString().slice(0, 10);
+    const fmtDate = d => d.toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric' });
+    periodLabel = `${fmtDate(weekStart)} — ${fmtDate(weekEnd)}`;
+  } else if (view === 'month' && month !== null) {
+    dateStart = new Date(year, month, 1).toISOString().slice(0, 10);
+    dateEnd = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+    periodLabel = `${months[month]} ${year}`;
+  } else {
+    dateStart = `${year}-01-01`;
+    dateEnd = `${year}-12-31`;
+    periodLabel = `Año ${year}`;
+  }
+
+  let query = supabase.from('invoices')
+    .select('id, invoice_number, status, bill_to, subtotal_products, tax_products, subtotal_labor, tax_labor, total, issued_at, due_at, clients(name, company, client_type)')
+    .gte('issued_at', dateStart)
+    .lte('issued_at', dateEnd)
+    .order('issued_at', { ascending: false });
+
+  if (status !== 'all') query = query.eq('status', status);
+
+  const { data: invoices } = await query;
+  const invs = invoices ?? [];
+  const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+
+  const totalFacturado = invs.reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const totalCobrado = invs.filter(i => i.status === 'paid').reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const totalPendiente = invs.filter(i => i.status === 'sent').reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const totalIVU = invs.reduce((a, i) => a + Number(i.tax_products ?? 0) + Number(i.tax_labor ?? 0), 0);
+
+  const years = [currentYear, currentYear - 1, currentYear - 2];
+  const { weekStart, weekEnd } = getWeekRange(weekOffset);
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 420 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Registrar pago</h2>
-        <form onSubmit={onSave}>
-          <div className="form-row" style={{ marginBottom: 16 }}>
-            <div className="form-group">
-              <label>Monto *</label>
-              <input type="number" value={payment.amount} onChange={e => set('amount', e.target.value)} step="0.01" min="0.01" placeholder={`Máx $${Number(balance).toFixed(2)}`} required />
-            </div>
-            <div className="form-group">
-              <label>Fecha</label>
-              <input type="date" value={payment.paid_at} onChange={e => set('paid_at', e.target.value)} />
-            </div>
-          </div>
-          <div className="form-group" style={{ marginBottom: 16 }}>
-            <label>Método de pago</label>
-            <select value={payment.method} onChange={e => set('method', e.target.value)}>
-              {Object.entries(methodLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </div>
-          <div className="form-group" style={{ marginBottom: 16 }}>
-            <label>Referencia</label>
-            <input value={payment.reference} onChange={e => set('reference', e.target.value)} placeholder="Cheque #, confirmación, etc." />
-          </div>
-          <div className="form-group" style={{ marginBottom: 20 }}>
-            <label>Notas</label>
-            <textarea value={payment.notes} onChange={e => set('notes', e.target.value)} placeholder="Opcional" style={{ minHeight: 60 }} />
+    <div className="admin-shell">
+      <Sidebar />
+      <main className="main-content">
+        <div className="page-header">
+          <div>
+            <div className="page-title">Facturas</div>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>{periodLabel}</p>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn-primary" disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
-              {saving ? 'Guardando...' : '💾 Guardar pago'}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+            <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+            <Link href="/facturas/nueva" className="btn btn-primary">+ Nueva factura</Link>
           </div>
-        </form>
-      </div>
+        </div>
+
+        {/* Filters */}
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {/* Vista */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Vista</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[['week','Semanal'],['month','Mensual'],['year','Anual']].map(([v, l]) => (
+                  <Link key={v} href={`/accounting/facturas?view=${v}&year=${year}&month=${month ?? ''}&status=${status}`}
+                    className={`btn ${v === view ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>
+                    {l}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Week navigation */}
+            {view === 'week' && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Semana</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Link href={`/accounting/facturas?view=week&week=${weekOffset - 1}&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>← Anterior</Link>
+                  {weekOffset !== 0 && <Link href={`/accounting/facturas?view=week&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Actual</Link>}
+                  {weekOffset < 0 && <Link href={`/accounting/facturas?view=week&week=${weekOffset + 1}&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Siguiente →</Link>}
+                </div>
+              </div>
+            )}
+
+            {/* Year selector */}
+            {view !== 'week' && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Año</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {years.map(y => (
+                    <Link key={y} href={`/accounting/facturas?view=${view}&year=${y}&month=${month ?? ''}&status=${status}`}
+                      className={`btn ${y === year ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>
+                      {y}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Month selector */}
+            {view === 'month' && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Mes</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <Link href={`/accounting/facturas?view=year&year=${year}&status=${status}`}
+                    className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>
+                    Todo el año
+                  </Link>
+                  {months.map((m, i) => (
+                    <Link key={i} href={`/accounting/facturas?view=month&year=${year}&month=${i}&status=${status}`}
+                      className={`btn ${month === i ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 10px', fontSize: 12 }}>
+                      {m.slice(0, 3)}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Status */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Estado</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {['all', 'draft', 'sent', 'paid', 'cancelled'].map(s => (
+                  <Link key={s} href={`/accounting/facturas?view=${view}&year=${year}&month=${month ?? ''}&week=${weekOffset}&status=${s}`}
+                    className={`btn ${s === status ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 12px', fontSize: 12 }}>
+                    {s === 'all' ? 'Todas' : statusBadge[s]?.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
+          <div className="stat-card">
+            <div className="stat-label">Facturado</div>
+            <div className="stat-value">{fmt(totalFacturado)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Cobrado</div>
+            <div className="stat-value" style={{ color: 'var(--ok)' }}>{fmt(totalCobrado)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Pendiente</div>
+            <div className="stat-value" style={{ color: 'var(--amber)' }}>{fmt(totalPendiente)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">IVU Total</div>
+            <div className="stat-value" style={{ color: 'var(--navy)' }}>{fmt(totalIVU)}</div>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="card">
+          {invs.length === 0 ? (
+            <div className="empty"><p>No hay facturas para este período.</p></div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Cliente</th>
+                    <th>Tipo</th>
+                    <th>Estado</th>
+                    <th>Fecha</th>
+                    <th style={{ textAlign: 'right' }}>Subtotal</th>
+                    <th style={{ textAlign: 'right' }}>IVU Prod</th>
+                    <th style={{ textAlign: 'right' }}>IVU Labor</th>
+                    <th style={{ textAlign: 'right' }}>Total</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invs.map(inv => {
+                    const b = statusBadge[inv.status] ?? statusBadge.draft;
+                    const subtotal = Number(inv.subtotal_products ?? 0) + Number(inv.subtotal_labor ?? 0);
+                    const clientDisplay = inv.bill_to === 'company' && inv.clients?.company
+                      ? inv.clients.company
+                      : inv.clients?.name ?? '—';
+                    return (
+                      <tr key={inv.id}>
+                        <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{inv.invoice_number}</td>
+                        <td style={{ fontWeight: 600 }}>{clientDisplay}</td>
+                        <td><span className={`badge ${inv.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`}>{inv.clients?.client_type === 'b2b' ? 'B2B' : 'Final'}</span></td>
+                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at ?? '—'}</td>
+                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(subtotal)}</td>
+                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(inv.tax_products)}</td>
+                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(inv.tax_labor)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(inv.total)}</td>
+                        <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid var(--border)' }}>
+                    <td colSpan={5} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTALES</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(invs.reduce((a, i) => a + Number(i.subtotal_products ?? 0) + Number(i.subtotal_labor ?? 0), 0))}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(invs.reduce((a, i) => a + Number(i.tax_products ?? 0), 0))}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(invs.reduce((a, i) => a + Number(i.tax_labor ?? 0), 0))}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totalFacturado)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
