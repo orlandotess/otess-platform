@@ -3,31 +3,74 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
-import InvoiceActions from './InvoiceActions';
+import Link from 'next/link';
 
-export default async function FacturaDetail({ params }) {
-  const { id } = params;
+const statusBadge = {
+  draft:     { cls: 'badge-gray',  label: 'Borrador' },
+  sent:      { cls: 'badge-blue',  label: 'Enviada' },
+  paid:      { cls: 'badge-green', label: 'Pagada' },
+  cancelled: { cls: 'badge-red',   label: 'Cancelada' },
+};
 
-  const [{ data: inv }, { data: items }, { data: payments }] = await Promise.all([
-    supabase.from('invoices').select('*, clients(name, email, phone, company, client_type, client_addresses(*)), jobs(id, title, client_properties(*))').eq('id', id).single(),
-    supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order'),
-    supabase.from('payments').select('*').eq('invoice_id', id).order('paid_at'),
-  ]);
+function getWeekRange(offset = 0) {
+  const now = new Date();
+  const day = now.getDay();
+  const diffToMon = (day + 6) % 7;
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - diffToMon + (offset * 7));
+  weekStart.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+  return { weekStart, weekEnd };
+}
 
-  if (!inv) return <div style={{ padding: 40 }}>Factura no encontrada</div>;
+export default async function AccountingFacturas({ searchParams }) {
+  const view = searchParams?.view ?? 'month';
+  const year = parseInt(searchParams?.year ?? new Date().getFullYear());
+  const month = searchParams?.month !== undefined && searchParams.month !== '' ? parseInt(searchParams.month) : null;
+  const weekOffset = parseInt(searchParams?.week ?? '0');
+  const status = searchParams?.status ?? 'all';
 
-  const totalPaid = payments?.reduce((a, p) => a + Number(p.amount), 0) ?? 0;
-  const balance = Number(inv.total) - totalPaid;
-  const primaryAddr = inv.clients?.client_addresses?.find(a => a.is_primary) ?? inv.clients?.client_addresses?.[0];
-  const property = inv.jobs?.client_properties ?? null;
+  let dateStart, dateEnd, periodLabel;
+  const currentYear = new Date().getFullYear();
+  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-  const billToName = inv.bill_to === 'company' && inv.clients?.company
-    ? inv.clients.company
-    : inv.clients?.name;
+  if (view === 'week') {
+    const { weekStart, weekEnd } = getWeekRange(weekOffset);
+    dateStart = weekStart.toISOString().slice(0, 10);
+    dateEnd = weekEnd.toISOString().slice(0, 10);
+    const fmtDate = d => d.toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric' });
+    periodLabel = `${fmtDate(weekStart)} — ${fmtDate(weekEnd)}`;
+  } else if (view === 'month' && month !== null) {
+    dateStart = new Date(year, month, 1).toISOString().slice(0, 10);
+    dateEnd = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+    periodLabel = `${months[month]} ${year}`;
+  } else {
+    dateStart = `${year}-01-01`;
+    dateEnd = `${year}-12-31`;
+    periodLabel = `Año ${year}`;
+  }
 
-  const statusLabel = { draft: 'Borrador', sent: 'Enviada', paid: 'Pagada', cancelled: 'Cancelada' };
-  const statusCls = { draft: 'badge-gray', sent: 'badge-blue', paid: 'badge-green', cancelled: 'badge-red' };
-  const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
+  let query = supabase.from('invoices')
+    .select('id, invoice_number, status, bill_to, subtotal_products, tax_products, subtotal_labor, tax_labor, total, issued_at, due_at, clients(name, company, client_type)')
+    .gte('issued_at', dateStart)
+    .lte('issued_at', dateEnd)
+    .order('issued_at', { ascending: false });
+
+  if (status !== 'all') query = query.eq('status', status);
+
+  const { data: invoices } = await query;
+  const invs = invoices ?? [];
+  const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+
+  const totalFacturado = invs.reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const totalCobrado = invs.filter(i => i.status === 'paid').reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const totalPendiente = invs.filter(i => i.status === 'sent').reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const totalIVU = invs.reduce((a, i) => a + Number(i.tax_products ?? 0) + Number(i.tax_labor ?? 0), 0);
+
+  const years = [currentYear, currentYear - 1, currentYear - 2];
+  const { weekStart, weekEnd } = getWeekRange(weekOffset);
 
   return (
     <div className="admin-shell">
@@ -35,171 +78,168 @@ export default async function FacturaDetail({ params }) {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">{inv.invoice_number}</div>
-            <span className={`badge ${statusCls[inv.status]}`} style={{ marginTop: 6, display: 'inline-block' }}>
-              {statusLabel[inv.status]}
-            </span>
+            <div className="page-title">Facturas</div>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>{periodLabel}</p>
           </div>
-          <InvoiceActions 
-  invoiceId={id} 
-  status={inv.status} 
-  invoiceNumber={inv.invoice_number}
-  clientName={inv.clients?.name}
-  clientCompany={inv.clients?.company}
-  billTo={inv.bill_to ?? 'person'}
-/>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+            <Link href="/facturas/nueva" className="btn btn-primary">+ Nueva factura</Link>
+          </div>
         </div>
 
-        {/* Invoice document */}
-        <div className="card" id="invoice-doc" style={{ marginBottom: 20 }}>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+        {/* Filters */}
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {/* Vista */}
             <div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--navy)', letterSpacing: -1 }}>OTESS</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>OT Electrical & Security Solutions</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>Calle 56, #2D8 Lomas de Carolina</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>Carolina, PR 00987</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>(787) 513-8352 · info@otesspr.com</div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Vista</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[['week','Semanal'],['month','Mensual'],['year','Anual']].map(([v, l]) => (
+                  <Link key={v} href={`/accounting/facturas?view=${v}&year=${year}&month=${month ?? ''}&status=${status}`}
+                    className={`btn ${v === view ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>
+                    {l}
+                  </Link>
+                ))}
+              </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--navy)', letterSpacing: -1 }}>FACTURA</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace' }}>{inv.invoice_number}</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8 }}>Fecha: <strong>{inv.issued_at}</strong></div>
-              {inv.due_at && <div style={{ fontSize: 13, color: 'var(--muted)' }}>Vence: <strong>{inv.due_at}</strong></div>}
-            </div>
-          </div>
 
-          {/* Bill to + Property */}
-          <div style={{ display: 'grid', gridTemplateColumns: property ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 28 }}>
-            {/* Facturar a */}
-            <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '16px 20px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Facturar a</div>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>{billToName}</div>
-              {inv.bill_to !== 'company' && inv.clients?.company && (
-                <div style={{ color: 'var(--muted)', fontSize: 14 }}>{inv.clients.company}</div>
-              )}
-              {primaryAddr && (
-                <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>
-                  {primaryAddr.line1}, {primaryAddr.city} {primaryAddr.zip}
+            {/* Week navigation */}
+            {view === 'week' && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Semana</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Link href={`/accounting/facturas?view=week&week=${weekOffset - 1}&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>← Anterior</Link>
+                  {weekOffset !== 0 && <Link href={`/accounting/facturas?view=week&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Actual</Link>}
+                  {weekOffset < 0 && <Link href={`/accounting/facturas?view=week&week=${weekOffset + 1}&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Siguiente →</Link>}
                 </div>
-              )}
-              {inv.clients?.email && <div style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.clients.email}</div>}
-              {inv.clients?.phone && <div style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.clients.phone}</div>}
-              {inv.clients?.client_type === 'b2b' && (
-                <span className="badge badge-blue" style={{ marginTop: 6, display: 'inline-block' }}>Comerciante Registrado B2B</span>
-              )}
-            </div>
-
-            {/* Propiedad */}
-            {property && (
-              <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '16px 20px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Propiedad del servicio</div>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>{property.name}</div>
-                {property.street && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>{property.street}</div>}
-                {property.city && <div style={{ color: 'var(--muted)', fontSize: 13 }}>{property.city}{property.zip ? `, PR ${property.zip}` : ''}</div>}
               </div>
             )}
-          </div>
 
-          {/* Line items */}
-          <table style={{ marginBottom: 24 }}>
-            <thead>
-              <tr style={{ background: 'var(--navy)' }}>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'left', fontSize: 11 }}>Descripción</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'center', fontSize: 11 }}>Tipo</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Cant.</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Precio</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>IVU</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items?.map(item => (
-                <tr key={item.id}>
-                  <td style={{ padding: '12px 14px', fontWeight: 500 }}>{item.description}</td>
-                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                    <span className={`badge ${item.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
-                      {item.type === 'labor' ? 'Labor' : 'Producto'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>{item.quantity}</td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>${Number(item.unit_price).toFixed(2)}</td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
-                    {item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}
-                  </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(Number(item.line_total) + Number(item.tax_amount)).toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Totals */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={{ width: 320 }}>
-              {[
-                { label: 'Subtotal productos', value: inv.subtotal_products },
-                { label: `IVU productos (11.5%)`, value: inv.tax_products },
-                { label: 'Subtotal labor', value: inv.subtotal_labor },
-                { label: `IVU labor (${inv.clients?.client_type === 'b2b' ? '4%' : '11.5%'})`, value: inv.tax_labor },
-              ].map(row => (
-                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--muted)' }}>{row.label}</span>
-                  <span>${Number(row.value).toFixed(2)}</span>
+            {/* Year selector */}
+            {view !== 'week' && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Año</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {years.map(y => (
+                    <Link key={y} href={`/accounting/facturas?view=${view}&year=${y}&month=${month ?? ''}&status=${status}`}
+                      className={`btn ${y === year ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>
+                      {y}
+                    </Link>
+                  ))}
                 </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 20, fontWeight: 900, color: 'var(--navy)' }}>
-                <span>TOTAL</span>
-                <span>${Number(inv.total).toFixed(2)}</span>
               </div>
-              {totalPaid > 0 && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14, color: 'var(--ok)' }}>
-                    <span>Pagado</span><span>-${totalPaid.toFixed(2)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 16, fontWeight: 700, color: balance > 0 ? 'var(--warn)' : 'var(--ok)' }}>
-                    <span>Balance</span><span>${balance.toFixed(2)}</span>
-                  </div>
-                </>
-              )}
+            )}
+
+            {/* Month selector */}
+            {view === 'month' && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Mes</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <Link href={`/accounting/facturas?view=year&year=${year}&status=${status}`}
+                    className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>
+                    Todo el año
+                  </Link>
+                  {months.map((m, i) => (
+                    <Link key={i} href={`/accounting/facturas?view=month&year=${year}&month=${i}&status=${status}`}
+                      className={`btn ${month === i ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 10px', fontSize: 12 }}>
+                      {m.slice(0, 3)}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Status */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Estado</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {['all', 'draft', 'sent', 'paid', 'cancelled'].map(s => (
+                  <Link key={s} href={`/accounting/facturas?view=${view}&year=${year}&month=${month ?? ''}&week=${weekOffset}&status=${s}`}
+                    className={`btn ${s === status ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 12px', fontSize: 12 }}>
+                    {s === 'all' ? 'Todas' : statusBadge[s]?.label}
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
-
-          {inv.notes && (
-            <div style={{ marginTop: 24, padding: '14px 18px', background: '#f8f9fb', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
-              <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {inv.notes}
-            </div>
-          )}
         </div>
 
-        {/* Payments */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Pagos registrados</h2>
-            {balance > 0 && <InvoiceActions invoiceId={id} status={inv.status} showPaymentOnly balance={balance} />}
+        {/* Stats */}
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
+          <div className="stat-card">
+            <div className="stat-label">Facturado</div>
+            <div className="stat-value">{fmt(totalFacturado)}</div>
           </div>
-          {!payments?.length ? (
-            <p style={{ color: 'var(--muted)', fontSize: 14 }}>No hay pagos registrados aún.</p>
+          <div className="stat-card">
+            <div className="stat-label">Cobrado</div>
+            <div className="stat-value" style={{ color: 'var(--ok)' }}>{fmt(totalCobrado)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Pendiente</div>
+            <div className="stat-value" style={{ color: 'var(--amber)' }}>{fmt(totalPendiente)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">IVU Total</div>
+            <div className="stat-value" style={{ color: 'var(--navy)' }}>{fmt(totalIVU)}</div>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="card">
+          {invs.length === 0 ? (
+            <div className="empty"><p>No hay facturas para este período.</p></div>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Método</th>
-                  <th>Referencia</th>
-                  <th>Monto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map(p => (
-                  <tr key={p.id}>
-                    <td>{p.paid_at}</td>
-                    <td><span className="badge badge-green">{methodLabel[p.method]}</span></td>
-                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{p.reference ?? '—'}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--ok)' }}>${Number(p.amount).toFixed(2)}</td>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Cliente</th>
+                    <th>Tipo</th>
+                    <th>Estado</th>
+                    <th>Fecha</th>
+                    <th style={{ textAlign: 'right' }}>Subtotal</th>
+                    <th style={{ textAlign: 'right' }}>IVU Prod</th>
+                    <th style={{ textAlign: 'right' }}>IVU Labor</th>
+                    <th style={{ textAlign: 'right' }}>Total</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {invs.map(inv => {
+                    const b = statusBadge[inv.status] ?? statusBadge.draft;
+                    const subtotal = Number(inv.subtotal_products ?? 0) + Number(inv.subtotal_labor ?? 0);
+                    const clientDisplay = inv.bill_to === 'company' && inv.clients?.company
+                      ? inv.clients.company
+                      : inv.clients?.name ?? '—';
+                    return (
+                      <tr key={inv.id}>
+                        <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{inv.invoice_number}</td>
+                        <td style={{ fontWeight: 600 }}>{clientDisplay}</td>
+                        <td><span className={`badge ${inv.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`}>{inv.clients?.client_type === 'b2b' ? 'B2B' : 'Final'}</span></td>
+                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at ?? '—'}</td>
+                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(subtotal)}</td>
+                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(inv.tax_products)}</td>
+                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(inv.tax_labor)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(inv.total)}</td>
+                        <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid var(--border)' }}>
+                    <td colSpan={5} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTALES</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(invs.reduce((a, i) => a + Number(i.subtotal_products ?? 0) + Number(i.subtotal_labor ?? 0), 0))}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(invs.reduce((a, i) => a + Number(i.tax_products ?? 0), 0))}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(invs.reduce((a, i) => a + Number(i.tax_labor ?? 0), 0))}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totalFacturado)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           )}
         </div>
       </main>
