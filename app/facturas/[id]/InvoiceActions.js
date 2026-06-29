@@ -22,6 +22,26 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+
+  async function handlePdf() {
+    setGeneratingPdf(true);
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      const element = document.getElementById('invoice-doc');
+      const opt = {
+        margin: 0.5,
+        filename: `${invoiceNumber}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+      };
+      await html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.error('PDF error:', err);
+    }
+    setGeneratingPdf(false);
+  }
 
   async function updateStatus(newStatus) {
     await supabase.from('invoices').update({ status: newStatus }).eq('id', invoiceId);
@@ -105,7 +125,9 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
 
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-      <button className="btn btn-ghost" onClick={() => window.print()}>🖨️ PDF</button>
+      <button className="btn btn-ghost" onClick={handlePdf} disabled={generatingPdf}>
+        {generatingPdf ? '⏳ Generando...' : '🖨️ PDF'}
+      </button>
       <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 Email</button>
       <button className="btn btn-ghost" onClick={() => { setNewNumber(invoiceNumber); setShowEditNumber(true); }}>✏️ # Factura</button>
       {clientCompany && (
