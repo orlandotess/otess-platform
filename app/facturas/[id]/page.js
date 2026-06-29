@@ -40,7 +40,14 @@ export default async function FacturaDetail({ params }) {
               {statusLabel[inv.status]}
             </span>
           </div>
-          <InvoiceActions invoiceId={id} status={inv.status} invoiceNumber={inv.invoice_number} />
+          <InvoiceActions 
+  invoiceId={id} 
+  status={inv.status} 
+  invoiceNumber={inv.invoice_number}
+  clientName={inv.clients?.name}
+  clientCompany={inv.clients?.company}
+  billTo={inv.bill_to ?? 'person'}
+/>
         </div>
 
         {/* Invoice document */}
