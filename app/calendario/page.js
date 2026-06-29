@@ -4,7 +4,7 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../lib/supabase';
 import Sidebar from '../Sidebar';
-import CalendarioClient from './CalendarioClient';
+import CalendarioClient from './calendario-client';
 
 export default async function CalendarioPage({ searchParams }) {
   const view = searchParams?.view ?? 'month';
