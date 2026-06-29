@@ -171,12 +171,12 @@ export default async function FacturaDetail({ params }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 16, fontWeight: 700, color: balance > 0 ? 'var(--warn)' : 'var(--ok)' }}>
                     <span>Balance</span><span>${balance.toFixed(2)}</span>
                   </div>
-                  {accountBalance > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, fontWeight: 600, color: 'var(--muted)', borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                      <span>Balance de cuenta</span><span>${accountBalance.toFixed(2)}</span>
-                    </div>
-                  )}
                 </>
+              )}
+              {accountBalance > balance && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, fontWeight: 600, color: 'var(--muted)', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                  <span>Balance de cuenta</span><span>${accountBalance.toFixed(2)}</span>
+                </div>
               )}
             </div>
           </div>
