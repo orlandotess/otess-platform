@@ -15,7 +15,7 @@ export default function NuevaFactura() {
   const [clients, setClients] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [form, setForm] = useState({
-    client_id: '', job_id: '', notes: '',
+    client_id: '', job_id: '', notes: '', bill_to: 'person',
     issued_at: new Date().toISOString().split('T')[0],
     due_at: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
@@ -24,7 +24,7 @@ export default function NuevaFactura() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    supabase.from('clients').select('id, name, client_type').order('name').then(({ data }) => setClients(data ?? []));
+    supabase.from('clients').select('id, name, company, client_type').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('jobs').select('id, title, client_id, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
   }, []);
 
@@ -46,6 +46,7 @@ export default function NuevaFactura() {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const selectedClient = clients.find(c => c.id === form.client_id);
   const clientType = selectedClient?.client_type ?? 'final';
+  const hasCompany = !!selectedClient?.company;
 
   const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', exempt: false }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
@@ -71,7 +72,6 @@ export default function NuevaFactura() {
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
     setSaving(true); setError('');
 
-    // Generate invoice number
     const { data: lastInv } = await supabase.from('invoices').select('invoice_number').order('created_at', { ascending: false }).limit(1).single();
     let nextNum = 1000;
     if (lastInv?.invoice_number) {
@@ -88,6 +88,7 @@ export default function NuevaFactura() {
       issued_at: form.issued_at,
       due_at: form.due_at,
       status: 'draft',
+      bill_to: form.bill_to,
       subtotal_products: t.subProd,
       tax_products: t.taxProd,
       subtotal_labor: t.subLabor,
@@ -126,7 +127,7 @@ export default function NuevaFactura() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Cliente *</label>
-                  <select value={form.client_id} onChange={e => set('client_id', e.target.value)}>
+                  <select value={form.client_id} onChange={e => { set('client_id', e.target.value); set('bill_to', 'person'); }}>
                     <option value="">— Seleccionar —</option>
                     {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.client_type === 'b2b' ? ' (B2B)' : ''}</option>)}
                   </select>
@@ -141,7 +142,25 @@ export default function NuevaFactura() {
                   </select>
                 </div>
               </div>
-              <div className="form-row">
+
+              {/* Facturar a */}
+              {hasCompany && (
+                <div className="form-group" style={{ marginTop: 4 }}>
+                  <label>Facturar a</label>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
+                      <input type="radio" name="bill_to" value="person" checked={form.bill_to === 'person'} onChange={() => set('bill_to', 'person')} />
+                      {selectedClient?.name}
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
+                      <input type="radio" name="bill_to" value="company" checked={form.bill_to === 'company'} onChange={() => set('bill_to', 'company')} />
+                      {selectedClient?.company}
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              <div className="form-row" style={{ marginTop: 12 }}>
                 <div className="form-group">
                   <label>Fecha emisión</label>
                   <input type="date" value={form.issued_at} onChange={e => set('issued_at', e.target.value)} />
