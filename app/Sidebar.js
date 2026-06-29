@@ -13,10 +13,6 @@ const links = [
  { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
 ];
 
-const adminLinks = [
-  { href: '/admin/timesheet', label: 'Timesheet', icon: '🕐' },
-];
-
 const accountingLinks = [
  { href: '/accounting',               label: 'Dashboard',   icon: '📊' },
  { href: '/accounting/facturas',      label: 'Facturas',    icon: '🧾' },
@@ -59,12 +55,6 @@ export default function Sidebar() {
            {l.label}
          </Link>
        ))}
-
-        {adminLinks.map(l => (
-          <Link key={l.href} href={l.href} className={isActive(l.href) ? 'active' : ''}>
-            <span>{l.icon}</span>{l.label}
-          </Link>
-        ))}
 
         {/* Accounting group */}
        <button
