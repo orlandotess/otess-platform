@@ -9,7 +9,7 @@ export default async function FacturaDetail({ params }) {
   const { id } = params;
 
   const [{ data: inv }, { data: items }, { data: payments }] = await Promise.all([
-    supabase.from('invoices').select('*, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*)), jobs(id, title, client_properties(*))').eq('id', id).single(),
+    supabase.from('invoices').select('*, client_id, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*)), jobs(id, title, client_properties(*))').eq('id', id).single(),
     supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order'),
     supabase.from('payments').select('*').eq('invoice_id', id).order('paid_at'),
   ]);
@@ -22,7 +22,7 @@ export default async function FacturaDetail({ params }) {
   const balance = Number(inv.total) - totalPaid;
 
   // Account balance — all pending invoices for this client
-  const clientId = inv?.client_id ?? inv?.clients?.id ?? null;
+  const clientId = inv?.client_id ?? null;
   const { data: clientInvoices } = clientId ? await supabase
     .from('invoices')
     .select('id, total, status')
