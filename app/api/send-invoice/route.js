@@ -87,6 +87,8 @@ export async function POST(request) {
     </div>
 
     ${inv.notes ? `<div style="background:#f8f9fb;border-radius:10px;padding:14px 18px;font-size:13px;color:#888;margin-top:16px"><strong style="color:#16223d">Notas:</strong> ${inv.notes}</div>` : ''}
+
+    ${inv.terms ? `<div style="background:#f8f9fb;border-radius:10px;padding:14px 18px;font-size:12px;color:#888;margin-top:12px;line-height:1.7"><strong style="color:#16223d;display:block;margin-bottom:8px;font-size:13px">Términos del Proyecto</strong>${inv.terms.split("\n").filter(l=>l.trim()).map(l=>"<p style=\"margin:0 0 8px\">"+l+"</p>").join("")}</div>` : ""}
   </div>
 
   <div style="background:#f0f2f5;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center">
