@@ -29,7 +29,6 @@ export default async function FacturaDetail({ params }) {
     .eq('client_id', clientId)
     .in('status', ['sent', 'draft'])
     .neq('id', id) : { data: [] };
-  console.log('clientId:', clientId, 'clientInvoices:', clientInvoices, 'balance:', balance);
   const accountBalance = (clientInvoices ?? []).reduce((a, i) => a + Number(i.total ?? 0), 0) + balance;
   const primaryAddr = inv.clients?.client_addresses?.find(a => a.is_primary) ?? inv.clients?.client_addresses?.[0];
   const clientProperties = inv.clients?.client_properties ?? [];
