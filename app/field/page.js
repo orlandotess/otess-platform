@@ -17,6 +17,7 @@ export default function FieldApp() {
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [showFab, setShowFab] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
   const [showJobClock, setShowJobClock] = useState(false);
   const [showJobNote, setShowJobNote] = useState(false);
   const [showJobPhoto, setShowJobPhoto] = useState(false);
@@ -336,7 +337,7 @@ export default function FieldApp() {
                 const isToday = dayDate.getDate() === now.getDate() && dayDate.getMonth() === now.getMonth();
                 const hasHours = parseFloat(dayHours) > 0;
                 return (
-                  <div key={d} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                  <div key={d} onClick={() => setSelectedDay({ date: new Date(dayDate), entries: dayEntries })} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: hasHours ? 'pointer' : 'default', padding: '6px 4px', borderRadius: 10, background: selectedDay?.date.getDate() === dayDate.getDate() ? ORANGE + '18' : 'transparent' }}>
                     <div style={{ fontSize: 11, color: isToday ? ORANGE : '#888', fontWeight: isToday ? 700 : 400 }}>{d}</div>
                     <div style={{ fontSize: 12, color: hasHours ? '#16223d' : '#ccc', fontWeight: hasHours ? 700 : 400 }}>{hasHours ? dayHours + 'h' : '—'}</div>
                     <div style={{ fontSize: 12, color: isToday ? ORANGE : '#aaa', fontWeight: isToday ? 700 : 400 }}>{dayDate.getDate()}</div>
@@ -344,6 +345,32 @@ export default function FieldApp() {
                 );
               })}
             </div>
+            {selectedDay && selectedDay.entries.length > 0 && (
+              <div style={{ ...card, marginTop: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#16223d' }}>
+                  {selectedDay.date.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </div>
+                {selectedDay.entries.map((e, i) => {
+                  const inTime = new Date(e.clocked_in_at);
+                  const outTime = e.clocked_out_at ? new Date(e.clocked_out_at) : null;
+                  const dur = outTime ? ((outTime - inTime) / 3600000).toFixed(2) : null;
+                  return (
+                    <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < selectedDay.entries.length - 1 ? '1px solid #eee' : 'none' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>
+                          {inTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' })}
+                          {outTime ? ' → ' + outTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' }) : ' → En progreso'}
+                        </div>
+                        {e.job_id && <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>Con trabajo</div>}
+                      </div>
+                      <div style={{ fontWeight: 700, color: dur ? '#16223d' : ORANGE, fontSize: 14 }}>
+                        {dur ? dur + 'h' : '⏱'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <div style={card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                 <span style={{ color: '#888' }}>Hours this week</span>
