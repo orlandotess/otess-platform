@@ -5,17 +5,23 @@ import { useRouter } from 'next/navigation';
 
 const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
 
-export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null }) {
+const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
+
+Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
+
+export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '' }) {
   const router = useRouter();
   const [showPayment, setShowPayment] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
   const [showEditNumber, setShowEditNumber] = useState(false);
   const [showEditBillTo, setShowEditBillTo] = useState(false);
   const [showEditProperty, setShowEditProperty] = useState(false);
+  const [showEditTerms, setShowEditTerms] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [newNumber, setNewNumber] = useState(invoiceNumber || '');
   const [billTo, setBillTo] = useState(initialBillTo);
   const [propertyId, setPropertyId] = useState(initialPropertyId || '');
+  const [terms, setTerms] = useState(initialTerms || DEFAULT_TERMS);
   const [payment, setPayment] = useState({ amount: balance || '', method: 'cash', reference: '', notes: '', paid_at: new Date().toISOString().split('T')[0] });
   const [emailTo, setEmailTo] = useState(clientEmail || '');
   const [saving, setSaving] = useState(false);
@@ -106,6 +112,13 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
     router.refresh();
   }
 
+  async function saveTerms(e) {
+    e.preventDefault();
+    await supabase.from('invoices').update({ terms: terms || null }).eq('id', invoiceId);
+    setShowEditTerms(false);
+    router.refresh();
+  }
+
   async function deleteInvoice() {
     setDeleting(true);
     await supabase.from('payments').delete().eq('invoice_id', invoiceId);
@@ -136,6 +149,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {clientProperties.length > 0 && (
         <button className="btn btn-ghost" onClick={() => setShowEditProperty(true)}>🏠 Propiedad</button>
       )}
+      <button className="btn btn-ghost" onClick={() => setShowEditTerms(true)}>📋 Términos</button>
       {status === 'draft' && <button className="btn btn-primary" onClick={() => updateStatus('sent')}>📤 Enviar</button>}
       {status === 'sent' && (
         <>
@@ -147,6 +161,30 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Enviado</span>}
       <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
 
+      {/* Edit terms */}
+      {showEditTerms && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Términos del Proyecto</h2>
+            <form onSubmit={saveTerms}>
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <textarea value={terms} onChange={e => setTerms(e.target.value)} rows={10} style={{ fontSize: 13, lineHeight: 1.7, width: '100%' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
+                <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setTerms(DEFAULT_TERMS)}>
+                  Restaurar predeterminado
+                </button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center' }}>Guardar</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowEditTerms(false)}>Cancelar</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit property */}
       {showEditProperty && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
@@ -179,6 +217,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
         </div>
       )}
 
+      {/* Edit bill to */}
       {showEditBillTo && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
@@ -209,6 +248,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
         </div>
       )}
 
+      {/* Edit invoice number */}
       {showEditNumber && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
@@ -227,6 +267,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
         </div>
       )}
 
+      {/* Delete confirmation */}
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
@@ -243,6 +284,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
         </div>
       )}
 
+      {/* Email modal */}
       {showEmail && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
