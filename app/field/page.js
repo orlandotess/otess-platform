@@ -324,13 +324,25 @@ export default function FieldApp() {
               </div>
             </div>
             <div style={{ ...card, display: 'flex', justifyContent: 'space-between' }}>
-              {DSH.map((d, i) => (
-                <div key={d} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                  <div style={{ fontSize: 11, color: '#888' }}>{d}</div>
-                  <div style={{ fontSize: 13, color: '#ccc' }}>—</div>
-                  <div style={{ fontSize: 12, color: '#aaa' }}>{WD[i]}</div>
-                </div>
-              ))}
+              {DSH.map((d, i) => {
+                const dayDate = new Date(now);
+                const off = now.getDay() === 0 ? -4 : now.getDay() >= 3 ? now.getDay() - 3 : now.getDay() + 4;
+                dayDate.setDate(now.getDate() - off + i);
+                const dayEntries = timeEntries.filter(e => {
+                  const eDate = new Date(e.clocked_in_at);
+                  return eDate.getDate() === dayDate.getDate() && eDate.getMonth() === dayDate.getMonth();
+                });
+                const dayHours = (dayEntries.reduce((a, e) => a + (e.clocked_out_at ? new Date(e.clocked_out_at) - new Date(e.clocked_in_at) : Date.now() - new Date(e.clocked_in_at)), 0) / 3600000).toFixed(1);
+                const isToday = dayDate.getDate() === now.getDate() && dayDate.getMonth() === now.getMonth();
+                const hasHours = parseFloat(dayHours) > 0;
+                return (
+                  <div key={d} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                    <div style={{ fontSize: 11, color: isToday ? ORANGE : '#888', fontWeight: isToday ? 700 : 400 }}>{d}</div>
+                    <div style={{ fontSize: 12, color: hasHours ? '#16223d' : '#ccc', fontWeight: hasHours ? 700 : 400 }}>{hasHours ? dayHours + 'h' : '—'}</div>
+                    <div style={{ fontSize: 12, color: isToday ? ORANGE : '#aaa', fontWeight: isToday ? 700 : 400 }}>{dayDate.getDate()}</div>
+                  </div>
+                );
+              })}
             </div>
             <div style={card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
