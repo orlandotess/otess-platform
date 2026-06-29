@@ -13,6 +13,10 @@ const links = [
  { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
 ];
 
+const adminLinks = [
+  { href: '/admin/timesheet', label: 'Timesheet', icon: '🕐' },
+];
+
 const accountingLinks = [
  { href: '/accounting',               label: 'Dashboard',   icon: '📊' },
  { href: '/accounting/facturas',      label: 'Facturas',    icon: '🧾' },
