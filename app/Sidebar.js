@@ -60,7 +60,13 @@ export default function Sidebar() {
          </Link>
        ))}
 
-       {/* Accounting group */}
+        {adminLinks.map(l => (
+          <Link key={l.href} href={l.href} className={isActive(l.href) ? 'active' : ''}>
+            <span>{l.icon}</span>{l.label}
+          </Link>
+        ))}
+
+        {/* Accounting group */}
        <button
          onClick={() => setAccountingOpen(!accountingOpen)}
          style={{
