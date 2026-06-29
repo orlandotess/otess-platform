@@ -102,4 +102,100 @@ export default async function FacturaDetail({ params }) {
                 <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'center', fontSize: 11 }}>Tipo</th>
                 <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Cant.</th>
                 <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Precio</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>I
+                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>IVU</th>
+                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items?.map(item => (
+                <tr key={item.id}>
+                  <td style={{ padding: '12px 14px', fontWeight: 500 }}>{item.description}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                    <span className={`badge ${item.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
+                      {item.type === 'labor' ? 'Labor' : 'Producto'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>{item.quantity}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>${Number(item.unit_price).toFixed(2)}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
+                    {item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(Number(item.line_total) + Number(item.tax_amount)).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Totals */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ width: 320 }}>
+              {[
+                { label: 'Subtotal productos', value: inv.subtotal_products },
+                { label: `IVU productos (11.5%)`, value: inv.tax_products },
+                { label: 'Subtotal labor', value: inv.subtotal_labor },
+                { label: `IVU labor (${inv.clients?.client_type === 'b2b' ? '4%' : '11.5%'})`, value: inv.tax_labor },
+              ].map(row => (
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ color: 'var(--muted)' }}>{row.label}</span>
+                  <span>${Number(row.value).toFixed(2)}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 20, fontWeight: 900, color: 'var(--navy)' }}>
+                <span>TOTAL</span>
+                <span>${Number(inv.total).toFixed(2)}</span>
+              </div>
+              {totalPaid > 0 && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14, color: 'var(--ok)' }}>
+                    <span>Pagado</span><span>-${totalPaid.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 16, fontWeight: 700, color: balance > 0 ? 'var(--warn)' : 'var(--ok)' }}>
+                    <span>Balance</span><span>${balance.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {inv.notes && (
+            <div style={{ marginTop: 24, padding: '14px 18px', background: '#f8f9fb', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
+              <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {inv.notes}
+            </div>
+          )}
+        </div>
+
+        {/* Payments */}
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Pagos registrados</h2>
+            {balance > 0 && <InvoiceActions invoiceId={id} status={inv.status} showPaymentOnly balance={balance} />}
+          </div>
+          {!payments?.length ? (
+            <p style={{ color: 'var(--muted)', fontSize: 14 }}>No hay pagos registrados aún.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Método</th>
+                  <th>Referencia</th>
+                  <th>Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map(p => (
+                  <tr key={p.id}>
+                    <td>{p.paid_at}</td>
+                    <td><span className="badge badge-green">{methodLabel[p.method]}</span></td>
+                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{p.reference ?? '—'}</td>
+                    <td style={{ fontWeight: 700, color: 'var(--ok)' }}>${Number(p.amount).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
