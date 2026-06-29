@@ -145,6 +145,13 @@ export default async function FacturaPublica({ params }) {
                 <strong style={{ color: '#16223d' }}>Notas:</strong> {inv.notes}
               </div>
             )}
+
+            {inv.terms && (
+              <div style={{ marginTop: 16, padding: '14px 18px', background: '#f8f9fb', borderRadius: 10, fontSize: 12, color: '#888', lineHeight: 1.7 }}>
+                <strong style={{ color: '#16223d', display: 'block', marginBottom: 8, fontSize: 13 }}>Términos del Proyecto</strong>
+                {inv.terms.split('\n').map((line, i) => line.trim() ? <p key={i} style={{ margin: '0 0 8px' }}>{line}</p> : null)}
+              </div>
+            )}
           </div>
         </div>
 
