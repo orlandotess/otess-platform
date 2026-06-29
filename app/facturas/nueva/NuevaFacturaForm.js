@@ -1,11 +1,14 @@
 'use client';
-import { Suspense } from 'react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../../Sidebar';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
+
+const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
+
+Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
 export default function NuevaFactura() {
   const router = useRouter();
@@ -15,7 +18,7 @@ export default function NuevaFactura() {
   const [clients, setClients] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [form, setForm] = useState({
-    client_id: '', job_id: '', notes: '', bill_to: 'person',
+    client_id: '', job_id: '', notes: '', bill_to: 'person', terms: DEFAULT_TERMS,
     issued_at: new Date().toISOString().split('T')[0],
     due_at: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
@@ -85,6 +88,7 @@ export default function NuevaFactura() {
       client_id: form.client_id,
       job_id: form.job_id || null,
       notes: form.notes || null,
+      terms: form.terms || null,
       issued_at: form.issued_at,
       due_at: form.due_at,
       status: 'draft',
@@ -143,7 +147,6 @@ export default function NuevaFactura() {
                 </div>
               </div>
 
-              {/* Facturar a */}
               {hasCompany && (
                 <div className="form-group" style={{ marginTop: 4 }}>
                   <label>Facturar a</label>
@@ -171,8 +174,12 @@ export default function NuevaFactura() {
                 </div>
               </div>
               <div className="form-group">
-                <label>Notas / Términos</label>
+                <label>Notas / Términos de pago</label>
                 <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Términos de pago, notas para el cliente..." />
+              </div>
+              <div className="form-group">
+                <label>Términos del proyecto</label>
+                <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={6} style={{ fontSize: 13, lineHeight: 1.6 }} />
               </div>
             </div>
 
@@ -209,7 +216,6 @@ export default function NuevaFactura() {
             </div>
           </div>
 
-          {/* Summary */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
