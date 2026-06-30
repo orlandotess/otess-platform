@@ -47,6 +47,12 @@ export default function UsersClient({ profiles }) {
     router.refresh();
   }
 
+  async function deleteUser(profileId, name) {
+    if (!confirm(`¿Eliminar usuario "${name}"? Esta acción es permanente.`)) return;
+    await supabase.from('profiles').delete().eq('id', profileId);
+    router.refresh();
+  }
+
   return (
     <div>
       {success && (
@@ -98,13 +104,22 @@ export default function UsersClient({ profiles }) {
                     {new Date(p.created_at).toLocaleDateString('es-PR')}
                   </td>
                   <td>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ fontSize: 12, padding: '5px 10px', color: p.active ? 'var(--warn)' : 'var(--ok)' }}
-                      onClick={() => toggleActive(p.id, p.active)}
-                    >
-                      {p.active ? 'Desactivar' : 'Activar'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        className="btn btn-ghost"
+                        style={{ fontSize: 12, padding: '5px 10px', color: p.active ? 'var(--warn)' : 'var(--ok)' }}
+                        onClick={() => toggleActive(p.id, p.active)}
+                      >
+                        {p.active ? 'Desactivar' : 'Activar'}
+                      </button>
+                      <button
+                        className="btn btn-ghost"
+                        style={{ fontSize: 12, padding: '5px 10px', color: 'var(--warn)' }}
+                        onClick={() => deleteUser(p.id, p.name)}
+                      >
+                        🗑
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
