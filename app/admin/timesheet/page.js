@@ -47,9 +47,11 @@ export default async function TimesheetPage({ searchParams }) {
   const techStats = techs.map(tech => {
     const techEntries = ents.filter(e => e.technician_id === tech.id);
     const byDay = {};
-    weekDays.forEach(d => { byDay[d.toISOString().slice(0, 10)] = []; });
+    weekDays.forEach(d => { byDay[new Date(new Date(d).getTime() - 4 * 60 * 60 * 1000).toISOString().slice(0, 10)] = []; });
     techEntries.forEach(e => {
-      const day = e.clocked_in_at.slice(0, 10);
+      // Convert UTC to PR time (UTC-4)
+      const prDate = new Date(new Date(e.clocked_in_at).getTime() - 4 * 60 * 60 * 1000);
+      const day = prDate.toISOString().slice(0, 10);
       if (byDay[day]) byDay[day].push(e);
     });
 
