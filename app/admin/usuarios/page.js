@@ -6,7 +6,6 @@ import Sidebar from '../../Sidebar';
 import UsersClient from './UsersClient';
 
 export default async function UsuariosPage() {
-  const supabase = createSupabaseServerClient();
   const { data: profiles } = await supabase
     .from('profiles')
     .select('*')
