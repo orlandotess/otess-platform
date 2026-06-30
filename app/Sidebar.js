@@ -19,6 +19,7 @@ const accountingLinks = [
  { href: '/accounting/ivu',           label: 'IVU',         icon: '🏛' },
  { href: '/accounting/payroll',       label: 'Payroll',     icon: '⏱' },
  { href: '/accounting/retenciones',   label: 'Retenciones', icon: '📋' },
+  { href: '/admin/timesheet', label: 'Timesheet', icon: '🕐' },
 ];
 
 export default function Sidebar() {
