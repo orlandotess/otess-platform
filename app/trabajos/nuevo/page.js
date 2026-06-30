@@ -80,7 +80,16 @@ export default function NuevoTrabajo() {
     if (!form.client_id || !form.title.trim()) { setError('Cliente y título son requeridos'); return; }
     setSaving(true); setError('');
 
+    const { data: lastJob } = await supabase.from('jobs').select('job_number').order('created_at', { ascending: false }).limit(1).single();
+    let nextNum = 1001;
+    if (lastJob?.job_number) {
+      const n = parseInt(lastJob.job_number.replace('JOB-', ''));
+      if (!isNaN(n)) nextNum = n + 1;
+    }
+    const jobNumber = `JOB-${nextNum}`;
+
     const { data: job, error: err } = await supabase.from('jobs').insert([{
+      job_number: jobNumber,
       client_id: form.client_id,
       title: form.title,
       description: form.description || null,
