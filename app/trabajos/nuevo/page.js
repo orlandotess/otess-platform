@@ -70,7 +70,7 @@ export default function NuevoTrabajo() {
   };
 
   const t = calcTotals();
-  const fmt = n => `$${n.toFixed(2)}`;
+  const fmt = n => `$${n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
   const fullAddress = [form.street, form.city, form.state, form.zip].filter(Boolean).join(', ');
   const mapsQuery = encodeURIComponent(fullAddress);

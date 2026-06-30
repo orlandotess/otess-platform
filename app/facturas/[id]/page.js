@@ -135,11 +135,11 @@ export default async function FacturaDetail({ params }) {
                     </span>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>{item.quantity}</td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>${Number(item.unit_price).toFixed(2)}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>${Number(item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
                     {item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}
                   </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(Number(item.line_total) + Number(item.tax_amount)).toFixed(2)}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(Number(item.line_total) + Number(item.tax_amount)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
               ))}
             </tbody>
@@ -155,26 +155,26 @@ export default async function FacturaDetail({ params }) {
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
                   <span style={{ color: 'var(--muted)' }}>{row.label}</span>
-                  <span>${Number(row.value).toFixed(2)}</span>
+                  <span>${Number(row.value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 20, fontWeight: 900, color: 'var(--navy)' }}>
                 <span>TOTAL</span>
-                <span>${Number(inv.total).toFixed(2)}</span>
+                <span>${Number(inv.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
               </div>
               {totalPaid > 0 && (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14, color: 'var(--ok)' }}>
-                    <span>Pagado</span><span>-${totalPaid.toFixed(2)}</span>
+                    <span>Pagado</span><span>-${totalPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 16, fontWeight: 700, color: balance > 0 ? 'var(--warn)' : 'var(--ok)' }}>
-                    <span>Balance</span><span>${balance.toFixed(2)}</span>
+                    <span>Balance</span><span>${balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                   </div>
                 </>
               )}
               {accountBalance > balance && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, fontWeight: 600, color: 'var(--muted)', borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                  <span>Balance de cuenta</span><span>${accountBalance.toFixed(2)}</span>
+                  <span>Balance de cuenta</span><span>${accountBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
               )}
             </div>
@@ -217,7 +217,7 @@ export default async function FacturaDetail({ params }) {
                     <td>{p.paid_at}</td>
                     <td><span className="badge badge-green">{methodLabel[p.method]}</span></td>
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>{p.reference ?? '—'}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--ok)' }}>${Number(p.amount).toFixed(2)}</td>
+                    <td style={{ fontWeight: 700, color: 'var(--ok)' }}>${Number(p.amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                   </tr>
                 ))}
               </tbody>

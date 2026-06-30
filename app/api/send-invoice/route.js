@@ -15,7 +15,7 @@ export async function POST(request) {
       supabase.from('invoice_line_items').select('*').eq('invoice_id', invoiceId).order('sort_order'),
     ]);
     if (!inv) return Response.json({ error: 'No encontrada' }, { status: 404 });
-    const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+    const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     const publicUrl = `https://app.otesspr.com/factura/${invoiceId}`;
     const rows = items?.map(i => `
       <tr>

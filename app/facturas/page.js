@@ -37,11 +37,11 @@ export default async function FacturasPage() {
           </div>
           <div className="stat-card">
             <div className="stat-label">Pendiente cobro</div>
-            <div className="stat-value" style={{ color: 'var(--amber)', fontSize: 22 }}>${totalPending.toFixed(2)}</div>
+            <div className="stat-value" style={{ color: 'var(--amber)', fontSize: 22 }}>${totalPending.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Cobrado</div>
-            <div className="stat-value" style={{ color: 'var(--ok)', fontSize: 22 }}>${totalPaid.toFixed(2)}</div>
+            <div className="stat-value" style={{ color: 'var(--ok)', fontSize: 22 }}>${totalPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
         </div>
 
@@ -74,7 +74,7 @@ export default async function FacturasPage() {
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at ?? '—'}</td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.due_at ?? '—'}</td>
-                        <td style={{ fontWeight: 700 }}>${Number(inv.total).toFixed(2)}</td>
+                        <td style={{ fontWeight: 700 }}>${Number(inv.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                         <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );

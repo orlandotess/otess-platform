@@ -320,7 +320,7 @@ function PaymentModal({ payment, setPayment, onSave, onClose, saving, balance })
           <div className="form-row" style={{ marginBottom: 16 }}>
             <div className="form-group">
               <label>Monto *</label>
-              <input type="number" value={payment.amount} onChange={e => set('amount', e.target.value)} step="0.01" min="0.01" placeholder={`Máx $${Number(balance).toFixed(2)}`} required />
+              <input type="number" value={payment.amount} onChange={e => set('amount', e.target.value)} step="0.01" min="0.01" placeholder={`Máx $${Number(balance).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} required />
             </div>
             <div className="form-group">
               <label>Fecha</label>
