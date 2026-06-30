@@ -16,12 +16,22 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   const filteredTechs = localStats.filter(t => techFilter === 'all' || t.id === techFilter);
   const today = new Date().toISOString().slice(0, 10);
 
-  function getDayHours(tech, dayIso) {
+  function getRawDayHours(tech, dayIso) {
     const dayKey = dayIso.slice(0, 10);
     const dayEntries = tech.byDay[dayKey] ?? [];
     return dayEntries.reduce((a, e) => a + (e.clocked_out_at
       ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000
       : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
+  }
+
+  function getDayHours(tech, dayIso) {
+    const rawHours = getRawDayHours(tech, dayIso);
+    if (!tech.hasOverride || rawHours === 0) return rawHours;
+    // Distribute adjusted hours proportionally across days with activity
+    const totalRaw = tech.regularHoursRaw + tech.overtimeHoursRaw;
+    if (totalRaw === 0) return 0;
+    const ratio = rawHours / totalRaw;
+    return tech.totalHours * ratio;
   }
 
   function getDayEntries(tech, dayIso) {
