@@ -25,6 +25,7 @@ export default async function TimesheetPage({ searchParams }) {
   const { weekStart, weekEnd } = getWeekRange(weekOffset);
 
   const weekStartStr = weekStart.toISOString().slice(0, 10);
+  console.log('WEEK:', weekStart.toISOString().slice(0, 10), new Date(weekStart.getTime() + 6 * 86400000).toISOString().slice(0, 10));
   const weekEndStr = weekEnd.toISOString().slice(0, 10);
 
   const [{ data: technicians }, { data: entries }, { data: adjustments }] = await Promise.all([
