@@ -58,6 +58,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [pendingPhoto, setPendingPhoto] = useState(null);
   const [pendingPhotoPreview, setPendingPhotoPreview] = useState(null);
 
+  // Lightbox state
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [lightboxType, setLightboxType] = useState('image');
+
   // Checklist state
   const [checklistItems, setChecklistItems] = useState(checklist);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -427,9 +431,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14 }}>×</button>
                 </div>
               )}
-              <input ref={fileRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+              <input ref={fileRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} style={{ display: 'none' }} />
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 Foto</button>
+                <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 Foto / Video</button>
                 <button type="submit" className="btn btn-primary" disabled={savingNote || uploadingPhoto} style={{ flex: 1, justifyContent: 'center' }}>
                   {uploadingPhoto ? 'Subiendo foto...' : savingNote ? 'Guardando...' : '💾 Guardar'}
                 </button>
@@ -446,7 +450,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </div>
                 <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
               </div>
-              {n.photo_url && <img src={n.photo_url} alt="job photo" style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0 }} />}
+              {n.photo_url && (() => {
+                const isVideo = n.photo_url.match(/\.(mp4|mov|webm|avi)$/i);
+                return isVideo ? (
+                  <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 10, marginBottom: n.note ? 10 : 0, background: '#000' }} />
+                ) : (
+                  <img src={n.photo_url} alt="job photo" onClick={() => { setLightboxUrl(n.photo_url); setLightboxType('image'); }}
+                    style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0, cursor: 'zoom-in' }} />
+                );
+              })()}
               {n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0 }}>{n.note}</p>}
             </div>
           ))}
@@ -587,6 +599,14 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div onClick={() => setLightboxUrl(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, cursor: 'zoom-out' }}>
+          <button onClick={() => setLightboxUrl(null)} style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          <img src={lightboxUrl} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} />
         </div>
       )}
 
