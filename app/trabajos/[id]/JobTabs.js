@@ -21,10 +21,22 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [techId, setTechId] = useState(job.technician_id ?? '');
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingNumber, setEditingNumber] = useState(false);
+  const [jobNumber, setJobNumber] = useState(job.job_number ?? '');
+  const [savingNumber, setSavingNumber] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [schedStart, setSchedStart] = useState(job.scheduled_start ? new Date(job.scheduled_start).toISOString().slice(0, 16) : '');
   const [schedEnd, setSchedEnd] = useState(job.scheduled_end ? new Date(job.scheduled_end).toISOString().slice(0, 16) : '');
   const [savingSchedule, setSavingSchedule] = useState(false);
+
+  async function saveJobNumber() {
+    if (!jobNumber.trim()) return;
+    setSavingNumber(true);
+    await supabase.from('jobs').update({ job_number: jobNumber.trim() }).eq('id', job.id);
+    setSavingNumber(false);
+    setEditingNumber(false);
+    router.refresh();
+  }
 
   async function saveSchedule() {
     setSavingSchedule(true);
@@ -263,10 +275,22 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Detalles</p>
-                {!editingSchedule && (
-                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingSchedule(true)}>✏️ Editar fechas</button>
-                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {!editingNumber && (
+                    <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingNumber(true)}>✏️ # Job</button>
+                  )}
+                  {!editingSchedule && (
+                    <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingSchedule(true)}>✏️ Editar fechas</button>
+                  )}
+                </div>
               </div>
+              {editingNumber && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                  <input value={jobNumber} onChange={e => setJobNumber(e.target.value)} placeholder="JOB-1001" style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'monospace' }} />
+                  <button className="btn btn-primary" style={{ fontSize: 12, padding: '6px 12px' }} onClick={saveJobNumber} disabled={savingNumber}>{savingNumber ? '...' : '💾'}</button>
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditingNumber(false)}>✕</button>
+                </div>
+              )}
               {job.description && <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 12 }}>{job.description}</p>}
               {editingSchedule ? (
                 <div>
