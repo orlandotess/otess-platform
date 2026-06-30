@@ -36,8 +36,8 @@ export default async function TimesheetPage({ searchParams }) {
       .order("clocked_in_at"),
     supabase.from("payroll_adjustments")
       .select("*")
-      .eq("period_start", weekStart.toISOString().slice(0, 10))
-      .eq("period_end", weekEnd.toISOString().slice(0, 10)),
+      .eq("period_start", weekDays[0].toISOString().slice(0, 10))
+      .eq("period_end", weekDays[6].toISOString().slice(0, 10)),
   ]);
 
   const techs = technicians ?? [];
