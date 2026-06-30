@@ -5,6 +5,7 @@ export const revalidate = 0;
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
+import ExportIVUButton from './ExportIVUButton';
 
 export default async function AccountingIVU({ searchParams }) {
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
@@ -157,7 +158,14 @@ export default async function AccountingIVU({ searchParams }) {
         {/* Monthly breakdown — only when viewing full year */}
         {month === null && (
           <div className="card" style={{ marginBottom: 20 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Desglose mensual {year}</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>Desglose mensual {year}</p>
+              <ExportIVUButton
+                monthlyData={monthlyData}
+                year={year}
+                totals={{ totProducts, totLaborFinal, totB2B, totEstatal, totMunicipal, totIVU }}
+              />
+            </div>
             <div className="table-wrap">
               <table>
                 <thead>
