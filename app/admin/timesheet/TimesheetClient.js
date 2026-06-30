@@ -79,7 +79,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
           {selectedDay && selectedTech === tech.id && (
             <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '14px 18px', marginBottom: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', marginBottom: 12 }}>
-                {(() => { const [y,m,d] = selectedDay.slice(0,10).split('-'); return new Date(y, m-1, d).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' }); })()}
+                {(() => { const [y,m,d] = selectedDay.slice(0,10).split('-'); return new Date(y, m-1, d).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); })()}
               </div>
               {getDayEntries(tech, selectedDay).map((e, i, arr) => {
                 const inTime = new Date(e.clocked_in_at);
