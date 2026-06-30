@@ -69,7 +69,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                   <div style={{ fontSize: 13, fontWeight: 700, color: isSelected ? '#fff' : isOvertime ? 'var(--warn)' : hasHours ? 'var(--navy)' : '#ccc' }}>
                     {hasHours ? hours.toFixed(1) + 'h' : '—'}
                   </div>
-                  <div style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--muted)' }}>{new Date(dayIso).getDate()}</div>
+                  <div style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--muted)' }}>{(() => { const [y,m,d] = dayIso.slice(0,10).split('-'); return new Date(y,m-1,d).getDate(); })()}</div>
                   {isOvertime && <div style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#ffd700' : 'var(--warn)' }}>OT</div>}
                 </div>
               );
@@ -79,7 +79,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
           {selectedDay && selectedTech === tech.id && (
             <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '14px 18px', marginBottom: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', marginBottom: 12 }}>
-                {new Date(selectedDay).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' })}
+                {(() => { const [y,m,d] = selectedDay.slice(0,10).split('-'); return new Date(y, m-1, d).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' }); })()}
               </div>
               {getDayEntries(tech, selectedDay).map((e, i, arr) => {
                 const inTime = new Date(e.clocked_in_at);
