@@ -49,7 +49,13 @@ export default function UsersClient({ profiles }) {
 
   async function deleteUser(profileId, name) {
     if (!confirm(`¿Eliminar usuario "${name}"? Esta acción es permanente.`)) return;
-    await supabase.from('profiles').delete().eq('id', profileId);
+    const res = await fetch('/api/delete-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: profileId }),
+    });
+    const data = await res.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
     router.refresh();
   }
 
