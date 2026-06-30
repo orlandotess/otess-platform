@@ -44,16 +44,14 @@ export default async function TimesheetPage({ searchParams }) {
     return d;
   });
 
-  // PR timezone offset (UTC-4)
-  const PR_OFFSET = 4 * 60 * 60 * 1000;
-  const toPRDate = (isoStr) => new Date(new Date(isoStr).getTime() - PR_OFFSET).toISOString().slice(0, 10);
+
 
   const techStats = techs.map(tech => {
     const techEntries = ents.filter(e => e.technician_id === tech.id);
     const byDay = {};
-    weekDays.forEach(d => { byDay[toPRDate(d.toISOString())] = []; });
+    weekDays.forEach(d => { byDay[d.toISOString().slice(0, 10)] = []; });
     techEntries.forEach(e => {
-      const day = toPRDate(e.clocked_in_at);
+      const day = e.clocked_in_at.slice(0, 10);
       if (byDay[day] !== undefined) byDay[day].push(e);
     });
 
