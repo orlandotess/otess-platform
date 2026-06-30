@@ -44,6 +44,7 @@ export default async function TimesheetPage({ searchParams }) {
   const techs = technicians ?? [];
   const ents = entries ?? [];
   const adjs = adjustments ?? [];
+  console.log('ADJS:', JSON.stringify(adjs));
 
   const fmtDate = d => new Date(d).toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric" });
 
