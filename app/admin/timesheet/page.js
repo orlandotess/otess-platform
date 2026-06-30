@@ -136,6 +136,7 @@ export default async function TimesheetPage({ searchParams }) {
         {/* DEBUG */}
         <div style={{background:'#fff',padding:16,borderRadius:8,marginBottom:16,fontSize:12,fontFamily:'monospace'}}>
           adjs: {JSON.stringify(adjs)} | weekStart: {weekStart.toISOString().slice(0,10)} | weekEnd: {new Date(weekStart.getTime() + 6 * 86400000).toISOString().slice(0,10)}
+          <br/>techStats regularHours: {techStats.map(t => t.name + ':' + t.regularHours).join(', ')}
         </div>
         <TimesheetClient techStats={techStats} weekDays={weekDays.map(d => d.toISOString())} techFilter={techFilter} />
       </main>
