@@ -451,7 +451,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
               </div>
               {n.photo_url && (() => {
-                const isVideo = ['mp4','mov','webm','avi'].includes(n.photo_url.split('.').pop().toLowerCase())$/i);
+                const isVideo = ['mp4','mov','webm','avi'].includes(n.photo_url.split('.').pop().toLowerCase());
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 10, marginBottom: n.note ? 10 : 0, background: '#000' }} />
                 ) : (
