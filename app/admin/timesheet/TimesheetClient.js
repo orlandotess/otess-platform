@@ -17,7 +17,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   const [localStats, setLocalStats] = useState(techStats);
 
   const filteredTechs = localStats.filter(t => techFilter === 'all' || t.id === techFilter);
-  const today = new Date().toISOString().slice(0, 10);
+  const todayPR = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   function getRawDayHours(tech, dayIso) {
     const dayKey = dayIso.slice(0, 10);
@@ -167,7 +167,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8, marginBottom: 16 }}>
             {weekDays.map((dayIso, i) => {
               const hours = getDayHours(tech, dayIso);
-              const isToday = dayIso.slice(0, 10) === today;
+              const isToday = dayIso.slice(0, 10) === todayPR;
               const hasHours = getRawDayHours(tech, dayIso) > 0;
               const isOvertime = hours > 8;
               const isSelected = selectedDay === dayIso && selectedTech === tech.id;
