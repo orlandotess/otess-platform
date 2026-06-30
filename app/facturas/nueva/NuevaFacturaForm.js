@@ -67,7 +67,7 @@ export default function NuevaFactura() {
   };
 
   const t = calcTotals();
-  const fmt = n => `$${Number(n).toFixed(2)}`;
+  const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   async function handleSubmit(e) {
     e.preventDefault();

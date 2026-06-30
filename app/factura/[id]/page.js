@@ -31,7 +31,7 @@ export default async function FacturaPublica({ params }) {
   const balance = Number(inv.total) - totalPaid;
   const primaryAddr = inv.clients?.client_addresses?.find(a => a.is_primary) ?? inv.clients?.client_addresses?.[0];
   const billToName = inv.bill_to === 'company' && inv.clients?.company ? inv.clients.company : inv.clients?.name;
-  const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+  const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const statusLabel = { draft: 'Borrador', sent: 'Enviada', paid: 'Pagada', cancelled: 'Cancelada' };
   const statusColor = { draft: '#888', sent: '#2a4cb5', paid: '#27ae60', cancelled: '#e74c3c' };

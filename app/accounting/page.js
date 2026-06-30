@@ -162,7 +162,7 @@ export default async function AccountingDashboard() {
   const lines = lineItems ?? [];
   const techs = technicians ?? [];
   const entries = timeEntries ?? [];
-  const fmt = n => `$${Number(n).toFixed(2)}`;
+  const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const filterInvs = (start, end) => invoices.filter(i => i.issued_at && i.issued_at >= start.slice(0, 10) && i.issued_at <= end.slice(0, 10));
   const getIds = (start, end) => new Set(filterInvs(start, end).map(i => i.id));

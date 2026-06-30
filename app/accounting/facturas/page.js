@@ -62,7 +62,7 @@ export default async function AccountingFacturas({ searchParams }) {
 
   const { data: invoices } = await query;
   const invs = invoices ?? [];
-  const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+  const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const totalFacturado = invs.reduce((a, i) => a + Number(i.total ?? 0), 0);
   const totalCobrado = invs.filter(i => i.status === 'paid').reduce((a, i) => a + Number(i.total ?? 0), 0);

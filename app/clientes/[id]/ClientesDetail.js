@@ -17,7 +17,7 @@ const statusInv = {
   paid: { cls: 'badge-green', label: 'Pagada' },
   overdue: { cls: 'badge-red', label: 'Vencida' }
 };
-const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts }) {
   const router = useRouter();

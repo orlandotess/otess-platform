@@ -34,7 +34,7 @@ export default async function AccountingIVU({ searchParams }) {
     .select('invoice_id, type, tax_rate, tax_amount, line_total')
     .in('invoice_id', [...invIds]);
 
-  const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+  const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const pct = n => `${(Number(n ?? 0) * 100).toFixed(1)}%`;
 
   const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
