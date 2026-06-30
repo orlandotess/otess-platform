@@ -10,6 +10,9 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   const [editingTech, setEditingTech] = useState(null);
   const [editRegular, setEditRegular] = useState('');
   const [editOvertime, setEditOvertime] = useState('');
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [editInTime, setEditInTime] = useState('');
+  const [editOutTime, setEditOutTime] = useState('');
   const [saving, setSaving] = useState(false);
   const [localStats, setLocalStats] = useState(techStats);
 
@@ -27,7 +30,6 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   function getDayHours(tech, dayIso) {
     const rawHours = getRawDayHours(tech, dayIso);
     if (!tech.hasOverride || rawHours === 0) return rawHours;
-    // Distribute adjusted hours proportionally across days with activity
     const totalRaw = tech.regularHoursRaw + tech.overtimeHoursRaw;
     if (totalRaw === 0) return 0;
     const ratio = rawHours / totalRaw;
@@ -60,11 +62,46 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     }, { onConflict: 'technician_id,period_start,period_end' });
 
     setLocalStats(prev => prev.map(t => t.id === tech.id
-      ? { ...t, regularHours: regular, overtimeHours: overtime, totalHours: regular + overtime, grossPay }
+      ? { ...t, regularHours: regular, overtimeHours: overtime, totalHours: regular + overtime, grossPay, hasOverride: true }
       : t
     ));
 
     setEditingTech(null);
+    setSaving(false);
+  }
+
+  function startEditEntry(entry) {
+    setEditingEntry(entry.id);
+    const inDate = new Date(entry.clocked_in_at);
+    const outDate = entry.clocked_out_at ? new Date(entry.clocked_out_at) : null;
+    setEditInTime(inDate.toTimeString().slice(0, 5));
+    setEditOutTime(outDate ? outDate.toTimeString().slice(0, 5) : '');
+  }
+
+  async function saveEntry(entry) {
+    setSaving(true);
+    const baseDate = entry.clocked_in_at.slice(0, 10);
+    const newIn = new Date(baseDate + 'T' + editInTime + ':00');
+    const newOut = editOutTime ? new Date(baseDate + 'T' + editOutTime + ':00') : null;
+
+    await supabase.from('time_entries').update({
+      clocked_in_at: newIn.toISOString(),
+      clocked_out_at: newOut ? newOut.toISOString() : null,
+    }).eq('id', entry.id);
+
+    setLocalStats(prev => prev.map(t => {
+      const newByDay = { ...t.byDay };
+      const dayKey = baseDate;
+      if (newByDay[dayKey]) {
+        newByDay[dayKey] = newByDay[dayKey].map(e => e.id === entry.id
+          ? { ...e, clocked_in_at: newIn.toISOString(), clocked_out_at: newOut ? newOut.toISOString() : null }
+          : e
+        );
+      }
+      return { ...t, byDay: newByDay };
+    }));
+
+    setEditingEntry(null);
     setSaving(false);
   }
 
@@ -121,7 +158,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                     <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Gross</div>
                     <div style={{ fontWeight: 700, color: 'var(--ok)' }}>${tech.grossPay.toFixed(2)}</div>
                   </div>
-                  <button onClick={() => startEdit(tech)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>✏ Editar</button>
+                  <button onClick={() => startEdit(tech)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>✏️ Editar</button>
                 </>
               )}
             </div>
@@ -131,7 +168,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
             {weekDays.map((dayIso, i) => {
               const hours = getDayHours(tech, dayIso);
               const isToday = dayIso.slice(0, 10) === today;
-              const hasHours = hours > 0;
+              const hasHours = getRawDayHours(tech, dayIso) > 0;
               const isOvertime = hours > 8;
               const isSelected = selectedDay === dayIso && selectedTech === tech.id;
               const [y,m,d] = dayIso.slice(0,10).split('-');
@@ -160,16 +197,43 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                 const inTime = new Date(e.clocked_in_at);
                 const outTime = e.clocked_out_at ? new Date(e.clocked_out_at) : null;
                 const dur = outTime ? ((outTime - inTime) / 3600000).toFixed(2) : null;
+                const isEditingThis = editingEntry === e.id;
                 return (
-                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 600 }}>
-                        {inTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' })}
-                        {outTime ? ' → ' + outTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' }) : ' → En progreso ⏱'}
+                  <div key={e.id} style={{ padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    {isEditingThis ? (
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Clock In</div>
+                          <input type="time" value={editInTime} onChange={e => setEditInTime(e.target.value)}
+                            style={{ padding: '6px 10px', border: '2px solid var(--navy)', borderRadius: 8, fontSize: 14 }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Clock Out</div>
+                          <input type="time" value={editOutTime} onChange={e => setEditOutTime(e.target.value)}
+                            style={{ padding: '6px 10px', border: '2px solid var(--navy)', borderRadius: 8, fontSize: 14 }} />
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 16 }}>
+                          <button onClick={() => saveEntry(e)} disabled={saving} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 12 }}>
+                            {saving ? '...' : '💾 Guardar'}
+                          </button>
+                          <button onClick={() => setEditingEntry(null)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>Cancelar</button>
+                        </div>
                       </div>
-                      {e.job_id && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Trabajo asociado</div>}
-                    </div>
-                    <div style={{ fontWeight: 700, color: dur ? 'var(--navy)' : 'var(--amber)', fontSize: 15 }}>{dur ? dur + 'h' : '—'}</div>
+                    ) : (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 600 }}>
+                            {inTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' })}
+                            {outTime ? ' → ' + outTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' }) : ' → En progreso ⏱'}
+                          </div>
+                          {e.job_id && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Trabajo asociado</div>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                          <div style={{ fontWeight: 700, color: dur ? 'var(--navy)' : 'var(--amber)', fontSize: 15 }}>{dur ? dur + 'h' : '—'}</div>
+                          <button onClick={() => startEditEntry(e)} className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }}>✏️</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
