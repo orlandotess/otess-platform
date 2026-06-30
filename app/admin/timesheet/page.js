@@ -133,6 +133,10 @@ export default async function TimesheetPage({ searchParams }) {
           <div className="stat-card"><div className="stat-label">Gross estimado</div><div className="stat-value" style={{ color: "var(--ok)" }}>${filtered.reduce((a, t) => a + t.grossPay, 0).toFixed(2)}</div></div>
         </div>
 
+        {/* DEBUG */}
+        <div style={{background:'#fff',padding:16,borderRadius:8,marginBottom:16,fontSize:12,fontFamily:'monospace'}}>
+          adjs: {JSON.stringify(adjs)} | weekStart: {weekStart.toISOString().slice(0,10)} | weekEnd: {new Date(weekStart.getTime() + 6 * 86400000).toISOString().slice(0,10)}
+        </div>
         <TimesheetClient techStats={techStats} weekDays={weekDays.map(d => d.toISOString())} techFilter={techFilter} />
       </main>
     </div>
