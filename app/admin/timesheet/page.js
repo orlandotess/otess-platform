@@ -24,17 +24,25 @@ export default async function TimesheetPage({ searchParams }) {
   const techFilter = searchParams?.tech ?? "all";
   const { weekStart, weekEnd } = getWeekRange(weekOffset);
 
-  const [{ data: technicians }, { data: entries }] = await Promise.all([
+  const weekStartStr = weekStart.toISOString().slice(0, 10);
+  const weekEndStr = weekEnd.toISOString().slice(0, 10);
+
+  const [{ data: technicians }, { data: entries }, { data: adjustments }] = await Promise.all([
     supabase.from("technicians").select("*").order("name"),
     supabase.from("time_entries")
       .select("*, technicians(name)")
       .gte("clocked_in_at", weekStart.toISOString())
       .lte("clocked_in_at", weekEnd.toISOString())
       .order("clocked_in_at"),
+    supabase.from("payroll_adjustments")
+      .select("*")
+      .eq("period_start", weekStart.toISOString().slice(0, 10))
+      .eq("period_end", weekEnd.toISOString().slice(0, 10)),
   ]);
 
   const techs = technicians ?? [];
   const ents = entries ?? [];
+  const adjs = adjustments ?? [];
 
   const fmtDate = d => new Date(d).toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric" });
 
@@ -64,10 +72,15 @@ export default async function TimesheetPage({ searchParams }) {
       else regularHours += hours;
     });
 
-    const rate = Number(tech.hourly_rate ?? 0);
-    const grossPay = (regularHours * rate) + (overtimeHours * rate * 1.5);
+    const adj = adjs.find(a => a.technician_id === tech.id);
+    const finalRegular = adj?.regular_hours_override ?? regularHours;
+    const finalOvertime = adj?.overtime_hours_override ?? overtimeHours;
+    const hasOverride = adj !== undefined;
 
-    return { ...tech, regularHours, overtimeHours, totalHours: regularHours + overtimeHours, grossPay, byDay, entries: techEntries };
+    const rate = Number(tech.hourly_rate ?? 0);
+    const grossPay = (finalRegular * rate) + (finalOvertime * rate * 1.5);
+
+    return { ...tech, regularHours: finalRegular, overtimeHours: finalOvertime, regularHoursRaw: regularHours, overtimeHoursRaw: overtimeHours, totalHours: finalRegular + finalOvertime, grossPay, byDay, entries: techEntries, hasOverride };
   });
 
   const filtered = techStats.filter(t => techFilter === "all" || t.id === techFilter);
