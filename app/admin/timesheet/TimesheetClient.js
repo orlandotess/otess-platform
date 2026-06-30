@@ -10,8 +10,11 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   const filteredTechs = techStats.filter(t => techFilter === 'all' || t.id === techFilter);
   const today = new Date().toISOString().slice(0, 10);
 
+  const PR_OFFSET = 4 * 60 * 60 * 1000;
+  const toPRDate = (isoStr) => new Date(new Date(isoStr).getTime() - PR_OFFSET).toISOString().slice(0, 10);
+
   function getDayHours(tech, dayIso) {
-    const dayKey = dayIso.slice(0, 10);
+    const dayKey = toPRDate(dayIso);
     const dayEntries = tech.byDay[dayKey] ?? [];
     return dayEntries.reduce((a, e) => a + (e.clocked_out_at
       ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000
@@ -19,7 +22,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   }
 
   function getDayEntries(tech, dayIso) {
-    return tech.byDay[dayIso.slice(0, 10)] ?? [];
+    return tech.byDay[toPRDate(dayIso)] ?? [];
   }
 
   return (
