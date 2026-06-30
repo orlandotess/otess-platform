@@ -1,13 +1,19 @@
 'use client';
 import { useState } from 'react';
+import { supabase } from '../../../lib/supabase';
 
 const DAYS = ['Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Lun', 'Mar'];
 
 export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedTech, setSelectedTech] = useState(null);
+  const [editingTech, setEditingTech] = useState(null);
+  const [editRegular, setEditRegular] = useState('');
+  const [editOvertime, setEditOvertime] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [localStats, setLocalStats] = useState(techStats);
 
-  const filteredTechs = techStats.filter(t => techFilter === 'all' || t.id === techFilter);
+  const filteredTechs = localStats.filter(t => techFilter === 'all' || t.id === techFilter);
   const today = new Date().toISOString().slice(0, 10);
 
   function getDayHours(tech, dayIso) {
@@ -22,6 +28,39 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     return tech.byDay[dayIso.slice(0, 10)] ?? [];
   }
 
+  function startEdit(tech) {
+    setEditingTech(tech.id);
+    setEditRegular(tech.regularHours.toFixed(2));
+    setEditOvertime(tech.overtimeHours.toFixed(2));
+  }
+
+  async function saveEdit(tech, weekStart, weekEnd) {
+    setSaving(true);
+    const regular = parseFloat(editRegular) || 0;
+    const overtime = parseFloat(editOvertime) || 0;
+    const rate = Number(tech.hourly_rate ?? 0);
+    const grossPay = (regular * rate) + (overtime * rate * 1.5);
+
+    await supabase.from('payroll_adjustments').upsert({
+      technician_id: tech.id,
+      period_start: weekStart,
+      period_end: weekEnd,
+      regular_hours_override: regular,
+      overtime_hours_override: overtime,
+    }, { onConflict: 'technician_id,period_start,period_end' });
+
+    setLocalStats(prev => prev.map(t => t.id === tech.id
+      ? { ...t, regularHours: regular, overtimeHours: overtime, totalHours: regular + overtime, grossPay }
+      : t
+    ));
+
+    setEditingTech(null);
+    setSaving(false);
+  }
+
+  const weekStart = weekDays[0]?.slice(0, 10);
+  const weekEnd = weekDays[6]?.slice(0, 10);
+
   return (
     <div>
       {filteredTechs.map(tech => (
@@ -31,25 +70,50 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>{tech.name}</div>
               <div style={{ fontSize: 13, color: 'var(--muted)' }}>${Number(tech.hourly_rate ?? 0).toFixed(2)}/hr</div>
             </div>
-            <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Regular</div>
-                <div style={{ fontWeight: 700, color: 'var(--ok)' }}>{tech.regularHours.toFixed(1)}h</div>
-              </div>
-              {tech.overtimeHours > 0 && (
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>OT</div>
-                  <div style={{ fontWeight: 700, color: 'var(--warn)' }}>{tech.overtimeHours.toFixed(1)}h ⚡</div>
+            <div style={{ display: 'flex', gap: 16, fontSize: 13, alignItems: 'center' }}>
+              {editingTech === tech.id ? (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Regular</div>
+                    <input type="number" value={editRegular} onChange={e => setEditRegular(e.target.value)} step="0.1" min="0"
+                      style={{ width: 70, padding: '4px 8px', border: '2px solid var(--navy)', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'center' }} />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>OT</div>
+                    <input type="number" value={editOvertime} onChange={e => setEditOvertime(e.target.value)} step="0.1" min="0"
+                      style={{ width: 70, padding: '4px 8px', border: '2px solid var(--warn)', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'center' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 20 }}>
+                    <button onClick={() => saveEdit(tech, weekStart, weekEnd)} disabled={saving}
+                      className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 12 }}>
+                      {saving ? '...' : '💾'}
+                    </button>
+                    <button onClick={() => setEditingTech(null)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Regular</div>
+                    <div style={{ fontWeight: 700, color: 'var(--ok)' }}>{tech.regularHours.toFixed(1)}h</div>
+                  </div>
+                  {tech.overtimeHours > 0 && (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>OT</div>
+                      <div style={{ fontWeight: 700, color: 'var(--warn)' }}>{tech.overtimeHours.toFixed(1)}h ⚡</div>
+                    </div>
+                  )}
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Total</div>
+                    <div style={{ fontWeight: 700, color: 'var(--navy)' }}>{tech.totalHours.toFixed(1)}h</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Gross</div>
+                    <div style={{ fontWeight: 700, color: 'var(--ok)' }}>${tech.grossPay.toFixed(2)}</div>
+                  </div>
+                  <button onClick={() => startEdit(tech)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>✏ Editar</button>
+                </>
               )}
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Total</div>
-                <div style={{ fontWeight: 700, color: 'var(--navy)' }}>{tech.totalHours.toFixed(1)}h</div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Gross</div>
-                <div style={{ fontWeight: 700, color: 'var(--ok)' }}>${tech.grossPay.toFixed(2)}</div>
-              </div>
             </div>
           </div>
 
@@ -60,6 +124,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               const hasHours = hours > 0;
               const isOvertime = hours > 8;
               const isSelected = selectedDay === dayIso && selectedTech === tech.id;
+              const [y,m,d] = dayIso.slice(0,10).split('-');
               return (
                 <div key={dayIso} onClick={() => { if (hasHours) { setSelectedDay(isSelected ? null : dayIso); setSelectedTech(isSelected ? null : tech.id); } }}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 4px', borderRadius: 10, cursor: hasHours ? 'pointer' : 'default',
@@ -69,7 +134,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                   <div style={{ fontSize: 13, fontWeight: 700, color: isSelected ? '#fff' : isOvertime ? 'var(--warn)' : hasHours ? 'var(--navy)' : '#ccc' }}>
                     {hasHours ? hours.toFixed(1) + 'h' : '—'}
                   </div>
-                  <div style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--muted)' }}>{(() => { const [y,m,d] = dayIso.slice(0,10).split('-'); return new Date(y,m-1,d).getDate(); })()}</div>
+                  <div style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--muted)' }}>{new Date(y, m-1, d).getDate()}</div>
                   {isOvertime && <div style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#ffd700' : 'var(--warn)' }}>OT</div>}
                 </div>
               );
