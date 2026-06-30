@@ -39,6 +39,7 @@ export default function FieldApp() {
   const [detailPhotoPreview, setDetailPhotoPreview] = useState(null);
   const [savingDetailNote, setSavingDetailNote] = useState(false);
   const [newCheckItem, setNewCheckItem] = useState('');
+  const [lightboxUrl, setLightboxUrl] = useState(null);
   const fileRef2 = useRef();
 
   useEffect(() => {
@@ -576,7 +577,7 @@ export default function FieldApp() {
                           style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 13 }}>×</button>
                       </div>
                     )}
-                    <input ref={fileRef2} type="file" accept="image/*"
+                    <input ref={fileRef2} type="file" accept="image/*,video/*"
                       onChange={e => { const f = e.target.files?.[0]; if (f) { setDetailPhoto(f); setDetailPhotoPreview(URL.createObjectURL(f)); } }}
                       style={{ display: 'none' }} />
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -594,7 +595,15 @@ export default function FieldApp() {
                       <div style={{ fontSize: 11, color: '#aaa', marginBottom: 8 }}>
                         {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </div>
-                      {n.photo_url && <img src={n.photo_url} style={{ width: '100%', maxHeight: 250, objectFit: 'cover', borderRadius: 10, marginBottom: 8 }} />}
+                      {n.photo_url && (() => {
+                        const isVideo = n.photo_url.match(/\.(mp4|mov|webm|avi)$/i);
+                        return isVideo ? (
+                          <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 250, borderRadius: 10, marginBottom: 8, background: '#000' }} />
+                        ) : (
+                          <img src={n.photo_url} onClick={() => setLightboxUrl(n.photo_url)}
+                            style={{ width: '100%', maxHeight: 250, objectFit: 'cover', borderRadius: 10, marginBottom: 8, cursor: 'zoom-in' }} />
+                        );
+                      })()}
                       {n.note && <p style={{ fontSize: 14, margin: 0 }}>{n.note}</p>}
                     </div>
                   ))
@@ -602,6 +611,14 @@ export default function FieldApp() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div onClick={() => setLightboxUrl(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, cursor: 'zoom-out' }}>
+          <button onClick={() => setLightboxUrl(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer' }}>×</button>
+          <img src={lightboxUrl} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }} />
         </div>
       )}
 
@@ -665,7 +682,7 @@ export default function FieldApp() {
                 ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
                 : <div>
                   <div style={{ fontWeight: 600, marginBottom: 16, color: ORANGE }}>{fabSelectedJob.title}</div>
-                  <input ref={fileRef} type="file" accept="image/*" onChange={uploadFabPhoto} style={{ display: 'none' }} />
+                  <input ref={fileRef} type="file" accept="image/*,video/*" onChange={uploadFabPhoto} style={{ display: 'none' }} />
                   <button onClick={() => fileRef.current?.click()} disabled={uploadingPhoto} style={{ width: '100%', padding: 16, background: '#f0f0f0', border: '2px dashed #dde1e7', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', color: '#555' }}>
                     {uploadingPhoto ? '📤 Subiendo...' : '📷 Tomar foto o elegir de galería'}
                   </button>
