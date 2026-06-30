@@ -88,7 +88,10 @@ export default async function TrabajoDetail({ params }) {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">{job.title}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="page-title">{job.title}</div>
+              {job.job_number && <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace', background: '#fff3e0', padding: '4px 10px', borderRadius: 8 }}>{job.job_number}</span>}
+            </div>
             <span className={`badge ${b.cls}`} style={{ marginTop: 6, display: 'inline-block' }}>{b.label}</span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
