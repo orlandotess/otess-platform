@@ -20,7 +20,7 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
     notas: '',
   });
 
-  const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+  const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const baseRetencion = Math.max(Number(form.monto_facturado || 0) - Number(form.monto_exento || 0), 0);
   const retencionCalculada = baseRetencion * 0.10;

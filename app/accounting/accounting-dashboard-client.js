@@ -11,7 +11,7 @@ const QUARTERS = [
 export default function AccountingDashboardClient({ quarterData, year }) {
   const [selected, setSelected] = useState(['Q1', 'Q2', 'Q3', 'Q4']);
 
-  const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+  const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtH = h => `${Number(h).toFixed(1)}h`;
 
   function toggle(key) {

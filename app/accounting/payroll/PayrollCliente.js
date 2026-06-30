@@ -8,7 +8,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
 
-  const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
+  const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtH = h => `${Number(h).toFixed(1)}h`;
 
   function startEdit(tech) {

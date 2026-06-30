@@ -111,11 +111,11 @@ export default async function RetencionesPage({ searchParams }) {
                       <tr key={i}>
                         <td style={{ fontWeight: 600 }}>{c.name}</td>
                         <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{c.count}</td>
-                        <td style={{ textAlign: 'right' }}>${c.totalFacturado.toFixed(2)}</td>
-                        <td style={{ textAlign: 'right' }}>${c.totalCalculado.toFixed(2)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--amber)' }}>${c.totalRetenido.toFixed(2)}</td>
+                        <td style={{ textAlign: 'right' }}>${c.totalFacturado.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td style={{ textAlign: 'right' }}>${c.totalCalculado.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td style={{ textAlign: 'right', color: 'var(--amber)' }}>${c.totalRetenido.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700, color: diff > 0.01 ? 'var(--warn)' : 'var(--ok)' }}>
-                          {diff > 0.01 ? '⚠️ ' : '✓ '}${diff.toFixed(2)}
+                          {diff > 0.01 ? '⚠️ ' : '✓ '}${diff.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </td>
                       </tr>
                     );
