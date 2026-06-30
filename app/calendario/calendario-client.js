@@ -187,9 +187,11 @@ export default function CalendarioClient({ jobs, technicians, initialView, initi
                 const dayJobs = cell.date ? getJobsForDate(cell.date) : [];
                 const isToday = cell.date === today;
                 return (
-                  <div key={idx} style={{ minHeight: 100, padding: '6px 8px', borderRadius: 8,
-                    background: isToday ? '#f0f4ff' : cell.current ? '#fff' : '#f8f9fb',
-                    border: isToday ? '2px solid var(--navy)' : '1px solid var(--border)' }}>
+                  <div key={idx} style={{ minHeight: 100, height: 100, padding: '6px 8px', borderRadius: 8,
+                    background: isToday ? '#f0f4ff' : '#fff',
+                    border: isToday ? '2px solid var(--navy)' : '1px solid var(--border)',
+                    opacity: cell.current ? 1 : 0.4,
+                    boxSizing: 'border-box', overflow: 'hidden' }}>
                     <div style={{ fontSize: 13, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)', marginBottom: 4 }}>{cell.day}</div>
                     {dayJobs.slice(0, 3).map(j => (
                       <div key={j.id} onClick={() => setSelectedJob(j)}
