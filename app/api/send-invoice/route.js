@@ -16,7 +16,7 @@ export async function POST(request) {
     ]);
     if (!inv) return Response.json({ error: 'No encontrada' }, { status: 404 });
     const fmt = n => `$${Number(n ?? 0).toFixed(2)}`;
-    const publicUrl = `https://otess-platform.vercel.app/factura/${invoiceId}`;
+    const publicUrl = `https://app.otesspr.com/factura/${invoiceId}`;
     const rows = items?.map(i => `
       <tr>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px">${i.description}</td>
