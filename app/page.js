@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { supabaseServer as supabase } from '../lib/supabase';
 import Sidebar from './Sidebar';
 import Link from 'next/link';
+import DashboardCalendarWidget from './DashboardCalendarWidget';
 
 async function getStats() {
   const [clients, jobs, activeJobs] = await Promise.all([
@@ -111,6 +112,8 @@ export default async function Home() {
             </div>
           )}
         </div>
+
+        <DashboardCalendarWidget />
       </main>
     </div>
   );
