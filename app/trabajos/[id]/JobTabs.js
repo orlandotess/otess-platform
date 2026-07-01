@@ -50,6 +50,36 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     router.refresh();
   }
 
+  // Line items state
+  const [lineItems, setLineItems] = useState(items);
+  const [addingLine, setAddingLine] = useState(false);
+  const [newLine, setNewLine] = useState({ type: 'labor', description: '', quantity: 1, unit_price: '' });
+  const [savingLine, setSavingLine] = useState(false);
+
+  async function addLineItem() {
+    if (!newLine.description.trim()) return;
+    setSavingLine(true);
+    const { data } = await supabase.from('job_line_items').insert([{
+      job_id: job.id,
+      type: newLine.type,
+      description: newLine.description.trim(),
+      quantity: parseFloat(newLine.quantity) || 1,
+      unit_price: parseFloat(newLine.unit_price) || 0,
+      sort_order: lineItems.length,
+    }]).select().single();
+    if (data) setLineItems(prev => [...prev, data]);
+    setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '' });
+    setAddingLine(false);
+    setSavingLine(false);
+    router.refresh();
+  }
+
+  async function deleteLineItem(itemId) {
+    await supabase.from('job_line_items').delete().eq('id', itemId);
+    setLineItems(prev => prev.filter(i => i.id !== itemId));
+    router.refresh();
+  }
+
   // Notes state
   const [notesList, setNotesList] = useState(notes);
   const [noteText, setNoteText] = useState('');
@@ -395,22 +425,43 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             </div>
 
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Líneas de trabajo</p>
-              {!items?.length ? <p style={{ color: 'var(--muted)', fontSize: 14 }}>Sin líneas.</p> : (
-                <table>
-                  <thead><tr><th>Descripción</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Precio</th><th style={{ textAlign: 'right' }}>Subtotal</th></tr></thead>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de trabajo</p>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingLine(true)}>+ Agregar línea</button>
+              </div>
+              {!lineItems?.length ? <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: addingLine ? 14 : 0 }}>Sin líneas.</p> : (
+                <table style={{ marginBottom: addingLine ? 14 : 0 }}>
+                  <thead><tr><th>Descripción</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Precio</th><th style={{ textAlign: 'right' }}>Subtotal</th><th></th></tr></thead>
                   <tbody>
-                    {items.map(it => (
+                    {lineItems.map(it => (
                       <tr key={it.id}>
                         <td style={{ fontWeight: 500 }}>{it.description}</td>
                         <td><span className={`badge ${it.type === 'labor' ? 'badge-amber' : 'badge-gray'}`}>{it.type === 'labor' ? 'Labor' : 'Producto'}</span></td>
                         <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{it.quantity}</td>
                         <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(it.unit_price)}</td>
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(Number(it.quantity) * Number(it.unit_price))}</td>
+                        <td><button onClick={() => deleteLineItem(it.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              )}
+              {addingLine && (
+                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 70px 100px 32px', gap: 8, alignItems: 'center', padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                  <select value={newLine.type} onChange={e => setNewLine(l => ({ ...l, type: e.target.value }))} style={{ fontSize: 13, padding: '6px 8px' }}>
+                    <option value="labor">Labor</option>
+                    <option value="product">Producto</option>
+                  </select>
+                  <input value={newLine.description} onChange={e => setNewLine(l => ({ ...l, description: e.target.value }))} placeholder="Descripción..." style={{ fontSize: 13, padding: '6px 8px' }} />
+                  <input type="number" value={newLine.quantity} onChange={e => setNewLine(l => ({ ...l, quantity: e.target.value }))} min="0" step="0.01" style={{ fontSize: 13, padding: '6px 8px' }} />
+                  <input type="number" value={newLine.unit_price} onChange={e => setNewLine(l => ({ ...l, unit_price: e.target.value }))} placeholder="0.00" min="0" step="0.01" style={{ fontSize: 13, padding: '6px 8px' }} />
+                  <button onClick={addLineItem} disabled={savingLine} style={{ background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                    {savingLine ? '...' : '✓'}
+                  </button>
+                </div>
+              )}
+              {addingLine && (
+                <button onClick={() => setAddingLine(false)} style={{ marginTop: 10, background: 'none', border: 'none', color: 'var(--muted)', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>Cancelar</button>
               )}
             </div>
           </div>
