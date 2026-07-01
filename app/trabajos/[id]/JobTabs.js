@@ -59,7 +59,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   async function addLineItem() {
     if (!newLine.description.trim()) return;
     setSavingLine(true);
-    const { data, error } = await supabase.from('job_line_items').insert([{
+    const { data } = await supabase.from('job_line_items').insert([{
       job_id: job.id,
       type: newLine.type,
       description: newLine.description.trim(),
@@ -67,8 +67,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       unit_price: parseFloat(newLine.unit_price) || 0,
       sort_order: lineItems.length,
     }]).select().single();
-    console.log('addLineItem result:', { data, error });
-    if (error) alert('Error: ' + error.message);
     if (data) setLineItems(prev => [...prev, data]);
     setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '' });
     setAddingLine(false);
