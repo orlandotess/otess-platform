@@ -66,11 +66,11 @@ export default async function TrabajoDetail({ params }) {
     (notes ?? []).map(async (note) => {
       if (note.photo_urls && note.photo_urls.length > 0) {
         const signedUrls = await Promise.all(note.photo_urls.map(p => signPath(p)));
-        return { ...note, photo_urls: signedUrls.filter(Boolean), photo_url: signedUrls[0] ?? null };
+        return { ...note, photo_urls: signedUrls.filter(Boolean), photo_url: signedUrls[0] ?? null, raw_photo_urls: note.photo_urls, raw_photo_url: note.photo_url };
       }
       if (!note.photo_url) return note;
       const signedUrl = await signPath(note.photo_url);
-      return { ...note, photo_url: signedUrl };
+      return { ...note, photo_url: signedUrl, raw_photo_url: note.photo_url };
     })
   );
 

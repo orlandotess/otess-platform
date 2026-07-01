@@ -2,6 +2,7 @@
 import { useState, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import PhotoAnnotator from '../../PhotoAnnotator';
 
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
@@ -58,8 +59,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [pendingPhotos, setPendingPhotos] = useState([]);
   const [pendingPhotoPreviews, setPendingPhotoPreviews] = useState([]);
 
-  // Lightbox state — { urls: [], index: 0 }
+  // Lightbox state — { urls: [], index: 0, noteId }
   const [lightbox, setLightbox] = useState(null);
+  const [annotatingIdx, setAnnotatingIdx] = useState(null);
+  const [annotatingExisting, setAnnotatingExisting] = useState(null);
 
   // Checklist state
   const [checklistItems, setChecklistItems] = useState(checklist);
@@ -181,6 +184,35 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     if (newNote) setNotesList(prev => [newNote, ...prev]);
     setNoteText(''); setPendingPhotos([]); setPendingPhotoPreviews([]); setSavingNote(false);
     if (uploadedPaths.length > 0) window.location.reload();
+  }
+
+  function handleAnnotateSave(blob) {
+    if (annotatingIdx === null) return;
+    const file = new File([blob], pendingPhotos[annotatingIdx].name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+    const newUrl = URL.createObjectURL(blob);
+    setPendingPhotos(prev => prev.map((f, i) => i === annotatingIdx ? file : f));
+    setPendingPhotoPreviews(prev => prev.map((u, i) => i === annotatingIdx ? newUrl : u));
+    setAnnotatingIdx(null);
+  }
+
+  async function handleAnnotateExistingSave(blob) {
+    if (!annotatingExisting) return;
+    const { noteId, path } = annotatingExisting;
+    const { error } = await supabase.storage.from('Job-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (!error) {
+      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600);
+      const signedUrl = data?.signedUrl ?? null;
+      setNotesList(prev => prev.map(n => {
+        if (n.id !== noteId) return n;
+        if (annotatingExisting.isGallery) {
+          const newUrls = [...n.photo_urls];
+          newUrls[annotatingExisting.galleryIdx] = signedUrl;
+          return { ...n, photo_urls: newUrls, photo_url: newUrls[0] };
+        }
+        return { ...n, photo_url: signedUrl };
+      }));
+    }
+    setAnnotatingExisting(null);
   }
 
   async function deleteNote(noteId) {
@@ -438,7 +470,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       {pendingPhotos[idx]?.type?.startsWith('video') ? (
                         <video src={preview} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10, background: '#000' }} />
                       ) : (
-                        <img src={preview} alt="preview" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10 }} />
+                        <>
+                          <img src={preview} alt="preview" onClick={() => setAnnotatingIdx(idx)} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10, cursor: 'pointer' }} />
+                          <button type="button" onClick={() => setAnnotatingIdx(idx)}
+                            style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
+                        </>
                       )}
                       <button type="button" onClick={() => {
                         setPendingPhotos(prev => prev.filter((_, i) => i !== idx));
@@ -475,7 +511,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     return isVideo ? (
                       <video key={idx} src={url} controls style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                     ) : (
-                      <img key={idx} src={url} alt="job photo" onClick={() => setLightbox({ urls: n.photo_urls, index: idx })}
+                      <img key={idx} src={url} alt="job photo" onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
                         style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                     );
                   })}
@@ -485,7 +521,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 10, marginBottom: n.note ? 10 : 0, background: '#000' }} />
                 ) : (
-                  <img src={n.photo_url} alt="job photo" onClick={() => setLightbox({ urls: [n.photo_url], index: 0 })}
+                  <img src={n.photo_url} alt="job photo" onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
                     style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0, cursor: 'zoom-in' }} />
                 );
               })()}
@@ -632,10 +668,41 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
         </div>
       )}
 
+      {annotatingIdx !== null && pendingPhotoPreviews[annotatingIdx] && (
+        <PhotoAnnotator
+          imageUrl={pendingPhotoPreviews[annotatingIdx]}
+          onSave={handleAnnotateSave}
+          onCancel={() => setAnnotatingIdx(null)}
+        />
+      )}
+
+      {annotatingExisting && (
+        <PhotoAnnotator
+          imageUrl={annotatingExisting.url}
+          onSave={handleAnnotateExistingSave}
+          onCancel={() => setAnnotatingExisting(null)}
+        />
+      )}
+
       {/* Lightbox with carousel */}
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, cursor: 'zoom-out' }}>
           <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>×</button>
+          {lightbox.noteId && (
+            <button onClick={e => {
+              e.stopPropagation();
+              const note = notesList.find(n => n.id === lightbox.noteId);
+              const isGallery = note.raw_photo_urls && note.raw_photo_urls.length > 1;
+              setAnnotatingExisting({
+                noteId: lightbox.noteId,
+                url: lightbox.urls[lightbox.index],
+                path: isGallery ? note.raw_photo_urls[lightbox.index] : note.raw_photo_url,
+                isGallery,
+                galleryIdx: lightbox.index,
+              });
+            }}
+              style={{ position: 'absolute', top: 20, left: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 20, padding: '10px 18px', cursor: 'pointer', zIndex: 2 }}>✏️ Editar</button>
+          )}
 
           {lightbox.urls.length > 1 && (
             <div style={{ position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)', color: '#fff', fontSize: 14, fontWeight: 600, background: 'rgba(255,255,255,0.15)', padding: '4px 14px', borderRadius: 20 }}>
