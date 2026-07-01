@@ -8,6 +8,7 @@ const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_
 
 export default function NuevoTrabajo() {
   const router = useRouter();
+  const [catalogItems, setCatalogItems] = useState([]);
   const [clients, setClients] = useState([]);
   const [properties, setProperties] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -24,7 +25,17 @@ export default function NuevoTrabajo() {
 
   useEffect(() => {
     supabase.from('clients').select('id, name, client_type').order('name').then(({ data }) => setClients(data ?? []));
+    supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
+
+  function handleDescriptionSelect(idx, value) {
+    const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+    if (match) {
+      setItems(prev => prev.map((it, n) => n === idx ? { ...it, type: match.type, description: match.description, unit_price: match.price } : it));
+    } else {
+      setItem(idx, 'description', value);
+    }
+  }
 
   useEffect(() => {
     if (!form.client_id) { setProperties([]); setContacts([]); return; }
@@ -260,7 +271,12 @@ export default function NuevoTrabajo() {
                     <option value="labor">Labor</option>
                     <option value="product">Producto</option>
                   </select>
-                  <input value={item.description} onChange={e => setItem(idx, 'description', e.target.value)} placeholder="Descripción..." style={{ fontSize: 13 }} />
+                  <input list={`catalog-${idx}`} value={item.description} onChange={e => handleDescriptionSelect(idx, e.target.value)} placeholder="Descripción o código..." style={{ fontSize: 13 }} />
+                  <datalist id={`catalog-${idx}`}>
+                    {catalogItems.filter(c => c.type === item.type).map(c => (
+                      <option key={c.id} value={`${c.item_code} — ${c.description}`} />
+                    ))}
+                  </datalist>
                   <input type="number" value={item.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)} placeholder="Cant." style={{ fontSize: 13 }} min="0" step="0.01" />
                   <input type="number" value={item.unit_price} onChange={e => setItem(idx, 'unit_price', e.target.value)} placeholder="Precio" style={{ fontSize: 13 }} min="0" step="0.01" />
                   <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
