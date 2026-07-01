@@ -21,25 +21,21 @@ const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDig
 
 function extractCoordsFromInput(text) {
   const trimmed = text.trim();
-  // Already coordinates
-  if (/^-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+$/.test(trimmed)) return trimmed;
 
-  // Google Maps: /@lat,lng or ?q=lat,lng or /place/.../@lat,lng
-  let match = trimmed.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
-  if (match) return `${match[1]}, ${match[2]}`;
+  // Find ANY pair of coordinates anywhere in the text (covers @lat,lng, ?q=, ?ll=, 3d/4d params, etc.)
+  // Matches patterns like: 18.4337058,-66.1137271 or 18.4337058, -66.1137271
+  const coordPattern = /(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/g;
+  const matches = [...trimmed.matchAll(coordPattern)];
 
-  match = trimmed.match(/[?&]q=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
-  if (match) return `${match[1]}, ${match[2]}`;
+  if (matches.length > 0) {
+    // Prefer a match near "@" (most accurate for Google Maps place links), otherwise take the last match (often most precise, e.g. 4d/3d pins)
+    const atMatch = trimmed.match(/@(-?\d{1,2}\.\d{3,}),(-?\d{1,3}\.\d{3,})/);
+    if (atMatch) return `${atMatch[1]}, ${atMatch[2]}`;
+    const last = matches[matches.length - 1];
+    return `${last[1]}, ${last[2]}`;
+  }
 
-  // Apple Maps: ?ll=lat,lng or &sll=lat,lng
-  match = trimmed.match(/[?&](?:ll|sll)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
-  if (match) return `${match[1]}, ${match[2]}`;
-
-  // Waze: ?ll=lat,lng
-  match = trimmed.match(/waze\.com.*?ll=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
-  if (match) return `${match[1]}, ${match[2]}`;
-
-  // No match - return original text as-is
+  // No coordinates found - return original text as-is for manual entry
   return text;
 }
 
