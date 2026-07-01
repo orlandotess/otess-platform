@@ -286,6 +286,18 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setShowTemplates(false);
   }
 
+  const TAX_RATES = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
+  const liveTotals = (() => {
+    let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
+    lineItems.forEach(it => {
+      const base = Number(it.quantity) * Number(it.unit_price);
+      const rate = TAX_RATES[`${clientType}_${it.type}`] ?? 0.115;
+      if (it.type === 'product') { subProd += base; taxProd += base * rate; }
+      else { subLabor += base; taxLabor += base * rate; }
+    });
+    return { subProd, taxProd, subLabor, taxLabor, total: subProd + taxProd + subLabor + taxLabor };
+  })();
+
   const completedCount = checklistItems.filter(i => i.completed && !i.__placeholder).length;
   const realCount = checklistItems.filter(i => !i.__placeholder).length;
   const progress = realCount > 0 ? Math.round((completedCount / realCount) * 100) : 0;
@@ -501,17 +513,17 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Resumen IVU</p>
               {clientType === 'b2b' && <div style={{ background: '#e8eeff', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#2a4cb5', fontWeight: 600 }}>Cliente B2B — Labor al 4%</div>}
               {[
-                { label: 'Subtotal productos', value: totals.subProd },
-                { label: 'IVU productos (11.5%)', value: totals.taxProd },
-                { label: 'Subtotal labor', value: totals.subLabor },
-                { label: `IVU labor (${clientType === 'b2b' ? '4%' : '11.5%'})`, value: totals.taxLabor },
+                { label: 'Subtotal productos', value: liveTotals.subProd },
+                { label: 'IVU productos (11.5%)', value: liveTotals.taxProd },
+                { label: 'Subtotal labor', value: liveTotals.subLabor },
+                { label: `IVU labor (${clientType === 'b2b' ? '4%' : '11.5%'})`, value: liveTotals.taxLabor },
               ].map(r => (
                 <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
                   <span style={{ color: 'var(--muted)' }}>{r.label}</span><span>{fmt(r.value)}</span>
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: 18, fontWeight: 900, color: 'var(--navy)' }}>
-                <span>Total</span><span>{fmt(totals.total)}</span>
+                <span>Total</span><span>{fmt(liveTotals.total)}</span>
               </div>
             </div>
             <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5', width: '100%', justifyContent: 'center' }} onClick={() => setShowDelete(true)}>
