@@ -9,7 +9,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
   const [saving, setSaving] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [manualTechId, setManualTechId] = useState('');
-  const [manualForm, setManualForm] = useState({ regular: '', overtime: '' });
+  const [manualForm, setManualForm] = useState({ regular: '', overtime: '', date: periodStart });
   const [savingManual, setSavingManual] = useState(false);
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -59,36 +59,52 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     setSaving(false);
   }
 
+  function getWeekRangeForDate(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDay();
+    const daysSinceWed = (day + 4) % 7;
+    const weekStart = new Date(d);
+    weekStart.setDate(d.getDate() - daysSinceWed);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    return { start: weekStart.toISOString().slice(0, 10), end: weekEnd.toISOString().slice(0, 10) };
+  }
+
   async function saveManualPayroll() {
     if (!manualTechId) return;
     setSavingManual(true);
     const tech = stats.find(t => t.id === manualTechId) || allTechnicians.find(t => t.id === manualTechId);
     const regular = parseFloat(manualForm.regular) || 0;
     const overtime = parseFloat(manualForm.overtime) || 0;
+    const { start: targetPeriodStart, end: targetPeriodEnd } = getWeekRangeForDate(manualForm.date || periodStart);
 
     await supabase.from('payroll_adjustments').upsert({
       technician_id: manualTechId,
-      period_start: periodStart,
-      period_end: periodEnd,
+      period_start: targetPeriodStart,
+      period_end: targetPeriodEnd,
       regular_hours_override: regular,
       overtime_hours_override: overtime,
     }, { onConflict: 'technician_id,period_start,period_end' });
 
-    const rate = Number(tech?.hourly_rate ?? 0);
-    const updated = recalc(rate, regular, overtime);
+    const isCurrentPeriod = targetPeriodStart === periodStart && targetPeriodEnd === periodEnd;
 
-    setStats(prev => {
-      const exists = prev.find(t => t.id === manualTechId);
-      if (exists) {
-        return prev.map(t => t.id === manualTechId ? { ...t, ...updated, hasOverride: true } : t);
-      }
-      return [...prev, { ...tech, ...updated, hasOverride: true }];
-    });
+    if (isCurrentPeriod) {
+      const rate = Number(tech?.hourly_rate ?? 0);
+      const updated = recalc(rate, regular, overtime);
+      setStats(prev => {
+        const exists = prev.find(t => t.id === manualTechId);
+        if (exists) {
+          return prev.map(t => t.id === manualTechId ? { ...t, ...updated, hasOverride: true } : t);
+        }
+        return [...prev, { ...tech, ...updated, hasOverride: true }];
+      });
+    }
 
     setShowManualAdd(false);
     setManualTechId('');
-    setManualForm({ regular: '', overtime: '' });
+    setManualForm({ regular: '', overtime: '', date: periodStart });
     setSavingManual(false);
+    if (!isCurrentPeriod) alert('Guardado en el período ' + targetPeriodStart + ' — cambia de semana para verlo.');
   }
 
   const totGross = stats.reduce((a, t) => a + t.grossPay, 0);
@@ -233,6 +249,10 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
                 <option value="">— Seleccionar técnico —</option>
                 {allTechnicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label>Fecha (define la semana de pago)</label>
+              <input type="date" value={manualForm.date} onChange={e => setManualForm(f => ({ ...f, date: e.target.value }))} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
               <div className="form-group">
