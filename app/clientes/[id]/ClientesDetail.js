@@ -333,8 +333,9 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                           {p.city && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{p.city}{p.state ? `, ${p.state}` : ''}{p.zip ? ` ${p.zip}` : ''}</div>}
                           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                             {(() => {
+                              const isCoords = /^-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+$/.test((p.street ?? '').trim());
                               const hasPlusCode = /^[A-Z0-9]{4,}\+[A-Z0-9]{2,}/.test(p.street ?? '');
-                              const fullAddress = hasPlusCode
+                              const fullAddress = (isCoords || hasPlusCode)
                                 ? p.street
                                 : [p.street, p.city, p.state, p.zip].filter(Boolean).join(', ');
                               const q = encodeURIComponent(fullAddress);
