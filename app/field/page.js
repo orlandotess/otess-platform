@@ -634,7 +634,7 @@ export default function FieldApp() {
                         ))}
                       </div>
                     )}
-                    <input ref={fileRef2} type="file" accept="image/*,video/*" multiple
+                    <input ref={fileRef2} type="file" accept="image/*,video/*,application/pdf" multiple
                       onChange={e => {
                         const files = Array.from(e.target.files || []);
                         if (files.length) {
@@ -662,6 +662,13 @@ export default function FieldApp() {
                         <div style={{ display: 'grid', gridTemplateColumns: n.photo_urls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 6, marginBottom: 8 }}>
                           {n.photo_urls.map((url, idx) => {
                             const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                            const isPdf = /\.pdf(\?|$)/i.test(url);
+                            if (isPdf) return (
+                              <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 100, background: '#f0f0f0', borderRadius: 8, textDecoration: 'none' }}>
+                                <span style={{ fontSize: 26 }}>📄</span>
+                                <span style={{ fontSize: 10, color: '#666', fontWeight: 600 }}>PDF</span>
+                              </a>
+                            );
                             return isVideo ? (
                               <video key={idx} src={url} controls style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                             ) : (
@@ -672,6 +679,13 @@ export default function FieldApp() {
                         </div>
                       ) : n.photo_url && (() => {
                         const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(n.photo_url);
+                        const isPdf = /\.pdf(\?|$)/i.test(n.photo_url);
+                        if (isPdf) return (
+                          <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: '#f0f0f0', borderRadius: 10, textDecoration: 'none', marginBottom: 8 }}>
+                            <span style={{ fontSize: 24 }}>📄</span>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>Ver documento PDF</span>
+                          </a>
+                        );
                         return isVideo ? (
                           <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 250, borderRadius: 10, marginBottom: 8, background: '#000' }} />
                         ) : (
@@ -805,7 +819,7 @@ export default function FieldApp() {
                 ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
                 : <div>
                   <div style={{ fontWeight: 600, marginBottom: 16, color: ORANGE }}>{fabSelectedJob.title}</div>
-                  <input ref={fileRef} type="file" accept="image/*,video/*" onChange={uploadFabPhoto} style={{ display: 'none' }} />
+                  <input ref={fileRef} type="file" accept="image/*,video/*,application/pdf" onChange={uploadFabPhoto} style={{ display: 'none' }} />
                   <button onClick={() => fileRef.current?.click()} disabled={uploadingPhoto} style={{ width: '100%', padding: 16, background: '#f0f0f0', border: '2px dashed #dde1e7', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', color: '#555' }}>
                     {uploadingPhoto ? '📤 Subiendo...' : '📷 Tomar foto o elegir de galería'}
                   </button>

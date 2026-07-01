@@ -485,7 +485,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   ))}
                 </div>
               )}
-              <input ref={fileRef} type="file" accept="image/*,video/*" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
+              <input ref={fileRef} type="file" accept="image/*,video/*,application/pdf" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 Foto / Video{pendingPhotos.length > 0 ? ` (${pendingPhotos.length})` : ''}</button>
                 <button type="submit" className="btn btn-primary" disabled={savingNote || uploadingPhoto} style={{ flex: 1, justifyContent: 'center' }}>
@@ -508,6 +508,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 <div style={{ display: 'grid', gridTemplateColumns: n.photo_urls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: n.note ? 10 : 0 }}>
                   {n.photo_urls.map((url, idx) => {
                     const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                    const isPdf = /\.pdf(\?|$)/i.test(url);
+                    if (isPdf) return (
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 130, background: '#f8f9fb', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)' }}>
+                        <span style={{ fontSize: 32 }}>📄</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Ver PDF</span>
+                      </a>
+                    );
                     return isVideo ? (
                       <video key={idx} src={url} controls style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                     ) : (
@@ -518,6 +525,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </div>
               ) : n.photo_url && (() => {
                 const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(n.photo_url);
+                const isPdf = /\.pdf(\?|$)/i.test(n.photo_url);
+                if (isPdf) return (
+                  <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: '#f8f9fb', borderRadius: 10, textDecoration: 'none', border: '1.5px solid var(--border)', marginBottom: n.note ? 10 : 0 }}>
+                    <span style={{ fontSize: 28 }}>📄</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)' }}>Ver documento PDF</span>
+                  </a>
+                );
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 10, marginBottom: n.note ? 10 : 0, background: '#000' }} />
                 ) : (
