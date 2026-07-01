@@ -9,7 +9,7 @@ const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar sop
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
-export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '' }) {
+export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [] }) {
   const router = useRouter();
   const [showPayment, setShowPayment] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
@@ -18,6 +18,11 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   const [showEditProperty, setShowEditProperty] = useState(false);
   const [showEditTerms, setShowEditTerms] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showAttachments, setShowAttachments] = useState(false);
+  const [jobNotes, setJobNotes] = useState([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [selectedNoteIds, setSelectedNoteIds] = useState(initialAttached || []);
+  const [savingAttachments, setSavingAttachments] = useState(false);
   const [newNumber, setNewNumber] = useState(invoiceNumber || '');
   const [billTo, setBillTo] = useState(initialBillTo);
   const [propertyId, setPropertyId] = useState(initialPropertyId || '');
@@ -127,6 +132,43 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
     router.push('/facturas');
   }
 
+  async function openAttachments() {
+    setShowAttachments(true);
+    if (jobNotes.length === 0 && jobId) {
+      setLoadingNotes(true);
+      const { data } = await supabase.from('job_notes').select('*').eq('job_id', jobId).order('created_at', { ascending: false });
+      const withSigned = await Promise.all((data ?? []).map(async n => {
+        const paths = n.photo_urls && n.photo_urls.length > 0 ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
+        const signedUrls = await Promise.all(paths.map(async p => {
+          const { data: sd } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
+          return sd?.signedUrl ?? null;
+        }));
+        return { ...n, signedUrls: signedUrls.filter(Boolean) };
+      }));
+      setJobNotes(withSigned);
+      setLoadingNotes(false);
+    }
+  }
+
+  function toggleNoteSelection(noteId) {
+    setSelectedNoteIds(prev => prev.includes(noteId) ? prev.filter(id => id !== noteId) : [...prev, noteId]);
+  }
+
+  async function saveAttachments() {
+    setSavingAttachments(true);
+    await supabase.from('invoices').update({ attached_note_ids: selectedNoteIds }).eq('id', invoiceId);
+    setSavingAttachments(false);
+    setShowAttachments(false);
+    router.refresh();
+  }
+
+  async function clearAttachments() {
+    if (!confirm('¿Quitar todos los adjuntos de esta factura?')) return;
+    setSelectedNoteIds([]);
+    await supabase.from('invoices').update({ attached_note_ids: [] }).eq('id', invoiceId);
+    router.refresh();
+  }
+
   if (showPaymentOnly) {
     return (
       <>
@@ -150,6 +192,14 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
         <button className="btn btn-ghost" onClick={() => setShowEditProperty(true)}>🏠 Propiedad</button>
       )}
       <button className="btn btn-ghost" onClick={() => setShowEditTerms(true)}>📋 Términos</button>
+      {jobId && (
+        <button className="btn btn-ghost" onClick={openAttachments}>
+          📎 Adjuntos{selectedNoteIds.length > 0 ? ` (${selectedNoteIds.length})` : ''}
+        </button>
+      )}
+      {selectedNoteIds.length > 0 && (
+        <button className="btn btn-ghost" style={{ color: 'var(--warn)' }} onClick={clearAttachments}>🗑 Quitar adjuntos</button>
+      )}
       {status === 'draft' && <button className="btn btn-primary" onClick={() => updateStatus('sent')}>📤 Enviar</button>}
       {status === 'sent' && (
         <>
@@ -160,6 +210,57 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {status === 'paid' && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Pagada</span>}
       {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Enviado</span>}
       <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
+
+      {/* Attachments modal */}
+      {showAttachments && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 600, maxHeight: '80vh', overflow: 'auto' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📎 Adjuntos del trabajo</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Selecciona qué fotos, videos o documentos compartir con el cliente en esta factura.</p>
+
+            {loadingNotes ? (
+              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>Cargando...</p>
+            ) : jobNotes.length === 0 ? (
+              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>No hay notas ni archivos en este trabajo.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                {jobNotes.map(n => {
+                  const isSelected = selectedNoteIds.includes(n.id);
+                  return (
+                    <label key={n.id} style={{ display: 'flex', gap: 12, padding: '12px 14px', borderRadius: 10, border: `2px solid ${isSelected ? 'var(--navy)' : 'var(--border)'}`, background: isSelected ? '#f0f4ff' : '#fff', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={isSelected} onChange={() => toggleNoteSelection(n.id)} style={{ marginTop: 4 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
+                          {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        {n.signedUrls && n.signedUrls.length > 0 && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: n.note ? 8 : 0 }}>
+                            {n.signedUrls.map((url, idx) => {
+                              const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                              const isPdf = /\.pdf(\?|$)/i.test(url);
+                              if (isPdf) return <div key={idx} style={{ width: 60, height: 60, background: '#f0f0f0', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📄</div>;
+                              if (isVideo) return <div key={idx} style={{ width: 60, height: 60, background: '#000', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🎥</div>;
+                              return <img key={idx} src={url} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6 }} />;
+                            })}
+                          </div>
+                        )}
+                        {n.note && <p style={{ fontSize: 13, margin: 0, color: 'var(--text)' }}>{n.note}</p>}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-primary" onClick={saveAttachments} disabled={savingAttachments} style={{ flex: 1, justifyContent: 'center' }}>
+                {savingAttachments ? 'Guardando...' : `💾 Guardar (${selectedNoteIds.length} seleccionados)`}
+              </button>
+              <button className="btn btn-ghost" onClick={() => setShowAttachments(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit terms */}
       {showEditTerms && (
