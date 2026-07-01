@@ -55,12 +55,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [savingNote, setSavingNote] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const fileRef = useRef();
-  const [pendingPhoto, setPendingPhoto] = useState(null);
-  const [pendingPhotoPreview, setPendingPhotoPreview] = useState(null);
+  const [pendingPhotos, setPendingPhotos] = useState([]);
+  const [pendingPhotoPreviews, setPendingPhotoPreviews] = useState([]);
 
-  // Lightbox state
-  const [lightboxUrl, setLightboxUrl] = useState(null);
-  const [lightboxType, setLightboxType] = useState('image');
+  // Lightbox state — { urls: [], index: 0 }
+  const [lightbox, setLightbox] = useState(null);
 
   // Checklist state
   const [checklistItems, setChecklistItems] = useState(checklist);
@@ -149,31 +148,39 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   }
 
   function handleFileSelect(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPendingPhoto(file);
-    setPendingPhotoPreview(URL.createObjectURL(file));
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setPendingPhotos(prev => [...prev, ...files]);
+    setPendingPhotoPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
   }
 
   async function saveNote(e) {
     e.preventDefault();
-    if (!noteText.trim() && !pendingPhoto) return;
+    if (!noteText.trim() && pendingPhotos.length === 0) return;
     setSavingNote(true);
-    let photoUrl = null;
-    if (pendingPhoto) {
+
+    const uploadedPaths = [];
+    if (pendingPhotos.length > 0) {
       setUploadingPhoto(true);
-      const ext = pendingPhoto.name.split('.').pop();
-      const path = `${job.id}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from('Job-photos').upload(path, pendingPhoto);
-      if (!error) photoUrl = path;
+      for (const file of pendingPhotos) {
+        const ext = file.name.split('.').pop();
+        const path = `${job.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+        const { error } = await supabase.storage.from('Job-photos').upload(path, file);
+        if (!error) uploadedPaths.push(path);
+      }
       setUploadingPhoto(false);
     }
+
     const { data: newNote } = await supabase.from('job_notes').insert([{
-      job_id: job.id, note: noteText.trim() || null, photo_url: photoUrl,
+      job_id: job.id,
+      note: noteText.trim() || null,
+      photo_url: uploadedPaths[0] ?? null,
+      photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
     }]).select().single();
-    if (newNote) setNotesList(prev => [{ ...newNote, photo_url: null }, ...prev]);
-    setNoteText(''); setPendingPhoto(null); setPendingPhotoPreview(null); setSavingNote(false);
-    if (photoUrl) window.location.reload();
+
+    if (newNote) setNotesList(prev => [newNote, ...prev]);
+    setNoteText(''); setPendingPhotos([]); setPendingPhotoPreviews([]); setSavingNote(false);
+    if (uploadedPaths.length > 0) window.location.reload();
   }
 
   async function deleteNote(noteId) {
@@ -424,16 +431,27 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Escribe una nota..." rows={3}
                   style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
               </div>
-              {pendingPhotoPreview && (
-                <div style={{ marginBottom: 12, position: 'relative', display: 'inline-block' }}>
-                  <img src={pendingPhotoPreview} alt="preview" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10 }} />
-                  <button type="button" onClick={() => { setPendingPhoto(null); setPendingPhotoPreview(null); }}
-                    style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14 }}>×</button>
+              {pendingPhotoPreviews.length > 0 && (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                  {pendingPhotoPreviews.map((preview, idx) => (
+                    <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
+                      {pendingPhotos[idx]?.type?.startsWith('video') ? (
+                        <video src={preview} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10, background: '#000' }} />
+                      ) : (
+                        <img src={preview} alt="preview" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10 }} />
+                      )}
+                      <button type="button" onClick={() => {
+                        setPendingPhotos(prev => prev.filter((_, i) => i !== idx));
+                        setPendingPhotoPreviews(prev => prev.filter((_, i) => i !== idx));
+                      }}
+                        style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14 }}>×</button>
+                    </div>
+                  ))}
                 </div>
               )}
-              <input ref={fileRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+              <input ref={fileRef} type="file" accept="image/*,video/*" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 Foto / Video</button>
+                <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 Foto / Video{pendingPhotos.length > 0 ? ` (${pendingPhotos.length})` : ''}</button>
                 <button type="submit" className="btn btn-primary" disabled={savingNote || uploadingPhoto} style={{ flex: 1, justifyContent: 'center' }}>
                   {uploadingPhoto ? 'Subiendo foto...' : savingNote ? 'Guardando...' : '💾 Guardar'}
                 </button>
@@ -450,12 +468,24 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </div>
                 <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
               </div>
-              {n.photo_url && (() => {
+              {n.photo_urls && n.photo_urls.length > 1 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: n.photo_urls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: n.note ? 10 : 0 }}>
+                  {n.photo_urls.map((url, idx) => {
+                    const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                    return isVideo ? (
+                      <video key={idx} src={url} controls style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
+                    ) : (
+                      <img key={idx} src={url} alt="job photo" onClick={() => setLightbox({ urls: n.photo_urls, index: idx })}
+                        style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
+                    );
+                  })}
+                </div>
+              ) : n.photo_url && (() => {
                 const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(n.photo_url);
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 10, marginBottom: n.note ? 10 : 0, background: '#000' }} />
                 ) : (
-                  <img src={n.photo_url} alt="job photo" onClick={() => { setLightboxUrl(n.photo_url); setLightboxType('image'); }}
+                  <img src={n.photo_url} alt="job photo" onClick={() => setLightbox({ urls: [n.photo_url], index: 0 })}
                     style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0, cursor: 'zoom-in' }} />
                 );
               })()}
@@ -602,11 +632,28 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
         </div>
       )}
 
-      {/* Lightbox */}
-      {lightboxUrl && (
-        <div onClick={() => setLightboxUrl(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, cursor: 'zoom-out' }}>
-          <button onClick={() => setLightboxUrl(null)} style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-          <img src={lightboxUrl} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} />
+      {/* Lightbox with carousel */}
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, cursor: 'zoom-out' }}>
+          <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>×</button>
+
+          {lightbox.urls.length > 1 && (
+            <div style={{ position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)', color: '#fff', fontSize: 14, fontWeight: 600, background: 'rgba(255,255,255,0.15)', padding: '4px 14px', borderRadius: 20 }}>
+              {lightbox.index + 1} / {lightbox.urls.length}
+            </div>
+          )}
+
+          {lightbox.urls.length > 1 && lightbox.index > 0 && (
+            <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: l.index - 1 })); }}
+              style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 26, borderRadius: '50%', width: 48, height: 48, cursor: 'pointer', zIndex: 2 }}>‹</button>
+          )}
+
+          <img src={lightbox.urls[lightbox.index]} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} />
+
+          {lightbox.urls.length > 1 && lightbox.index < lightbox.urls.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: l.index + 1 })); }}
+              style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 26, borderRadius: '50%', width: 48, height: 48, cursor: 'pointer', zIndex: 2 }}>›</button>
+          )}
         </div>
       )}
 
