@@ -128,6 +128,10 @@ export default function FieldApp() {
     ]);
     // Generate signed URLs for photos
     const notesWithUrls = await Promise.all((notes ?? []).map(async n => {
+      if (n.photo_urls && n.photo_urls.length > 0) {
+        const signedUrls = await Promise.all(n.photo_urls.map(p => getSignedUrl(p)));
+        return { ...n, photo_urls: signedUrls, photo_url: signedUrls[0] ?? null };
+      }
       if (!n.photo_url) return n;
       const signedUrl = await getSignedUrl(n.photo_url);
       return { ...n, photo_url: signedUrl };
@@ -179,36 +183,24 @@ export default function FieldApp() {
     if (!detailNoteText.trim() && detailPhotos.length === 0) return;
     setSavingDetailNote(true);
 
-    if (detailPhotos.length > 0) {
-      // Upload each photo/video as its own note entry
-      const newNotes = [];
-      for (const file of detailPhotos) {
-        const ext = file.name.split('.').pop();
-        const path = detailJob.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.' + ext;
-        const { error } = await supabase.storage.from('Job-photos').upload(path, file);
-        if (!error) {
-          const { data: note } = await supabase.from('job_notes').insert([{
-            job_id: detailJob.id, note: null, photo_url: path,
-          }]).select().single();
-          if (note) {
-            const signedUrl = await getSignedUrl(path);
-            newNotes.push({ ...note, photo_url: signedUrl });
-          }
-        }
-      }
-      // If there's also text, save it as a separate note
-      if (detailNoteText.trim()) {
-        const { data: textNote } = await supabase.from('job_notes').insert([{
-          job_id: detailJob.id, note: detailNoteText.trim(), photo_url: null,
-        }]).select().single();
-        if (textNote) newNotes.push(textNote);
-      }
-      setDetailNotes(prev => [...newNotes.reverse(), ...prev]);
-    } else {
-      const { data: note } = await supabase.from('job_notes').insert([{
-        job_id: detailJob.id, note: detailNoteText.trim() || null, photo_url: null,
-      }]).select().single();
-      if (note) setDetailNotes(prev => [note, ...prev]);
+    const uploadedPaths = [];
+    for (const file of detailPhotos) {
+      const ext = file.name.split('.').pop();
+      const path = detailJob.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.' + ext;
+      const { error } = await supabase.storage.from('Job-photos').upload(path, file);
+      if (!error) uploadedPaths.push(path);
+    }
+
+    const { data: note } = await supabase.from('job_notes').insert([{
+      job_id: detailJob.id,
+      note: detailNoteText.trim() || null,
+      photo_url: uploadedPaths[0] ?? null,
+      photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
+    }]).select().single();
+
+    if (note) {
+      const signedUrls = await Promise.all(uploadedPaths.map(p => getSignedUrl(p)));
+      setDetailNotes(prev => [{ ...note, photo_urls: signedUrls, photo_url: signedUrls[0] ?? null }, ...prev]);
     }
 
     setDetailNoteText(''); setDetailPhotos([]); setDetailPhotoPreviews([]); setSavingDetailNote(false);
@@ -631,7 +623,19 @@ export default function FieldApp() {
                       <div style={{ fontSize: 11, color: '#aaa', marginBottom: 8 }}>
                         {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </div>
-                      {n.photo_url && (() => {
+                      {n.photo_urls && n.photo_urls.length > 1 ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: n.photo_urls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 6, marginBottom: 8 }}>
+                          {n.photo_urls.map((url, idx) => {
+                            const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                            return isVideo ? (
+                              <video key={idx} src={url} controls style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
+                            ) : (
+                              <img key={idx} src={url} onClick={() => setLightboxUrl(url)}
+                                style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
+                            );
+                          })}
+                        </div>
+                      ) : n.photo_url && (() => {
                         const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(n.photo_url);
                         return isVideo ? (
                           <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 250, borderRadius: 10, marginBottom: 8, background: '#000' }} />
