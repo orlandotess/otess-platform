@@ -71,13 +71,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '' });
     setAddingLine(false);
     setSavingLine(false);
-    router.refresh();
   }
 
   async function deleteLineItem(itemId) {
     await supabase.from('job_line_items').delete().eq('id', itemId);
     setLineItems(prev => prev.filter(i => i.id !== itemId));
-    router.refresh();
   }
 
   // Notes state
