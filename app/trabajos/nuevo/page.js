@@ -22,6 +22,8 @@ export default function NuevoTrabajo() {
   const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '' }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
 
   useEffect(() => {
     supabase.from('clients').select('id, name, client_type').order('name').then(({ data }) => setClients(data ?? []));
@@ -143,12 +145,44 @@ export default function NuevoTrabajo() {
             {/* Info general */}
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
-              <div className="form-group">
+              <div className="form-group" style={{ position: 'relative' }}>
                 <label>Cliente *</label>
-                <select value={form.client_id} onChange={e => set('client_id', e.target.value)}>
-                  <option value="">— Seleccionar cliente —</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.client_type === 'b2b' ? ' (B2B)' : ''}</option>)}
-                </select>
+                {selectedClient ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: '#f8f9fb' }}>
+                    <span style={{ flex: 1, fontWeight: 600 }}>{selectedClient.name}{selectedClient.client_type === 'b2b' ? ' (B2B)' : ''}</span>
+                    <button type="button" onClick={() => { set('client_id', ''); setClientSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700 }}>Cambiar</button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }}>🔍</span>
+                      <input
+                        value={clientSearch}
+                        onChange={e => { setClientSearch(e.target.value); setShowClientDropdown(true); }}
+                        onFocus={() => setShowClientDropdown(true)}
+                        placeholder="Buscar cliente por nombre..."
+                        style={{ paddingLeft: 36 }}
+                      />
+                    </div>
+                    {showClientDropdown && (
+                      <>
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowClientDropdown(false)} />
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 240, overflowY: 'auto' }}>
+                          {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 ? (
+                            <div style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13 }}>No se encontraron clientes.</div>
+                          ) : clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(c => (
+                            <div key={c.id} onClick={() => { set('client_id', c.id); setClientSearch(''); setShowClientDropdown(false); }}
+                              style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 500, borderBottom: '1px solid var(--border)' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#f8f9fb'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                              {c.name}{c.client_type === 'b2b' ? ' (B2B)' : ''}
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
               <div className="form-group">
                 <label>Título del trabajo *</label>
