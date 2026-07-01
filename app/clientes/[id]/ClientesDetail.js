@@ -238,6 +238,10 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                     <label>Nombre de la propiedad *</label>
                     <input value={prop.name} onChange={e => setProp(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Oficina Principal, Almacén Caguas" required />
                   </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label>📋 Pegar dirección de Google Maps (opcional)</label>
+                    <input onChange={e => setProp(p => ({ ...p, street: e.target.value }))} placeholder="Ej: CVMQ+FGQ, C. B, Guaynabo, 00965" style={{ borderColor: 'var(--amber)' }} />
+                  </div>
                   <div className="form-group">
                     <label>Calle</label>
                     <input value={prop.street} onChange={e => setProp(p => ({ ...p, street: e.target.value }))} placeholder="Calle y número" />
@@ -293,6 +297,10 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                           <label>Nombre</label>
                           <input value={editPropData.name ?? ''} onChange={e => setEditPropData(d => ({ ...d, name: e.target.value }))} />
+                        </div>
+                        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                          <label>📋 Pegar dirección de Google Maps (opcional)</label>
+                          <input onChange={e => setEditPropData(d => ({ ...d, street: e.target.value }))} placeholder="Ej: CVMQ+FGQ, C. B, Guaynabo, 00965" style={{ borderColor: 'var(--amber)' }} />
                         </div>
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                           <label>Dirección</label>
