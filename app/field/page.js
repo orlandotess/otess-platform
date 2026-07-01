@@ -39,7 +39,7 @@ export default function FieldApp() {
   const [detailPhotoPreviews, setDetailPhotoPreviews] = useState([]);
   const [savingDetailNote, setSavingDetailNote] = useState(false);
   const [newCheckItem, setNewCheckItem] = useState('');
-  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [lightbox, setLightbox] = useState(null); // { urls: [], index: 0 }
   const fileRef2 = useRef();
 
   useEffect(() => {
@@ -630,7 +630,7 @@ export default function FieldApp() {
                             return isVideo ? (
                               <video key={idx} src={url} controls style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                             ) : (
-                              <img key={idx} src={url} onClick={() => setLightboxUrl(url)}
+                              <img key={idx} src={url} onClick={() => setLightbox({ urls: n.photo_urls, index: idx })}
                                 style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                             );
                           })}
@@ -640,7 +640,7 @@ export default function FieldApp() {
                         return isVideo ? (
                           <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 250, borderRadius: 10, marginBottom: 8, background: '#000' }} />
                         ) : (
-                          <img src={n.photo_url} onClick={() => setLightboxUrl(n.photo_url)}
+                          <img src={n.photo_url} onClick={() => setLightbox({ urls: [n.photo_url], index: 0 })}
                             style={{ width: '100%', maxHeight: 250, objectFit: 'cover', borderRadius: 10, marginBottom: 8, cursor: 'zoom-in' }} />
                         );
                       })()}
@@ -654,11 +654,28 @@ export default function FieldApp() {
         </div>
       )}
 
-      {/* Lightbox */}
-      {lightboxUrl && (
-        <div onClick={() => setLightboxUrl(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, cursor: 'zoom-out' }}>
-          <button onClick={() => setLightboxUrl(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer' }}>×</button>
-          <img src={lightboxUrl} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }} />
+      {/* Lightbox with carousel */}
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, cursor: 'zoom-out' }}>
+          <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', zIndex: 2 }}>×</button>
+
+          {lightbox.urls.length > 1 && (
+            <div style={{ position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)', color: '#fff', fontSize: 14, fontWeight: 600, background: 'rgba(255,255,255,0.15)', padding: '4px 14px', borderRadius: 20 }}>
+              {lightbox.index + 1} / {lightbox.urls.length}
+            </div>
+          )}
+
+          {lightbox.urls.length > 1 && lightbox.index > 0 && (
+            <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: l.index - 1 })); }}
+              style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 24, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', zIndex: 2 }}>‹</button>
+          )}
+
+          <img src={lightbox.urls[lightbox.index]} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }} />
+
+          {lightbox.urls.length > 1 && lightbox.index < lightbox.urls.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: l.index + 1 })); }}
+              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 24, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', zIndex: 2 }}>›</button>
+          )}
         </div>
       )}
 
