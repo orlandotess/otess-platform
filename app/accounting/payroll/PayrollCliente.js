@@ -1,8 +1,10 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
 export default function PayrollClient({ techStats: initialStats, monthlyPayroll, view, year, months, periodStart, periodEnd, allTechnicians = [] }) {
+  const router = useRouter();
   const [stats, setStats] = useState(initialStats);
   const [editing, setEditing] = useState(null);
   const [editData, setEditData] = useState({});
@@ -88,6 +90,10 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
 
     const isCurrentPeriod = targetPeriodStart === periodStart && targetPeriodEnd === periodEnd;
 
+    setShowManualAdd(false);
+    setManualTechId('');
+    setSavingManual(false);
+
     if (isCurrentPeriod) {
       const rate = Number(tech?.hourly_rate ?? 0);
       const updated = recalc(rate, regular, overtime);
@@ -98,13 +104,16 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
         }
         return [...prev, { ...tech, ...updated, hasOverride: true }];
       });
+      setManualForm({ regular: '', overtime: '', date: periodStart });
+    } else {
+      // Navigate to the week view containing the chosen date so the entry is visible immediately
+      const now = new Date();
+      const currentWeekStart = new Date(now);
+      const day = now.getDay();
+      currentWeekStart.setDate(now.getDate() - ((day + 4) % 7));
+      const weeksDiff = Math.round((new Date(targetPeriodStart) - currentWeekStart) / (7 * 86400000));
+      router.push(`/accounting/payroll?view=week&week=${weeksDiff}`);
     }
-
-    setShowManualAdd(false);
-    setManualTechId('');
-    setManualForm({ regular: '', overtime: '', date: periodStart });
-    setSavingManual(false);
-    if (!isCurrentPeriod) alert('Guardado en el período ' + targetPeriodStart + ' — cambia de semana para verlo.');
   }
 
   const totGross = stats.reduce((a, t) => a + t.grossPay, 0);
