@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import PhotoAnnotator from '../PhotoAnnotator';
 
 const ORANGE = '#E05C2A';
 const BG = '#EAEEF2';
@@ -40,6 +41,7 @@ export default function FieldApp() {
   const [savingDetailNote, setSavingDetailNote] = useState(false);
   const [newCheckItem, setNewCheckItem] = useState('');
   const [lightbox, setLightbox] = useState(null); // { urls: [], index: 0 }
+  const [annotatingIdx, setAnnotatingIdx] = useState(null);
   const fileRef2 = useRef();
 
   useEffect(() => {
@@ -204,6 +206,15 @@ export default function FieldApp() {
     }
 
     setDetailNoteText(''); setDetailPhotos([]); setDetailPhotoPreviews([]); setSavingDetailNote(false);
+  }
+
+  function handleAnnotateSave(blob) {
+    if (annotatingIdx === null) return;
+    const file = new File([blob], detailPhotos[annotatingIdx].name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+    const newUrl = URL.createObjectURL(blob);
+    setDetailPhotos(prev => prev.map((f, i) => i === annotatingIdx ? file : f));
+    setDetailPhotoPreviews(prev => prev.map((u, i) => i === annotatingIdx ? newUrl : u));
+    setAnnotatingIdx(null);
   }
 
   async function toggleCheckItem(item) {
@@ -588,7 +599,11 @@ export default function FieldApp() {
                             {detailPhotos[idx]?.type?.startsWith('video') ? (
                               <video src={preview} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                             ) : (
-                              <img src={preview} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8 }} />
+                              <img src={preview} onClick={() => setAnnotatingIdx(idx)} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }} />
+                            )}
+                            {!detailPhotos[idx]?.type?.startsWith('video') && (
+                              <button type="button" onClick={() => setAnnotatingIdx(idx)}
+                                style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
                             )}
                             <button type="button" onClick={() => {
                               setDetailPhotos(prev => prev.filter((_, i) => i !== idx));
@@ -652,6 +667,14 @@ export default function FieldApp() {
             )}
           </div>
         </div>
+      )}
+
+      {annotatingIdx !== null && detailPhotoPreviews[annotatingIdx] && (
+        <PhotoAnnotator
+          imageUrl={detailPhotoPreviews[annotatingIdx]}
+          onSave={handleAnnotateSave}
+          onCancel={() => setAnnotatingIdx(null)}
+        />
       )}
 
       {/* Lightbox with carousel */}
