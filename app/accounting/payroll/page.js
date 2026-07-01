@@ -226,6 +226,7 @@ export default async function AccountingPayroll({ searchParams }) {
           months={months}
           periodStart={periodStart}
           periodEnd={periodEnd}
+          allTechnicians={techs}
         />
       </main>
     </div>

@@ -63,7 +63,10 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
   return (
     <>
       <div className="card" style={{ marginBottom: 20 }}>
-        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Por técnico</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Por técnico</p>
+          <button className="btn btn-amber" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setShowManualAdd(true)}>+ Agregar payroll manual</button>
+        </div>
         {stats.every(t => t.totalHours === 0) ? (
           <div className="empty"><p>No hay entradas de tiempo para este período.</p></div>
         ) : (
@@ -181,6 +184,36 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
                 </tr>
               </tfoot>
             </table>
+          </div>
+        </div>
+      )}
+      {showManualAdd && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Agregar payroll manual</h2>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label>Técnico</label>
+              <select value={manualTechId} onChange={e => setManualTechId(e.target.value)}>
+                <option value="">— Seleccionar técnico —</option>
+                {allTechnicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+              <div className="form-group">
+                <label>Horas regulares</label>
+                <input type="number" step="0.1" min="0" value={manualForm.regular} onChange={e => setManualForm(f => ({ ...f, regular: e.target.value }))} placeholder="0.0" />
+              </div>
+              <div className="form-group">
+                <label>Horas overtime</label>
+                <input type="number" step="0.1" min="0" value={manualForm.overtime} onChange={e => setManualForm(f => ({ ...f, overtime: e.target.value }))} placeholder="0.0" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-primary" onClick={saveManualPayroll} disabled={savingManual || !manualTechId} style={{ flex: 1, justifyContent: 'center' }}>
+                {savingManual ? 'Guardando...' : '💾 Guardar'}
+              </button>
+              <button className="btn btn-ghost" onClick={() => { setShowManualAdd(false); setManualTechId(''); setManualForm({ regular: '', overtime: '' }); }}>Cancelar</button>
+            </div>
           </div>
         </div>
       )}
