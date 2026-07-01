@@ -490,7 +490,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </div>
               {!lineItems?.length ? <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: addingLine ? 14 : 0 }}>Sin líneas.</p> : (
                 <table style={{ marginBottom: addingLine ? 14 : 0 }}>
-                  <thead><tr><th>Descripción</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Precio</th><th style={{ textAlign: 'center' }}>Exento</th><th style={{ textAlign: 'right' }}>Subtotal</th><th></th></tr></thead>
+                  <thead><tr><th>Descripción</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Precio</th><th style={{ textAlign: 'right' }}>Subtotal</th><th style={{ textAlign: 'center' }}>Exento</th><th></th></tr></thead>
                   <tbody>
                     {lineItems.map(it => (
                       <tr key={it.id}>
@@ -516,8 +516,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                             </td>
                             <td><input type="number" value={editLineForm.quantity} onChange={e => setEditLineForm(f => ({ ...f, quantity: e.target.value }))} min="0" step="0.01" style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, width: 70, textAlign: 'right' }} /></td>
                             <td><input type="number" value={editLineForm.unit_price} onChange={e => setEditLineForm(f => ({ ...f, unit_price: e.target.value }))} min="0" step="0.01" style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, width: 90, textAlign: 'right' }} /></td>
-                            <td style={{ textAlign: 'center' }}><input type="checkbox" checked={editLineForm.exempt} onChange={e => setEditLineForm(f => ({ ...f, exempt: e.target.checked }))} /></td>
                             <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt((parseFloat(editLineForm.quantity) || 0) * (parseFloat(editLineForm.unit_price) || 0))}</td>
+                            <td style={{ textAlign: 'center' }}><input type="checkbox" checked={editLineForm.exempt} onChange={e => setEditLineForm(f => ({ ...f, exempt: e.target.checked }))} /></td>
                             <td style={{ display: 'flex', gap: 4 }}>
                               <button onClick={() => saveEditLine(it.id)} disabled={savingLine} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: 11 }}>💾</button>
                               <button onClick={() => setEditingLineId(null)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }}>✕</button>
@@ -529,8 +529,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                             <td><span className={`badge ${it.type === 'labor' ? 'badge-amber' : 'badge-gray'}`}>{it.type === 'labor' ? 'Labor' : 'Producto'}</span></td>
                             <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{it.quantity}</td>
                             <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(it.unit_price)}</td>
-                            <td style={{ textAlign: 'center' }}>{it.exempt_reason ? '✓' : '—'}</td>
                             <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(Number(it.quantity) * Number(it.unit_price))}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              {it.exempt_reason ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', background: '#27ae60' }}>
+                                  <span style={{ color: '#fff', fontSize: 12, fontWeight: 900 }}>✓</span>
+                                </span>
+                              ) : (
+                                <span style={{ display: 'inline-block', width: 22, height: 22, borderRadius: '50%', border: '2px solid #dde1e7' }} />
+                              )}
+                            </td>
                             <td style={{ display: 'flex', gap: 4 }}>
                               <button onClick={() => startEditLine(it)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️</button>
                               <button onClick={() => deleteLineItem(it.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button>
@@ -543,7 +551,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </table>
               )}
               {addingLine && (
-                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 70px 100px 70px 32px', gap: 8, alignItems: 'center', padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 70px 100px 100px 70px 32px', gap: 8, alignItems: 'center', padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
                   <select value={newLine.type} onChange={e => setNewLine(l => ({ ...l, type: e.target.value }))} style={{ fontSize: 13, padding: '6px 8px' }}>
                     <option value="labor">Labor</option>
                     <option value="product">Producto</option>
@@ -556,6 +564,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   </datalist>
                   <input type="number" value={newLine.quantity} onChange={e => setNewLine(l => ({ ...l, quantity: e.target.value }))} min="0" step="0.01" style={{ fontSize: 13, padding: '6px 8px' }} />
                   <input type="number" value={newLine.unit_price} onChange={e => setNewLine(l => ({ ...l, unit_price: e.target.value }))} placeholder="0.00" min="0" step="0.01" style={{ fontSize: 13, padding: '6px 8px' }} />
+                  <div />
                   <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}>
                     <input type="checkbox" checked={newLine.exempt} onChange={e => setNewLine(l => ({ ...l, exempt: e.target.checked }))} style={{ width: 14, height: 14 }} />
                     Exento
