@@ -53,7 +53,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   // Line items state
   const [lineItems, setLineItems] = useState(items);
   const [addingLine, setAddingLine] = useState(false);
-  const [newLine, setNewLine] = useState({ type: 'labor', description: '', quantity: 1, unit_price: '' });
+  const [newLine, setNewLine] = useState({ type: 'labor', description: '', quantity: 1, unit_price: '', exempt: false });
   const [catalogItems, setCatalogItems] = useState([]);
 
   useEffect(() => {
@@ -79,10 +79,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       description: newLine.description.trim(),
       quantity: parseFloat(newLine.quantity) || 1,
       unit_price: parseFloat(newLine.unit_price) || 0,
+      exempt_reason: newLine.exempt ? 'Exento' : null,
       sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, data]);
-    setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '' });
+    setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '', exempt: false });
     setAddingLine(false);
     setSavingLine(false);
   }
@@ -291,7 +292,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
     lineItems.forEach(it => {
       const base = Number(it.quantity) * Number(it.unit_price);
-      const rate = TAX_RATES[`${clientType}_${it.type}`] ?? 0.115;
+      const rate = it.exempt_reason ? 0 : (TAX_RATES[`${clientType}_${it.type}`] ?? 0.115);
       if (it.type === 'product') { subProd += base; taxProd += base * rate; }
       else { subLabor += base; taxLabor += base * rate; }
     });
@@ -471,7 +472,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </table>
               )}
               {addingLine && (
-                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 70px 100px 32px', gap: 8, alignItems: 'center', padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 70px 100px 70px 32px', gap: 8, alignItems: 'center', padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
                   <select value={newLine.type} onChange={e => setNewLine(l => ({ ...l, type: e.target.value }))} style={{ fontSize: 13, padding: '6px 8px' }}>
                     <option value="labor">Labor</option>
                     <option value="product">Producto</option>
@@ -484,6 +485,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   </datalist>
                   <input type="number" value={newLine.quantity} onChange={e => setNewLine(l => ({ ...l, quantity: e.target.value }))} min="0" step="0.01" style={{ fontSize: 13, padding: '6px 8px' }} />
                   <input type="number" value={newLine.unit_price} onChange={e => setNewLine(l => ({ ...l, unit_price: e.target.value }))} placeholder="0.00" min="0" step="0.01" style={{ fontSize: 13, padding: '6px 8px' }} />
+                  <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={newLine.exempt} onChange={e => setNewLine(l => ({ ...l, exempt: e.target.checked }))} style={{ width: 14, height: 14 }} />
+                    Exento
+                  </label>
                   <button onClick={addLineItem} disabled={savingLine} style={{ background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
                     {savingLine ? '...' : '✓'}
                   </button>
