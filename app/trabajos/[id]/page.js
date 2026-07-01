@@ -45,27 +45,32 @@ export default async function TrabajoDetail({ params }) {
   );
 
   // Generate signed URLs for notes with photos (1 hour expiry)
+  async function signPath(rawPath) {
+    if (!rawPath) return null;
+    try {
+      let filePath = rawPath;
+      if (rawPath.startsWith('http')) {
+        const url = new URL(rawPath);
+        const pathParts = url.pathname.split('/Job-photos/');
+        filePath = pathParts[1];
+        if (!filePath) return null;
+      }
+      const { data } = await supabaseAdmin.storage.from('Job-photos').createSignedUrl(filePath, 3600);
+      return data?.signedUrl ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   const notesWithSignedUrls = await Promise.all(
     (notes ?? []).map(async (note) => {
-      if (!note.photo_url) return note;
-      try {
-        // Handle both old full URLs and new path-only format
-        let filePath = note.photo_url;
-        if (note.photo_url.startsWith('http')) {
-          const url = new URL(note.photo_url);
-          const pathParts = url.pathname.split('/Job-photos/');
-          filePath = pathParts[1];
-          if (!filePath) return note;
-        }
-        const { data, error } = await supabaseAdmin.storage
-          .from('Job-photos')
-          .createSignedUrl(filePath, 3600);
-        console.log('Signed URL result:', { filePath, signedUrl: data?.signedUrl, error });
-        return { ...note, photo_url: data?.signedUrl ?? null };
-      } catch (err) {
-        console.error('Signed URL error:', err);
-        return { ...note, photo_url: null };
+      if (note.photo_urls && note.photo_urls.length > 0) {
+        const signedUrls = await Promise.all(note.photo_urls.map(p => signPath(p)));
+        return { ...note, photo_urls: signedUrls.filter(Boolean), photo_url: signedUrls[0] ?? null };
       }
+      if (!note.photo_url) return note;
+      const signedUrl = await signPath(note.photo_url);
+      return { ...note, photo_url: signedUrl };
     })
   );
 
