@@ -65,6 +65,8 @@ export default async function FacturaDetail({ params }) {
             clientProperties={clientProperties}
             propertyId={inv.property_id ?? null}
             terms={inv.terms ?? ''}
+            jobId={inv.job_id ?? null}
+            attachedNoteIds={inv.attached_note_ids ?? []}
           />
         </div>
 
