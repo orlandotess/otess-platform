@@ -19,6 +19,30 @@ const statusInv = {
 };
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+function extractCoordsFromInput(text) {
+  const trimmed = text.trim();
+  // Already coordinates
+  if (/^-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+$/.test(trimmed)) return trimmed;
+
+  // Google Maps: /@lat,lng or ?q=lat,lng or /place/.../@lat,lng
+  let match = trimmed.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+  if (match) return `${match[1]}, ${match[2]}`;
+
+  match = trimmed.match(/[?&]q=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+  if (match) return `${match[1]}, ${match[2]}`;
+
+  // Apple Maps: ?ll=lat,lng or &sll=lat,lng
+  match = trimmed.match(/[?&](?:ll|sll)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+  if (match) return `${match[1]}, ${match[2]}`;
+
+  // Waze: ?ll=lat,lng
+  match = trimmed.match(/waze\.com.*?ll=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+  if (match) return `${match[1]}, ${match[2]}`;
+
+  // No match - return original text as-is
+  return text;
+}
+
 export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts }) {
   const router = useRouter();
   const [tab, setTab] = useState('info');
@@ -239,8 +263,8 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                     <input value={prop.name} onChange={e => setProp(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Oficina Principal, Almacén Caguas" required />
                   </div>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label>Calle (puedes pegar el Plus Code de Google Maps aquí)</label>
-                    <input value={prop.street} onChange={e => setProp(p => ({ ...p, street: e.target.value }))} placeholder="Ej: CVMQ+FGQ, C. B, Guaynabo, 00965" />
+                    <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
+                    <input value={prop.street} onChange={e => setProp(p => ({ ...p, street: extractCoordsFromInput(e.target.value) }))} placeholder="Pega el link o dirección aquí..." />
                   </div>
                   <div className="form-group">
                     <label>Ciudad</label>
@@ -295,8 +319,8 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                           <input value={editPropData.name ?? ''} onChange={e => setEditPropData(d => ({ ...d, name: e.target.value }))} />
                         </div>
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                          <label>Calle (puedes pegar el Plus Code de Google Maps aquí)</label>
-                          <input value={editPropData.street ?? ''} onChange={e => setEditPropData(d => ({ ...d, street: e.target.value }))} placeholder="Ej: CVMQ+FGQ, C. B, Guaynabo, 00965" />
+                          <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
+                          <input value={editPropData.street ?? ''} onChange={e => setEditPropData(d => ({ ...d, street: extractCoordsFromInput(e.target.value) }))} placeholder="Pega el link o dirección aquí..." />
                         </div>
                         <div className="form-group">
                           <label>Ciudad</label>
