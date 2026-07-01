@@ -11,6 +11,7 @@ const links = [
  { href: '/field',      label: 'Field App',  icon: '📱' },
  { href: '/admin/plantillas', label: 'Plantillas', icon: '📋' },
  { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
+ { href: '/catalogo', label: 'Labor & Productos', icon: '🧰' },
 ];
 
 const accountingLinks = [
