@@ -332,18 +332,29 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                           {p.street && <div style={{ fontSize: 14 }}>{p.street}</div>}
                           {p.city && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{p.city}{p.state ? `, ${p.state}` : ''}{p.zip ? ` ${p.zip}` : ''}</div>}
                           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                              🗺️ Google Maps
-                            </a>
-                            <a href={`https://maps.apple.com/?q=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                              🍎 Apple Maps
-                            </a>
-                            <a href={`https://waze.com/ul?q=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer"
-                              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                              🚗 Waze
-                            </a>
+                            {(() => {
+                              const hasPlusCode = /^[A-Z0-9]{4,}\+[A-Z0-9]{2,}/.test(p.street ?? '');
+                              const fullAddress = hasPlusCode
+                                ? p.street
+                                : [p.street, p.city, p.state, p.zip].filter(Boolean).join(', ');
+                              const q = encodeURIComponent(fullAddress);
+                              return (
+                                <>
+                                  <a href={`https://www.google.com/maps/search/?api=1&query=${q}`} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                                    🗺️ Google Maps
+                                  </a>
+                                  <a href={`https://maps.apple.com/?q=${q}`} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                                    🍎 Apple Maps
+                                  </a>
+                                  <a href={`https://waze.com/ul?q=${q}`} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                                    🚗 Waze
+                                  </a>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}
