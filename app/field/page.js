@@ -42,6 +42,7 @@ export default function FieldApp() {
   const [newCheckItem, setNewCheckItem] = useState('');
   const [lightbox, setLightbox] = useState(null); // { urls: [], index: 0 }
   const [annotatingIdx, setAnnotatingIdx] = useState(null);
+  const [annotatingExisting, setAnnotatingExisting] = useState(null); // { noteId, url, path, isGallery, galleryIdx }
   const fileRef2 = useRef();
 
   useEffect(() => {
@@ -132,11 +133,11 @@ export default function FieldApp() {
     const notesWithUrls = await Promise.all((notes ?? []).map(async n => {
       if (n.photo_urls && n.photo_urls.length > 0) {
         const signedUrls = await Promise.all(n.photo_urls.map(p => getSignedUrl(p)));
-        return { ...n, photo_urls: signedUrls, photo_url: signedUrls[0] ?? null };
+        return { ...n, photo_urls: signedUrls, photo_url: signedUrls[0] ?? null, raw_photo_urls: n.photo_urls, raw_photo_url: n.photo_url };
       }
       if (!n.photo_url) return n;
       const signedUrl = await getSignedUrl(n.photo_url);
-      return { ...n, photo_url: signedUrl };
+      return { ...n, photo_url: signedUrl, raw_photo_url: n.photo_url };
     }));
     setDetailNotes(notesWithUrls);
     setDetailChecklist(checklist ?? []);
@@ -215,6 +216,25 @@ export default function FieldApp() {
     setDetailPhotos(prev => prev.map((f, i) => i === annotatingIdx ? file : f));
     setDetailPhotoPreviews(prev => prev.map((u, i) => i === annotatingIdx ? newUrl : u));
     setAnnotatingIdx(null);
+  }
+
+  async function handleAnnotateExistingSave(blob) {
+    if (!annotatingExisting) return;
+    const { noteId, path } = annotatingExisting;
+    const { error } = await supabase.storage.from('Job-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (!error) {
+      const signedUrl = await getSignedUrl(path);
+      setDetailNotes(prev => prev.map(n => {
+        if (n.id !== noteId) return n;
+        if (annotatingExisting.isGallery) {
+          const newUrls = [...n.photo_urls];
+          newUrls[annotatingExisting.galleryIdx] = signedUrl;
+          return { ...n, photo_urls: newUrls, photo_url: newUrls[0] };
+        }
+        return { ...n, photo_url: signedUrl };
+      }));
+    }
+    setAnnotatingExisting(null);
   }
 
   async function toggleCheckItem(item) {
@@ -645,7 +665,7 @@ export default function FieldApp() {
                             return isVideo ? (
                               <video key={idx} src={url} controls style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                             ) : (
-                              <img key={idx} src={url} onClick={() => setLightbox({ urls: n.photo_urls, index: idx })}
+                              <img key={idx} src={url} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
                                 style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                             );
                           })}
@@ -655,7 +675,7 @@ export default function FieldApp() {
                         return isVideo ? (
                           <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 250, borderRadius: 10, marginBottom: 8, background: '#000' }} />
                         ) : (
-                          <img src={n.photo_url} onClick={() => setLightbox({ urls: [n.photo_url], index: 0 })}
+                          <img src={n.photo_url} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
                             style={{ width: '100%', maxHeight: 250, objectFit: 'cover', borderRadius: 10, marginBottom: 8, cursor: 'zoom-in' }} />
                         );
                       })()}
@@ -674,6 +694,14 @@ export default function FieldApp() {
           imageUrl={detailPhotoPreviews[annotatingIdx]}
           onSave={handleAnnotateSave}
           onCancel={() => setAnnotatingIdx(null)}
+        />
+      )}
+
+      {annotatingExisting && (
+        <PhotoAnnotator
+          imageUrl={annotatingExisting.url}
+          onSave={handleAnnotateExistingSave}
+          onCancel={() => setAnnotatingExisting(null)}
         />
       )}
 
