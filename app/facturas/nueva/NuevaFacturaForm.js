@@ -75,13 +75,16 @@ export default function NuevaFactura() {
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
     setSaving(true); setError('');
 
-    const { data: lastInv } = await supabase.from('invoices').select('invoice_number').order('created_at', { ascending: false }).limit(1).single();
-    let nextNum = 1000;
-    if (lastInv?.invoice_number) {
-      const n = parseInt(lastInv.invoice_number.replace('INV-', ''));
-      if (!isNaN(n)) nextNum = n + 1;
-    }
-    const invoiceNumber = `INV-${nextNum}`;
+    const { data: allInvoices } = await supabase.from('invoices').select('invoice_number');
+    let maxNum = 999;
+    (allInvoices ?? []).forEach(inv => {
+      const match = inv.invoice_number?.match(/^INV-(\d+)$/);
+      if (match) {
+        const n = parseInt(match[1]);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+    const invoiceNumber = `INV-${maxNum + 1}`;
 
     const { data: invoice, error: err } = await supabase.from('invoices').insert([{
       invoice_number: invoiceNumber,
