@@ -596,7 +596,7 @@ export default function FieldApp() {
                         {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </div>
                       {n.photo_url && (() => {
-                        const isVideo = ['mp4','mov','webm','avi'].includes(n.photo_url.split('.').pop().toLowerCase());
+                        const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(n.photo_url);
                         return isVideo ? (
                           <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 250, borderRadius: 10, marginBottom: 8, background: '#000' }} />
                         ) : (
