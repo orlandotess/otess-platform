@@ -35,8 +35,8 @@ export default function FieldApp() {
   const [detailNotes, setDetailNotes] = useState([]);
   const [detailChecklist, setDetailChecklist] = useState([]);
   const [detailNoteText, setDetailNoteText] = useState('');
-  const [detailPhoto, setDetailPhoto] = useState(null);
-  const [detailPhotoPreview, setDetailPhotoPreview] = useState(null);
+  const [detailPhotos, setDetailPhotos] = useState([]);
+  const [detailPhotoPreviews, setDetailPhotoPreviews] = useState([]);
   const [savingDetailNote, setSavingDetailNote] = useState(false);
   const [newCheckItem, setNewCheckItem] = useState('');
   const [lightboxUrl, setLightboxUrl] = useState(null);
@@ -176,23 +176,42 @@ export default function FieldApp() {
 
   async function saveDetailNote(e) {
     e.preventDefault();
-    if (!detailNoteText.trim() && !detailPhoto) return;
+    if (!detailNoteText.trim() && detailPhotos.length === 0) return;
     setSavingDetailNote(true);
-    let photoPath = null;
-    if (detailPhoto) {
-      const ext = detailPhoto.name.split('.').pop();
-      const path = detailJob.id + '/' + Date.now() + '.' + ext;
-      const { error } = await supabase.storage.from('Job-photos').upload(path, detailPhoto);
-      if (!error) photoPath = path;
+
+    if (detailPhotos.length > 0) {
+      // Upload each photo/video as its own note entry
+      const newNotes = [];
+      for (const file of detailPhotos) {
+        const ext = file.name.split('.').pop();
+        const path = detailJob.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.' + ext;
+        const { error } = await supabase.storage.from('Job-photos').upload(path, file);
+        if (!error) {
+          const { data: note } = await supabase.from('job_notes').insert([{
+            job_id: detailJob.id, note: null, photo_url: path,
+          }]).select().single();
+          if (note) {
+            const signedUrl = await getSignedUrl(path);
+            newNotes.push({ ...note, photo_url: signedUrl });
+          }
+        }
+      }
+      // If there's also text, save it as a separate note
+      if (detailNoteText.trim()) {
+        const { data: textNote } = await supabase.from('job_notes').insert([{
+          job_id: detailJob.id, note: detailNoteText.trim(), photo_url: null,
+        }]).select().single();
+        if (textNote) newNotes.push(textNote);
+      }
+      setDetailNotes(prev => [...newNotes.reverse(), ...prev]);
+    } else {
+      const { data: note } = await supabase.from('job_notes').insert([{
+        job_id: detailJob.id, note: detailNoteText.trim() || null, photo_url: null,
+      }]).select().single();
+      if (note) setDetailNotes(prev => [note, ...prev]);
     }
-    const { data: note } = await supabase.from('job_notes').insert([{
-      job_id: detailJob.id, note: detailNoteText.trim() || null, photo_url: photoPath,
-    }]).select().single();
-    if (note) {
-      const signedUrl = photoPath ? await getSignedUrl(photoPath) : null;
-      setDetailNotes(prev => [{ ...note, photo_url: signedUrl }, ...prev]);
-    }
-    setDetailNoteText(''); setDetailPhoto(null); setDetailPhotoPreview(null); setSavingDetailNote(false);
+
+    setDetailNoteText(''); setDetailPhotos([]); setDetailPhotoPreviews([]); setSavingDetailNote(false);
   }
 
   async function toggleCheckItem(item) {
@@ -570,18 +589,35 @@ export default function FieldApp() {
                   <form onSubmit={saveDetailNote}>
                     <textarea value={detailNoteText} onChange={e => setDetailNoteText(e.target.value)} placeholder="Escribe una nota..." rows={3}
                       style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', marginBottom: 8 }} />
-                    {detailPhotoPreview && (
-                      <div style={{ position: 'relative', display: 'inline-block', marginBottom: 8 }}>
-                        <img src={detailPhotoPreview} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8 }} />
-                        <button type="button" onClick={() => { setDetailPhoto(null); setDetailPhotoPreview(null); }}
-                          style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 13 }}>×</button>
+                    {detailPhotoPreviews.length > 0 && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                        {detailPhotoPreviews.map((preview, idx) => (
+                          <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
+                            {detailPhotos[idx]?.type?.startsWith('video') ? (
+                              <video src={preview} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
+                            ) : (
+                              <img src={preview} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8 }} />
+                            )}
+                            <button type="button" onClick={() => {
+                              setDetailPhotos(prev => prev.filter((_, i) => i !== idx));
+                              setDetailPhotoPreviews(prev => prev.filter((_, i) => i !== idx));
+                            }}
+                              style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 13 }}>×</button>
+                          </div>
+                        ))}
                       </div>
                     )}
-                    <input ref={fileRef2} type="file" accept="image/*,video/*"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) { setDetailPhoto(f); setDetailPhotoPreview(URL.createObjectURL(f)); } }}
+                    <input ref={fileRef2} type="file" accept="image/*,video/*" multiple
+                      onChange={e => {
+                        const files = Array.from(e.target.files || []);
+                        if (files.length) {
+                          setDetailPhotos(prev => [...prev, ...files]);
+                          setDetailPhotoPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
+                        }
+                      }}
                       style={{ display: 'none' }} />
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" onClick={() => fileRef2.current?.click()} style={{ padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>📷</button>
+                      <button type="button" onClick={() => fileRef2.current?.click()} style={{ padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>📷{detailPhotos.length > 0 ? ` ${detailPhotos.length}` : ''}</button>
                       <button type="submit" disabled={savingDetailNote} style={{ flex: 1, padding: '10px 14px', background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
                         {savingDetailNote ? 'Guardando...' : '💾 Guardar'}
                       </button>
