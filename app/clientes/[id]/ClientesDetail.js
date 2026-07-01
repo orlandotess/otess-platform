@@ -274,16 +274,10 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                   </div>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                     <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
-                    <input value={prop.street} onChange={async e => {
+                    <input value={prop.street} onChange={e => {
                       const val = e.target.value;
                       const isShortLink = /(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(val);
-                      if (isShortLink) {
-                        setProp(p => ({ ...p, street: val }));
-                        const coords = await resolveShortLink(val);
-                        if (coords) setProp(p => ({ ...p, street: coords }));
-                      } else {
-                        setProp(p => ({ ...p, street: extractCoordsFromInput(val) }));
-                      }
+                      setProp(p => ({ ...p, street: isShortLink ? val : extractCoordsFromInput(val) }));
                     }} placeholder="Pega el link o dirección aquí..." />
                   </div>
                   <div className="form-group">
@@ -340,16 +334,10 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                         </div>
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                           <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
-                          <input value={editPropData.street ?? ''} onChange={async e => {
+                          <input value={editPropData.street ?? ''} onChange={e => {
                             const val = e.target.value;
                             const isShortLink = /(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(val);
-                            if (isShortLink) {
-                              setEditPropData(d => ({ ...d, street: val }));
-                              const coords = await resolveShortLink(val);
-                              if (coords) setEditPropData(d => ({ ...d, street: coords }));
-                            } else {
-                              setEditPropData(d => ({ ...d, street: extractCoordsFromInput(val) }));
-                            }
+                            setEditPropData(d => ({ ...d, street: isShortLink ? val : extractCoordsFromInput(val) }));
                           }} placeholder="Pega el link o dirección aquí..." />
                         </div>
                         <div className="form-group">
@@ -387,6 +375,15 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                           {p.city && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{p.city}{p.state ? `, ${p.state}` : ''}{p.zip ? ` ${p.zip}` : ''}</div>}
                           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                             {(() => {
+                              const isDirectLink = /^https?:\/\//i.test((p.street ?? '').trim());
+                              if (isDirectLink) {
+                                return (
+                                  <a href={p.street} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                                    🗺️ Abrir ubicación
+                                  </a>
+                                );
+                              }
                               const isCoords = /^-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+$/.test((p.street ?? '').trim());
                               const hasPlusCode = /^[A-Z0-9]{4,}\+[A-Z0-9]{2,}/.test(p.street ?? '');
                               const fullAddress = (isCoords || hasPlusCode)
