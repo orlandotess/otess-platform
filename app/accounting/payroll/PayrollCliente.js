@@ -2,11 +2,15 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 
-export default function PayrollClient({ techStats: initialStats, monthlyPayroll, view, year, months, periodStart, periodEnd }) {
+export default function PayrollClient({ techStats: initialStats, monthlyPayroll, view, year, months, periodStart, periodEnd, allTechnicians = [] }) {
   const [stats, setStats] = useState(initialStats);
   const [editing, setEditing] = useState(null);
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
+  const [showManualAdd, setShowManualAdd] = useState(false);
+  const [manualTechId, setManualTechId] = useState('');
+  const [manualForm, setManualForm] = useState({ regular: '', overtime: '' });
+  const [savingManual, setSavingManual] = useState(false);
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtH = h => `${Number(h).toFixed(1)}h`;
@@ -53,6 +57,38 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     setStats(prev => prev.map(t => t.id === tech.id ? { ...t, hourly_rate: newRate, ...updated } : t));
     setEditing(null);
     setSaving(false);
+  }
+
+  async function saveManualPayroll() {
+    if (!manualTechId) return;
+    setSavingManual(true);
+    const tech = stats.find(t => t.id === manualTechId) || allTechnicians.find(t => t.id === manualTechId);
+    const regular = parseFloat(manualForm.regular) || 0;
+    const overtime = parseFloat(manualForm.overtime) || 0;
+
+    await supabase.from('payroll_adjustments').upsert({
+      technician_id: manualTechId,
+      period_start: periodStart,
+      period_end: periodEnd,
+      regular_hours_override: regular,
+      overtime_hours_override: overtime,
+    }, { onConflict: 'technician_id,period_start,period_end' });
+
+    const rate = Number(tech?.hourly_rate ?? 0);
+    const updated = recalc(rate, regular, overtime);
+
+    setStats(prev => {
+      const exists = prev.find(t => t.id === manualTechId);
+      if (exists) {
+        return prev.map(t => t.id === manualTechId ? { ...t, ...updated, hasOverride: true } : t);
+      }
+      return [...prev, { ...tech, ...updated, hasOverride: true }];
+    });
+
+    setShowManualAdd(false);
+    setManualTechId('');
+    setManualForm({ regular: '', overtime: '' });
+    setSavingManual(false);
   }
 
   const totGross = stats.reduce((a, t) => a + t.grossPay, 0);
