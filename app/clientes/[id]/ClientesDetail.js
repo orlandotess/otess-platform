@@ -39,6 +39,20 @@ function extractCoordsFromInput(text) {
   return text;
 }
 
+async function resolveShortLink(url) {
+  try {
+    const res = await fetch('/api/resolve-maps-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    return data.coords ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts }) {
   const router = useRouter();
   const [tab, setTab] = useState('info');
@@ -260,7 +274,17 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                   </div>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                     <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
-                    <input value={prop.street} onChange={e => setProp(p => ({ ...p, street: extractCoordsFromInput(e.target.value) }))} placeholder="Pega el link o dirección aquí..." />
+                    <input value={prop.street} onChange={async e => {
+                      const val = e.target.value;
+                      const isShortLink = /(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(val);
+                      if (isShortLink) {
+                        setProp(p => ({ ...p, street: val }));
+                        const coords = await resolveShortLink(val);
+                        if (coords) setProp(p => ({ ...p, street: coords }));
+                      } else {
+                        setProp(p => ({ ...p, street: extractCoordsFromInput(val) }));
+                      }
+                    }} placeholder="Pega el link o dirección aquí..." />
                   </div>
                   <div className="form-group">
                     <label>Ciudad</label>
@@ -316,7 +340,17 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                         </div>
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                           <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
-                          <input value={editPropData.street ?? ''} onChange={e => setEditPropData(d => ({ ...d, street: extractCoordsFromInput(e.target.value) }))} placeholder="Pega el link o dirección aquí..." />
+                          <input value={editPropData.street ?? ''} onChange={async e => {
+                            const val = e.target.value;
+                            const isShortLink = /(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(val);
+                            if (isShortLink) {
+                              setEditPropData(d => ({ ...d, street: val }));
+                              const coords = await resolveShortLink(val);
+                              if (coords) setEditPropData(d => ({ ...d, street: coords }));
+                            } else {
+                              setEditPropData(d => ({ ...d, street: extractCoordsFromInput(val) }));
+                            }
+                          }} placeholder="Pega el link o dirección aquí..." />
                         </div>
                         <div className="form-group">
                           <label>Ciudad</label>
