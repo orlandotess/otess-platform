@@ -69,6 +69,40 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     }
   }
   const [savingLine, setSavingLine] = useState(false);
+  const [editingLineId, setEditingLineId] = useState(null);
+  const [editLineForm, setEditLineForm] = useState({});
+
+  function startEditLine(item) {
+    setEditingLineId(item.id);
+    setEditLineForm({
+      type: item.type,
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      exempt: !!item.exempt_reason,
+    });
+  }
+
+  async function saveEditLine(id) {
+    setSavingLine(true);
+    await supabase.from('job_line_items').update({
+      type: editLineForm.type,
+      description: editLineForm.description.trim(),
+      quantity: parseFloat(editLineForm.quantity) || 1,
+      unit_price: parseFloat(editLineForm.unit_price) || 0,
+      exempt_reason: editLineForm.exempt ? 'Exento' : null,
+    }).eq('id', id);
+    setLineItems(prev => prev.map(i => i.id === id ? {
+      ...i,
+      type: editLineForm.type,
+      description: editLineForm.description.trim(),
+      quantity: parseFloat(editLineForm.quantity) || 1,
+      unit_price: parseFloat(editLineForm.unit_price) || 0,
+      exempt_reason: editLineForm.exempt ? 'Exento' : null,
+    } : i));
+    setEditingLineId(null);
+    setSavingLine(false);
+  }
 
   async function addLineItem() {
     if (!newLine.description.trim()) return;
@@ -456,16 +490,53 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </div>
               {!lineItems?.length ? <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: addingLine ? 14 : 0 }}>Sin líneas.</p> : (
                 <table style={{ marginBottom: addingLine ? 14 : 0 }}>
-                  <thead><tr><th>Descripción</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Precio</th><th style={{ textAlign: 'right' }}>Subtotal</th><th></th></tr></thead>
+                  <thead><tr><th>Descripción</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Precio</th><th style={{ textAlign: 'center' }}>Exento</th><th style={{ textAlign: 'right' }}>Subtotal</th><th></th></tr></thead>
                   <tbody>
                     {lineItems.map(it => (
                       <tr key={it.id}>
-                        <td style={{ fontWeight: 500 }}>{it.description}</td>
-                        <td><span className={`badge ${it.type === 'labor' ? 'badge-amber' : 'badge-gray'}`}>{it.type === 'labor' ? 'Labor' : 'Producto'}</span></td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{it.quantity}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(it.unit_price)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(Number(it.quantity) * Number(it.unit_price))}</td>
-                        <td><button onClick={() => deleteLineItem(it.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button></td>
+                        {editingLineId === it.id ? (
+                          <>
+                            <td><input list="job-catalog-edit" value={editLineForm.description} onChange={e => {
+                              const value = e.target.value;
+                              const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+                              if (match) setEditLineForm(f => ({ ...f, type: match.type, description: match.description, unit_price: match.price }));
+                              else setEditLineForm(f => ({ ...f, description: value }));
+                            }} style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, width: '100%' }} />
+                              <datalist id="job-catalog-edit">
+                                {catalogItems.filter(c => c.type === editLineForm.type).map(c => (
+                                  <option key={c.id} value={`${c.item_code} — ${c.description}`} />
+                                ))}
+                              </datalist>
+                            </td>
+                            <td>
+                              <select value={editLineForm.type} onChange={e => setEditLineForm(f => ({ ...f, type: e.target.value }))} style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13 }}>
+                                <option value="labor">Labor</option>
+                                <option value="product">Producto</option>
+                              </select>
+                            </td>
+                            <td><input type="number" value={editLineForm.quantity} onChange={e => setEditLineForm(f => ({ ...f, quantity: e.target.value }))} min="0" step="0.01" style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, width: 70, textAlign: 'right' }} /></td>
+                            <td><input type="number" value={editLineForm.unit_price} onChange={e => setEditLineForm(f => ({ ...f, unit_price: e.target.value }))} min="0" step="0.01" style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, width: 90, textAlign: 'right' }} /></td>
+                            <td style={{ textAlign: 'center' }}><input type="checkbox" checked={editLineForm.exempt} onChange={e => setEditLineForm(f => ({ ...f, exempt: e.target.checked }))} /></td>
+                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt((parseFloat(editLineForm.quantity) || 0) * (parseFloat(editLineForm.unit_price) || 0))}</td>
+                            <td style={{ display: 'flex', gap: 4 }}>
+                              <button onClick={() => saveEditLine(it.id)} disabled={savingLine} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: 11 }}>💾</button>
+                              <button onClick={() => setEditingLineId(null)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }}>✕</button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td style={{ fontWeight: 500 }}>{it.description}</td>
+                            <td><span className={`badge ${it.type === 'labor' ? 'badge-amber' : 'badge-gray'}`}>{it.type === 'labor' ? 'Labor' : 'Producto'}</span></td>
+                            <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{it.quantity}</td>
+                            <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(it.unit_price)}</td>
+                            <td style={{ textAlign: 'center' }}>{it.exempt_reason ? '✓' : '—'}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(Number(it.quantity) * Number(it.unit_price))}</td>
+                            <td style={{ display: 'flex', gap: 4 }}>
+                              <button onClick={() => startEditLine(it)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️</button>
+                              <button onClick={() => deleteLineItem(it.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button>
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>
