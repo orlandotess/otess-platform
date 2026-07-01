@@ -17,6 +17,20 @@ export default async function FacturaPublica({ params }) {
     supabase.from('payments').select('*').eq('invoice_id', id).order('paid_at'),
   ]);
 
+  // Fetch attached job notes (photos/videos/PDFs selected by admin)
+  let attachedNotes = [];
+  if (inv?.attached_note_ids && inv.attached_note_ids.length > 0) {
+    const { data: notes } = await supabase.from('job_notes').select('*').in('id', inv.attached_note_ids);
+    attachedNotes = await Promise.all((notes ?? []).map(async n => {
+      const paths = n.photo_urls && n.photo_urls.length > 0 ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
+      const signedUrls = await Promise.all(paths.map(async p => {
+        const { data: sd } = await supabase.storage.from('Job-photos').createSignedUrl(p, 86400);
+        return sd?.signedUrl ?? null;
+      }));
+      return { ...n, signedUrls: signedUrls.filter(Boolean) };
+    }));
+  }
+
   if (!inv) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <div style={{ textAlign: 'center' }}>
@@ -154,6 +168,39 @@ export default async function FacturaPublica({ params }) {
             )}
           </div>
         </div>
+
+        {attachedNotes.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', padding: '28px 32px', marginBottom: 20 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#16223d', marginBottom: 18 }}>📎 Fotos y documentos del trabajo</div>
+            {attachedNotes.map(n => (
+              <div key={n.id} style={{ marginBottom: 20 }}>
+                {n.signedUrls.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: n.signedUrls.length === 1 ? '1fr' : n.signedUrls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 10, marginBottom: n.note ? 10 : 0 }}>
+                    {n.signedUrls.map((url, idx) => {
+                      const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                      const isPdf = /\.pdf(\?|$)/i.test(url);
+                      if (isPdf) return (
+                        <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 160, background: '#f8f9fb', borderRadius: 10, textDecoration: 'none', border: '1.5px solid #eee' }}>
+                          <span style={{ fontSize: 36 }}>📄</span>
+                          <span style={{ fontSize: 12, color: '#888', fontWeight: 600, marginTop: 6 }}>Ver PDF</span>
+                        </a>
+                      );
+                      if (isVideo) return (
+                        <video key={idx} src={url} controls style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 10, background: '#000' }} />
+                      );
+                      return (
+                        <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                          <img src={url} alt="Foto del trabajo" style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 10 }} />
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+                {n.note && <p style={{ fontSize: 14, color: '#555', margin: 0 }}>{n.note}</p>}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Footer */}
         <div style={{ textAlign: 'center', color: '#aaa', fontSize: 12, padding: '16px 0' }}>
