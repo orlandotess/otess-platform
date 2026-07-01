@@ -708,7 +708,22 @@ export default function FieldApp() {
       {/* Lightbox with carousel */}
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, cursor: 'zoom-out' }}>
-          <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', zIndex: 2 }}>×</button>
+          <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', zIndex: 3 }}>×</button>
+          {lightbox.noteId && (
+            <button onClick={e => {
+              e.stopPropagation();
+              const note = detailNotes.find(n => n.id === lightbox.noteId);
+              const isGallery = note.raw_photo_urls && note.raw_photo_urls.length > 1;
+              setAnnotatingExisting({
+                noteId: lightbox.noteId,
+                url: lightbox.urls[lightbox.index],
+                path: isGallery ? note.raw_photo_urls[lightbox.index] : note.raw_photo_url,
+                isGallery,
+                galleryIdx: lightbox.index,
+              });
+            }}
+              style={{ position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 20, padding: '10px 18px', cursor: 'pointer', zIndex: 3 }}>✏️ Editar</button>
+          )}
 
           {lightbox.urls.length > 1 && (
             <div style={{ position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)', color: '#fff', fontSize: 14, fontWeight: 600, background: 'rgba(255,255,255,0.15)', padding: '4px 14px', borderRadius: 20 }}>
