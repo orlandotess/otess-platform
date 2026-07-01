@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import PhotoAnnotator from '../../PhotoAnnotator';
@@ -54,6 +54,20 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [lineItems, setLineItems] = useState(items);
   const [addingLine, setAddingLine] = useState(false);
   const [newLine, setNewLine] = useState({ type: 'labor', description: '', quantity: 1, unit_price: '' });
+  const [catalogItems, setCatalogItems] = useState([]);
+
+  useEffect(() => {
+    supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+  }, []);
+
+  function handleLineDescriptionSelect(value) {
+    const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+    if (match) {
+      setNewLine(l => ({ ...l, type: match.type, description: match.description, unit_price: match.price }));
+    } else {
+      setNewLine(l => ({ ...l, description: value }));
+    }
+  }
   const [savingLine, setSavingLine] = useState(false);
 
   async function addLineItem() {
@@ -450,7 +464,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     <option value="labor">Labor</option>
                     <option value="product">Producto</option>
                   </select>
-                  <input value={newLine.description} onChange={e => setNewLine(l => ({ ...l, description: e.target.value }))} placeholder="Descripción..." style={{ fontSize: 13, padding: '6px 8px' }} />
+                  <input list="job-catalog" value={newLine.description} onChange={e => handleLineDescriptionSelect(e.target.value)} placeholder="Descripción o código..." style={{ fontSize: 13, padding: '6px 8px' }} />
+                  <datalist id="job-catalog">
+                    {catalogItems.filter(c => c.type === newLine.type).map(c => (
+                      <option key={c.id} value={`${c.item_code} — ${c.description}`} />
+                    ))}
+                  </datalist>
                   <input type="number" value={newLine.quantity} onChange={e => setNewLine(l => ({ ...l, quantity: e.target.value }))} min="0" step="0.01" style={{ fontSize: 13, padding: '6px 8px' }} />
                   <input type="number" value={newLine.unit_price} onChange={e => setNewLine(l => ({ ...l, unit_price: e.target.value }))} placeholder="0.00" min="0" step="0.01" style={{ fontSize: 13, padding: '6px 8px' }} />
                   <button onClick={addLineItem} disabled={savingLine} style={{ background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
