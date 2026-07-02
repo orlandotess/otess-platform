@@ -31,6 +31,21 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
   const totNet = filtered.reduce((a, r) => a + r.net, 0);
   const totHours = filtered.reduce((a, r) => a + r.totalHours, 0);
 
+  async function deletePayrollRow(row) {
+    if (!confirm(`¿Eliminar el registro de payroll de ${row.techName} — ${fmtDate(row.payDate)}?`)) return;
+    setSaving(s => ({ ...s, [row.id]: true }));
+    await supabase.from("payroll_adjustments").delete()
+      .eq("technician_id", row.techId)
+      .eq("period_start", row.weekStart)
+      .eq("period_end", row.weekEnd);
+    await supabase.from("time_entries").delete()
+      .eq("technician_id", row.techId)
+      .gte("clocked_in_at", row.weekStart)
+      .lte("clocked_in_at", row.weekEnd + "T23:59:59");
+    setRows(prev => prev.filter(r => r.id !== row.id));
+    setSaving(s => ({ ...s, [row.id]: false }));
+  }
+
   async function togglePaid(row) {
     setSaving(s => ({ ...s, [row.id]: true }));
     await supabase.from("payroll_adjustments").upsert({
@@ -88,6 +103,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
                   <th style={{ textAlign: "right" }}>10%</th>
                   <th style={{ textAlign: "right" }}>Pagado</th>
                   <th>Mes</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -103,6 +119,9 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
                     <td style={{ textAlign: "right", color: "var(--warn)" }}>{fmt(r.retention)}</td>
                     <td style={{ textAlign: "right", fontWeight: 700, color: "var(--ok)" }}>{fmt(r.net)}</td>
                     <td style={{ color: "var(--amber)", fontWeight: 600, fontSize: 13 }}>{r.monthLabel}</td>
+                    <td>
+                      <button onClick={() => deletePayrollRow(r)} disabled={saving[r.id]} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 14 }}>🗑</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -113,6 +132,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
                   <td style={{ textAlign: "right", fontWeight: 900, color: "var(--navy)", paddingTop: 12 }}>{fmt(totGross)}</td>
                   <td style={{ textAlign: "right", fontWeight: 700, color: "var(--warn)", paddingTop: 12 }}>{fmt(totRet)}</td>
                   <td style={{ textAlign: "right", fontWeight: 900, color: "var(--ok)", paddingTop: 12 }}>{fmt(totNet)}</td>
+                  <td></td>
                   <td></td>
                 </tr>
               </tfoot>
