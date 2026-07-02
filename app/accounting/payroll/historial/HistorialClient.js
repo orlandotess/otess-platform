@@ -14,7 +14,9 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
     return new Date(y, m - 1, day).toLocaleDateString("es-PR", { month: "long", day: "numeric", year: "numeric" });
   };
 
-  const filtered = rows.filter(r => {
+  const sortedRows = [...rows].sort((a, b) => new Date(b.payDate) - new Date(a.payDate));
+
+  const filtered = sortedRows.filter(r => {
     const matchesSearch = search.trim() === "" ||
       r.techName.toLowerCase().includes(search.toLowerCase()) ||
       r.payDate.includes(search) ||
