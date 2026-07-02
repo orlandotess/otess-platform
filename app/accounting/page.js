@@ -24,13 +24,19 @@ function getPeriods() {
   return { yearStart, yearEnd, monthStart, monthEnd, weekStart: weekStart.toISOString(), weekEnd: weekEnd.toISOString(), year, month };
 }
 
-function computeRevenue(invs) {
-  const paid = invs.filter(i => i.status === 'paid');
-  const pending = invs.filter(i => i.status === 'sent');
+function computeRevenue(invs, paymentsByInvoice) {
+  const invIds = new Set(invs.map(i => i.id));
+  let collected = 0;
+  invs.forEach(i => {
+    const payments = paymentsByInvoice[i.id] ?? [];
+    collected += payments.reduce((a, p) => a + Number(p.amount ?? 0), 0);
+  });
+  const total = invs.reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const outstanding = total - collected;
   return {
-    total: invs.reduce((a, i) => a + Number(i.total ?? 0), 0),
-    collected: paid.reduce((a, i) => a + Number(i.total ?? 0), 0),
-    outstanding: pending.reduce((a, i) => a + Number(i.total ?? 0), 0),
+    total,
+    collected,
+    outstanding: Math.max(outstanding, 0),
     subProducts: invs.reduce((a, i) => a + Number(i.subtotal_products ?? 0), 0),
     subLabor: invs.reduce((a, i) => a + Number(i.subtotal_labor ?? 0), 0),
     taxProducts: invs.reduce((a, i) => a + Number(i.tax_products ?? 0), 0),
@@ -151,17 +157,25 @@ import AccountingDashboardClient from './accounting-dashboard-client';
 export default async function AccountingDashboard() {
   const { yearStart, yearEnd, monthStart, monthEnd, weekStart, weekEnd, year, month } = getPeriods();
 
-  const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }] = await Promise.all([
+  const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: allPayments }] = await Promise.all([
     supabase.from('invoices').select('id, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at').order('issued_at', { ascending: false }),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount'),
     supabase.from('technicians').select('id, hourly_rate'),
     supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at').not('clocked_out_at', 'is', null).gte('clocked_in_at', yearStart).lte('clocked_in_at', yearEnd),
+    supabase.from('payments').select('invoice_id, amount, paid_at'),
   ]);
 
   const invoices = allInvoices ?? [];
   const lines = lineItems ?? [];
   const techs = technicians ?? [];
   const entries = timeEntries ?? [];
+  const payments = allPayments ?? [];
+
+  const paymentsByInvoice = {};
+  payments.forEach(p => {
+    if (!paymentsByInvoice[p.invoice_id]) paymentsByInvoice[p.invoice_id] = [];
+    paymentsByInvoice[p.invoice_id].push(p);
+  });
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const filterInvs = (start, end) => invoices.filter(i => i.issued_at && i.issued_at >= start.slice(0, 10) && i.issued_at <= end.slice(0, 10));
@@ -187,7 +201,7 @@ export default async function AccountingDashboard() {
     const qIds = new Set(qInvs.map(i => i.id));
     return {
       key: q.key,
-      revenue: computeRevenue(qInvs),
+      revenue: computeRevenue(qInvs, paymentsByInvoice),
       ivu: computeIVU(qIds, lines),
       payroll: computePayroll(q.start + 'T00:00:00.000Z', q.end + 'T23:59:59.999Z', techs, entries),
     };
@@ -211,21 +225,21 @@ export default async function AccountingDashboard() {
 
         <PeriodSection
           label="📅 Esta semana"
-          revenue={computeRevenue(weekInvs)}
+          revenue={computeRevenue(weekInvs, paymentsByInvoice)}
           ivu={computeIVU(getIds(weekStart, weekEnd), lines)}
           payroll={computePayroll(weekStart, weekEnd, techs, entries)}
           fmt={fmt}
         />
         <PeriodSection
           label={`🗓 ${monthLabel} ${year}`}
-          revenue={computeRevenue(monthInvs)}
+          revenue={computeRevenue(monthInvs, paymentsByInvoice)}
           ivu={computeIVU(getIds(monthStart, monthEnd), lines)}
           payroll={computePayroll(monthStart, monthEnd, techs, entries)}
           fmt={fmt}
         />
         <PeriodSection
           label={`📆 Año ${year}`}
-          revenue={computeRevenue(yearInvs)}
+          revenue={computeRevenue(yearInvs, paymentsByInvoice)}
           ivu={computeIVU(getIds(yearStart, yearEnd), lines)}
           payroll={computePayroll(yearStart, yearEnd, techs, entries)}
           fmt={fmt}
