@@ -29,6 +29,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [schedStart, setSchedStart] = useState(job.scheduled_start ? new Date(job.scheduled_start).toISOString().slice(0, 16) : '');
   const [schedEnd, setSchedEnd] = useState(job.scheduled_end ? new Date(job.scheduled_end).toISOString().slice(0, 16) : '');
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [titleForm, setTitleForm] = useState(job.title ?? '');
+  const [descForm, setDescForm] = useState(job.description ?? '');
+  const [savingDetails, setSavingDetails] = useState(false);
+
+  async function saveDetails() {
+    setSavingDetails(true);
+    await supabase.from('jobs').update({
+      title: titleForm.trim() || job.title,
+      description: descForm.trim() || null,
+    }).eq('id', job.id);
+    setSavingDetails(false);
+    setEditingDetails(false);
+    router.refresh();
+  }
 
   async function saveJobNumber() {
     if (!jobNumber.trim()) return;
@@ -408,6 +423,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Detalles</p>
                 <div style={{ display: 'flex', gap: 8 }}>
+                  {!editingDetails && (
+                    <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingDetails(true)}>✏️ Título/Desc.</button>
+                  )}
                   {!editingNumber && (
                     <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingNumber(true)}>✏️ # Job</button>
                   )}
@@ -416,6 +434,22 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   )}
                 </div>
               </div>
+              {editingDetails && (
+                <div style={{ marginBottom: 12, padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label>Título del trabajo</label>
+                    <input value={titleForm} onChange={e => setTitleForm(e.target.value)} placeholder="Título del trabajo" />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label>Descripción</label>
+                    <textarea value={descForm} onChange={e => setDescForm(e.target.value)} placeholder="Descripción del trabajo..." rows={3} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button className="btn btn-primary" onClick={saveDetails} disabled={savingDetails}>{savingDetails ? 'Guardando...' : '💾 Guardar'}</button>
+                    <button className="btn btn-ghost" onClick={() => { setEditingDetails(false); setTitleForm(job.title ?? ''); setDescForm(job.description ?? ''); }}>Cancelar</button>
+                  </div>
+                </div>
+              )}
               {editingNumber && (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
                   <input value={jobNumber} onChange={e => setJobNumber(e.target.value)} placeholder="JOB-1001" style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'monospace' }} />
