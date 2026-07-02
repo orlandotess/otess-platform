@@ -142,7 +142,10 @@ export default async function AccountingPayroll({ searchParams }) {
                view === 'month' ? `${months[month]} ${year}` : `Año ${year}`}
             </p>
           </div>
-          <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Link href="/accounting/payroll/historial" className="btn btn-amber">📜 Historial</Link>
+            <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+          </div>
         </div>
 
         {/* View selector */}
