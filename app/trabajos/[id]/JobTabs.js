@@ -14,12 +14,28 @@ const statusOptions = [
   { value: 'cancelled', label: 'Cancelado' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
   const [status, setStatus] = useState(job.status);
-  const [techId, setTechId] = useState(job.technician_id ?? '');
+  const [assignedTechs, setAssignedTechs] = useState(jobTechnicians);
+  const [addingTech, setAddingTech] = useState('');
+  const [savingTech, setSavingTech] = useState(false);
+
+  async function addTechnician(techId) {
+    if (!techId) return;
+    setSavingTech(true);
+    const { data } = await supabase.from('job_technicians').insert([{ job_id: job.id, technician_id: techId }]).select('*, technicians(name)').single();
+    if (data) setAssignedTechs(prev => [...prev, data]);
+    setAddingTech('');
+    setSavingTech(false);
+  }
+
+  async function removeTechnician(rowId) {
+    await supabase.from('job_technicians').delete().eq('id', rowId);
+    setAssignedTechs(prev => prev.filter(t => t.id !== rowId));
+  }
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editingNumber, setEditingNumber] = useState(false);
@@ -226,11 +242,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setStatus(val);
     await supabase.from('jobs').update({ status: val }).eq('id', job.id);
     router.refresh();
-  }
-
-  async function assignTech(val) {
-    setTechId(val);
-    await supabase.from('jobs').update({ technician_id: val || null }).eq('id', job.id);
   }
 
   async function deleteJob() {
@@ -622,11 +633,30 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </select>
             </div>
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Técnico asignado</p>
-              <select value={techId} onChange={e => assignTech(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}>
-                <option value="">— Sin asignar —</option>
-                {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Técnicos asignados</p>
+              {assignedTechs.length === 0 ? (
+                <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>Sin técnicos asignados.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  {assignedTechs.map(at => (
+                    <div key={at.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8f9fb', borderRadius: 8 }}>
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>{at.technicians?.name}</span>
+                      <button onClick={() => removeTechnician(at.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warn)', fontSize: 14 }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select value={addingTech} onChange={e => setAddingTech(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }}>
+                  <option value="">— Agregar técnico —</option>
+                  {technicians.filter(t => !assignedTechs.some(at => at.technician_id === t.id)).map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <button onClick={() => addTechnician(addingTech)} disabled={!addingTech || savingTech} className="btn btn-primary" style={{ fontSize: 13, padding: '8px 14px' }}>
+                  {savingTech ? '...' : '+'}
+                </button>
+              </div>
             </div>
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Resumen IVU</p>

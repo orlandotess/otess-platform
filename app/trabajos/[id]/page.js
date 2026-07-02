@@ -23,13 +23,14 @@ const statusBadge = {
 export default async function TrabajoDetail({ params }) {
   const { id } = params;
 
-  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }] = await Promise.all([
+  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }, { data: jobTechnicians }] = await Promise.all([
     supabase.from('jobs').select('*, clients(name, email, phone, client_type), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
     supabase.from('job_line_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('technicians').select('*').order('name'),
     supabase.from('job_notes').select('*').eq('job_id', id).order('created_at', { ascending: false }),
     supabase.from('job_checklist_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('checklist_templates').select('*, checklist_template_items(*)').order('name'),
+    supabase.from('job_technicians').select('*, technicians(name)').eq('job_id', id),
   ]);
 
   if (!job) return (
@@ -114,6 +115,7 @@ export default async function TrabajoDetail({ params }) {
           templates={templates ?? []}
           clientType={clientType}
           totals={{ subProd, taxProd, subLabor, taxLabor, total }}
+          jobTechnicians={jobTechnicians ?? []}
         />
       </main>
     </div>
