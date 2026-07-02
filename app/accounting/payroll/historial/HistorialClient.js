@@ -57,6 +57,10 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
               <button key={t.id} onClick={() => setTechFilter(t.id)} className={`btn ${techFilter === t.id ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>{t.name}</button>
             ))}
           </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => setSortDir("asc")} className={`btn ${sortDir === "asc" ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>↑ Ascendente</button>
+            <button onClick={() => setSortDir("desc")} className={`btn ${sortDir === "desc" ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>↓ Descendente</button>
+          </div>
         </div>
       </div>
 
