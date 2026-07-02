@@ -17,6 +17,13 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtH = h => `${Number(h).toFixed(1)}h`;
 
+  const payDate = (() => {
+    const start = new Date(periodStart + 'T00:00:00');
+    const friday = new Date(start);
+    friday.setDate(start.getDate() + 2); // Wed + 2 = Fri
+    return friday.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  })();
+
   function startEdit(tech) {
     setEditing(tech.id);
     setEditData({
@@ -125,7 +132,10 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     <>
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Por técnico</p>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Por técnico</p>
+            {view === 'week' && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>💰 Fecha de pago: {payDate}</p>}
+          </div>
           <button className="btn btn-amber" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setShowManualAdd(true)}>+ Agregar payroll manual</button>
         </div>
         {stats.every(t => t.totalHours === 0) ? (
