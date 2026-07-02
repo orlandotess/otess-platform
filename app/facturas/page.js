@@ -12,11 +12,38 @@ const statusBadge = {
   cancelled: { cls: 'badge-red',   label: 'Cancelada' },
 };
 
+function formatViewedAt(dateStr) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  if (isToday) {
+    return `hoy ${d.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  return d.toLocaleDateString('es-PR', { month: 'short', day: 'numeric' });
+}
+
 export default async function FacturasPage() {
-  const { data: invoices } = await supabase
-    .from('invoices')
-    .select('id, invoice_number, status, total, issued_at, due_at, clients(name)')
-    .order('created_at', { ascending: false });
+  const [{ data: invoices }, { data: views }] = await Promise.all([
+    supabase
+      .from('invoices')
+      .select('id, invoice_number, status, total, issued_at, due_at, clients(name)')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('invoice_views')
+      .select('invoice_id, viewed_at'),
+  ]);
+
+  // Agrupar vistas por factura: conteo + última fecha
+  const viewsByInvoice = {};
+  (views ?? []).forEach(v => {
+    if (!viewsByInvoice[v.invoice_id]) {
+      viewsByInvoice[v.invoice_id] = { count: 0, lastViewedAt: null };
+    }
+    viewsByInvoice[v.invoice_id].count += 1;
+    if (!viewsByInvoice[v.invoice_id].lastViewedAt || new Date(v.viewed_at) > new Date(viewsByInvoice[v.invoice_id].lastViewedAt)) {
+      viewsByInvoice[v.invoice_id].lastViewedAt = v.viewed_at;
+    }
+  });
 
   const totalPending = invoices?.filter(i => i.status === 'sent').reduce((a, i) => a + i.total, 0) ?? 0;
   const totalPaid = invoices?.filter(i => i.status === 'paid').reduce((a, i) => a + i.total, 0) ?? 0;
@@ -61,12 +88,14 @@ export default async function FacturasPage() {
                     <th>Fecha</th>
                     <th>Vence</th>
                     <th>Total</th>
+                    <th>Vistas</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoices.map(inv => {
                     const b = statusBadge[inv.status] ?? statusBadge.draft;
+                    const viewInfo = viewsByInvoice[inv.id];
                     return (
                       <tr key={inv.id}>
                         <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{inv.invoice_number}</td>
@@ -75,6 +104,18 @@ export default async function FacturasPage() {
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at ?? '—'}</td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.due_at ?? '—'}</td>
                         <td style={{ fontWeight: 700 }}>${Number(inv.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td>
+                          {viewInfo ? (
+                            <span
+                              title={`Última vista: ${formatViewedAt(viewInfo.lastViewedAt)}`}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--navy)', fontWeight: 600, background: '#eef1f8', padding: '3px 8px', borderRadius: 12 }}
+                            >
+                              👁️ {viewInfo.count} · {formatViewedAt(viewInfo.lastViewedAt)}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 12, color: 'var(--muted)' }}>—</span>
+                          )}
+                        </td>
                         <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
