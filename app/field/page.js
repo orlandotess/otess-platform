@@ -286,19 +286,15 @@ export default function FieldApp() {
     setNewCheckItem('');
   }
 
-  // Clientes search
+  // Clientes search (shows full list by default, filters as you type)
   useEffect(() => {
     if (tab !== 'clientes') return;
     const term = clientSearch.trim();
-    if (!term) { setClientResults([]); return; }
     setSearchingClients(true);
     const handle = setTimeout(async () => {
-      const { data } = await supabase
-        .from('clients')
-        .select('id, name, company, phone, email, client_type')
-        .or(`name.ilike.%${term}%,company.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`)
-        .order('name')
-        .limit(30);
+      let q = supabase.from('clients').select('id, name, company, phone, email, client_type').order('name');
+      q = term ? q.or(`name.ilike.%${term}%,company.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`).limit(30) : q.limit(50);
+      const { data } = await q;
       setClientResults(data ?? []);
       setSearchingClients(false);
     }, 300);
@@ -630,12 +626,7 @@ export default function FieldApp() {
               </div>
             </div>
             <div style={card}>
-              {!clientSearch.trim() ? (
-                <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>
-                  <div style={{ fontSize: 40, marginBottom: 8 }}>👥</div>
-                  Escribe para buscar un cliente.
-                </div>
-              ) : searchingClients ? (
+              {searchingClients ? (
                 <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Buscando...</div>
               ) : clientResults.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>No se encontraron clientes.</div>
@@ -724,12 +715,15 @@ export default function FieldApp() {
                     <div style={{ color: '#aaa', fontSize: 14, textAlign: 'center', padding: '12px 0' }}>Sin trabajos registrados.</div>
                   ) : (
                     clientDetailJobs.map((j, i) => (
-                      <div key={j.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < clientDetailJobs.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                      <div key={j.id} onClick={() => { setClientDetail(null); openJobDetail(j); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < clientDetailJobs.length - 1 ? '1px solid #f0f0f0' : 'none', cursor: 'pointer' }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{j.title}</div>
                           {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>{new Date(j.scheduled_start).toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
                         </div>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 8px', borderRadius: 20 }}>{SL[j.status]}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 8px', borderRadius: 20 }}>{SL[j.status]}</span>
+                          <span style={{ color: ORANGE, fontSize: 14 }}>›</span>
+                        </div>
                       </div>
                     ))
                   )}
