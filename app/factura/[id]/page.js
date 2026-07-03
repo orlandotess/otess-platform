@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic';
 
 import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
 import Link from 'next/link';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export default async function FacturaPublica({ params }) {
   const { id } = params;
@@ -16,6 +18,24 @@ export default async function FacturaPublica({ params }) {
     supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order'),
     supabase.from('payments').select('*').eq('invoice_id', id).order('paid_at'),
   ]);
+
+  // Trackear vista + notificar por email
+  if (inv) {
+    await supabase.from('invoice_views').insert([{ invoice_id: id }]);
+
+    resend.emails.send({
+      from: 'OTESS <info@otesspr.com>',
+      to: 'services@otesspr.com',
+      subject: `👁️ Factura ${inv.invoice_number} fue abierta`,
+      html: `
+        <div style="font-family:Arial,sans-serif;padding:20px">
+          <p style="font-size:15px;color:#16223d"><strong>${inv.clients?.name ?? 'Un cliente'}</strong> abrió la factura <strong>${inv.invoice_number}</strong>.</p>
+          <p style="font-size:13px;color:#888">Fecha: ${new Date().toLocaleString('es-PR', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+          <a href="https://app.otesspr.com/facturas/${id}" style="color:#e0972c;font-size:13px">Ver factura en el dashboard →</a>
+        </div>
+      `,
+    }).catch(err => console.error('Error notificando vista:', err));
+  }
 
   // Fetch attached job notes (photos/videos/PDFs selected by admin)
   let attachedNotes = [];
@@ -66,7 +86,7 @@ export default async function FacturaPublica({ params }) {
 
         {/* Invoice card */}
         <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', marginBottom: 20 }}>
-          
+
           {/* Header */}
           <div style={{ background: '#16223d', padding: '28px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
