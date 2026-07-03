@@ -57,7 +57,12 @@ export async function middleware(request) {
   let role = 'tecnico';
   try {
     const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY_MW);
-    const { data: profile, error: profileError } = await admin.from('profiles').select('role').eq('id', user.id).single();
+    // Buscamos por email en vez de id, porque hay perfiles cuyo id no coincide con auth.users.id
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      .select('role')
+      .eq('email', user.email)
+      .single();
     if (profileError) console.error('Middleware profile lookup error:', profileError.message);
     role = profile?.role ?? 'tecnico';
   } catch (err) {
