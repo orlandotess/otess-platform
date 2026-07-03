@@ -43,8 +43,7 @@ export default function Sidebar() {
  return (
    <aside className="sidebar">
      <div className="sidebar-logo">
-       <h1>OTESS</h1>
-       <p>OT Electrical & Security</p>
+       <img src="/otess-logo.png" alt="OTESS" style={{ width: '100%', maxWidth: 160, height: 'auto', display: 'block' }} />
      </div>
      <nav className="sidebar-nav">
        {links.map(l => (
