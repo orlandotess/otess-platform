@@ -25,27 +25,28 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  let response = NextResponse.next({ request: { headers: request.headers } });
+  let response = NextResponse.next({ request });
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      get(name) {
-        return request.cookies.get(name)?.value;
+      getAll() {
+        return request.cookies.getAll();
       },
-      set(name, value, options) {
-        request.cookies.set({ name, value, ...options });
-        response = NextResponse.next({ request: { headers: request.headers } });
-        response.cookies.set({ name, value, ...options });
-      },
-      remove(name, options) {
-        request.cookies.set({ name, value: '', ...options });
-        response = NextResponse.next({ request: { headers: request.headers } });
-        response.cookies.set({ name, value: '', ...options });
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
       },
     },
   });
 
-  const { data: { user } } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user ?? null;
+  } catch (err) {
+    console.error('Middleware auth.getUser error:', err.message);
+  }
 
   if (!user) {
     const url = request.nextUrl.clone();
@@ -53,15 +54,15 @@ export async function middleware(request) {
     return NextResponse.redirect(url);
   }
 
-  // Buscar el rol del usuario (usa variable no-sensible, disponible en Edge Runtime)
-  const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY_MW);
-  const { data: profile, error: profileError } = await admin.from('profiles').select('role').eq('id', user.id).single();
-
-  if (profileError) {
-    console.error('Middleware profile lookup error:', profileError.message);
+  let role = 'tecnico';
+  try {
+    const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY_MW);
+    const { data: profile, error: profileError } = await admin.from('profiles').select('role').eq('id', user.id).single();
+    if (profileError) console.error('Middleware profile lookup error:', profileError.message);
+    role = profile?.role ?? 'tecnico';
+  } catch (err) {
+    console.error('Middleware role fetch exception:', err.message);
   }
-
-  const role = profile?.role ?? 'tecnico';
 
   if (role === 'tecnico') {
     const allowed = TECNICO_ALLOWED.some(p => pathname === p || pathname.startsWith(p + '/'));
