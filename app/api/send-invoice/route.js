@@ -34,7 +34,7 @@ export async function POST(request) {
 
   <div style="background:#16223d;border-radius:16px 16px 0 0;padding:28px 32px;display:flex;justify-content:space-between;align-items:flex-start">
     <div>
-      <div style="color:#fff;font-size:26px;font-weight:900;letter-spacing:-1px">OTESS</div>
+      <img src="https://app.otesspr.com/otess-logo.png" alt="OTESS" style="width:130px;height:auto;display:block" />
       <div style="color:rgba(255,255,255,0.65);font-size:12px;margin-top:4px">OT Electrical & Security Solutions</div>
       <div style="color:rgba(255,255,255,0.65);font-size:12px">Calle 56, #2D8 Lomas de Carolina, PR 00987</div>
       <div style="color:rgba(255,255,255,0.65);font-size:12px">(787) 513-8352 · info@otesspr.com</div>
