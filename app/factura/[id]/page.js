@@ -74,15 +74,6 @@ export default async function FacturaPublica({ params }) {
     <div style={{ background: '#f4f5f7', minHeight: '100vh', padding: '32px 16px', fontFamily: 'Arial, sans-serif' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
-        {/* Header bar */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: 13, color: '#888' }}>OT Electrical & Security Solutions</div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <span style={{ background: statusColor[inv.status], color: '#fff', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
-              {statusLabel[inv.status]}
-            </span>
-          </div>
-        </div>
 
         {/* Invoice card */}
         <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', marginBottom: 20 }}>
