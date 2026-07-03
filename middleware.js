@@ -53,9 +53,14 @@ export async function middleware(request) {
     return NextResponse.redirect(url);
   }
 
-  // Buscar el rol del usuario (usa service role para evitar problemas de RLS)
-  const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY);
-  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single();
+  // Buscar el rol del usuario (usa variable no-sensible, disponible en Edge Runtime)
+  const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY_MW);
+  const { data: profile, error: profileError } = await admin.from('profiles').select('role').eq('id', user.id).single();
+
+  if (profileError) {
+    console.error('Middleware profile lookup error:', profileError.message);
+  }
+
   const role = profile?.role ?? 'tecnico';
 
   if (role === 'tecnico') {
