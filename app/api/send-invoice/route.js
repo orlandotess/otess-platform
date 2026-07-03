@@ -17,6 +17,14 @@ export async function POST(request) {
     if (!inv) return Response.json({ error: 'No encontrada' }, { status: 404 });
     const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     const publicUrl = `https://app.otesspr.com/factura/${invoiceId}`;
+    const rows = items?.map(i => `
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px">${i.description}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${i.type === 'labor' ? 'Labor' : 'Producto'}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${i.quantity}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${fmt(i.unit_price)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;font-size:14px">${fmt(Number(i.line_total) + Number(i.tax_amount))}</td>
+      </tr>`).join('');
 
     const html = `<!DOCTYPE html>
 <html>
@@ -55,11 +63,30 @@ export async function POST(request) {
       ${inv.clients?.company ? `<div style="color:#888;font-size:13px">${inv.clients.company}</div>` : ''}
     </div>
 
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+      <thead>
+        <tr style="background:#16223d">
+          <th style="color:#fff;padding:10px 12px;text-align:left;font-size:11px">Descripción</th>
+          <th style="color:#fff;padding:10px 12px;text-align:center;font-size:11px">Tipo</th>
+          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">Cant.</th>
+          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">Precio</th>
+          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">Total</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
 
+    <div style="display:flex;justify-content:flex-end">
+      <div style="width:280px">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Subtotal productos</span><span>${fmt(inv.subtotal_products)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">IVU productos (11.5%)</span><span>${fmt(inv.tax_products)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Subtotal labor</span><span>${fmt(inv.subtotal_labor)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">IVU labor (${inv.clients?.client_type === 'b2b' ? '4%' : '11.5%'})</span><span>${fmt(inv.tax_labor)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>TOTAL</span><span>${fmt(inv.total)}</span></div>
+      </div>
+    </div>
 
     ${inv.notes ? `<div style="background:#f8f9fb;border-radius:10px;padding:14px 18px;font-size:13px;color:#888;margin-top:16px"><strong style="color:#16223d">Notas:</strong> ${inv.notes}</div>` : ''}
-
-    ${inv.terms ? `<div style="background:#f8f9fb;border-radius:10px;padding:14px 18px;font-size:12px;color:#888;margin-top:12px;line-height:1.7"><strong style="color:#16223d;display:block;margin-bottom:8px;font-size:13px">Términos del Proyecto</strong>${inv.terms.split("\n").filter(l=>l.trim()).map(l=>"<p style=\"margin:0 0 8px\">"+l+"</p>").join("")}</div>` : ""}
   </div>
 
   <div style="background:#f0f2f5;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center">
