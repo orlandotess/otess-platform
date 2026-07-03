@@ -6,13 +6,15 @@ import { useRouter } from 'next/navigation';
 const roleLabel = { admin: 'Admin', tecnico: 'Técnico', vendedor: 'Vendedor', secretaria: 'Secretaría' };
 const roleBadge = { admin: 'badge-blue', tecnico: 'badge-amber', vendedor: 'badge-green', secretaria: 'badge-gray' };
 
-export default function UsersClient({ profiles }) {
+export default function UsersClient({ profiles, currentRole }) {
   const router = useRouter();
   const [showInvite, setShowInvite] = useState(false);
   const [invite, setInvite] = useState({ email: '', name: '', role: 'tecnico' });
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const canChangeRole = currentRole !== 'secretaria';
 
   async function sendInvite(e) {
     e.preventDefault();
@@ -43,6 +45,7 @@ export default function UsersClient({ profiles }) {
   }
 
   async function changeRole(profileId, newRole) {
+    if (!canChangeRole) return;
     await supabase.from('profiles').update({ role: newRole }).eq('id', profileId);
     router.refresh();
   }
@@ -91,15 +94,19 @@ export default function UsersClient({ profiles }) {
                   <td style={{ fontWeight: 600 }}>{p.name}</td>
                   <td style={{ color: 'var(--muted)', fontSize: 13 }}>{p.email}</td>
                   <td>
-                    <select
-                      value={p.role}
-                      onChange={e => changeRole(p.id, e.target.value)}
-                      style={{ padding: '4px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }}
-                    >
-                      {Object.entries(roleLabel).map(([k, v]) => (
-                        <option key={k} value={k}>{v}</option>
-                      ))}
-                    </select>
+                    {canChangeRole ? (
+                      <select
+                        value={p.role}
+                        onChange={e => changeRole(p.id, e.target.value)}
+                        style={{ padding: '4px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }}
+                      >
+                        {Object.entries(roleLabel).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className={`badge ${roleBadge[p.role]}`}>{roleLabel[p.role]}</span>
+                    )}
                   </td>
                   <td>
                     <span className={`badge ${p.active ? 'badge-green' : 'badge-red'}`}>
