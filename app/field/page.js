@@ -1030,11 +1030,13 @@ export default function FieldApp() {
       )}
 
       {/* FAB */}
-      <button style={{ position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, background: showFab ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 24, color: '#fff' }} onClick={() => setShowFab(!showFab)}>
-        {showFab ? '✕' : '+'}
-      </button>
+      {tab !== 'clientes' && (
+        <button style={{ position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, background: showFab ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 24, color: '#fff' }} onClick={() => setShowFab(!showFab)}>
+          {showFab ? '✕' : '+'}
+        </button>
+      )}
 
-      {showFab && (
+      {showFab && tab !== 'clientes' && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 97 }} onClick={() => setShowFab(false)} />
           <div style={{ position: 'fixed', bottom: 140, right: 20, zIndex: 98, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
