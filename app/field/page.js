@@ -45,6 +45,22 @@ export default function FieldApp() {
   const [annotatingExisting, setAnnotatingExisting] = useState(null); // { noteId, url, path, isGallery, galleryIdx }
   const fileRef2 = useRef();
 
+  // Calendar state
+  const [calendarJobs, setCalendarJobs] = useState([]);
+  const [calendarWeekOffset, setCalendarWeekOffset] = useState(0);
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState(new Date());
+  const [loadingCalendar, setLoadingCalendar] = useState(false);
+
+  // Clientes state
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientResults, setClientResults] = useState([]);
+  const [searchingClients, setSearchingClients] = useState(false);
+  const [clientDetail, setClientDetail] = useState(null);
+  const [clientDetailJobs, setClientDetailJobs] = useState([]);
+  const [clientDetailProperties, setClientDetailProperties] = useState([]);
+  const [clientDetailContacts, setClientDetailContacts] = useState([]);
+  const [loadingClientDetail, setLoadingClientDetail] = useState(false);
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { window.location.replace('/login'); return; }
@@ -89,6 +105,23 @@ export default function FieldApp() {
       .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false })
       .then(({ data }) => setTimeEntries(data ?? []));
   }, [techId, clockedIn]);
+
+  // Load this technician's assigned jobs for the calendar
+  useEffect(() => {
+    if (!techId || tab !== 'calendar') return;
+    loadCalendarJobs();
+  }, [techId, tab, calendarWeekOffset]);
+
+  async function loadCalendarJobs() {
+    setLoadingCalendar(true);
+    const { data } = await supabase
+      .from('job_technicians')
+      .select('jobs(id, title, status, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email))')
+      .eq('technician_id', techId);
+    const jobsList = (data ?? []).map(row => row.jobs).filter(Boolean);
+    setCalendarJobs(jobsList);
+    setLoadingCalendar(false);
+  }
 
   async function loadJobs() {
     setLoading(true);
@@ -253,6 +286,42 @@ export default function FieldApp() {
     setNewCheckItem('');
   }
 
+  // Clientes search
+  useEffect(() => {
+    if (tab !== 'clientes') return;
+    const term = clientSearch.trim();
+    if (!term) { setClientResults([]); return; }
+    setSearchingClients(true);
+    const handle = setTimeout(async () => {
+      const { data } = await supabase
+        .from('clients')
+        .select('id, name, company, phone, email, client_type')
+        .or(`name.ilike.%${term}%,company.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`)
+        .order('name')
+        .limit(30);
+      setClientResults(data ?? []);
+      setSearchingClients(false);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [clientSearch, tab]);
+
+  async function openClientDetail(client) {
+    setClientDetail(client);
+    setLoadingClientDetail(true);
+    setClientDetailJobs([]);
+    setClientDetailProperties([]);
+    setClientDetailContacts([]);
+    const [{ data: cJobs }, { data: cProps }, { data: cContacts }] = await Promise.all([
+      supabase.from('jobs').select('id, title, status, scheduled_start').eq('client_id', client.id).order('scheduled_start', { ascending: false }),
+      supabase.from('client_properties').select('*').eq('client_id', client.id).order('is_primary', { ascending: false }),
+      supabase.from('client_contacts').select('*').eq('client_id', client.id).order('is_primary', { ascending: false }),
+    ]);
+    setClientDetailJobs(cJobs ?? []);
+    setClientDetailProperties(cProps ?? []);
+    setClientDetailContacts(cContacts ?? []);
+    setLoadingClientDetail(false);
+  }
+
   const fmtE = s => String(Math.floor(s / 3600)).padStart(2, '0') + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
   const fmtH = es => (es.reduce((a, e) => a + (e.clocked_out_at ? new Date(e.clocked_out_at) - new Date(e.clocked_in_at) : 0), 0) / 3600000).toFixed(1) + 'h';
   const now = new Date();
@@ -264,12 +333,12 @@ export default function FieldApp() {
   const DSH = ['Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue'];
   const WD = DSH.map((_, i) => { const d = new Date(now); const off = now.getDay() === 0 ? -4 : now.getDay() >= 3 ? now.getDay() - 3 : now.getDay() + 4; d.setDate(now.getDate() - off + i); return d.getDate(); });
   const card = { margin: '0 14px 12px', background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' };
-  const navBtn = a => ({ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '10px 0 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, fontWeight: 600, color: a ? ORANGE : '#aaa' });
+  const navBtn = a => ({ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '10px 0 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 600, color: a ? ORANGE : '#aaa' });
   const ftab = a => ({ padding: '8px 16px', borderRadius: 50, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: a ? 'none' : '1.5px solid #dde1e7', background: a ? '#1a1a1a' : '#fff', color: a ? '#fff' : '#333' });
   const fmi = c => ({ background: c || ORANGE, color: '#fff', border: 'none', borderRadius: 50, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' });
   const NavI = ({ tab: t, icon, label }) => (
     <button style={navBtn(tab === t)} onClick={() => { setTab(t); setShowFab(false); }}>
-      <span style={{ fontSize: 22 }}>{icon}</span>{label}
+      <span style={{ fontSize: 20 }}>{icon}</span>{label}
     </button>
   );
   const JobRow = ({ j, onClick }) => (
@@ -285,6 +354,33 @@ export default function FieldApp() {
 
   const completedCount = detailChecklist.filter(i => i.completed).length;
   const progress = detailChecklist.length > 0 ? Math.round((completedCount / detailChecklist.length) * 100) : 0;
+
+  // Calendar helpers: build the week (Sun-Sat) for the current offset
+  function getWeekDays(offset) {
+    const base = new Date();
+    base.setDate(base.getDate() + offset * 7);
+    const dayOfWeek = base.getDay(); // 0 = Sunday
+    const sunday = new Date(base);
+    sunday.setDate(base.getDate() - dayOfWeek);
+    sunday.setHours(0, 0, 0, 0);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(sunday);
+      d.setDate(sunday.getDate() + i);
+      return d;
+    });
+  }
+  const weekDays = getWeekDays(calendarWeekOffset);
+  const WEEKDAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  function sameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  const jobsForSelectedDay = calendarJobs
+    .filter(j => j.scheduled_start && sameDay(new Date(j.scheduled_start), calendarSelectedDate))
+    .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
+
+  const jobDaysSet = new Set(calendarJobs.filter(j => j.scheduled_start).map(j => new Date(j.scheduled_start).toDateString()));
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: BG, fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto' }}>
@@ -435,10 +531,66 @@ export default function FieldApp() {
 
         {tab === 'calendar' && (
           <div>
-            <div style={{ padding: '20px 20px 16px' }}><div style={{ fontSize: 26, fontWeight: 700 }}>Calendar</div></div>
-            <div style={{ ...card, textAlign: 'center', padding: '60px 20px', color: '#aaa' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>📅</div>
-              <div>No events scheduled</div>
+            <div style={{ padding: '20px 20px 12px' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>Calendar</div>
+              <div style={{ fontSize: 13, color: '#888' }}>{calendarSelectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+            </div>
+
+            {/* Week navigation */}
+            <div style={{ padding: '0 20px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button onClick={() => setCalendarWeekOffset(o => o - 1)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#888', cursor: 'pointer', padding: '4px 10px' }}>‹</button>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>
+                {weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+              <button onClick={() => setCalendarWeekOffset(o => o + 1)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#888', cursor: 'pointer', padding: '4px 10px' }}>›</button>
+            </div>
+
+            {/* Day strip */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 14px 16px' }}>
+              {weekDays.map((d, i) => {
+                const isSelected = sameDay(d, calendarSelectedDate);
+                const isToday = sameDay(d, now);
+                const hasJobs = jobDaysSet.has(d.toDateString());
+                return (
+                  <div key={i} onClick={() => setCalendarSelectedDate(d)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flex: 1 }}>
+                    <div style={{ fontSize: 11, color: isToday ? ORANGE : '#aaa', fontWeight: 600 }}>{WEEKDAY_LETTERS[i]}</div>
+                    <div style={{
+                      width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: isSelected ? ORANGE : 'transparent', color: isSelected ? '#fff' : isToday ? ORANGE : '#333',
+                      fontWeight: isSelected || isToday ? 700 : 500, fontSize: 14,
+                    }}>
+                      {d.getDate()}
+                    </div>
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: hasJobs ? ORANGE : 'transparent' }} />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Timeline for selected day */}
+            <div style={card}>
+              {loadingCalendar ? (
+                <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Cargando...</div>
+              ) : jobsForSelectedDay.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>
+                  <div style={{ fontSize: 40, marginBottom: 8 }}>📅</div>
+                  Sin trabajos asignados este día.
+                </div>
+              ) : (
+                jobsForSelectedDay.map((j, i) => (
+                  <div key={j.id} onClick={() => openJobDetail(j)} style={{ display: 'flex', gap: 12, paddingBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, marginBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, borderBottom: i < jobsForSelectedDay.length - 1 ? '1px solid #eee' : 'none', cursor: 'pointer' }}>
+                    <div style={{ width: 62, flexShrink: 0, fontSize: 13, fontWeight: 700, color: ORANGE }}>
+                      {new Date(j.scheduled_start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>{j.title}</div>
+                      <div style={{ fontSize: 13, color: '#888', marginTop: 2 }}>{j.clients?.name}</div>
+                      {(j.street || j.city) && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>📍 {[j.street, j.city].filter(Boolean).join(', ')}</div>}
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 8px', borderRadius: 20, height: 'fit-content', whiteSpace: 'nowrap' }}>{SL[j.status]}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -462,7 +614,131 @@ export default function FieldApp() {
             }
           </div>
         )}
+
+        {tab === 'clientes' && (
+          <div>
+            <div style={{ padding: '20px 20px 16px' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 14 }}>Clientes</div>
+              <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <span>🔍</span>
+                <input
+                  value={clientSearch}
+                  onChange={e => setClientSearch(e.target.value)}
+                  placeholder="Buscar por nombre, teléfono, email..."
+                  style={{ border: 'none', background: 'none', fontSize: 15, outline: 'none', width: '100%' }}
+                />
+              </div>
+            </div>
+            <div style={card}>
+              {!clientSearch.trim() ? (
+                <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>
+                  <div style={{ fontSize: 40, marginBottom: 8 }}>👥</div>
+                  Escribe para buscar un cliente.
+                </div>
+              ) : searchingClients ? (
+                <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Buscando...</div>
+              ) : clientResults.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>No se encontraron clientes.</div>
+              ) : (
+                clientResults.map(c => (
+                  <div key={c.id} onClick={() => openClientDetail(c)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>{c.name}</div>
+                      {c.company && <div style={{ fontSize: 13, color: '#888', marginTop: 2 }}>{c.company}</div>}
+                      {c.phone && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>📞 {c.phone}</div>}
+                    </div>
+                    <span style={{ color: ORANGE, fontSize: 18 }}>→</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Client Detail Overlay */}
+      {clientDetail && (
+        <div style={{ position: 'fixed', inset: 0, background: BG, zIndex: 150, display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto' }}>
+          <div style={{ background: '#fff', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #dde1e7', flexShrink: 0 }}>
+            <button onClick={() => setClientDetail(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#333', padding: 0 }}>←</button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{clientDetail.name}</div>
+              {clientDetail.company && <div style={{ fontSize: 12, color: '#888' }}>{clientDetail.company}</div>}
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
+            {loadingClientDetail ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Cargando...</div>
+            ) : (
+              <>
+                {/* Contact card */}
+                <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>Contacto</div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: clientDetail.client_type === 'b2b' ? '#2a4cb5' : '#888', background: (clientDetail.client_type === 'b2b' ? '#2a4cb5' : '#888') + '18', padding: '4px 10px', borderRadius: 20, marginBottom: 10, display: 'inline-block' }}>
+                    {clientDetail.client_type === 'b2b' ? 'B2B' : 'Consumidor final'}
+                  </span>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {clientDetail.phone && <a href={`tel:${clientDetail.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {clientDetail.phone}</a>}
+                    {clientDetail.email && <a href={`mailto:${clientDetail.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#16223d', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {clientDetail.email}</a>}
+                  </div>
+                </div>
+
+                {/* Additional contacts */}
+                {clientDetailContacts.length > 0 && (
+                  <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>👤 Contactos adicionales</div>
+                    {clientDetailContacts.map(ct => (
+                      <div key={ct.id} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid #f0f0f0' }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{ct.name}</div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                          {ct.phone && <a href={`tel:${ct.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>📞 {ct.phone}</a>}
+                          {ct.email && <a href={`mailto:${ct.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#16223d', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>✉️ {ct.email}</a>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Properties */}
+                {clientDetailProperties.length > 0 && (
+                  <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>📍 Propiedades</div>
+                    {clientDetailProperties.map(p => (
+                      <div key={p.id} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid #f0f0f0' }}>
+                        {p.name && <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>}
+                        {p.street && <div style={{ fontSize: 13, color: '#555' }}>{p.street}</div>}
+                        {p.city && <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>{p.city}{p.state ? `, ${p.state}` : ''} {p.zip ?? ''}</div>}
+                        {(p.street || p.city) && (
+                          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>🗺️ Ver en Maps</a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Job history */}
+                <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>🔧 Historial de trabajos ({clientDetailJobs.length})</div>
+                  {clientDetailJobs.length === 0 ? (
+                    <div style={{ color: '#aaa', fontSize: 14, textAlign: 'center', padding: '12px 0' }}>Sin trabajos registrados.</div>
+                  ) : (
+                    clientDetailJobs.map((j, i) => (
+                      <div key={j.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < clientDetailJobs.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>{j.title}</div>
+                          {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>{new Date(j.scheduled_start).toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 8px', borderRadius: 20 }}>{SL[j.status]}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Job Detail Overlay */}
       {detailJob && (
@@ -836,6 +1112,7 @@ export default function FieldApp() {
         <NavI tab="time" icon="⏱" label="Time" />
         <NavI tab="calendar" icon="📅" label="Calendar" />
         <NavI tab="projects" icon="⊞" label="Projects" />
+        <NavI tab="clientes" icon="👥" label="Clientes" />
       </nav>
     </div>
   );
