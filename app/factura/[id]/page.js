@@ -23,7 +23,7 @@ export default async function FacturaPublica({ params }) {
   if (inv) {
     await supabase.from('invoice_views').insert([{ invoice_id: id }]);
 
-    resend.emails.send({
+    await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: `👁️ Factura ${inv.invoice_number} fue abierta`,
