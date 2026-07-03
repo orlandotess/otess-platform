@@ -81,7 +81,7 @@ export default async function FacturaPublica({ params }) {
           {/* Header */}
           <div style={{ background: '#16223d', padding: '28px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ color: '#fff', fontSize: 28, fontWeight: 900, letterSpacing: -1 }}>OTESS</div>
+              <img src="/otess-logo.png" alt="OTESS" style={{ width: 150, height: 'auto', display: 'block' }} />
               <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 }}>OT Electrical & Security Solutions</div>
               <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Calle 56, #2D8 Lomas de Carolina, PR 00987</div>
               <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>(787) 513-8352 · info@otesspr.com</div>
