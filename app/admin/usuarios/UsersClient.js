@@ -9,10 +9,15 @@ const roleBadge = { admin: 'badge-blue', tecnico: 'badge-amber', vendedor: 'badg
 export default function UsersClient({ profiles, currentRole }) {
   const router = useRouter();
   const [showInvite, setShowInvite] = useState(false);
-  const [invite, setInvite] = useState({ email: '', name: '', role: 'tecnico' });
+  const [invite, setInvite] = useState({ email: '', name: '', role: 'tecnico', password: '' });
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const [passwordUser, setPasswordUser] = useState(null); // { id, name } or null
+  const [newPassword, setNewPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   const canChangeRole = currentRole !== 'secretaria';
 
@@ -31,9 +36,9 @@ export default function UsersClient({ profiles, currentRole }) {
     if (data.error) {
       setError(data.error);
     } else {
-      setSuccess(`Invitación enviada a ${invite.email}`);
+      setSuccess(`Usuario ${invite.email} creado correctamente`);
       setShowInvite(false);
-      setInvite({ email: '', name: '', role: 'tecnico' });
+      setInvite({ email: '', name: '', role: 'tecnico', password: '' });
       router.refresh();
     }
     setSending(false);
@@ -62,6 +67,26 @@ export default function UsersClient({ profiles, currentRole }) {
     router.refresh();
   }
 
+  async function savePassword(e) {
+    e.preventDefault();
+    setSavingPassword(true);
+    setPasswordError('');
+    const res = await fetch('/api/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: passwordUser.id, password: newPassword }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      setPasswordError(data.error);
+    } else {
+      setSuccess(`Contraseña actualizada para ${passwordUser.name}`);
+      setPasswordUser(null);
+      setNewPassword('');
+    }
+    setSavingPassword(false);
+  }
+
   return (
     <div>
       {success && (
@@ -73,7 +98,7 @@ export default function UsersClient({ profiles, currentRole }) {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Usuarios del sistema</h2>
-          <button className="btn btn-primary" onClick={() => setShowInvite(true)}>+ Invitar usuario</button>
+          <button className="btn btn-primary" onClick={() => setShowInvite(true)}>+ Crear usuario</button>
         </div>
 
         <div className="table-wrap">
@@ -117,7 +142,14 @@ export default function UsersClient({ profiles, currentRole }) {
                     {new Date(p.created_at).toLocaleDateString('es-PR')}
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button
+                        className="btn btn-ghost"
+                        style={{ fontSize: 12, padding: '5px 10px' }}
+                        onClick={() => { setPasswordUser({ id: p.id, name: p.name }); setNewPassword(''); setPasswordError(''); }}
+                      >
+                        🔑 Contraseña
+                      </button>
                       <button
                         className="btn btn-ghost"
                         style={{ fontSize: 12, padding: '5px 10px', color: p.active ? 'var(--warn)' : 'var(--ok)' }}
@@ -141,11 +173,11 @@ export default function UsersClient({ profiles, currentRole }) {
         </div>
       </div>
 
-      {/* Invite modal */}
+      {/* Create user modal */}
       {showInvite && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Invitar usuario</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Crear usuario</h2>
             <form onSubmit={sendInvite}>
               {error && <div style={{ background: '#fdecea', color: '#b52a2a', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{error}</div>}
               <div className="form-group" style={{ marginBottom: 16 }}>
@@ -156,6 +188,10 @@ export default function UsersClient({ profiles, currentRole }) {
                 <label>Email</label>
                 <input type="email" value={invite.email} onChange={e => setInvite(i => ({ ...i, email: e.target.value }))} placeholder="juan@email.com" required />
               </div>
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label>Contraseña</label>
+                <input type="text" value={invite.password} onChange={e => setInvite(i => ({ ...i, password: e.target.value }))} placeholder="Mínimo 6 caracteres" required minLength={6} />
+              </div>
               <div className="form-group" style={{ marginBottom: 24 }}>
                 <label>Rol</label>
                 <select value={invite.role} onChange={e => setInvite(i => ({ ...i, role: e.target.value }))}>
@@ -164,9 +200,32 @@ export default function UsersClient({ profiles, currentRole }) {
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sending} style={{ flex: 1, justifyContent: 'center' }}>
-                  {sending ? 'Enviando...' : '📧 Enviar invitación'}
+                  {sending ? 'Creando...' : '✅ Crear usuario'}
                 </button>
                 <button type="button" className="btn btn-ghost" onClick={() => setShowInvite(false)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Change password modal */}
+      {passwordUser && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>Cambiar contraseña</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Usuario: <strong>{passwordUser.name}</strong></p>
+            <form onSubmit={savePassword}>
+              {passwordError && <div style={{ background: '#fdecea', color: '#b52a2a', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{passwordError}</div>}
+              <div className="form-group" style={{ marginBottom: 24 }}>
+                <label>Nueva contraseña</label>
+                <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" required minLength={6} />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="submit" className="btn btn-primary" disabled={savingPassword} style={{ flex: 1, justifyContent: 'center' }}>
+                  {savingPassword ? 'Guardando...' : '💾 Guardar'}
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setPasswordUser(null)}>Cancelar</button>
               </div>
             </form>
           </div>
