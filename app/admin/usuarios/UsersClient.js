@@ -36,7 +36,7 @@ export default function UsersClient({ profiles, currentRole }) {
     if (data.error) {
       setError(data.error);
     } else {
-      setSuccess(`Usuario ${invite.email} creado correctamente`);
+      setSuccess(data.warning ? `Usuario ${invite.email} creado — ⚠️ ${data.warning}` : `Usuario ${invite.email} creado correctamente`);
       setShowInvite(false);
       setInvite({ email: '', name: '', role: 'tecnico', password: '' });
       router.refresh();
@@ -49,9 +49,24 @@ export default function UsersClient({ profiles, currentRole }) {
     router.refresh();
   }
 
-  async function changeRole(profileId, newRole) {
+  async function changeRole(profileId, newRole, profileName) {
     if (!canChangeRole) return;
     await supabase.from('profiles').update({ role: newRole }).eq('id', profileId);
+
+    // Promoting someone to técnico must also give them a technicians row,
+    // or they silently can't be assigned to jobs or show up in payroll.
+    if (newRole === 'tecnico') {
+      const { data: existing, error: lookupError } = await supabase.from('technicians').select('id').ilike('name', profileName).maybeSingle();
+      if (!lookupError && !existing) {
+        const slug = profileName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
+        const { error: techError } = await supabase.from('technicians').insert([{ name: profileName, username: slug || profileId.slice(0, 8) }]);
+        if (techError) {
+          setSuccess(`⚠️ Rol cambiado, pero no se pudo crear el registro de técnico: ${techError.message}`);
+        } else {
+          setSuccess(`✓ ${profileName} ahora es técnico y ya puede asignarse a trabajos.`);
+        }
+      }
+    }
     router.refresh();
   }
 
@@ -122,7 +137,7 @@ export default function UsersClient({ profiles, currentRole }) {
                     {canChangeRole ? (
                       <select
                         value={p.role}
-                        onChange={e => changeRole(p.id, e.target.value)}
+                        onChange={e => changeRole(p.id, e.target.value, p.name)}
                         style={{ padding: '4px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }}
                       >
                         {Object.entries(roleLabel).map(([k, v]) => (

@@ -154,16 +154,18 @@ function PeriodSection({ label, revenue, ivu, payroll, fmt }) {
 
 import AccountingDashboardClient from './accounting-dashboard-client';
 import DashboardSearch from './DashboardSearch';
+import InboxWidget from './InboxWidget';
 
 export default async function AccountingDashboard() {
   const { yearStart, yearEnd, monthStart, monthEnd, weekStart, weekEnd, year, month } = getPeriods();
 
-  const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: allPayments }] = await Promise.all([
+  const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: allPayments }, { data: inboxNotifications }] = await Promise.all([
     supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name)').order('issued_at', { ascending: false }),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount'),
     supabase.from('technicians').select('id, hourly_rate'),
     supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at').not('clocked_out_at', 'is', null).gte('clocked_in_at', yearStart).lte('clocked_in_at', yearEnd),
     supabase.from('payments').select('invoice_id, amount, paid_at'),
+    supabase.from('inbox_notifications').select('*').order('created_at', { ascending: false }).limit(20),
   ]);
 
   const invoices = allInvoices ?? [];
@@ -225,6 +227,10 @@ export default async function AccountingDashboard() {
           </div>
         </div>
 
+        <InboxWidget notifications={inboxNotifications ?? []} />
+
+        <AccountingDashboardClient quarterData={quarterData} year={year} />
+
         <PeriodSection
           label="📅 Esta semana"
           revenue={computeRevenue(weekInvs, paymentsByInvoice)}
@@ -246,8 +252,6 @@ export default async function AccountingDashboard() {
           payroll={computePayroll(yearStart, yearEnd, techs, entries)}
           fmt={fmt}
         />
-
-        <AccountingDashboardClient quarterData={quarterData} year={year} />
       </main>
     </div>
   );

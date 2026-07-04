@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const links = [
  { href: '/clientes',   label: 'Clientes',   icon: '👥' },
@@ -42,6 +42,22 @@ export default function Sidebar() {
  const router = useRouter();
  const [accountingOpen, setAccountingOpen] = useState(path.startsWith('/accounting') || path.startsWith('/horario'));
  const [search, setSearch] = useState('');
+ const [hidden, setHidden] = useState(false);
+
+ useEffect(() => {
+   setHidden(localStorage.getItem('sidebar-hidden') === '1');
+ }, []);
+
+ useEffect(() => {
+   document.body.classList.toggle('sidebar-hidden', hidden);
+ }, [hidden]);
+
+ function toggleHidden() {
+   setHidden(h => {
+     localStorage.setItem('sidebar-hidden', h ? '0' : '1');
+     return !h;
+   });
+ }
 
  async function handleLogout() {
    await supabase.auth.signOut();
@@ -61,9 +77,17 @@ export default function Sidebar() {
    : null;
 
  return (
+   <>
    <aside className="sidebar">
-     <div className="sidebar-logo">
+     <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
        <img src="/otess-logo.png" alt="OTESS" style={{ width: '100%', maxWidth: 160, height: 'auto', display: 'block' }} />
+       <button
+         onClick={toggleHidden}
+         title="Ocultar sidebar"
+         style={{ flexShrink: 0, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.7)', width: 26, height: 26, borderRadius: 6, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+       >
+         «
+       </button>
      </div>
      <div style={{ padding: '12px 16px 4px', position: 'relative' }}>
        <span style={{ position: 'absolute', left: 28, top: '50%', transform: 'translateY(-50%)', fontSize: 13, opacity: 0.5, pointerEvents: 'none' }}>🔍</span>
@@ -150,5 +174,13 @@ export default function Sidebar() {
        </button>
      </div>
    </aside>
+   <button
+     onClick={toggleHidden}
+     title="Mostrar sidebar"
+     className="sidebar-show-btn"
+   >
+     ☰
+   </button>
+   </>
  );
 }

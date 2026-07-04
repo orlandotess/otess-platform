@@ -73,7 +73,9 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
     const { data: allPayments } = await supabase.from('payments').select('amount').eq('invoice_id', invoiceId);
     const { data: inv } = await supabase.from('invoices').select('total').eq('id', invoiceId).single();
     const totalPaid = allPayments?.reduce((a, p) => a + Number(p.amount), 0) ?? 0;
-    if (totalPaid >= Number(inv?.total)) {
+    // Use a cent of tolerance — rounding on individual payments can leave totalPaid
+    // a fraction of a cent short of an exact float match against inv.total.
+    if (totalPaid >= Number(inv?.total) - 0.01) {
       await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoiceId);
     }
     setSaving(false);
@@ -204,10 +206,16 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {status === 'sent' && (
         <>
           <button className="btn btn-amber" onClick={() => setShowPayment(true)}>💰 Pago</button>
+          <button className="btn btn-ghost" onClick={() => updateStatus('paid')} title="Márcala pagada directamente si el monto registrado no cuadra exacto con el total">✅ Marcar pagada</button>
           <button className="btn btn-ghost" onClick={() => updateStatus('cancelled')}>Cancelar</button>
         </>
       )}
-      {status === 'paid' && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Pagada</span>}
+      {status === 'paid' && (
+        <>
+          <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Pagada</span>
+          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => updateStatus('sent')}>Revertir a enviada</button>
+        </>
+      )}
       {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Enviado</span>}
       <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
 

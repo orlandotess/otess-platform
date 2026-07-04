@@ -21,6 +21,49 @@ function daysBetween(a, b) {
   return Math.floor((new Date(b) - new Date(a)) / 86400000);
 }
 
+const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+// Bundled into this same cron (rather than a separate vercel.json entry) to stay
+// within Vercel's cron-job limit — unrelated to invoice reminders otherwise.
+async function checkIvuReminders(today) {
+  const { data: pending } = await supabase
+    .from('ivu_payments')
+    .select('*')
+    .eq('paid', false)
+    .not('due_date', 'is', null)
+    .not('reminder_day', 'is', null)
+    .is('reminder_sent_at', null);
+
+  for (const row of pending ?? []) {
+    try {
+      const due = new Date(row.due_date + 'T00:00:00');
+      const lastDay = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
+      const reminderDate = new Date(due.getFullYear(), due.getMonth(), Math.min(row.reminder_day, lastDay))
+        .toISOString().slice(0, 10);
+      if (today < reminderDate) continue;
+
+      const monthLabel = `${MONTHS[row.month]} ${row.year}`;
+      const title = `IVU de ${monthLabel} pendiente`;
+      const body = `Vence el ${row.due_date} y aún no está marcado como pagado.`;
+
+      await resend.emails.send({
+        from: 'OTESS <info@otesspr.com>',
+        to: 'services@otesspr.com',
+        subject: title,
+        html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${title}</p><p style="font-size:13px;color:#666">${body}</p><a href="${APP_URL}/accounting/ivu?year=${row.year}&month=${row.month}" style="color:#e0972c;font-size:13px">Ver en Accounting →</a></div>`,
+      }).catch(err => console.error('Error enviando recordatorio IVU:', err));
+
+      await supabase.from('inbox_notifications').insert([{
+        type: 'ivu_reminder', title, body, link: `/accounting/ivu?year=${row.year}&month=${row.month}`,
+      }]);
+
+      await supabase.from('ivu_payments').update({ reminder_sent_at: new Date().toISOString() }).eq('id', row.id);
+    } catch (err) {
+      console.error('Error procesando recordatorio IVU:', err);
+    }
+  }
+}
+
 function reminderEmail(inv, balance) {
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const publicUrl = `${APP_URL}/factura/${inv.id}`;
@@ -50,6 +93,9 @@ export async function GET(request) {
   }
 
   const today = todayPR();
+
+  await checkIvuReminders(today);
+
   const { data: overdue, error: qErr } = await supabase
     .from('invoices')
     .select('*, clients(name, email), payments(amount)')

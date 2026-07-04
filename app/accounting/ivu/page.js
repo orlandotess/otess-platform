@@ -7,6 +7,7 @@ import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import ExportIVUButton from './ExportIVUButton';
 import IVUInvoiceTableClient from './IVUInvoiceTableClient';
+import IVUPaymentTracker from './IVUPaymentTracker';
 
 export default async function AccountingIVU({ searchParams }) {
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
@@ -21,12 +22,15 @@ export default async function AccountingIVU({ searchParams }) {
     dateEnd = `${year}-12-31`;
   }
 
-  const { data: invoices } = await supabase
-    .from('invoices')
-    .select('id, invoice_number, issued_at, status, clients(name, client_type)')
-    .gte('issued_at', dateStart)
-    .lte('issued_at', dateEnd)
-    .order('issued_at', { ascending: false });
+  const [{ data: invoices }, { data: ivuPayments }] = await Promise.all([
+    supabase
+      .from('invoices')
+      .select('id, invoice_number, issued_at, status, clients(name, client_type)')
+      .gte('issued_at', dateStart)
+      .lte('issued_at', dateEnd)
+      .order('issued_at', { ascending: false }),
+    supabase.from('ivu_payments').select('*').eq('year', year),
+  ]);
 
   const invIds = new Set((invoices ?? []).map(i => i.id));
   const invMap = Object.fromEntries((invoices ?? []).map(i => [i.id, i]));
@@ -219,6 +223,10 @@ export default async function AccountingIVU({ searchParams }) {
           ivuByInvoice={ivuByInvoice}
           periodLabel={month !== null ? `${months[month]} ${year}` : `${year}`}
         />
+
+        <div style={{ marginTop: 20 }}>
+          <IVUPaymentTracker year={year} payments={ivuPayments ?? []} />
+        </div>
       </main>
     </div>
   );

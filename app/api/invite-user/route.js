@@ -27,21 +27,31 @@ export async function POST(request) {
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
   // Create profile
-  await supabaseAdmin.from('profiles').insert([{
+  const { error: profileError } = await supabaseAdmin.from('profiles').insert([{
     id: data.user.id,
     email,
     name,
     role,
   }]);
+  if (profileError) {
+    return Response.json({ error: `Usuario de acceso creado, pero fall\u00f3 el perfil: ${profileError.message}. No aparecer\u00e1 en la lista de usuarios hasta corregirlo.` }, { status: 500 });
+  }
 
   // If role is tecnico, also create a technicians record so they can be assigned to jobs
+  let warning = null;
   if (role === 'tecnico') {
-    const username = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '');
-    const { data: existing } = await supabaseAdmin.from('technicians').select('id').ilike('name', name).maybeSingle();
-    if (!existing) {
-      await supabaseAdmin.from('technicians').insert([{ name, username }]);
+    const { data: existing, error: lookupError } = await supabaseAdmin.from('technicians').select('id').ilike('name', name).maybeSingle();
+    if (lookupError) {
+      warning = `Usuario creado, pero no se pudo verificar si ya exist\u00eda como t\u00e9cnico: ${lookupError.message}`;
+    } else if (!existing) {
+      const slug = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '');
+      const username = slug || data.user.id.slice(0, 8);
+      const { error: techError } = await supabaseAdmin.from('technicians').insert([{ name, username }]);
+      if (techError) {
+        warning = `Usuario creado, pero no se pudo crear el registro de t\u00e9cnico (no podr\u00e1 asignarse a trabajos ni aparecer en payroll hasta corregirlo): ${techError.message}`;
+      }
     }
   }
 
-  return Response.json({ success: true });
+  return Response.json({ success: true, warning });
 }

@@ -43,6 +43,29 @@ a { color: inherit; text-decoration: none; }
   top: 0; left: 0; bottom: 0;
 }
 
+.sidebar-show-btn {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 200;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: none;
+  background: var(--navy);
+  color: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+body.sidebar-hidden .sidebar { display: none; }
+body.sidebar-hidden .main-content { margin-left: 0; }
+body.sidebar-hidden .sidebar-show-btn { display: flex; }
+
 .sidebar-logo {
   padding: 24px 20px 20px;
   border-bottom: 1px solid rgba(255,255,255,0.1);
