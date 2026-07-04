@@ -55,13 +55,13 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
             {proposal.proposal_number} · {proposal.clients?.name}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLORS[status] ?? '#888', background: (STATUS_COLORS[status] ?? '#888') + '18', padding: '5px 14px', borderRadius: 20 }}>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          <span className="badge" style={{ color: STATUS_COLORS[status] ?? '#888' }}>
             {STATUS_LABELS[status] ?? status}
           </span>
           {status === 'borrador' && (
             <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
-              {sending ? 'Enviando...' : '📤 Enviar propuesta'}
+              {sending ? 'Enviando...' : 'Enviar propuesta'}
             </button>
           )}
         </div>
@@ -73,7 +73,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Link público</div>
             <div style={{ fontSize: 13, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{publicUrl}</div>
           </div>
-          <button className="btn btn-ghost" onClick={copyLink}>{copied ? '✓ Copiado' : '🔗 Copiar link'}</button>
+          <button className="btn btn-ghost" onClick={copyLink}>{copied ? 'Copiado' : 'Copiar link'}</button>
         </div>
       )}
 
@@ -85,27 +85,27 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
       )}
 
       {proposal.requires_signature && (
-        <div style={{ background: '#fff8ee', border: '1.5px solid var(--amber)', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: 'var(--navy)' }}>
-          ✍️ Esta propuesta requiere firma del cliente para aprobarse.
+        <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid var(--amber)', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: 'var(--navy)' }}>
+          Esta propuesta requiere firma del cliente para aprobarse.
         </div>
       )}
 
       {proposal.status === 'aprobada' && proposal.signed_name && (
-        <div style={{ background: '#eafaf0', border: '1.5px solid #27ae60', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#1a7a3d' }}>
-          ✓ Firmada por <strong>{proposal.signed_name}</strong> el {new Date(proposal.signed_at).toLocaleString('es-PR')}
+        <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid #27ae60', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#1a7a3d' }}>
+          Firmada por <strong>{proposal.signed_name}</strong> el {new Date(proposal.signed_at).toLocaleString('es-PR')}
         </div>
       )}
 
       <div style={{ display: 'grid', gap: 20 }}>
         {options.map(opt => (
-          <div key={opt.id} className="card" style={{ border: opt.is_recommended ? '2px solid var(--amber)' : undefined }}>
+          <div key={opt.id} className="card" style={{ border: opt.is_recommended ? '1.5px solid var(--navy)' : undefined }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div>
                 <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{opt.name}</span>
-                {opt.is_recommended && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--amber)' }}>★ RECOMENDADA</span>}
-                {proposal.approved_option_id === opt.id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#27ae60' }}>✓ ELEGIDA POR CLIENTE</span>}
+                {opt.is_recommended && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--amber)' }}>RECOMENDADA</span>}
+                {proposal.approved_option_id === opt.id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#27ae60' }}>ELEGIDA POR CLIENTE</span>}
               </div>
-              <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--navy)' }}>{fmt(optionTotal(opt))}</span>
+              <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>{fmt(optionTotal(opt))}</span>
             </div>
             {opt.description && <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>{opt.description}</p>}
 
@@ -148,9 +148,9 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                         {it.msrp != null && <div style={{ fontSize: 11, color: 'var(--muted)', textDecoration: 'line-through' }}>msrp {fmt(it.msrp)}</div>}
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(it.unit_price)}</div>
                       </div>
-                      <div style={{ width: 40, textAlign: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{it.quantity}</div>
+                      <div style={{ width: 40, textAlign: 'center', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>{it.quantity}</div>
                       <div style={{ textAlign: 'right', flexShrink: 0, width: 90 }}>
-                        <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>{fmt(it.quantity * it.unit_price)}</div>
+                        <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{fmt(it.quantity * it.unit_price)}</div>
                         <div style={{ fontSize: 10, color: 'var(--muted)' }}>Combinado</div>
                       </div>
                     </div>
@@ -165,17 +165,15 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
             {(() => {
               const fb = financialBreakdown(opt, proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final', taxRules ?? []);
               return (
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '2px solid var(--border)', display: 'grid', gap: 6, fontSize: 13 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Total Parts</span><span>{fmt(fb.parts)}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Total Labor</span><span>{fmt(fb.labor)}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>Subtotal</span><span>{fmt(fb.subtotal)}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--muted)' }}>IVU {(proposal.tax_client_type ?? proposal.clients?.client_type) === 'b2b' ? '(Parts 11.5% · Labor 4%)' : '(11.5%)'}</span>
+                <div className="total-line" style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)', display: 'grid', gap: 6 }}>
+                  <div className="total-line"><span>Total Parts</span><span>{fmt(fb.parts)}</span></div>
+                  <div className="total-line"><span>Total Labor</span><span>{fmt(fb.labor)}</span></div>
+                  <div className="total-line" style={{ fontWeight: 700, color: 'var(--text)' }}><span style={{ color: 'var(--text)' }}>Subtotal</span><span>{fmt(fb.subtotal)}</span></div>
+                  <div className="total-line">
+                    <span>IVU {(proposal.tax_client_type ?? proposal.clients?.client_type) === 'b2b' ? '(Parts 11.5% · Labor 4%)' : '(11.5%)'}</span>
                     <span>{fmt(fb.tax)}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 16, color: 'var(--navy)', marginTop: 4, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                    <span>Total</span><span>{fmt(fb.total)}</span>
-                  </div>
+                  <div className="total-final"><span>Total</span><span>{fmt(fb.total)}</span></div>
                 </div>
               );
             })()}
@@ -196,7 +194,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{p.label}</div>
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>{p.percent}% de {p.basis === 'parts' ? 'Parts' : p.basis === 'labor' ? 'Labor' : 'Subtotal'}{p.due_trigger ? ` · ${p.due_trigger}` : ''}</div>
                 </div>
-                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>{fmt((basisAmount[p.basis] ?? 0) * (p.percent / 100))}</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{fmt((basisAmount[p.basis] ?? 0) * (p.percent / 100))}</div>
               </div>
             ))}
           </div>
