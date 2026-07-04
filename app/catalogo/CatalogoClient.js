@@ -230,61 +230,65 @@ export default function CatalogoClient({ items: initial }) {
         </div>
       )}
 
-      {/* Grid of items */}
+      {/* List of items (filas horizontales estilo Portal.io) */}
       {filtered.length === 0 ? (
         <div className="empty"><p>No hay ítems {tab === "labor" ? "de labor" : "de productos"} aún.</p></div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
-          {filtered.map(item => (
-            <div key={item.id} style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
+        <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+          {filtered.map((item, idx) => (
+            <div key={item.id} style={{ padding: "14px 18px", borderBottom: idx < filtered.length - 1 ? "1px solid var(--border)" : "none" }}>
               {editingId === item.id ? (
-                <div style={{ display: "grid", gap: 6 }}>
-                  <label style={{ cursor: "pointer", alignSelf: "center" }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <label style={{ cursor: "pointer", flexShrink: 0 }}>
                     {editPhotoPreview ? (
-                      <img src={editPhotoPreview} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }} />
+                      <img src={editPhotoPreview} style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 8, background: "#f4f6f9" }} />
                     ) : (
-                      <div style={{ width: 64, height: 64, borderRadius: 8, background: "#f4f6f9", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "var(--muted)" }}>📷</div>
+                      <div style={{ width: 56, height: 56, borderRadius: 8, background: "#f4f6f9", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "var(--muted)" }}>📷</div>
                     )}
                     <input ref={editPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
                       const f = e.target.files?.[0];
                       if (f) { setEditPhotoFile(f); setEditPhotoPreview(URL.createObjectURL(f)); }
                     }} />
                   </label>
-                  <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace" }} />
-                  <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
-                  <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)" }} />
-                  <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio venta" step="0.01" style={{ padding: "6px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
-                  <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo suplidor" step="0.01" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "#c0392b" }} />
-                  <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                    <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ flex: 1, fontSize: 12, padding: "6px 0", justifyContent: "center" }}>💾 Guardar</button>
-                    <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }}>✕</button>
+                  <div style={{ flex: 1, display: "grid", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace", width: 140 }} />
+                      <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, flex: 1 }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                      <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>💾 Guardar</button>
+                      <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>✕ Cancelar</button>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0, width: 100 }}>
+                    <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)", textAlign: "right", width: "100%", marginBottom: 3 }} />
+                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: "right", width: "100%", marginBottom: 3 }} />
+                    <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "#c0392b", textAlign: "right", width: "100%" }} />
                   </div>
                 </div>
               ) : (
-                <>
-                  <div style={{ display: "flex", gap: 12 }}>
-                    <div style={{ width: 80, height: 80, flexShrink: 0, borderRadius: 10, background: "#f4f6f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, overflow: "hidden" }}>
-                      {item.photo_url && signedUrls[item.photo_url] ? (
-                        <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                      ) : (
-                        TYPE_META[item.type]?.icon ?? "📦"
-                      )}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)", marginBottom: 4 }}>{item.item_code}</div>
-                      <div style={{ fontWeight: 600, fontSize: 13.5 }}>{item.description}</div>
-                    </div>
+                <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                  <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 8, background: "#f4f6f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, overflow: "hidden" }}>
+                    {item.photo_url && signedUrls[item.photo_url] ? (
+                      <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                    ) : (
+                      TYPE_META[item.type]?.icon ?? "📦"
+                    )}
                   </div>
-                  <div style={{ marginTop: 10, marginBottom: 10 }}>
-                    {item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>MSRP {fmt(item.msrp)}</div>}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{item.description}</div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0, width: 110 }}>
+                    {item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
                     <div style={{ fontWeight: 800, fontSize: 16, color: "var(--navy)" }}>{fmt(item.price)}</div>
                     {item.supplier_price != null && <div style={{ fontSize: 11, color: "#c0392b" }}>Costo: {fmt(item.supplier_price)}</div>}
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ flex: 1, fontSize: 12, padding: "6px 0", justifyContent: "center" }}>✏️ Editar</button>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 12px" }}>✏️ Editar</button>
                     <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", color: "var(--warn)" }}>🗑</button>
                   </div>
-                </>
+                </div>
               )}
             </div>
           ))}
