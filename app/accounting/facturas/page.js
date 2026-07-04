@@ -83,6 +83,7 @@ export default async function AccountingFacturas({ searchParams }) {
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+            <Link href="/facturas/recurrentes" className="btn btn-ghost">Recurrentes</Link>
             <Link href="/facturas/nueva" className="btn btn-primary">+ Nueva factura</Link>
           </div>
         </div>
