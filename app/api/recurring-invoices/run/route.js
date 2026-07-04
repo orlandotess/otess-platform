@@ -41,6 +41,15 @@ export async function GET(request) {
   }
 
   const today = todayPR();
+  const { searchParams } = new URL(request.url);
+
+  if (searchParams.get('debug') === '1') {
+    const { data: all, error: allErr } = await supabase
+      .from('recurring_invoices')
+      .select('id, active, next_run_date, frequency, day_of_month, day_of_week, client_id, clients(name, email)');
+    return Response.json({ today, all, allErr });
+  }
+
   const { data: due, error: dueErr } = await supabase
     .from('recurring_invoices')
     .select('*, clients(name, email, company, client_type), recurring_invoice_items(*)')
