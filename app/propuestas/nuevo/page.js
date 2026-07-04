@@ -291,11 +291,6 @@ export default function NuevaPropuesta() {
             </div>
 
             <div className="form-group">
-              <label>Términos y condiciones</label>
-              <textarea value={terms} onChange={e => setTerms(e.target.value)} placeholder="Términos y condiciones de la propuesta..." />
-            </div>
-
-            <div className="form-group">
               <label>Tipo de cliente (IVU)</label>
               <select value={taxClientType} onChange={e => setTaxClientType(e.target.value)} style={{ maxWidth: 240 }}>
                 <option value="final">Consumidor regular (11.5% / 11.5%)</option>
@@ -434,6 +429,13 @@ export default function NuevaPropuesta() {
                 <button type="button" onClick={() => removePayment(p.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
               </div>
             ))}
+          </div>
+
+          <div className="card">
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Términos y condiciones</p>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <textarea value={terms} onChange={e => setTerms(e.target.value)} placeholder="Términos y condiciones de la propuesta..." />
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
