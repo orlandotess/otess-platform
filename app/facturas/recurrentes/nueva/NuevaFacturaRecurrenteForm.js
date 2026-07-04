@@ -5,25 +5,9 @@ import { useRouter } from 'next/navigation';
 import Sidebar from '../../../Sidebar';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
-const DOW_LABELS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 function todayISO() {
   return new Date().toISOString().split('T')[0];
-}
-
-function firstRunDate(frequency, dayOfMonth, dayOfWeek) {
-  const now = new Date();
-  if (frequency === 'weekly') {
-    const d = new Date(now);
-    const delta = (dayOfWeek - d.getDay() + 7) % 7;
-    d.setDate(d.getDate() + (delta === 0 ? 7 : delta));
-    return d.toISOString().split('T')[0];
-  }
-  const d = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(dayOfMonth, lastDay));
-  if (d <= now) d.setMonth(d.getMonth() + 1);
-  return d.toISOString().split('T')[0];
 }
 
 export default function NuevaFacturaRecurrenteForm() {
@@ -31,7 +15,7 @@ export default function NuevaFacturaRecurrenteForm() {
   const [clients, setClients] = useState([]);
   const [form, setForm] = useState({
     client_id: '', bill_to: 'person', notes: '', terms: '',
-    frequency: 'monthly', day_of_month: 1, day_of_week: 1, due_days: 15,
+    frequency: 'monthly', next_run_date: todayISO(), due_days: 15,
   });
   const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', exempt: false }]);
   const [saving, setSaving] = useState(false);
@@ -63,24 +47,26 @@ export default function NuevaFacturaRecurrenteForm() {
 
   const t = calcTotals();
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const nextRun = firstRunDate(form.frequency, parseInt(form.day_of_month) || 1, parseInt(form.day_of_week));
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.client_id) { setError('Selecciona un cliente'); return; }
+    if (!form.next_run_date) { setError('Selecciona la fecha del próximo envío'); return; }
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
     setSaving(true); setError('');
+
+    const runDate = new Date(form.next_run_date + 'T00:00:00');
 
     const { data: recurring, error: err } = await supabase.from('recurring_invoices').insert([{
       client_id: form.client_id,
       bill_to: form.bill_to,
       frequency: form.frequency,
-      day_of_month: form.frequency === 'weekly' ? null : (parseInt(form.day_of_month) || 1),
-      day_of_week: form.frequency === 'weekly' ? parseInt(form.day_of_week) : null,
+      day_of_month: form.frequency === 'weekly' ? null : runDate.getDate(),
+      day_of_week: form.frequency === 'weekly' ? runDate.getDay() : null,
       due_days: parseInt(form.due_days) || 15,
       notes: form.notes || null,
       terms: form.terms || null,
-      next_run_date: nextRun,
+      next_run_date: form.next_run_date,
       active: true,
     }]).select().single();
 
@@ -159,26 +145,17 @@ export default function NuevaFacturaRecurrenteForm() {
                     <option value="yearly">Anual</option>
                   </select>
                 </div>
-                {form.frequency === 'weekly' ? (
-                  <div className="form-group">
-                    <label>Día de la semana</label>
-                    <select value={form.day_of_week} onChange={e => set('day_of_week', e.target.value)}>
-                      {DOW_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="form-group">
-                    <label>Día del mes</label>
-                    <input type="number" min="1" max="28" value={form.day_of_month} onChange={e => set('day_of_month', e.target.value)} />
-                  </div>
-                )}
+                <div className="form-group">
+                  <label>Próximo envío</label>
+                  <input type="date" value={form.next_run_date} onChange={e => set('next_run_date', e.target.value)} />
+                </div>
               </div>
               <div className="form-group" style={{ maxWidth: 200 }}>
                 <label>Días para vencer</label>
                 <input type="number" min="0" value={form.due_days} onChange={e => set('due_days', e.target.value)} />
               </div>
               <div style={{ background: '#f8f9fb', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)' }}>
-                Se generará y enviará automáticamente al cliente cada vez que llegue la fecha. Próximo envío: <strong style={{ color: 'var(--navy)' }}>{new Date(nextRun + 'T00:00:00').toLocaleDateString('es-PR', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
+                Se generará y enviará automáticamente al cliente cada vez que llegue esta fecha, y luego se repetirá según la frecuencia elegida (mismo día {form.frequency === 'weekly' ? 'de la semana' : 'del mes'}).
               </div>
             </div>
 

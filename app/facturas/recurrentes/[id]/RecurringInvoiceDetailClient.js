@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { supabase } from '../../../../lib/supabase';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
-const DOW_LABELS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const STATUS_BADGE = { draft: { cls: 'badge-gray', label: 'Borrador' }, sent: { cls: 'badge-blue', label: 'Enviada' }, paid: { cls: 'badge-green', label: 'Pagada' }, cancelled: { cls: 'badge-red', label: 'Cancelada' } };
 
 function toInputItem(it) {
@@ -16,8 +15,7 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
   const router = useRouter();
   const [form, setForm] = useState({
     client_id: recurring.client_id, bill_to: recurring.bill_to, notes: recurring.notes ?? '', terms: recurring.terms ?? '',
-    frequency: recurring.frequency, day_of_month: recurring.day_of_month ?? 1, day_of_week: recurring.day_of_week ?? 1,
-    due_days: recurring.due_days, next_run_date: recurring.next_run_date,
+    frequency: recurring.frequency, due_days: recurring.due_days, next_run_date: recurring.next_run_date,
   });
   const [items, setItems] = useState((recurring.recurring_invoice_items ?? []).map(toInputItem));
   const [saving, setSaving] = useState(false);
@@ -49,15 +47,18 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
 
   async function handleSave() {
     if (!form.client_id) { setError('Selecciona un cliente'); return; }
+    if (!form.next_run_date) { setError('Selecciona la fecha del próximo envío'); return; }
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
     setSaving(true); setError('');
+
+    const runDate = new Date(form.next_run_date + 'T00:00:00');
 
     const { error: err } = await supabase.from('recurring_invoices').update({
       client_id: form.client_id,
       bill_to: form.bill_to,
       frequency: form.frequency,
-      day_of_month: form.frequency === 'weekly' ? null : (parseInt(form.day_of_month) || 1),
-      day_of_week: form.frequency === 'weekly' ? parseInt(form.day_of_week) : null,
+      day_of_month: form.frequency === 'weekly' ? null : runDate.getDate(),
+      day_of_week: form.frequency === 'weekly' ? runDate.getDay() : null,
       due_days: parseInt(form.due_days) || 15,
       next_run_date: form.next_run_date,
       notes: form.notes || null,
@@ -135,7 +136,7 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
 
           <div className="card">
             <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Recurrencia</p>
-            <div className="form-row">
+            <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
               <div className="form-group">
                 <label>Frecuencia</label>
                 <select value={form.frequency} onChange={e => set('frequency', e.target.value)}>
@@ -145,21 +146,6 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
                   <option value="yearly">Anual</option>
                 </select>
               </div>
-              {form.frequency === 'weekly' ? (
-                <div className="form-group">
-                  <label>Día de la semana</label>
-                  <select value={form.day_of_week} onChange={e => set('day_of_week', e.target.value)}>
-                    {DOW_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
-                  </select>
-                </div>
-              ) : (
-                <div className="form-group">
-                  <label>Día del mes</label>
-                  <input type="number" min="1" max="28" value={form.day_of_month} onChange={e => set('day_of_month', e.target.value)} />
-                </div>
-              )}
-            </div>
-            <div className="form-row">
               <div className="form-group">
                 <label>Próximo envío</label>
                 <input type="date" value={form.next_run_date} onChange={e => set('next_run_date', e.target.value)} />
@@ -168,6 +154,9 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
                 <label>Días para vencer</label>
                 <input type="number" min="0" value={form.due_days} onChange={e => set('due_days', e.target.value)} />
               </div>
+            </div>
+            <div style={{ background: '#f8f9fb', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)' }}>
+              Se repetirá cada {form.frequency === 'weekly' ? 'semana, el mismo día de la semana' : form.frequency === 'monthly' ? 'mes, el mismo día del mes' : form.frequency === 'quarterly' ? '3 meses, el mismo día del mes' : 'año, en la misma fecha'} elegida arriba.
             </div>
           </div>
 
