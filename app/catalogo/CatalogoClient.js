@@ -262,16 +262,20 @@ export default function CatalogoClient({ items: initial }) {
                 </div>
               ) : (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 64, background: "#f4f6f9", borderRadius: 10, marginBottom: 10, fontSize: 28, overflow: "hidden" }}>
-                    {item.photo_url && signedUrls[item.photo_url] ? (
-                      <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      TYPE_META[item.type]?.icon ?? "📦"
-                    )}
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <div style={{ width: 80, height: 80, flexShrink: 0, borderRadius: 10, background: "#f4f6f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, overflow: "hidden" }}>
+                      {item.photo_url && signedUrls[item.photo_url] ? (
+                        <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      ) : (
+                        TYPE_META[item.type]?.icon ?? "📦"
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)", marginBottom: 4 }}>{item.item_code}</div>
+                      <div style={{ fontWeight: 600, fontSize: 13.5 }}>{item.description}</div>
+                    </div>
                   </div>
-                  <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)", marginBottom: 4 }}>{item.item_code}</div>
-                  <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 8, flex: 1 }}>{item.description}</div>
-                  <div style={{ marginBottom: 10 }}>
+                  <div style={{ marginTop: 10, marginBottom: 10 }}>
                     {item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>MSRP {fmt(item.msrp)}</div>}
                     <div style={{ fontWeight: 800, fontSize: 16, color: "var(--navy)" }}>{fmt(item.price)}</div>
                     {item.supplier_price != null && <div style={{ fontSize: 11, color: "#c0392b" }}>Costo: {fmt(item.supplier_price)}</div>}
