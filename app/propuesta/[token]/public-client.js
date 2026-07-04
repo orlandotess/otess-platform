@@ -125,11 +125,17 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                       {areaName !== 'General' && (
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 4 }}>{areaName}</div>
                       )}
-                      <div style={{ display: 'grid', gap: 6 }}>
+                      <div style={{ display: 'grid', gap: 8 }}>
                         {areaItems.map(it => (
-                          <div key={it.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            {it.photo_signed_url && <img src={it.photo_signed_url} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />}
-                            <span style={{ fontSize: 12.5, color: '#555' }}>{it.quantity > 1 ? `${it.quantity}× ` : ''}{it.description}</span>
+                          <div key={it.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                            <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {it.photo_signed_url ? (
+                                <img src={it.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                              ) : (
+                                <span style={{ fontSize: 16 }}>{it.item_type === 'product' ? '📦' : '🔧'}</span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: 12.5, color: '#555', flex: 1 }}>{it.quantity > 1 ? `${it.quantity}× ` : ''}{it.description}</span>
                           </div>
                         ))}
                       </div>
