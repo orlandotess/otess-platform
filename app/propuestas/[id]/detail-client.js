@@ -123,25 +123,36 @@ export default function PropuestaDetailClient({ proposal, options, taxRules }) {
                 {areaItems.map(it => {
                   const margin = (it.unit_price || 0) - (it.supplier_price || 0);
                   return (
-                    <div key={it.id} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-                      {it.photo_signed_url && (
-                        <img src={it.photo_signed_url} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
-                      )}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600 }}>
+                    <div key={it.id} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+                      <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 8, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {it.photo_signed_url ? (
+                          <img src={it.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        ) : (
+                          <span style={{ fontSize: 20, color: 'var(--muted)' }}>{it.item_type === 'product' ? '📦' : '🔧'}</span>
+                        )}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700 }}>
                           {it.description}
                           <span style={{ fontSize: 10, fontWeight: 700, color: it.item_type === 'product' ? '#2a4cb5' : '#888', marginLeft: 8, textTransform: 'uppercase' }}>
                             {it.item_type === 'product' ? 'Producto' : 'Labor'}
                           </span>
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>{it.quantity} × {fmt(it.unit_price)}</div>
-                        <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                          {it.msrp ? `MSRP: ${fmt(it.msrp)} · ` : ''}
-                          {it.supplier_price ? <span style={{ color: '#c0392b' }}>Costo suplidor: {fmt(it.supplier_price)}</span> : ''}
-                          {it.supplier_price ? <span style={{ color: '#27ae60', marginLeft: 8 }}>Margen: {fmt(margin)}</span> : ''}
-                        </div>
+                        {it.supplier_price != null && (
+                          <div style={{ fontSize: 11, color: '#c0392b', marginTop: 2 }}>
+                            Costo suplidor: {fmt(it.supplier_price)} <span style={{ color: '#27ae60', marginLeft: 8 }}>Margen: {fmt(margin)}</span>
+                          </div>
+                        )}
                       </div>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(it.quantity * it.unit_price)}</div>
+                      <div style={{ textAlign: 'right', flexShrink: 0, width: 90 }}>
+                        {it.msrp != null && <div style={{ fontSize: 11, color: 'var(--muted)', textDecoration: 'line-through' }}>msrp {fmt(it.msrp)}</div>}
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(it.unit_price)}</div>
+                      </div>
+                      <div style={{ width: 40, textAlign: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{it.quantity}</div>
+                      <div style={{ textAlign: 'right', flexShrink: 0, width: 90 }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>{fmt(it.quantity * it.unit_price)}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>Combinado</div>
+                      </div>
                     </div>
                   );
                 })}
