@@ -7,7 +7,7 @@ import PropuestaPublicClient from './public-client';
 export default async function PropuestaPublicPage({ params }) {
   const { data: proposal } = await supabase
     .from('proposals')
-    .select('*, clients(name), proposal_options(*, proposal_line_items(*))')
+    .select('*, clients(name, client_type), proposal_options(*, proposal_line_items(*))')
     .eq('public_token', params.token)
     .single();
 
@@ -19,6 +19,9 @@ export default async function PropuestaPublicPage({ params }) {
     );
   }
 
+  const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
+
+  // Marcar como vista (solo la primera vez)
   if (!proposal.viewed_at) {
     await supabase.from('proposals').update({ viewed_at: new Date().toISOString(), status: proposal.status === 'enviada' ? 'vista' : proposal.status }).eq('id', proposal.id);
   }
@@ -36,5 +39,11 @@ export default async function PropuestaPublicPage({ params }) {
     })
   );
 
-  return <PropuestaPublicClient proposal={proposal} options={options} />;
+  let coverPhotoUrl = null;
+  if (proposal.cover_photo_url) {
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(proposal.cover_photo_url, 3600);
+    coverPhotoUrl = data?.signedUrl ?? null;
+  }
+
+  return <PropuestaPublicClient proposal={proposal} options={options} coverPhotoUrl={coverPhotoUrl} taxRules={taxRules ?? []} />;
 }
