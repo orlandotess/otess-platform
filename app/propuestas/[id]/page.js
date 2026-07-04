@@ -9,9 +9,11 @@ import PropuestaDetailClient from './detail-client';
 export default async function PropuestaDetailPage({ params }) {
   const { data: proposal } = await supabase
     .from('proposals')
-    .select('*, clients(id, name, phone, email), proposal_options(*, proposal_line_items(*))')
+    .select('*, clients(id, name, phone, email, client_type), proposal_options(*, proposal_line_items(*))')
     .eq('id', params.id)
     .single();
+
+  const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
 
   if (!proposal) {
     return (
@@ -42,7 +44,7 @@ export default async function PropuestaDetailPage({ params }) {
     <div className="admin-shell">
       <Sidebar />
       <main className="main-content">
-        <PropuestaDetailClient proposal={proposal} options={options} />
+        <PropuestaDetailClient proposal={proposal} options={options} taxRules={taxRules ?? []} />
       </main>
     </div>
   );
