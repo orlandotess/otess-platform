@@ -57,7 +57,11 @@ export async function GET(request) {
       .from('recurring_invoices').select('*, clients(name, email), recurring_invoice_items(*)').eq('active', true).lte('next_run_date', today);
     const { data: filteredBothFullClient, error: e5 } = await supabase
       .from('recurring_invoices').select('*, clients(name, email, company, client_type), recurring_invoice_items(*)').eq('active', true).lte('next_run_date', today);
-    return Response.json({ today, all, allErr, filteredNoJoin, e1, filteredClientsOnly, e2, filteredItemsOnly, e3, filteredBoth, e4, filteredBothFullClient, e5 });
+    const { data: withCompany, error: e6 } = await supabase
+      .from('recurring_invoices').select('*, clients(name, email, company), recurring_invoice_items(*)').eq('active', true).lte('next_run_date', today);
+    const { data: withClientType, error: e7 } = await supabase
+      .from('recurring_invoices').select('*, clients(name, email, client_type), recurring_invoice_items(*)').eq('active', true).lte('next_run_date', today);
+    return Response.json({ today, all, allErr, filteredNoJoin, e1, filteredClientsOnly, e2, filteredItemsOnly, e3, filteredBoth, e4, filteredBothFullClient, e5, withCompany, e6, withClientType, e7 });
   }
 
   const { data: due, error: dueErr } = await supabase
