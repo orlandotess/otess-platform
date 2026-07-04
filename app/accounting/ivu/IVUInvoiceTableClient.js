@@ -37,6 +37,7 @@ export default function IVUInvoiceTableClient({ invoices, ivuByInvoice, periodLa
                 <th style={{ textAlign: 'right' }}>Estatal (10.5%)</th>
                 <th style={{ textAlign: 'right' }}>Municipal (1%)</th>
                 <th style={{ textAlign: 'right' }}>Total IVU</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -60,6 +61,7 @@ export default function IVUInvoiceTableClient({ invoices, ivuByInvoice, periodLa
                     <td style={{ textAlign: 'right' }}>{fmt(estatal)}</td>
                     <td style={{ textAlign: 'right' }}>{fmt(municipal)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(total)}</td>
+                    <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>Ver →</Link></td>
                   </tr>
                 );
               })}

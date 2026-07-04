@@ -70,14 +70,9 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       notes: payment.notes || null,
       paid_at: payment.paid_at,
     }]);
-    const { data: allPayments } = await supabase.from('payments').select('amount').eq('invoice_id', invoiceId);
-    const { data: inv } = await supabase.from('invoices').select('total').eq('id', invoiceId).single();
-    const totalPaid = allPayments?.reduce((a, p) => a + Number(p.amount), 0) ?? 0;
-    // Use a cent of tolerance — rounding on individual payments can leave totalPaid
-    // a fraction of a cent short of an exact float match against inv.total.
-    if (totalPaid >= Number(inv?.total) - 0.01) {
-      await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoiceId);
-    }
+    // Registering a payment here means the invoice is settled — mark it paid
+    // right away instead of relying on totalPaid matching the total exactly.
+    await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoiceId);
     setSaving(false);
     setShowPayment(false);
     router.refresh();
