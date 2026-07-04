@@ -23,10 +23,18 @@ const accountingLinks = [
   { href: '/admin/timesheet', label: 'Timesheet', icon: '🕐' },
 ];
 
+// Extra sections that exist in the app but aren't primary sidebar links —
+// still searchable so the sidebar search can reach the whole platform.
+const extraSearchableLinks = [
+ { href: '/calendario', label: 'Calendario', icon: '📅' },
+ { href: '/facturas/recurrentes', label: 'Facturas · Recurrentes', icon: '🔁' },
+];
+
 const searchableLinks = [
  { href: '/', label: 'Dashboard', icon: '⊞' },
  ...links,
  ...accountingLinks.map(l => ({ ...l, label: `Accounting · ${l.label}` })),
+ ...extraSearchableLinks,
 ];
 
 export default function Sidebar() {

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
+import SearchBox from '../../SearchBox';
 
 const DAYS = ['Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Lun', 'Mar'];
 
@@ -15,8 +16,12 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   const [editOutTime, setEditOutTime] = useState('');
   const [saving, setSaving] = useState(false);
   const [localStats, setLocalStats] = useState(techStats);
+  const [search, setSearch] = useState('');
 
-  const filteredTechs = localStats.filter(t => techFilter === 'all' || t.id === techFilter);
+  const query = search.trim().toLowerCase();
+  const filteredTechs = localStats
+    .filter(t => techFilter === 'all' || t.id === techFilter)
+    .filter(t => !query || t.name.toLowerCase().includes(query));
   const todayPR = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   function getRawDayHours(tech, dayIso) {
@@ -110,6 +115,9 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
 
   return (
     <div>
+      <div style={{ marginBottom: 16 }}>
+        <SearchBox value={search} onChange={setSearch} placeholder="Buscar técnico..." />
+      </div>
       {filteredTechs.map(tech => (
         <div key={tech.id} className="card" style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: '2px solid var(--border)' }}>
@@ -248,7 +256,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
 
       {filteredTechs.length === 0 && (
         <div className="card" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--muted)' }}>
-          No hay técnicos registrados.
+          {query ? `Sin resultados para "${search}".` : 'No hay técnicos registrados.'}
         </div>
       )}
     </div>

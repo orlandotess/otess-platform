@@ -153,12 +153,13 @@ function PeriodSection({ label, revenue, ivu, payroll, fmt }) {
 }
 
 import AccountingDashboardClient from './accounting-dashboard-client';
+import DashboardSearch from './DashboardSearch';
 
 export default async function AccountingDashboard() {
   const { yearStart, yearEnd, monthStart, monthEnd, weekStart, weekEnd, year, month } = getPeriods();
 
   const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: allPayments }] = await Promise.all([
-    supabase.from('invoices').select('id, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at').order('issued_at', { ascending: false }),
+    supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name)').order('issued_at', { ascending: false }),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount'),
     supabase.from('technicians').select('id, hourly_rate'),
     supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at').not('clocked_out_at', 'is', null).gte('clocked_in_at', yearStart).lte('clocked_in_at', yearEnd),
@@ -216,7 +217,8 @@ export default async function AccountingDashboard() {
             <div className="page-title">Accounting Dashboard</div>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>Resumen financiero de OTESS</p>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <DashboardSearch invoices={invoices.map(i => ({ id: i.id, invoice_number: i.invoice_number, clientName: i.clients?.name, total: i.total, status: i.status }))} />
             <Link href="/accounting/facturas" className="btn btn-ghost">🧾 Facturas</Link>
             <Link href="/accounting/ivu" className="btn btn-ghost">🏛 IVU</Link>
             <Link href="/accounting/payroll" className="btn btn-ghost">⏱ Payroll</Link>

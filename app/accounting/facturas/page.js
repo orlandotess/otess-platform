@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
+import FacturasTableClient from './FacturasTableClient';
 
 const statusBadge = {
   draft:     { cls: 'badge-gray',  label: 'Borrador' },
@@ -185,64 +186,7 @@ export default async function AccountingFacturas({ searchParams }) {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="card">
-          {invs.length === 0 ? (
-            <div className="empty"><p>No hay facturas para este período.</p></div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Cliente</th>
-                    <th>Tipo</th>
-                    <th>Estado</th>
-                    <th>Fecha</th>
-                    <th style={{ textAlign: 'right' }}>Subtotal</th>
-                    <th style={{ textAlign: 'right' }}>IVU Prod</th>
-                    <th style={{ textAlign: 'right' }}>IVU Labor</th>
-                    <th style={{ textAlign: 'right' }}>Total</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invs.map(inv => {
-                    const b = statusBadge[inv.status] ?? statusBadge.draft;
-                    const subtotal = Number(inv.subtotal_products ?? 0) + Number(inv.subtotal_labor ?? 0);
-                    const clientDisplay = inv.bill_to === 'company' && inv.clients?.company
-                      ? inv.clients.company
-                      : inv.clients?.name ?? '—';
-                    return (
-                      <tr key={inv.id}>
-                        <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{inv.invoice_number}</td>
-                        <td style={{ fontWeight: 600 }}>{clientDisplay}</td>
-                        <td><span className={`badge ${inv.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`}>{inv.clients?.client_type === 'b2b' ? 'B2B' : 'Final'}</span></td>
-                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at ?? '—'}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(subtotal)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(inv.tax_products)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(inv.tax_labor)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(inv.total)}</td>
-                        <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: '2px solid var(--border)' }}>
-                    <td colSpan={5} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTALES</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(invs.reduce((a, i) => a + Number(i.subtotal_products ?? 0) + Number(i.subtotal_labor ?? 0), 0))}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(invs.reduce((a, i) => a + Number(i.tax_products ?? 0), 0))}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(invs.reduce((a, i) => a + Number(i.tax_labor ?? 0), 0))}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totalFacturado)}</td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </div>
+        <FacturasTableClient invs={invs} totalFacturado={totalFacturado} />
       </main>
     </div>
   );

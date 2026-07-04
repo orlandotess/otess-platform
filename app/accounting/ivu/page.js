@@ -6,6 +6,7 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import ExportIVUButton from './ExportIVUButton';
+import IVUInvoiceTableClient from './IVUInvoiceTableClient';
 
 export default async function AccountingIVU({ searchParams }) {
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
@@ -213,58 +214,11 @@ export default async function AccountingIVU({ searchParams }) {
         )}
 
         {/* Per invoice detail */}
-        <div className="card">
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>
-            Detalle por factura {month !== null ? `— ${months[month]} ${year}` : `— ${year}`}
-          </p>
-          {(invoices ?? []).length === 0 ? (
-            <div className="empty"><p>No hay facturas para este período.</p></div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Cliente</th>
-                    <th>Tipo</th>
-                    <th>Fecha</th>
-                    <th style={{ textAlign: 'right' }}>IVU Prod (11.5%)</th>
-                    <th style={{ textAlign: 'right' }}>IVU Labor Final (11.5%)</th>
-                    <th style={{ textAlign: 'right' }}>IVU Labor B2B (4%)</th>
-                    <th style={{ textAlign: 'right' }}>Estatal (10.5%)</th>
-                    <th style={{ textAlign: 'right' }}>Municipal (1%)</th>
-                    <th style={{ textAlign: 'right' }}>Total IVU</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(invoices ?? []).map(inv => {
-                    const v = ivuByInvoice[inv.id] ?? { ivuProducts: 0, ivuLaborFinal: 0, ivuLaborB2B: 0 };
-                    const finalBase = v.ivuProducts + v.ivuLaborFinal;
-                    const estatal = finalBase * (10.5 / 11.5);
-                    const municipal = finalBase * (1 / 11.5);
-                    const total = finalBase + v.ivuLaborB2B;
-                    return (
-                      <tr key={inv.id}>
-                        <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>
-                          <Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)' }}>{inv.invoice_number}</Link>
-                        </td>
-                        <td style={{ fontWeight: 600 }}>{inv.clients?.name ?? '—'}</td>
-                        <td><span className={`badge ${inv.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`}>{inv.clients?.client_type === 'b2b' ? 'B2B' : 'Final'}</span></td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(v.ivuProducts)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(v.ivuLaborFinal)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(v.ivuLaborB2B)}</td>
-                        <td style={{ textAlign: 'right' }}>{fmt(estatal)}</td>
-                        <td style={{ textAlign: 'right' }}>{fmt(municipal)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(total)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <IVUInvoiceTableClient
+          invoices={invoices ?? []}
+          ivuByInvoice={ivuByInvoice}
+          periodLabel={month !== null ? `${months[month]} ${year}` : `${year}`}
+        />
       </main>
     </div>
   );

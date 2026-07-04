@@ -2,11 +2,13 @@
 'use client';
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
+import SearchBox from '../../SearchBox';
 
 const estadoOpts = ['pendiente', 'declarado'];
 
 export default function RetencionesClient({ retenciones: initial, clients, year }) {
   const [rets, setRets] = useState(initial);
+  const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -56,12 +58,20 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
     setRets(prev => prev.filter(r => r.id !== id));
   }
 
+  const query = search.trim().toLowerCase();
+  const visibleRets = query
+    ? rets.filter(r => (r.clients?.name ?? '').toLowerCase().includes(query) || (r.numero_comprobante ?? '').toLowerCase().includes(query))
+    : rets;
+
   return (
     <div>
       {/* Add button */}
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Registro de retenciones {year}</p>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>+ Agregar retención</button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <SearchBox value={search} onChange={setSearch} placeholder="Buscar cliente o comprobante..." />
+          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>+ Agregar retención</button>
+        </div>
       </div>
 
       {/* Add form */}
@@ -146,6 +156,8 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
       <div className="card">
         {rets.length === 0 ? (
           <div className="empty"><p>No hay retenciones registradas para {year}.</p></div>
+        ) : visibleRets.length === 0 ? (
+          <div className="empty"><p>Sin resultados para "{search}".</p></div>
         ) : (
           <div className="table-wrap">
             <table>
@@ -165,7 +177,7 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
                 </tr>
               </thead>
               <tbody>
-                {rets.map(r => {
+                {visibleRets.map(r => {
                   const diff = Number(r.diferencia ?? 0);
                   return (
                     <tr key={r.id}>

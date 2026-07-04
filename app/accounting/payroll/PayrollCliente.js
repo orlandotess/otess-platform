@@ -2,10 +2,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
+import SearchBox from '../../SearchBox';
 
 export default function PayrollClient({ techStats: initialStats, monthlyPayroll, view, year, months, periodStart, periodEnd, allTechnicians = [] }) {
   const router = useRouter();
   const [stats, setStats] = useState(initialStats);
+  const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
@@ -128,18 +130,26 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
   const totNet = stats.reduce((a, t) => a + t.netPay, 0);
   const totH = stats.reduce((a, t) => a + t.totalHours, 0);
 
+  const query = search.trim().toLowerCase();
+  const visibleStats = query ? stats.filter(t => t.name.toLowerCase().includes(query)) : stats;
+
   return (
     <>
       <div className="card" style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
           <div>
             <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Por técnico</p>
             {view === 'week' && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>💰 Fecha de pago: {payDate}</p>}
           </div>
-          <button className="btn btn-amber" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setShowManualAdd(true)}>+ Agregar payroll manual</button>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <SearchBox value={search} onChange={setSearch} placeholder="Buscar técnico..." />
+            <button className="btn btn-amber" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setShowManualAdd(true)}>+ Agregar payroll manual</button>
+          </div>
         </div>
         {stats.every(t => t.totalHours === 0) ? (
           <div className="empty"><p>No hay entradas de tiempo para este período.</p></div>
+        ) : visibleStats.length === 0 ? (
+          <div className="empty"><p>Sin resultados para "{search}".</p></div>
         ) : (
           <div className="table-wrap">
             <table>
@@ -159,7 +169,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
                 </tr>
               </thead>
               <tbody>
-                {stats.filter(t => t.totalHours > 0 || editing === t.id).map(t => (
+                {visibleStats.filter(t => t.totalHours > 0 || editing === t.id).map(t => (
                   <tr key={t.id}>
                     <td style={{ fontWeight: 700 }}>{t.name}</td>
                     <td style={{ textAlign: 'right' }}>
