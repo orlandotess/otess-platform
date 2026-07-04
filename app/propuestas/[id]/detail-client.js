@@ -19,7 +19,7 @@ function financialBreakdown(opt, clientType, taxRules) {
   return { parts, labor, taxParts, taxLabor, subtotal: parts + labor, tax: taxParts + taxLabor, total: parts + labor + taxParts + taxLabor };
 }
 
-export default function PropuestaDetailClient({ proposal, options, taxRules }) {
+export default function PropuestaDetailClient({ proposal, options, taxRules, payments }) {
   const router = useRouter();
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -156,6 +156,9 @@ export default function PropuestaDetailClient({ proposal, options, taxRules }) {
                     </div>
                   );
                 })}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: 12.5, fontWeight: 700, color: 'var(--navy)', paddingTop: 6 }}>
+                  {areaName} Total: {fmt(areaItems.reduce((s, it) => s + it.quantity * it.unit_price, 0))}
+                </div>
               </div>
             ))}
 
@@ -179,6 +182,26 @@ export default function PropuestaDetailClient({ proposal, options, taxRules }) {
           </div>
         ))}
       </div>
+
+      {payments && payments.length > 0 && (() => {
+        const mainOpt = options.find(o => proposal.approved_option_id === o.id) ?? options.find(o => o.is_recommended) ?? options[0];
+        const fb = financialBreakdown(mainOpt, proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final', taxRules ?? []);
+        const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
+        return (
+          <div className="card" style={{ marginTop: 20 }}>
+            <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', marginBottom: 14 }}>Payment Schedule</p>
+            {payments.map(p => (
+              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{p.label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{p.percent}% de {p.basis === 'parts' ? 'Parts' : p.basis === 'labor' ? 'Labor' : 'Subtotal'}{p.due_trigger ? ` · ${p.due_trigger}` : ''}</div>
+                </div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>{fmt((basisAmount[p.basis] ?? 0) * (p.percent / 100))}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

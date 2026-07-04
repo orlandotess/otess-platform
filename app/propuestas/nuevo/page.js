@@ -41,6 +41,17 @@ export default function NuevaPropuesta() {
   const [introNote, setIntroNote] = useState('');
   const [requiresSignature, setRequiresSignature] = useState(false);
   const [taxClientType, setTaxClientType] = useState('final');
+  const [paymentSchedule, setPaymentSchedule] = useState([]);
+
+  function addPayment() {
+    setPaymentSchedule(prev => [...prev, { key: Math.random().toString(36).slice(2), label: `Pago ${prev.length + 1}`, basis: 'parts', percent: '', due_trigger: '' }]);
+  }
+  function updatePayment(key, field, value) {
+    setPaymentSchedule(prev => prev.map(p => p.key === key ? { ...p, [field]: value } : p));
+  }
+  function removePayment(key) {
+    setPaymentSchedule(prev => prev.filter(p => p.key !== key));
+  }
   const [multiOption, setMultiOption] = useState(false);
   const [options, setOptions] = useState([emptyOption('Propuesta')]);
   const [coverPhoto, setCoverPhoto] = useState(null);
@@ -195,6 +206,18 @@ export default function NuevaPropuesta() {
       }
       if (lineItems.length) await supabase.from('proposal_line_items').insert(lineItems);
     }
+
+    const paymentsToInsert = paymentSchedule
+      .filter(p => p.label.trim() && p.percent !== '')
+      .map((p, idx) => ({
+        proposal_id: proposal.id,
+        label: p.label.trim(),
+        basis: p.basis,
+        percent: parseFloat(p.percent) || 0,
+        due_trigger: p.due_trigger.trim() || null,
+        sort_order: idx,
+      }));
+    if (paymentsToInsert.length) await supabase.from('proposal_payments').insert(paymentsToInsert);
 
     setSaving(false);
     router.push(`/propuestas/${proposal.id}`);
@@ -391,6 +414,27 @@ export default function NuevaPropuesta() {
           {multiOption && (
             <button type="button" className="btn btn-ghost" onClick={addOption} style={{ justifyContent: 'center' }}>+ Agregar otra opción</button>
           )}
+
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Payment Schedule (opcional)</p>
+              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addPayment}>+ Agregar pago</button>
+            </div>
+            {paymentSchedule.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--muted)' }}>Sin pagos parciales — se mostrará el total completo.</p>}
+            {paymentSchedule.map(p => (
+              <div key={p.key} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 70px 1fr 32px', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                <input value={p.label} onChange={e => updatePayment(p.key, 'label', e.target.value)} placeholder="Ej: Pago 1" style={{ fontSize: 13 }} />
+                <select value={p.basis} onChange={e => updatePayment(p.key, 'basis', e.target.value)} style={{ fontSize: 12 }}>
+                  <option value="parts">% de Parts</option>
+                  <option value="labor">% de Labor</option>
+                  <option value="subtotal">% de Subtotal</option>
+                </select>
+                <input type="number" value={p.percent} onChange={e => updatePayment(p.key, 'percent', e.target.value)} placeholder="%" style={{ fontSize: 13 }} min="0" max="100" />
+                <input value={p.due_trigger} onChange={e => updatePayment(p.key, 'due_trigger', e.target.value)} placeholder="Ej: Al aprobar la propuesta" style={{ fontSize: 12 }} />
+                <button type="button" onClick={() => removePayment(p.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
+              </div>
+            ))}
+          </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button type="button" className="btn btn-primary" disabled={saving} onClick={handleSave} style={{ flex: 1, justifyContent: 'center' }}>

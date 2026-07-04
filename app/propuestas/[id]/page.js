@@ -14,6 +14,7 @@ export default async function PropuestaDetailPage({ params }) {
     .single();
 
   const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
+  const { data: payments } = await supabase.from('proposal_payments').select('*').eq('proposal_id', params.id).order('sort_order');
 
   if (!proposal) {
     return (
@@ -44,7 +45,7 @@ export default async function PropuestaDetailPage({ params }) {
     <div className="admin-shell">
       <Sidebar />
       <main className="main-content">
-        <PropuestaDetailClient proposal={proposal} options={options} taxRules={taxRules ?? []} />
+        <PropuestaDetailClient proposal={proposal} options={options} taxRules={taxRules ?? []} payments={payments ?? []} />
       </main>
     </div>
   );

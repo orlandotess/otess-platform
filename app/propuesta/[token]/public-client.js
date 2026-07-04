@@ -17,7 +17,7 @@ function financialBreakdown(opt, clientType, taxRules) {
   return { parts, labor, tax: taxParts + taxLabor, subtotal: parts + labor, total: parts + labor + taxParts + taxLabor };
 }
 
-export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl, taxRules }) {
+export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl, taxRules, payments }) {
   const [selectedId, setSelectedId] = useState(
     options.find(o => o.is_recommended)?.id ?? options[0]?.id ?? null
   );
@@ -113,34 +113,49 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                 </div>
                 {opt.description && <p style={{ fontSize: 12.5, color: '#888', marginBottom: 10 }}>{opt.description}</p>}
                 <div style={{ fontSize: 22, fontWeight: 800, color: NAVY, marginBottom: 12 }}>{fmt(optionTotal(opt))}</div>
-                <div style={{ display: 'grid', gap: 10 }}>
+                <div style={{ display: 'grid', gap: 16 }}>
                   {Object.entries(
                     (opt.items ?? []).reduce((groups, it) => {
                       const area = it.area || 'General';
                       (groups[area] = groups[area] || []).push(it);
                       return groups;
                     }, {})
-                  ).map(([areaName, areaItems]) => (
-                    <div key={areaName}>
-                      {areaName !== 'General' && (
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 4 }}>{areaName}</div>
-                      )}
-                      <div style={{ display: 'grid', gap: 8 }}>
-                        {areaItems.map(it => (
-                          <div key={it.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                            <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                              {it.photo_signed_url ? (
-                                <img src={it.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                              ) : (
-                                <span style={{ fontSize: 16 }}>{it.item_type === 'product' ? '📦' : '🔧'}</span>
-                              )}
+                  ).map(([areaName, areaItems]) => {
+                    const areaTotal = areaItems.reduce((s, it) => s + (it.quantity || 0) * (it.unit_price || 0), 0);
+                    return (
+                      <div key={areaName}>
+                        {areaName !== 'General' && (
+                          <div style={{ fontSize: 13, fontWeight: 800, color: NAVY, marginBottom: 8 }}>{areaName}</div>
+                        )}
+                        <div style={{ display: 'flex', fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', paddingBottom: 6, borderBottom: '1px solid #eee', marginBottom: 8 }}>
+                          <span style={{ flex: 1 }}>Items</span>
+                          <span style={{ width: 60, textAlign: 'right' }}>Precio</span>
+                          <span style={{ width: 30, textAlign: 'center' }}>Cant</span>
+                          <span style={{ width: 70, textAlign: 'right' }}>Total</span>
+                        </div>
+                        <div style={{ display: 'grid', gap: 10 }}>
+                          {areaItems.map(it => (
+                            <div key={it.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                              <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                {it.photo_signed_url ? (
+                                  <img src={it.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                ) : (
+                                  <span style={{ fontSize: 14 }}>{it.item_type === 'product' ? '📦' : '🔧'}</span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: 12.5, color: '#555', flex: 1 }}>{it.description}</span>
+                              <span style={{ width: 60, textAlign: 'right', fontSize: 12, color: '#888' }}>{fmt(it.unit_price)}</span>
+                              <span style={{ width: 30, textAlign: 'center', fontSize: 12, color: '#888' }}>x{it.quantity}</span>
+                              <span style={{ width: 70, textAlign: 'right', fontSize: 13, fontWeight: 700, color: NAVY }}>{fmt(it.quantity * it.unit_price)}</span>
                             </div>
-                            <span style={{ fontSize: 12.5, color: '#555', flex: 1 }}>{it.quantity > 1 ? `${it.quantity}× ` : ''}{it.description}</span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, paddingTop: 8, borderTop: '1px solid #eee', fontSize: 12.5, fontWeight: 800, color: NAVY }}>
+                          {areaName} Total: {fmt(areaTotal)}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -161,6 +176,27 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                   <span>Total</span><span>{fmt(fb.total)}</span>
                 </div>
               </div>
+            </div>
+          );
+        })()}
+
+        {selectedId && payments && payments.length > 0 && (() => {
+          const opt = options.find(o => o.id === selectedId);
+          if (!opt) return null;
+          const fb = financialBreakdown(opt, clientType, taxRules);
+          const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
+          return (
+            <div style={{ background: '#fff', borderRadius: 14, padding: 24, marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 12 }}>Payment Schedule</div>
+              {payments.map(p => (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.label}</div>
+                    <div style={{ fontSize: 11.5, color: '#999' }}>{p.percent}% de {p.basis === 'parts' ? 'Parts' : p.basis === 'labor' ? 'Labor' : 'Subtotal'}{p.due_trigger ? ` · ${p.due_trigger}` : ''}</div>
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: NAVY }}>{fmt((basisAmount[p.basis] ?? 0) * (p.percent / 100))}</div>
+                </div>
+              ))}
             </div>
           );
         })()}

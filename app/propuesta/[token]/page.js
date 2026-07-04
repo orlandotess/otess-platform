@@ -20,6 +20,7 @@ export default async function PropuestaPublicPage({ params }) {
   }
 
   const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
+  const { data: payments } = await supabase.from('proposal_payments').select('*').eq('proposal_id', proposal.id).order('sort_order');
 
   // Marcar como vista (solo la primera vez)
   if (!proposal.viewed_at) {
@@ -45,5 +46,5 @@ export default async function PropuestaPublicPage({ params }) {
     coverPhotoUrl = data?.signedUrl ?? null;
   }
 
-  return <PropuestaPublicClient proposal={proposal} options={options} coverPhotoUrl={coverPhotoUrl} taxRules={taxRules ?? []} />;
+  return <PropuestaPublicClient proposal={proposal} options={options} coverPhotoUrl={coverPhotoUrl} taxRules={taxRules ?? []} payments={payments ?? []} />;
 }
