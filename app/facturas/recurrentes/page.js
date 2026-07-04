@@ -38,7 +38,8 @@ export default async function FacturasRecurrentesPage() {
                 ? `Cada ${DOW_LABELS[r.day_of_week] ?? ''}`
                 : `${FREQ_LABELS[r.frequency] ?? r.frequency} · día ${r.day_of_month}`;
               return (
-                <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: i < recurring.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <Link key={r.id} href={`/facturas/recurrentes/${r.id}`}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: i < recurring.length - 1 ? '1px solid var(--border)' : 'none', textDecoration: 'none', color: 'inherit' }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>{r.clients?.name ?? 'Sin cliente'}</div>
                     <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>
@@ -52,7 +53,7 @@ export default async function FacturasRecurrentesPage() {
                     <span className="badge" style={{ color: r.active ? '#27ae60' : '#888' }}>{r.active ? 'Activa' : 'Pausada'}</span>
                     <RecurringInvoiceActions id={r.id} active={r.active} />
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

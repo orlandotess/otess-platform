@@ -3,6 +3,10 @@
     {
       "path": "/api/recurring-invoices/run",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/invoice-reminders/run",
+      "schedule": "15 12 * * *"
     }
   ]
 }

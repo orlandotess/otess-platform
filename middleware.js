@@ -6,7 +6,7 @@ const supabaseUrl = 'https://zisidorwdhrttmdppnbj.supabase.co';
 const supabaseAnonKey = 'sb_publishable_wL7A9THCYwVcyu3t6uk-3Q_Vt09bJzn';
 
 // Rutas públicas que no requieren sesión ni chequeo de rol
-const PUBLIC_PATHS = ['/login', '/factura', '/propuesta', '/favicon.ico', '/otess-logo.png', '/api/send-invoice'];
+const PUBLIC_PATHS = ['/login', '/factura', '/propuesta', '/favicon.ico', '/otess-logo.png', '/api/send-invoice', '/api/recurring-invoices', '/api/invoice-reminders'];
 
 function isPublic(pathname) {
   return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));

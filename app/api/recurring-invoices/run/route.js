@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { createClient } from '@supabase/supabase-js';
+import { withRetry } from '../../../../lib/withRetry';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const supabase = createClient(
@@ -89,6 +90,7 @@ export async function GET(request) {
       const { data: invoice, error: invErr } = await supabase.from('invoices').insert([{
         invoice_number: invoiceNumber,
         client_id: r.client_id,
+        recurring_invoice_id: r.id,
         notes: r.notes,
         terms: r.terms,
         issued_at: today,
@@ -105,23 +107,30 @@ export async function GET(request) {
 
       await supabase.from('invoice_line_items').insert(lineItems.map(li => ({ ...li, invoice_id: invoice.id })));
 
-      const sendRes = await fetch(`${APP_URL}/api/send-invoice`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoiceId: invoice.id, toEmail: client.email }),
-      });
-      if (!sendRes.ok) {
-        const d = await sendRes.json().catch(() => ({}));
-        throw new Error(d.error ?? 'Error enviando el email');
-      }
-
+      // The invoice now exists either way — advance the schedule so we never generate a duplicate
+      // for this cycle, even if the email send below ends up failing.
       const nextRunDate = computeNextRun(r.next_run_date, r.frequency, r.day_of_month, r.day_of_week);
       await supabase.from('recurring_invoices').update({
         next_run_date: nextRunDate,
         last_sent_at: new Date().toISOString(),
       }).eq('id', r.id);
 
-      generated.push({ recurringId: r.id, clientName: client.name, invoiceNumber, total });
+      try {
+        await withRetry(async () => {
+          const sendRes = await fetch(`${APP_URL}/api/send-invoice`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invoiceId: invoice.id, toEmail: client.email }),
+          });
+          if (!sendRes.ok) {
+            const d = await sendRes.json().catch(() => ({}));
+            throw new Error(d.error ?? 'Error enviando el email');
+          }
+        });
+        generated.push({ recurringId: r.id, clientName: client.name, invoiceNumber, total });
+      } catch (sendErr) {
+        failures.push({ recurringId: r.id, clientName: client.name, reason: `${invoiceNumber} se creó pero no se pudo enviar (${sendErr.message}) — envíala manualmente desde Facturas` });
+      }
     } catch (err) {
       failures.push({ recurringId: r.id, clientName: r.clients?.name ?? 'desconocido', reason: err.message });
     }
