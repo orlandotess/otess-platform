@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 
 const TYPE_META = {
@@ -12,12 +12,19 @@ export default function CatalogoClient({ items: initial }) {
   const [tab, setTab] = useState("labor");
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [editPhotoFile, setEditPhotoFile] = useState(null);
+  const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [adding, setAdding] = useState(false);
   const [newItem, setNewItem] = useState({ item_code: "", description: "", price: "", msrp: "", supplier_price: "" });
+  const [newPhotoFile, setNewPhotoFile] = useState(null);
+  const [newPhotoPreview, setNewPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [showMenu, setShowMenu] = useState(false);
+  const [signedUrls, setSignedUrls] = useState({});
   const fileRef = useRef();
+  const newPhotoRef = useRef();
+  const editPhotoRef = useRef();
 
   const counts = { labor: items.filter(i => i.type === "labor").length, product: items.filter(i => i.type === "product").length };
 
@@ -26,9 +33,33 @@ export default function CatalogoClient({ items: initial }) {
     i.description.toLowerCase().includes(search.toLowerCase())
   ));
 
+  // Genera signed URLs para las fotos de los ítems visibles
+  useEffect(() => {
+    const missing = filtered.filter(i => i.photo_url && !signedUrls[i.photo_url]);
+    if (missing.length === 0) return;
+    (async () => {
+      const updates = {};
+      for (const it of missing) {
+        const { data } = await supabase.storage.from("Job-photos").createSignedUrl(it.photo_url, 3600);
+        if (data?.signedUrl) updates[it.photo_url] = data.signedUrl;
+      }
+      if (Object.keys(updates).length) setSignedUrls(prev => ({ ...prev, ...updates }));
+    })();
+  }, [filtered]);
+
   function startEdit(item) {
     setEditingId(item.id);
     setEditForm({ item_code: item.item_code, description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "" });
+    setEditPhotoFile(null);
+    setEditPhotoPreview(item.photo_url ? signedUrls[item.photo_url] ?? null : null);
+  }
+
+  async function uploadPhoto(file) {
+    const ext = file.name.split(".").pop();
+    const path = `catalog/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+    const { error } = await supabase.storage.from("Job-photos").upload(path, file);
+    if (error) return null;
+    return path;
   }
 
   async function saveEdit(id) {
@@ -40,9 +71,15 @@ export default function CatalogoClient({ items: initial }) {
       msrp: editForm.msrp !== "" ? parseFloat(editForm.msrp) : null,
       supplier_price: editForm.supplier_price !== "" ? parseFloat(editForm.supplier_price) : null,
     };
+    if (editPhotoFile) {
+      const path = await uploadPhoto(editPhotoFile);
+      if (path) payload.photo_url = path;
+    }
     await supabase.from("catalog_items").update(payload).eq("id", id);
     setItems(prev => prev.map(i => i.id === id ? { ...i, ...payload } : i));
     setEditingId(null);
+    setEditPhotoFile(null);
+    setEditPhotoPreview(null);
     setSaving(false);
   }
 
@@ -55,6 +92,8 @@ export default function CatalogoClient({ items: initial }) {
   async function addItem() {
     if (!newItem.item_code.trim() || !newItem.description.trim()) return;
     setSaving(true);
+    let photo_url = null;
+    if (newPhotoFile) photo_url = await uploadPhoto(newPhotoFile);
     const { data } = await supabase.from("catalog_items").insert([{
       type: tab,
       item_code: newItem.item_code.trim(),
@@ -62,9 +101,12 @@ export default function CatalogoClient({ items: initial }) {
       price: parseFloat(newItem.price) || 0,
       msrp: newItem.msrp !== "" ? parseFloat(newItem.msrp) : null,
       supplier_price: newItem.supplier_price !== "" ? parseFloat(newItem.supplier_price) : null,
+      photo_url,
     }]).select().single();
     if (data) setItems(prev => [...prev, data]);
     setNewItem({ item_code: "", description: "", price: "", msrp: "", supplier_price: "" });
+    setNewPhotoFile(null);
+    setNewPhotoPreview(null);
     setAdding(false);
     setSaving(false);
   }
@@ -161,15 +203,28 @@ export default function CatalogoClient({ items: initial }) {
       {/* Add form */}
       {adding && (
         <div style={{ background: "#fff", border: "1.5px dashed var(--amber)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "140px 1fr 90px 90px 90px", gap: 8, alignItems: "center" }}>
-            <input value={newItem.item_code} onChange={e => setNewItem(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "monospace" }} />
-            <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
-            <input type="number" value={newItem.msrp} onChange={e => setNewItem(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)" }} />
-            <input type="number" value={newItem.price} onChange={e => setNewItem(f => ({ ...f, price: e.target.value }))} placeholder="Precio venta" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
-            <input type="number" value={newItem.supplier_price} onChange={e => setNewItem(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "#c0392b" }} />
+          <div style={{ display: "flex", gap: 12 }}>
+            <label style={{ cursor: "pointer", flexShrink: 0 }}>
+              {newPhotoPreview ? (
+                <img src={newPhotoPreview} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }} />
+              ) : (
+                <div style={{ width: 64, height: 64, borderRadius: 8, background: "#f4f6f9", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "var(--muted)" }}>📷</div>
+              )}
+              <input ref={newPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                const f = e.target.files?.[0];
+                if (f) { setNewPhotoFile(f); setNewPhotoPreview(URL.createObjectURL(f)); }
+              }} />
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "140px 1fr 90px 90px 90px", gap: 8, alignItems: "center", flex: 1 }}>
+              <input value={newItem.item_code} onChange={e => setNewItem(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "monospace" }} />
+              <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
+              <input type="number" value={newItem.msrp} onChange={e => setNewItem(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)" }} />
+              <input type="number" value={newItem.price} onChange={e => setNewItem(f => ({ ...f, price: e.target.value }))} placeholder="Precio venta" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
+              <input type="number" value={newItem.supplier_price} onChange={e => setNewItem(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "#c0392b" }} />
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
-            <button onClick={() => setAdding(false)} className="btn btn-ghost">Cancelar</button>
+            <button onClick={() => { setAdding(false); setNewPhotoFile(null); setNewPhotoPreview(null); }} className="btn btn-ghost">Cancelar</button>
             <button onClick={addItem} disabled={saving} className="btn btn-primary">{saving ? "Guardando..." : "Guardar ítem"}</button>
           </div>
         </div>
@@ -184,6 +239,17 @@ export default function CatalogoClient({ items: initial }) {
             <div key={item.id} style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
               {editingId === item.id ? (
                 <div style={{ display: "grid", gap: 6 }}>
+                  <label style={{ cursor: "pointer", alignSelf: "center" }}>
+                    {editPhotoPreview ? (
+                      <img src={editPhotoPreview} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }} />
+                    ) : (
+                      <div style={{ width: 64, height: 64, borderRadius: 8, background: "#f4f6f9", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "var(--muted)" }}>📷</div>
+                    )}
+                    <input ref={editPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                      const f = e.target.files?.[0];
+                      if (f) { setEditPhotoFile(f); setEditPhotoPreview(URL.createObjectURL(f)); }
+                    }} />
+                  </label>
                   <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace" }} />
                   <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
                   <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)" }} />
@@ -191,13 +257,17 @@ export default function CatalogoClient({ items: initial }) {
                   <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo suplidor" step="0.01" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "#c0392b" }} />
                   <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                     <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ flex: 1, fontSize: 12, padding: "6px 0", justifyContent: "center" }}>💾 Guardar</button>
-                    <button onClick={() => setEditingId(null)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }}>✕</button>
+                    <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }}>✕</button>
                   </div>
                 </div>
               ) : (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 64, background: "#f4f6f9", borderRadius: 10, marginBottom: 10, fontSize: 28 }}>
-                    {TYPE_META[item.type]?.icon ?? "📦"}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 64, background: "#f4f6f9", borderRadius: 10, marginBottom: 10, fontSize: 28, overflow: "hidden" }}>
+                    {item.photo_url && signedUrls[item.photo_url] ? (
+                      <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      TYPE_META[item.type]?.icon ?? "📦"
+                    )}
                   </div>
                   <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)", marginBottom: 4 }}>{item.item_code}</div>
                   <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 8, flex: 1 }}>{item.description}</div>
