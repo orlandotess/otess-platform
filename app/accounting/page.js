@@ -227,9 +227,9 @@ export default async function AccountingDashboard() {
           </div>
         </div>
 
-        <InboxWidget notifications={inboxNotifications ?? []} />
-
         <AccountingDashboardClient quarterData={quarterData} year={year} />
+
+        <InboxWidget notifications={inboxNotifications ?? []} />
 
         <PeriodSection
           label="📅 Esta semana"
