@@ -165,13 +165,13 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
             {(() => {
               const fb = financialBreakdown(opt, proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final', taxRules ?? []);
               return (
-                <div className="total-line" style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)', display: 'grid', gap: 6 }}>
-                  <div className="total-line"><span>Total Parts</span><span>{fmt(fb.parts)}</span></div>
-                  <div className="total-line"><span>Total Labor</span><span>{fmt(fb.labor)}</span></div>
-                  <div className="total-line" style={{ fontWeight: 700, color: 'var(--text)' }}><span style={{ color: 'var(--text)' }}>Subtotal</span><span>{fmt(fb.subtotal)}</span></div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)', display: 'grid', gap: 6 }}>
+                  <div className="total-line"><span>Subtotal productos</span><span>{fmt(fb.parts)}</span></div>
+                  <div className="total-line"><span>IVU productos (11.5%)</span><span>{fmt(fb.taxParts)}</span></div>
+                  <div className="total-line"><span>Subtotal labor</span><span>{fmt(fb.labor)}</span></div>
                   <div className="total-line">
-                    <span>IVU {(proposal.tax_client_type ?? proposal.clients?.client_type) === 'b2b' ? '(Parts 11.5% · Labor 4%)' : '(11.5%)'}</span>
-                    <span>{fmt(fb.tax)}</span>
+                    <span>IVU labor ({(proposal.tax_client_type ?? proposal.clients?.client_type) === 'b2b' ? '4%' : '11.5%'})</span>
+                    <span>{fmt(fb.taxLabor)}</span>
                   </div>
                   <div className="total-final"><span>Total</span><span>{fmt(fb.total)}</span></div>
                 </div>

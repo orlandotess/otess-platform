@@ -14,7 +14,7 @@ function financialBreakdown(opt, clientType, taxRules) {
     if (lineType === 'product') { parts += base; taxParts += base * rate; }
     else { labor += base; taxLabor += base * rate; }
   });
-  return { parts, labor, tax: taxParts + taxLabor, subtotal: parts + labor, total: parts + labor + taxParts + taxLabor };
+  return { parts, labor, taxParts, taxLabor, tax: taxParts + taxLabor, subtotal: parts + labor, total: parts + labor + taxParts + taxLabor };
 }
 
 export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl, taxRules, payments }) {
@@ -169,8 +169,10 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
             <div style={{ background: '#fff', borderRadius: 10, padding: 24, marginBottom: 14, border: '1px solid #eee' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Resumen — {opt.name}</div>
               <div style={{ display: 'grid', gap: 6, fontSize: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#999' }}>Subtotal</span><span>{fmt(fb.subtotal)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#999' }}>IVU</span><span>{fmt(fb.tax)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#999' }}>Subtotal productos</span><span>{fmt(fb.parts)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#999' }}>IVU productos (11.5%)</span><span>{fmt(fb.taxParts)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#999' }}>Subtotal labor</span><span>{fmt(fb.labor)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#999' }}>IVU labor ({clientType === 'b2b' ? '4%' : '11.5%'})</span><span>{fmt(fb.taxLabor)}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 17, color: NAVY, marginTop: 6, paddingTop: 10, borderTop: '1px solid #eee' }}>
                   <span>Total</span><span>{fmt(fb.total)}</span>
                 </div>
