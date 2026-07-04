@@ -5,7 +5,6 @@ import { supabase } from '../lib/supabase';
 import { useState } from 'react';
 
 const links = [
- { href: '/',           label: 'Dashboard',  icon: '⊞' },
  { href: '/clientes',   label: 'Clientes',   icon: '👥' },
  { href: '/trabajos',   label: 'Trabajos',   icon: '🔧' },
  { href: '/propuestas', label: 'Propuestas', icon: '📄' },
@@ -24,10 +23,17 @@ const accountingLinks = [
   { href: '/admin/timesheet', label: 'Timesheet', icon: '🕐' },
 ];
 
+const searchableLinks = [
+ { href: '/', label: 'Dashboard', icon: '⊞' },
+ ...links,
+ ...accountingLinks.map(l => ({ ...l, label: `Accounting · ${l.label}` })),
+];
+
 export default function Sidebar() {
  const path = usePathname();
  const router = useRouter();
  const [accountingOpen, setAccountingOpen] = useState(path.startsWith('/accounting') || path.startsWith('/horario'));
+ const [search, setSearch] = useState('');
 
  async function handleLogout() {
    await supabase.auth.signOut();
@@ -41,52 +47,90 @@ export default function Sidebar() {
    return path.startsWith(href);
  };
 
+ const query = search.trim().toLowerCase();
+ const searchResults = query
+   ? searchableLinks.filter(l => l.label.toLowerCase().includes(query))
+   : null;
+
  return (
    <aside className="sidebar">
      <div className="sidebar-logo">
        <img src="/otess-logo.png" alt="OTESS" style={{ width: '100%', maxWidth: 160, height: 'auto', display: 'block' }} />
      </div>
-     <nav className="sidebar-nav">
-       {links.map(l => (
-         <Link
-           key={l.href}
-           href={l.href}
-           className={isActive(l.href) ? 'active' : ''}
-         >
-           <span>{l.icon}</span>
-           {l.label}
-         </Link>
-       ))}
-
-        {/* Accounting group */}
-       <button
-         onClick={() => setAccountingOpen(!accountingOpen)}
+     <div style={{ padding: '12px 16px 4px', position: 'relative' }}>
+       <span style={{ position: 'absolute', left: 28, top: '50%', transform: 'translateY(-50%)', fontSize: 13, opacity: 0.5, pointerEvents: 'none' }}>🔍</span>
+       <input
+         value={search}
+         onChange={e => setSearch(e.target.value)}
+         placeholder="Buscar..."
          style={{
-           display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-           padding: '10px 16px', background: accountingOpen ? 'rgba(255,255,255,0.08)' : 'none',
-           border: 'none', color: 'rgba(255,255,255,0.85)', cursor: 'pointer',
-           fontSize: 14, fontWeight: 600, borderRadius: 8, textAlign: 'left',
+           width: '100%', padding: '8px 12px 8px 30px', borderRadius: 8, fontSize: 13,
+           border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.08)',
+           color: '#fff', outline: 'none',
          }}
-       >
-         <span>💰</span>
-         Accounting
-         <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>{accountingOpen ? '▼' : '▶'}</span>
-       </button>
+       />
+     </div>
+     <nav className="sidebar-nav">
+       {searchResults ? (
+         searchResults.length === 0 ? (
+           <p style={{ padding: '10px 16px', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Sin resultados.</p>
+         ) : (
+           searchResults.map(l => (
+             <Link key={l.href} href={l.href} className={isActive(l.href) ? 'active' : ''}>
+               <span>{l.icon}</span>
+               {l.label}
+             </Link>
+           ))
+         )
+       ) : (
+         <>
+           <Link href="/" className={isActive('/') ? 'active' : ''}>
+             <span>⊞</span>
+             Dashboard
+           </Link>
 
-       {accountingOpen && (
-         <div style={{ paddingLeft: 16 }}>
-           {accountingLinks.map(l => (
+           {/* Accounting group */}
+           <button
+             onClick={() => setAccountingOpen(!accountingOpen)}
+             style={{
+               display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+               padding: '10px 16px', background: accountingOpen ? 'rgba(255,255,255,0.08)' : 'none',
+               border: 'none', color: 'rgba(255,255,255,0.85)', cursor: 'pointer',
+               fontSize: 14, fontWeight: 600, borderRadius: 8, textAlign: 'left',
+             }}
+           >
+             <span>💰</span>
+             Accounting
+             <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>{accountingOpen ? '▼' : '▶'}</span>
+           </button>
+
+           {accountingOpen && (
+             <div style={{ paddingLeft: 16 }}>
+               {accountingLinks.map(l => (
+                 <Link
+                   key={l.href}
+                   href={l.href}
+                   className={isActive(l.href) ? 'active' : ''}
+                   style={{ fontSize: 13 }}
+                 >
+                   <span>{l.icon}</span>
+                   {l.label}
+                 </Link>
+               ))}
+             </div>
+           )}
+
+           {links.map(l => (
              <Link
                key={l.href}
                href={l.href}
                className={isActive(l.href) ? 'active' : ''}
-               style={{ fontSize: 13 }}
              >
                <span>{l.icon}</span>
                {l.label}
              </Link>
            ))}
-         </div>
+         </>
        )}
      </nav>
      <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
