@@ -54,7 +54,10 @@ export default async function FacturasPage() {
       <main className="main-content">
         <div className="page-header">
           <div className="page-title">Facturas</div>
-          <Link href="/facturas/nueva" className="btn btn-primary">+ Nueva factura</Link>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Link href="/facturas/recurrentes" className="btn btn-ghost">Recurrentes</Link>
+            <Link href="/facturas/nueva" className="btn btn-primary">+ Nueva factura</Link>
+          </div>
         </div>
 
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>

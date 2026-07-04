@@ -28,7 +28,10 @@ export default async function PropuestasPage() {
       <main className="main-content">
         <div className="page-header">
           <div className="page-title">Propuestas</div>
-          <Link href="/propuestas/nuevo" className="btn btn-primary">+ Nueva propuesta</Link>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Link href="/facturas/nueva" className="btn btn-ghost">+ Nueva factura</Link>
+            <Link href="/propuestas/nuevo" className="btn btn-primary">+ Nueva propuesta</Link>
+          </div>
         </div>
 
         {rows.length === 0 ? (
