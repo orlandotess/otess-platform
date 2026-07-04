@@ -6,7 +6,20 @@ import { supabase } from '../../../lib/supabase';
 const STATUS_COLORS = { borrador: '#888', enviada: '#2a4cb5', vista: '#e0972c', aprobada: '#27ae60', rechazada: '#c0392b' };
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', aprobada: 'Aprobada', rechazada: 'Rechazada' };
 
-export default function PropuestaDetailClient({ proposal, options }) {
+function financialBreakdown(opt, clientType, taxRules) {
+  let parts = 0, labor = 0, taxParts = 0, taxLabor = 0;
+  (opt.items ?? []).forEach(it => {
+    const base = (it.quantity || 0) * (it.unit_price || 0);
+    const lineType = it.item_type === 'product' ? 'product' : 'labor';
+    const rule = taxRules.find(r => r.client_type === clientType && r.line_item_type === lineType);
+    const rate = rule?.rate ?? 0.115;
+    if (lineType === 'product') { parts += base; taxParts += base * rate; }
+    else { labor += base; taxLabor += base * rate; }
+  });
+  return { parts, labor, taxParts, taxLabor, subtotal: parts + labor, tax: taxParts + taxLabor, total: parts + labor + taxParts + taxLabor };
+}
+
+export default function PropuestaDetailClient({ proposal, options, taxRules }) {
   const router = useRouter();
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -96,18 +109,62 @@ export default function PropuestaDetailClient({ proposal, options }) {
             </div>
             {opt.description && <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>{opt.description}</p>}
 
-            {(opt.items ?? []).map(it => (
-              <div key={it.id} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-                {it.photo_signed_url && (
-                  <img src={it.photo_signed_url} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
+            {Object.entries(
+              (opt.items ?? []).reduce((groups, it) => {
+                const area = it.area || 'General';
+                (groups[area] = groups[area] || []).push(it);
+                return groups;
+              }, {})
+            ).map(([areaName, areaItems]) => (
+              <div key={areaName} style={{ marginBottom: 12 }}>
+                {areaName !== 'General' && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6, marginTop: 8 }}>{areaName}</div>
                 )}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{it.description}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{it.quantity} × {fmt(it.unit_price)}</div>
-                </div>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(it.quantity * it.unit_price)}</div>
+                {areaItems.map(it => {
+                  const margin = (it.unit_price || 0) - (it.supplier_price || 0);
+                  return (
+                    <div key={it.id} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+                      {it.photo_signed_url && (
+                        <img src={it.photo_signed_url} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>
+                          {it.description}
+                          <span style={{ fontSize: 10, fontWeight: 700, color: it.item_type === 'product' ? '#2a4cb5' : '#888', marginLeft: 8, textTransform: 'uppercase' }}>
+                            {it.item_type === 'product' ? 'Producto' : 'Labor'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>{it.quantity} × {fmt(it.unit_price)}</div>
+                        <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+                          {it.msrp ? `MSRP: ${fmt(it.msrp)} · ` : ''}
+                          {it.supplier_price ? <span style={{ color: '#c0392b' }}>Costo suplidor: {fmt(it.supplier_price)}</span> : ''}
+                          {it.supplier_price ? <span style={{ color: '#27ae60', marginLeft: 8 }}>Margen: {fmt(margin)}</span> : ''}
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(it.quantity * it.unit_price)}</div>
+                    </div>
+                  );
+                })}
               </div>
             ))}
+
+            {(() => {
+              const fb = financialBreakdown(opt, proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final', taxRules ?? []);
+              return (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '2px solid var(--border)', display: 'grid', gap: 6, fontSize: 13 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Total Parts</span><span>{fmt(fb.parts)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Total Labor</span><span>{fmt(fb.labor)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>Subtotal</span><span>{fmt(fb.subtotal)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted)' }}>IVU {(proposal.tax_client_type ?? proposal.clients?.client_type) === 'b2b' ? '(Parts 11.5% · Labor 4%)' : '(11.5%)'}</span>
+                    <span>{fmt(fb.tax)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 16, color: 'var(--navy)', marginTop: 4, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                    <span>Total</span><span>{fmt(fb.total)}</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         ))}
       </div>
