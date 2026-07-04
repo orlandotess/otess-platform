@@ -61,6 +61,11 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Info tab edit
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [editInfoData, setEditInfoData] = useState({});
+  const [savingInfo, setSavingInfo] = useState(false);
+
   // Property form
   const [showPropForm, setShowPropForm] = useState(false);
   const [prop, setProp] = useState({ name: '', street: '', city: '', state: 'PR', zip: '' });
@@ -97,6 +102,27 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
   const [jobCount, setJobCount] = useState(0);
   const [expandedProp, setExpandedProp] = useState(null);
   const [expandedContact, setExpandedContact] = useState(null);
+
+  function startEditInfo() {
+    setEditInfoData({
+      name: client.name ?? '',
+      company: client.company ?? '',
+      email: client.email ?? '',
+      phone: client.phone ?? '',
+      client_type: client.client_type ?? 'final',
+      notes: client.notes ?? '',
+    });
+    setEditingInfo(true);
+  }
+
+  async function saveInfo(e) {
+    e.preventDefault();
+    setSavingInfo(true);
+    await supabase.from('clients').update(editInfoData).eq('id', client.id);
+    setSavingInfo(false);
+    setEditingInfo(false);
+    router.refresh();
+  }
 
   async function handleDeleteClick() {
     const { count } = await supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('client_id', client.id);
@@ -210,22 +236,67 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Información de contacto</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {[
-                  { label: 'Nombre', value: client.name },
-                  { label: 'Empresa', value: client.company },
-                  { label: 'Email', value: client.email },
-                  { label: 'Teléfono', value: client.phone },
-                ].map(f => f.value ? (
-                  <div key={f.label}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{f.label}</div>
-                    <div style={{ fontSize: 14 }}>{f.value}</div>
-                  </div>
-                ) : null)}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>Información de contacto</p>
+                {!editingInfo && (
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={startEditInfo}>✏️ Editar</button>
+                )}
               </div>
+
+              {editingInfo ? (
+                <form onSubmit={saveInfo}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                    <div className="form-group">
+                      <label>Nombre *</label>
+                      <input value={editInfoData.name} onChange={e => setEditInfoData(d => ({ ...d, name: e.target.value }))} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Empresa</label>
+                      <input value={editInfoData.company} onChange={e => setEditInfoData(d => ({ ...d, company: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label>Email</label>
+                      <input type="email" value={editInfoData.email} onChange={e => setEditInfoData(d => ({ ...d, email: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label>Teléfono</label>
+                      <input value={editInfoData.phone} onChange={e => setEditInfoData(d => ({ ...d, phone: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label>Tipo de cliente</label>
+                      <select value={editInfoData.client_type} onChange={e => setEditInfoData(d => ({ ...d, client_type: e.target.value }))}>
+                        <option value="final">Consumidor final</option>
+                        <option value="b2b">Comerciante Registrado (B2B)</option>
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Notas</label>
+                      <textarea value={editInfoData.notes} onChange={e => setEditInfoData(d => ({ ...d, notes: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button type="submit" className="btn btn-primary" disabled={savingInfo}>{savingInfo ? 'Guardando...' : '💾 Guardar'}</button>
+                    <button type="button" className="btn btn-ghost" onClick={() => setEditingInfo(false)}>Cancelar</button>
+                  </div>
+                </form>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  {[
+                    { label: 'Nombre', value: client.name },
+                    { label: 'Empresa', value: client.company },
+                    { label: 'Email', value: client.email },
+                    { label: 'Teléfono', value: client.phone },
+                    { label: 'Tipo', value: client.client_type === 'b2b' ? 'Comerciante Registrado (B2B)' : 'Consumidor final' },
+                  ].map(f => f.value ? (
+                    <div key={f.label}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{f.label}</div>
+                      <div style={{ fontSize: 14 }}>{f.value}</div>
+                    </div>
+                  ) : null)}
+                </div>
+              )}
             </div>
-            {client.notes && (
+            {!editingInfo && client.notes && (
               <div className="card">
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 10 }}>Notas</p>
                 <p style={{ fontSize: 14, color: 'var(--muted)' }}>{client.notes}</p>

@@ -6,6 +6,7 @@ import { supabaseServer as supabase } from "../../../lib/supabase";
 import Sidebar from "../../Sidebar";
 import Link from "next/link";
 import RetencionesClient from "./RetencionesClient";
+import RetencionesByClientClient from "./RetencionesByClientClient";
 
 function getWeekRange(offset = 0) {
   const now = new Date();
@@ -21,6 +22,7 @@ function getWeekRange(offset = 0) {
 }
 
 export default async function RetencionesPage({ searchParams }) {
+  const tab = searchParams?.tab ?? "cliente";
   const view = searchParams?.view ?? "year";
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
   const month = searchParams?.month !== undefined && searchParams.month !== "" ? parseInt(searchParams.month) : null;
@@ -47,16 +49,31 @@ export default async function RetencionesPage({ searchParams }) {
     periodLabel = `Año ${year}`;
   }
 
-  const [{ data: retenciones }, { data: clients }] = await Promise.all([
+  const [{ data: retenciones }, { data: clients }, { data: allTimeRetenciones }] = await Promise.all([
     supabase.from("retenciones")
       .select("*, clients(name)")
       .gte("fecha", dateStart)
       .lte("fecha", dateEnd)
       .order("fecha", { ascending: false }),
     supabase.from("clients").select("id, name").order("name"),
+    supabase.from("retenciones").select("client_id, monto_facturado, retencion_aplicada, retencion_calculada, clients(name)"),
   ]);
 
   const rets = retenciones ?? [];
+
+  // All-time per-client totals for the "Por cliente" tab (landing view).
+  const byClientAllTime = {};
+  (allTimeRetenciones ?? []).forEach(r => {
+    if (!r.client_id) return;
+    if (!byClientAllTime[r.client_id]) {
+      byClientAllTime[r.client_id] = { id: r.client_id, name: r.clients?.name ?? "Sin cliente", totalFacturado: 0, totalRetenido: 0, totalCalculado: 0, count: 0 };
+    }
+    byClientAllTime[r.client_id].totalFacturado += Number(r.monto_facturado ?? 0);
+    byClientAllTime[r.client_id].totalRetenido += Number(r.retencion_aplicada ?? 0);
+    byClientAllTime[r.client_id].totalCalculado += Number(r.retencion_calculada ?? 0);
+    byClientAllTime[r.client_id].count++;
+  });
+  const clientTotals = Object.values(byClientAllTime).sort((a, b) => b.totalRetenido - a.totalRetenido);
 
   const byClient = {};
   rets.forEach(r => {
@@ -90,6 +107,18 @@ export default async function RetencionesPage({ searchParams }) {
           </div>
         </div>
 
+        {/* Tab switcher */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+          <Link href="/accounting/retenciones?tab=cliente" className={`btn ${tab === "cliente" ? "btn-primary" : "btn-ghost"}`}>Por cliente</Link>
+          <Link href={`/accounting/retenciones?tab=periodo&view=${view}&year=${year}&month=${month ?? ""}`} className={`btn ${tab === "periodo" ? "btn-primary" : "btn-ghost"}`}>Por periodo</Link>
+        </div>
+
+        {tab === "cliente" && (
+          <RetencionesByClientClient clientTotals={clientTotals} />
+        )}
+
+        {tab === "periodo" && (
+        <>
         {/* Filters */}
         <div className="card" style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
@@ -210,6 +239,8 @@ export default async function RetencionesPage({ searchParams }) {
         )}
 
         <RetencionesClient retenciones={rets} clients={clients ?? []} year={year} />
+        </>
+        )}
       </main>
     </div>
   );

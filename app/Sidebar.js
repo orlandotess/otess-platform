@@ -20,6 +20,7 @@ const accountingLinks = [
  { href: '/accounting/ivu',           label: 'IVU',         icon: '🏛' },
  { href: '/accounting/payroll',       label: 'Payroll',     icon: '⏱' },
  { href: '/accounting/retenciones',   label: 'Retenciones', icon: '📋' },
+ { href: '/accounting/cliente360',    label: 'Cliente 360', icon: '🧭' },
   { href: '/admin/timesheet', label: 'Timesheet', icon: '🕐' },
 ];
 

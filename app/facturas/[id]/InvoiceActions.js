@@ -2,14 +2,16 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import NuevaRetencionForm from '../../accounting/retenciones/NuevaRetencionForm';
 
 const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
+const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
-export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [] }) {
+export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [], internalNotes: initialInternalNotes = '', internalAttachments: initialInternalAttachments = [], clientId = null, subtotalLabor = 0, existingRetenciones = [], issuedAt = null }) {
   const router = useRouter();
   const [showPayment, setShowPayment] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
@@ -19,6 +21,9 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   const [showEditTerms, setShowEditTerms] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [showInternalNotes, setShowInternalNotes] = useState(false);
+  const [showCheckPhotos, setShowCheckPhotos] = useState(false);
+  const [showRetencion, setShowRetencion] = useState(false);
   const [jobNotes, setJobNotes] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [selectedNoteIds, setSelectedNoteIds] = useState(initialAttached || []);
@@ -27,6 +32,12 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   const [billTo, setBillTo] = useState(initialBillTo);
   const [propertyId, setPropertyId] = useState(initialPropertyId || '');
   const [terms, setTerms] = useState(initialTerms || DEFAULT_TERMS);
+  const [internalNotes, setInternalNotes] = useState(initialInternalNotes);
+  const [savingInternalNotes, setSavingInternalNotes] = useState(false);
+  const [checkPhotos, setCheckPhotos] = useState(initialInternalAttachments);
+  const [checkPhotoUrls, setCheckPhotoUrls] = useState({});
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [retenciones, setRetenciones] = useState(existingRetenciones);
   const [payment, setPayment] = useState({ amount: balance || '', method: 'cash', reference: '', notes: '', paid_at: new Date().toISOString().split('T')[0] });
   const [emailTo, setEmailTo] = useState(clientEmail || '');
   const [saving, setSaving] = useState(false);
@@ -61,18 +72,25 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
 
   async function savePayment(e) {
     e.preventDefault();
+    const amount = parseFloat(payment.amount);
+    const remaining = Number(balance) - amount;
+    if (remaining < -0.01 && !confirm(`Este monto excede el balance pendiente (${fmtMoney(balance)}) por ${fmtMoney(-remaining)}. ¿Registrar el pago de todas formas?`)) {
+      return;
+    }
     setSaving(true);
     await supabase.from('payments').insert([{
       invoice_id: invoiceId,
-      amount: parseFloat(payment.amount),
+      amount,
       method: payment.method,
       reference: payment.reference || null,
       notes: payment.notes || null,
       paid_at: payment.paid_at,
     }]);
-    // Registering a payment here means the invoice is settled — mark it paid
-    // right away instead of relying on totalPaid matching the total exactly.
-    await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoiceId);
+    // Only flip to paid once this payment covers the remaining balance —
+    // partial payments leave the invoice as-is so more can be registered later.
+    if (remaining <= 0.01) {
+      await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoiceId);
+    }
     setSaving(false);
     setShowPayment(false);
     router.refresh();
@@ -118,6 +136,59 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
     e.preventDefault();
     await supabase.from('invoices').update({ terms: terms || null }).eq('id', invoiceId);
     setShowEditTerms(false);
+    router.refresh();
+  }
+
+  async function saveInternalNotes(e) {
+    e.preventDefault();
+    setSavingInternalNotes(true);
+    await supabase.from('invoices').update({ internal_notes: internalNotes || null }).eq('id', invoiceId);
+    setSavingInternalNotes(false);
+    setShowInternalNotes(false);
+    router.refresh();
+  }
+
+  async function openCheckPhotos() {
+    setShowCheckPhotos(true);
+    const missing = checkPhotos.filter(p => !checkPhotoUrls[p.id]);
+    if (missing.length) {
+      const entries = await Promise.all(missing.map(async p => {
+        const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p.photo_url, 3600);
+        return [p.id, data?.signedUrl ?? null];
+      }));
+      setCheckPhotoUrls(prev => ({ ...prev, ...Object.fromEntries(entries) }));
+    }
+  }
+
+  async function uploadCheckPhoto(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    const ext = file.name.split('.').pop();
+    const path = `invoice-checks/${invoiceId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error: uploadErr } = await supabase.storage.from('Job-photos').upload(path, file);
+    if (!uploadErr) {
+      const { data } = await supabase.from('invoice_internal_attachments').insert([{ invoice_id: invoiceId, photo_url: path }]).select().single();
+      if (data) {
+        setCheckPhotos(prev => [data, ...prev]);
+        const { data: signed } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600);
+        setCheckPhotoUrls(prev => ({ ...prev, [data.id]: signed?.signedUrl ?? null }));
+      }
+    }
+    setUploadingPhoto(false);
+    e.target.value = '';
+  }
+
+  async function deleteCheckPhoto(attachment) {
+    if (!confirm('¿Eliminar esta foto?')) return;
+    await supabase.from('invoice_internal_attachments').delete().eq('id', attachment.id);
+    await supabase.storage.from('Job-photos').remove([attachment.photo_url]);
+    setCheckPhotos(prev => prev.filter(p => p.id !== attachment.id));
+  }
+
+  function handleRetencionSaved(newRow) {
+    setRetenciones(prev => [...prev, newRow]);
+    setShowRetencion(false);
     router.refresh();
   }
 
@@ -189,6 +260,11 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
         <button className="btn btn-ghost" onClick={() => setShowEditProperty(true)}>🏠 Propiedad</button>
       )}
       <button className="btn btn-ghost" onClick={() => setShowEditTerms(true)}>📋 Términos</button>
+      <button className="btn btn-ghost" onClick={() => setShowInternalNotes(true)}>📝 Notas internas</button>
+      <button className="btn btn-ghost" onClick={openCheckPhotos}>📷 Fotos de cheques{checkPhotos.length > 0 ? ` (${checkPhotos.length})` : ''}</button>
+      <button className={`btn ${retenciones.length > 0 ? 'btn-amber' : 'btn-ghost'}`} onClick={() => setShowRetencion(true)}>
+        📋 {retenciones.length > 0 ? `Retención: ${fmtMoney(retenciones.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0))}` : 'Registrar retención'}
+      </button>
       {jobId && (
         <button className="btn btn-ghost" onClick={openAttachments}>
           📎 Adjuntos{selectedNoteIds.length > 0 ? ` (${selectedNoteIds.length})` : ''}
@@ -201,7 +277,6 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {status === 'sent' && (
         <>
           <button className="btn btn-amber" onClick={() => setShowPayment(true)}>💰 Pago</button>
-          <button className="btn btn-ghost" onClick={() => updateStatus('paid')} title="Márcala pagada directamente si el monto registrado no cuadra exacto con el total">✅ Marcar pagada</button>
           <button className="btn btn-ghost" onClick={() => updateStatus('cancelled')}>Cancelar</button>
         </>
       )}
@@ -284,6 +359,86 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Internal notes (never shown on the printed invoice) */}
+      {showInternalNotes && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 480 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📝 Notas internas</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Solo visibles para el equipo — nunca aparecen en la factura impresa ni por email.</p>
+            <form onSubmit={saveInternalNotes}>
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <textarea value={internalNotes} onChange={e => setInternalNotes(e.target.value)} rows={6} placeholder="Notas internas de contabilidad..." style={{ width: '100%' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="submit" className="btn btn-primary" disabled={savingInternalNotes} style={{ flex: 1, justifyContent: 'center' }}>
+                  {savingInternalNotes ? 'Guardando...' : 'Guardar'}
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowInternalNotes(false)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Check photos (internal only, stored in Job-photos bucket) */}
+      {showCheckPhotos && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📷 Fotos de cheques</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Internas — nunca se comparten con el cliente.</p>
+
+            <label className="btn btn-primary" style={{ display: 'inline-block', marginBottom: 20, cursor: 'pointer' }}>
+              {uploadingPhoto ? 'Subiendo...' : '+ Subir foto'}
+              <input type="file" accept="image/*" onChange={uploadCheckPhoto} disabled={uploadingPhoto} style={{ display: 'none' }} />
+            </label>
+
+            {checkPhotos.length === 0 ? (
+              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>No hay fotos guardadas.</p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                {checkPhotos.map(p => (
+                  <div key={p.id} style={{ position: 'relative', width: 140 }}>
+                    {checkPhotoUrls[p.id] ? (
+                      <img src={checkPhotoUrls[p.id]} style={{ width: 140, height: 140, objectFit: 'cover', borderRadius: 8 }} />
+                    ) : (
+                      <div style={{ width: 140, height: 140, background: '#f0f0f0', borderRadius: 8 }} />
+                    )}
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                      {new Date(p.created_at).toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                    <button onClick={() => deleteCheckPhoto(p)} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, padding: '2px 6px' }}>🗑</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', marginTop: 20 }}>
+              <button className="btn btn-ghost" onClick={() => setShowCheckPhotos(false)} style={{ flex: 1, justifyContent: 'center' }}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Registrar retención */}
+      {showRetencion && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20, overflow: 'auto' }}>
+          <div style={{ width: 640 }}>
+            {retenciones.length > 0 && (
+              <div style={{ background: '#fff8e6', border: '1.5px solid var(--amber)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: 'var(--navy)' }}>
+                ⚠️ Esta factura ya tiene {retenciones.length} retención(es) registrada(s) por un total de {fmtMoney(retenciones.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0))}. Puedes registrar otra si es necesario.
+              </div>
+            )}
+            <NuevaRetencionForm
+              clientIdLocked={clientId}
+              clientNameLocked={clientName}
+              invoiceLocked={{ id: invoiceId, invoice_number: invoiceNumber, subtotal_labor: subtotalLabor, issued_at: issuedAt || new Date().toISOString().slice(0, 10) }}
+              onSaved={handleRetencionSaved}
+              onCancel={() => setShowRetencion(false)}
+            />
           </div>
         </div>
       )}

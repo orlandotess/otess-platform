@@ -8,10 +8,12 @@ import InvoiceActions from './InvoiceActions';
 export default async function FacturaDetail({ params }) {
   const { id } = params;
 
-  const [{ data: inv }, { data: items }, { data: payments }] = await Promise.all([
+  const [{ data: inv }, { data: items }, { data: payments }, { data: internalAttachments }, { data: invoiceRetenciones }] = await Promise.all([
     supabase.from('invoices').select('*, client_id, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*)), jobs(id, title, client_properties(*))').eq('id', id).single(),
     supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order'),
     supabase.from('payments').select('*').eq('invoice_id', id).order('paid_at'),
+    supabase.from('invoice_internal_attachments').select('*').eq('invoice_id', id).order('created_at', { ascending: false }),
+    supabase.from('retenciones').select('id, retencion_aplicada, fecha').eq('invoice_id', id),
   ]);
 
 
@@ -58,6 +60,7 @@ export default async function FacturaDetail({ params }) {
           <InvoiceActions
             invoiceId={id}
             status={inv.status}
+            balance={balance}
             invoiceNumber={inv.invoice_number}
             clientName={inv.clients?.name}
             clientCompany={inv.clients?.company}
@@ -67,6 +70,12 @@ export default async function FacturaDetail({ params }) {
             terms={inv.terms ?? ''}
             jobId={inv.job_id ?? null}
             attachedNoteIds={inv.attached_note_ids ?? []}
+            internalNotes={inv.internal_notes ?? ''}
+            internalAttachments={internalAttachments ?? []}
+            clientId={inv.client_id ?? null}
+            subtotalLabor={inv.subtotal_labor ?? 0}
+            existingRetenciones={invoiceRetenciones ?? []}
+            issuedAt={inv.issued_at ?? null}
           />
         </div>
 

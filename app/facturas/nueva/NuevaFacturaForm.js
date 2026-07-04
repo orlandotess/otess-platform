@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../../Sidebar';
+import ClientCombobox from './ClientCombobox';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
@@ -134,10 +135,7 @@ export default function NuevaFactura() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Cliente *</label>
-                  <select value={form.client_id} onChange={e => { set('client_id', e.target.value); set('bill_to', 'person'); }}>
-                    <option value="">— Seleccionar —</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.client_type === 'b2b' ? ' (B2B)' : ''}</option>)}
-                  </select>
+                  <ClientCombobox clients={clients} value={form.client_id} onChange={id => { set('client_id', id); set('bill_to', 'person'); }} />
                 </div>
                 <div className="form-group">
                   <label>Trabajo (opcional)</label>

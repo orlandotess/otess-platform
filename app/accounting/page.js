@@ -155,8 +155,9 @@ function PeriodSection({ label, revenue, ivu, payroll, fmt }) {
 import AccountingDashboardClient from './accounting-dashboard-client';
 import DashboardSearch from './DashboardSearch';
 import InboxWidget from './InboxWidget';
+import AccountingCalendarWidget from './AccountingCalendarWidget';
 
-export default async function AccountingDashboard() {
+export default async function AccountingDashboard({ searchParams }) {
   const { yearStart, yearEnd, monthStart, monthEnd, weekStart, weekEnd, year, month } = getPeriods();
 
   const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: allPayments }, { data: inboxNotifications }] = await Promise.all([
@@ -228,6 +229,8 @@ export default async function AccountingDashboard() {
         </div>
 
         <AccountingDashboardClient quarterData={quarterData} year={year} />
+
+        <AccountingCalendarWidget searchParams={searchParams} />
 
         <InboxWidget notifications={inboxNotifications ?? []} />
 
