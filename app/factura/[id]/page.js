@@ -13,10 +13,11 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 export default async function FacturaPublica({ params }) {
   const { id } = params;
 
-  const [{ data: inv }, { data: items }, { data: payments }] = await Promise.all([
+  const [{ data: inv }, { data: items }, { data: payments }, { data: retenciones }] = await Promise.all([
     supabase.from('invoices').select('*, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*))').eq('id', id).single(),
     supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order'),
     supabase.from('payments').select('*').eq('invoice_id', id).order('paid_at'),
+    supabase.from('retenciones').select('retencion_aplicada').eq('invoice_id', id),
   ]);
 
   // Trackear vista + notificar por email
@@ -62,7 +63,8 @@ export default async function FacturaPublica({ params }) {
   );
 
   const totalPaid = payments?.reduce((a, p) => a + Number(p.amount), 0) ?? 0;
-  const balance = Number(inv.total) - totalPaid;
+  const totalRetained = retenciones?.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0) ?? 0;
+  const balance = Number(inv.total) - totalPaid - totalRetained;
   const primaryAddr = inv.clients?.client_addresses?.find(a => a.is_primary) ?? inv.clients?.client_addresses?.[0];
   const billToName = inv.bill_to === 'company' && inv.clients?.company ? inv.clients.company : inv.clients?.name;
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -151,11 +153,18 @@ export default async function FacturaPublica({ params }) {
                   <span>TOTAL</span>
                   <span>{fmt(inv.total)}</span>
                 </div>
-                {totalPaid > 0 && (
+                {(totalPaid > 0 || totalRetained > 0) && (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, color: '#27ae60' }}>
-                      <span>Pagado</span><span>-{fmt(totalPaid)}</span>
-                    </div>
+                    {totalPaid > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, color: '#27ae60' }}>
+                        <span>Pagado</span><span>-{fmt(totalPaid)}</span>
+                      </div>
+                    )}
+                    {totalRetained > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, color: '#92600a' }}>
+                        <span>Retención aplicada</span><span>-{fmt(totalRetained)}</span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 15, fontWeight: 700, color: balance > 0 ? '#92600a' : '#27ae60' }}>
                       <span>Balance</span><span>{fmt(balance)}</span>
                     </div>

@@ -21,9 +21,11 @@ export default async function FacturaDetail({ params }) {
   if (!inv) return <div style={{ padding: 40 }}>Factura no encontrada</div>;
 
   const totalPaid = payments?.reduce((a, p) => a + Number(p.amount), 0) ?? 0;
-  const balance = Number(inv.total) - totalPaid;
+  const totalRetained = invoiceRetenciones?.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0) ?? 0;
+  const balance = Number(inv.total) - totalPaid - totalRetained;
 
-  // Account balance — all pending invoices for this client
+  // Account balance — all pending invoices for this client, net of their own
+  // payments and retenciones (so it reflects what the client actually still owes).
   const clientId = inv?.client_id ?? null;
   const { data: clientInvoices } = clientId ? await supabase
     .from('invoices')
@@ -31,7 +33,20 @@ export default async function FacturaDetail({ params }) {
     .eq('client_id', clientId)
     .in('status', ['sent', 'draft'])
     .neq('id', id) : { data: [] };
-  const accountBalance = (clientInvoices ?? []).reduce((a, i) => a + Number(i.total ?? 0), 0) + balance;
+  const otherIds = (clientInvoices ?? []).map(i => i.id);
+  const [{ data: otherPayments }, { data: otherRetenciones }] = await Promise.all([
+    otherIds.length ? supabase.from('payments').select('invoice_id, amount').in('invoice_id', otherIds) : Promise.resolve({ data: [] }),
+    otherIds.length ? supabase.from('retenciones').select('invoice_id, retencion_aplicada').in('invoice_id', otherIds) : Promise.resolve({ data: [] }),
+  ]);
+  const paidByInvoice = {};
+  (otherPayments ?? []).forEach(p => { paidByInvoice[p.invoice_id] = (paidByInvoice[p.invoice_id] ?? 0) + Number(p.amount ?? 0); });
+  const retainedByInvoice = {};
+  (otherRetenciones ?? []).forEach(r => { retainedByInvoice[r.invoice_id] = (retainedByInvoice[r.invoice_id] ?? 0) + Number(r.retencion_aplicada ?? 0); });
+  const otherBalance = (clientInvoices ?? []).reduce((a, i) => {
+    const remaining = Number(i.total ?? 0) - (paidByInvoice[i.id] ?? 0) - (retainedByInvoice[i.id] ?? 0);
+    return a + Math.max(remaining, 0);
+  }, 0);
+  const accountBalance = otherBalance + balance;
   const primaryAddr = inv.clients?.client_addresses?.find(a => a.is_primary) ?? inv.clients?.client_addresses?.[0];
   const clientProperties = inv.clients?.client_properties ?? [];
   const property = inv.property_id
@@ -173,11 +188,18 @@ export default async function FacturaDetail({ params }) {
                 <span>TOTAL</span>
                 <span>${Number(inv.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
               </div>
-              {totalPaid > 0 && (
+              {(totalPaid > 0 || totalRetained > 0) && (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14, color: 'var(--ok)' }}>
-                    <span>Pagado</span><span>-${totalPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                  </div>
+                  {totalPaid > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14, color: 'var(--ok)' }}>
+                      <span>Pagado</span><span>-${totalPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
+                  )}
+                  {totalRetained > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14, color: 'var(--amber)' }}>
+                      <span>Retención aplicada</span><span>-${totalRetained.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 16, fontWeight: 700, color: balance > 0 ? 'var(--warn)' : 'var(--ok)' }}>
                     <span>Balance</span><span>${balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                   </div>

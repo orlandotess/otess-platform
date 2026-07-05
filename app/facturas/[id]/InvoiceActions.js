@@ -194,6 +194,11 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
 
   async function deleteInvoice() {
     setDeleting(true);
+    const photoPaths = checkPhotos.map(p => p.photo_url).filter(Boolean);
+    if (photoPaths.length) await supabase.storage.from('Job-photos').remove(photoPaths);
+    await supabase.from('invoice_internal_attachments').delete().eq('invoice_id', invoiceId);
+    await supabase.from('invoice_views').delete().eq('invoice_id', invoiceId);
+    await supabase.from('retenciones').delete().eq('invoice_id', invoiceId);
     await supabase.from('payments').delete().eq('invoice_id', invoiceId);
     await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId);
     await supabase.from('invoices').delete().eq('id', invoiceId);
@@ -531,7 +536,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar factura?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Se eliminarán también los pagos asociados. Esta acción no se puede deshacer.</p>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Se eliminarán también los pagos, retenciones, adjuntos y fotos de cheques asociados a esta factura. Esta acción no se puede deshacer.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteInvoice} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>

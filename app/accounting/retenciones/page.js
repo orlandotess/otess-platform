@@ -7,6 +7,7 @@ import Sidebar from "../../Sidebar";
 import Link from "next/link";
 import RetencionesClient from "./RetencionesClient";
 import RetencionesByClientClient from "./RetencionesByClientClient";
+import { computeExemptionStatus } from "../../../lib/retenciones";
 
 function getWeekRange(offset = 0) {
   const now = new Date();
@@ -56,24 +57,41 @@ export default async function RetencionesPage({ searchParams }) {
       .lte("fecha", dateEnd)
       .order("fecha", { ascending: false }),
     supabase.from("clients").select("id, name").order("name"),
-    supabase.from("retenciones").select("client_id, monto_facturado, retencion_aplicada, retencion_calculada, clients(name)"),
+    supabase.from("retenciones").select("client_id, fecha, monto_facturado, monto_exento, retencion_aplicada, retencion_calculada, created_at, invoices(invoice_number), clients(name)"),
   ]);
 
   const rets = retenciones ?? [];
+  const thisYear = String(new Date().getFullYear());
 
-  // All-time per-client totals for the "Por cliente" tab (landing view).
+  // All-time per-client totals for the "Por cliente" tab (landing view),
+  // plus this year's $500 exemption status so staff can see at a glance
+  // when retention starts for each client.
   const byClientAllTime = {};
   (allTimeRetenciones ?? []).forEach(r => {
     if (!r.client_id) return;
     if (!byClientAllTime[r.client_id]) {
-      byClientAllTime[r.client_id] = { id: r.client_id, name: r.clients?.name ?? "Sin cliente", totalFacturado: 0, totalRetenido: 0, totalCalculado: 0, count: 0 };
+      byClientAllTime[r.client_id] = { id: r.client_id, name: r.clients?.name ?? "Sin cliente", totalFacturado: 0, totalRetenido: 0, totalCalculado: 0, count: 0, thisYearRecords: [] };
     }
     byClientAllTime[r.client_id].totalFacturado += Number(r.monto_facturado ?? 0);
     byClientAllTime[r.client_id].totalRetenido += Number(r.retencion_aplicada ?? 0);
     byClientAllTime[r.client_id].totalCalculado += Number(r.retencion_calculada ?? 0);
     byClientAllTime[r.client_id].count++;
+    if (r.fecha?.slice(0, 4) === thisYear) byClientAllTime[r.client_id].thisYearRecords.push(r);
   });
-  const clientTotals = Object.values(byClientAllTime).sort((a, b) => b.totalRetenido - a.totalRetenido);
+  const clientTotals = Object.values(byClientAllTime).map(c => {
+    const { thisYearRecords, ...rest } = c;
+    const status = computeExemptionStatus(thisYearRecords);
+    return {
+      ...rest,
+      exemption: {
+        usedExemption: status.usedExemption,
+        remainingExemption: status.remainingExemption,
+        exhausted: status.exhausted,
+        exhaustedInvoice: status.exhaustedAt?.invoices?.invoice_number ?? null,
+        exhaustedDate: status.exhaustedAt?.fecha ?? null,
+      },
+    };
+  }).sort((a, b) => b.totalRetenido - a.totalRetenido);
 
   const byClient = {};
   rets.forEach(r => {
@@ -114,7 +132,7 @@ export default async function RetencionesPage({ searchParams }) {
         </div>
 
         {tab === "cliente" && (
-          <RetencionesByClientClient clientTotals={clientTotals} />
+          <RetencionesByClientClient clientTotals={clientTotals} exemptionYear={thisYear} />
         )}
 
         {tab === "periodo" && (

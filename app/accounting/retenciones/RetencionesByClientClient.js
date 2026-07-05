@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import Link from 'next/link';
 import SearchBox from '../../SearchBox';
@@ -7,7 +7,7 @@ import NuevaRetencionForm from './NuevaRetencionForm';
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function RetencionesByClientClient({ clientTotals }) {
+export default function RetencionesByClientClient({ clientTotals, exemptionYear }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null); // { id, name }
   const [history, setHistory] = useState([]);
@@ -16,11 +16,18 @@ export default function RetencionesByClientClient({ clientTotals }) {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState(null);
   const [saving, setSaving] = useState(false);
+  const detailRef = useRef(null);
 
   const query = search.trim().toLowerCase();
   const visible = query
     ? clientTotals.filter(c => c.name.toLowerCase().includes(query))
     : clientTotals;
+
+  // The detail panel renders below the client list, so scroll it into view —
+  // otherwise selecting a client can look like the click did nothing.
+  useEffect(() => {
+    if (selected) detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selected]);
 
   async function selectClient(c) {
     setSelected(c);
@@ -97,6 +104,7 @@ export default function RetencionesByClientClient({ clientTotals }) {
                   <th style={{ textAlign: 'right' }}>Total facturado</th>
                   <th style={{ textAlign: 'right' }}>Total calculado</th>
                   <th style={{ textAlign: 'right' }}>Total retenido</th>
+                  <th>Exención {exemptionYear}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -109,6 +117,15 @@ export default function RetencionesByClientClient({ clientTotals }) {
                     <td style={{ textAlign: 'right' }}>{fmt(c.totalFacturado)}</td>
                     <td style={{ textAlign: 'right' }}>{fmt(c.totalCalculado)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--amber)' }}>{fmt(c.totalRetenido)}</td>
+                    <td>
+                      {c.exemption?.exhausted ? (
+                        <span className="badge badge-red">Agotada</span>
+                      ) : c.exemption?.usedExemption > 0 ? (
+                        <span className="badge badge-amber">{fmt(c.exemption.remainingExemption)} disponible</span>
+                      ) : (
+                        <span className="badge badge-green">$500.00 disponible</span>
+                      )}
+                    </td>
                     <td style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>{selected?.id === c.id ? 'Cerrar ↑' : 'Ver →'}</td>
                   </tr>
                 ))}
@@ -119,13 +136,37 @@ export default function RetencionesByClientClient({ clientTotals }) {
       </div>
 
       {selected && (
-        <div className="card">
+        <div className="card" ref={detailRef}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
             <p style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{selected.name}</p>
             <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
               {showForm ? 'Cancelar' : '+ Registrar retención'}
             </button>
           </div>
+
+          {selected.exemption && (
+            <div style={{
+              background: selected.exemption.exhausted ? '#fdecea' : '#e6f4ee',
+              border: `1.5px solid ${selected.exemption.exhausted ? '#f3b7b7' : '#a9dcc4'}`,
+              borderRadius: 10, padding: '14px 18px', marginBottom: 16, fontSize: 13,
+            }}>
+              <div style={{ fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>
+                Exención {exemptionYear}: {fmt(selected.exemption.usedExemption)} de $500.00 usados
+              </div>
+              {selected.exemption.exhausted ? (
+                <div style={{ color: 'var(--muted)' }}>
+                  Exención agotada
+                  {selected.exemption.exhaustedInvoice ? <> en <strong>{selected.exemption.exhaustedInvoice}</strong></> : null}
+                  {selected.exemption.exhaustedDate ? ` (${selected.exemption.exhaustedDate})` : ''}
+                  . A partir de ahora se retiene 10% sobre toda la labor facturada.
+                </div>
+              ) : (
+                <div style={{ color: 'var(--muted)' }}>
+                  Quedan <strong>{fmt(selected.exemption.remainingExemption)}</strong> exentos — la próxima factura no tendrá retención hasta superar ese monto en labor; lo que exceda se retiene al 10%.
+                </div>
+              )}
+            </div>
+          )}
 
           {showForm && (
             <NuevaRetencionForm

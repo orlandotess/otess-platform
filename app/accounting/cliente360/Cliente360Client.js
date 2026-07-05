@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import Link from 'next/link';
 import SearchBox from '../../SearchBox';
@@ -12,11 +12,18 @@ export default function Cliente360Client({ clientTotals, invoices, ivuByInvoice 
   const [selected, setSelected] = useState(null);
   const [retenciones, setRetenciones] = useState([]);
   const [loadingRetenciones, setLoadingRetenciones] = useState(false);
+  const detailRef = useRef(null);
 
   const query = search.trim().toLowerCase();
   const visible = query
     ? clientTotals.filter(c => c.name.toLowerCase().includes(query) || (c.company ?? '').toLowerCase().includes(query))
     : clientTotals;
+
+  // The detail panel renders below a potentially long client list, so scroll
+  // it into view — otherwise selecting a client can look like nothing happened.
+  useEffect(() => {
+    if (selected) detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selected]);
 
   async function selectClient(c) {
     setSelected(c);
@@ -74,7 +81,7 @@ export default function Cliente360Client({ clientTotals, invoices, ivuByInvoice 
       </div>
 
       {selected && (
-        <div>
+        <div ref={detailRef}>
           <div style={{ marginBottom: 16 }}>
             <Link href={`/clientes/${selected.id}`} className="btn btn-ghost">👤 Ver perfil de {selected.name} →</Link>
           </div>
