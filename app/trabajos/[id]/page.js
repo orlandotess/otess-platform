@@ -68,6 +68,10 @@ export default async function TrabajoDetail({ params }) {
     })
   );
 
+  const itemsWithSignedUrls = await Promise.all(
+    (items ?? []).map(async (item) => ({ ...item, photo_signed_url: await signPath(item.photo_url) }))
+  );
+
   const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
   const clientType = job.clients?.client_type ?? 'final';
 
@@ -101,7 +105,7 @@ export default async function TrabajoDetail({ params }) {
 
         <JobTabs
           job={job}
-          items={items ?? []}
+          items={itemsWithSignedUrls}
           technicians={technicians ?? []}
           notes={notesWithSignedUrls}
           checklist={checklist ?? []}

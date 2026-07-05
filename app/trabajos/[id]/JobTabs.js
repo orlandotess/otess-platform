@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import PhotoAnnotator from '../../PhotoAnnotator';
+import LineItemRow from '../../LineItemRow';
 
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
@@ -84,7 +85,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   // Line items state
   const [lineItems, setLineItems] = useState(items);
   const [addingLine, setAddingLine] = useState(false);
-  const [newLine, setNewLine] = useState({ type: 'labor', description: '', quantity: 1, unit_price: '', exempt: false });
+  const [newLine, setNewLine] = useState({ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null });
   const [catalogItems, setCatalogItems] = useState([]);
 
   useEffect(() => {
@@ -94,7 +95,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   function handleLineDescriptionSelect(value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
-      setNewLine(l => ({ ...l, type: match.type, description: match.description, unit_price: match.price }));
+      setNewLine(l => ({ ...l, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' }));
     } else {
       setNewLine(l => ({ ...l, description: value }));
     }
@@ -110,18 +111,47 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       description: item.description,
       quantity: item.quantity,
       unit_price: item.unit_price,
+      msrp: item.msrp ?? '',
+      supplier_price: item.supplier_price ?? '',
       exempt: !!item.exempt_reason,
+      photoFile: null,
+      photoPreview: item.photo_signed_url ?? null,
     });
+  }
+
+  function handleEditLinePhoto(file) {
+    if (!file) return;
+    setEditLineForm(f => ({ ...f, photoFile: file, photoPreview: URL.createObjectURL(file) }));
+  }
+
+  function handleNewLinePhoto(file) {
+    if (!file) return;
+    setNewLine(l => ({ ...l, photoFile: file, photoPreview: URL.createObjectURL(file) }));
   }
 
   async function saveEditLine(id) {
     setSavingLine(true);
+    let photoPath;
+    let photoSignedUrl;
+    if (editLineForm.photoFile) {
+      const ext = editLineForm.photoFile.name.split('.').pop();
+      const path = `${job.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, editLineForm.photoFile);
+      if (!upErr) {
+        photoPath = path;
+        const { data: signed } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600);
+        photoSignedUrl = signed?.signedUrl ?? null;
+      }
+    }
     await supabase.from('job_line_items').update({
       type: editLineForm.type,
       description: editLineForm.description.trim(),
       quantity: parseFloat(editLineForm.quantity) || 1,
       unit_price: parseFloat(editLineForm.unit_price) || 0,
+      msrp: editLineForm.msrp !== '' ? parseFloat(editLineForm.msrp) : null,
+      supplier_price: editLineForm.supplier_price !== '' ? parseFloat(editLineForm.supplier_price) : null,
       exempt_reason: editLineForm.exempt ? 'Exento' : null,
+      ...(photoPath !== undefined ? { photo_url: photoPath } : {}),
     }).eq('id', id);
     setLineItems(prev => prev.map(i => i.id === id ? {
       ...i,
@@ -129,7 +159,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       description: editLineForm.description.trim(),
       quantity: parseFloat(editLineForm.quantity) || 1,
       unit_price: parseFloat(editLineForm.unit_price) || 0,
+      msrp: editLineForm.msrp !== '' ? parseFloat(editLineForm.msrp) : null,
+      supplier_price: editLineForm.supplier_price !== '' ? parseFloat(editLineForm.supplier_price) : null,
       exempt_reason: editLineForm.exempt ? 'Exento' : null,
+      ...(photoPath !== undefined ? { photo_url: photoPath, photo_signed_url: photoSignedUrl } : {}),
     } : i));
     setEditingLineId(null);
     setSavingLine(false);
@@ -138,17 +171,27 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   async function addLineItem() {
     if (!newLine.description.trim()) return;
     setSavingLine(true);
+    let photoPath = null;
+    if (newLine.photoFile) {
+      const ext = newLine.photoFile.name.split('.').pop();
+      const path = `${job.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, newLine.photoFile);
+      if (!upErr) photoPath = path;
+    }
     const { data } = await supabase.from('job_line_items').insert([{
       job_id: job.id,
       type: newLine.type,
       description: newLine.description.trim(),
       quantity: parseFloat(newLine.quantity) || 1,
       unit_price: parseFloat(newLine.unit_price) || 0,
+      msrp: newLine.msrp !== '' ? parseFloat(newLine.msrp) : null,
+      supplier_price: newLine.supplier_price !== '' ? parseFloat(newLine.supplier_price) : null,
       exempt_reason: newLine.exempt ? 'Exento' : null,
+      photo_url: photoPath,
       sort_order: lineItems.length,
     }]).select().single();
-    if (data) setLineItems(prev => [...prev, data]);
-    setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '', exempt: false });
+    if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
+    setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null });
     setAddingLine(false);
     setSavingLine(false);
   }
@@ -534,90 +577,90 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingLine(true)}>+ Agregar línea</button>
               </div>
               {!lineItems?.length ? <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: addingLine ? 14 : 0 }}>Sin líneas.</p> : (
-                <table style={{ marginBottom: addingLine ? 14 : 0 }}>
-                  <thead><tr><th>Descripción</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Precio</th><th style={{ textAlign: 'right' }}>Subtotal</th><th style={{ textAlign: 'center' }}>Exento</th><th></th></tr></thead>
-                  <tbody>
-                    {lineItems.map(it => (
-                      <tr key={it.id}>
-                        {editingLineId === it.id ? (
-                          <>
-                            <td><input list="job-catalog-edit" value={editLineForm.description} onChange={e => {
-                              const value = e.target.value;
-                              const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
-                              if (match) setEditLineForm(f => ({ ...f, type: match.type, description: match.description, unit_price: match.price }));
-                              else setEditLineForm(f => ({ ...f, description: value }));
-                            }} style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, width: '100%' }} />
-                              <datalist id="job-catalog-edit">
-                                {catalogItems.filter(c => c.type === editLineForm.type).map(c => (
-                                  <option key={c.id} value={`${c.item_code} — ${c.description}`} />
-                                ))}
-                              </datalist>
-                            </td>
-                            <td>
-                              <select value={editLineForm.type} onChange={e => setEditLineForm(f => ({ ...f, type: e.target.value }))} style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13 }}>
-                                <option value="labor">Labor</option>
-                                <option value="product">Producto</option>
-                              </select>
-                            </td>
-                            <td><input type="number" value={editLineForm.quantity} onChange={e => setEditLineForm(f => ({ ...f, quantity: e.target.value }))} min="0" step="0.01" style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, width: 70, textAlign: 'right' }} /></td>
-                            <td><input type="number" value={editLineForm.unit_price} onChange={e => setEditLineForm(f => ({ ...f, unit_price: e.target.value }))} min="0" step="0.01" style={{ padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, width: 90, textAlign: 'right' }} /></td>
-                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt((parseFloat(editLineForm.quantity) || 0) * (parseFloat(editLineForm.unit_price) || 0))}</td>
-                            <td style={{ textAlign: 'center' }}><input type="checkbox" checked={editLineForm.exempt} onChange={e => setEditLineForm(f => ({ ...f, exempt: e.target.checked }))} /></td>
-                            <td style={{ display: 'flex', gap: 4 }}>
-                              <button onClick={() => saveEditLine(it.id)} disabled={savingLine} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: 11 }}>💾</button>
-                              <button onClick={() => setEditingLineId(null)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }}>✕</button>
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            <td style={{ fontWeight: 500 }}>{it.description}</td>
-                            <td><span className={`badge ${it.type === 'labor' ? 'badge-amber' : 'badge-gray'}`}>{it.type === 'labor' ? 'Labor' : 'Producto'}</span></td>
-                            <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{it.quantity}</td>
-                            <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(it.unit_price)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(Number(it.quantity) * Number(it.unit_price))}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              {it.exempt_reason ? (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', background: '#27ae60' }}>
-                                  <span style={{ color: '#fff', fontSize: 12, fontWeight: 900 }}>✓</span>
-                                </span>
-                              ) : (
-                                <span style={{ display: 'inline-block', width: 22, height: 22, borderRadius: '50%', border: '2px solid #dde1e7' }} />
-                              )}
-                            </td>
-                            <td style={{ display: 'flex', gap: 4 }}>
-                              <button onClick={() => startEditLine(it)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️</button>
-                              <button onClick={() => deleteLineItem(it.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button>
-                            </td>
-                          </>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                lineItems.map(it => (
+                  editingLineId === it.id ? (
+                    <LineItemRow
+                      key={it.id}
+                      type={editLineForm.type}
+                      onTypeChange={v => setEditLineForm(f => ({ ...f, type: v }))}
+                      description={editLineForm.description}
+                      onDescriptionChange={value => {
+                        const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+                        if (match) setEditLineForm(f => ({ ...f, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' }));
+                        else setEditLineForm(f => ({ ...f, description: value }));
+                      }}
+                      catalogOptions={catalogItems.filter(c => c.type === editLineForm.type)}
+                      datalistId="job-catalog-edit"
+                      quantity={editLineForm.quantity}
+                      onQuantityChange={v => setEditLineForm(f => ({ ...f, quantity: v }))}
+                      msrp={editLineForm.msrp}
+                      onMsrpChange={v => setEditLineForm(f => ({ ...f, msrp: v }))}
+                      unitPrice={editLineForm.unit_price}
+                      onUnitPriceChange={v => setEditLineForm(f => ({ ...f, unit_price: v }))}
+                      supplierPrice={editLineForm.supplier_price}
+                      onSupplierPriceChange={v => setEditLineForm(f => ({ ...f, supplier_price: v }))}
+                      exempt={editLineForm.exempt}
+                      onExemptChange={v => setEditLineForm(f => ({ ...f, exempt: v }))}
+                      photoUrl={editLineForm.photoPreview}
+                      onPhotoSelect={handleEditLinePhoto}
+                      fmt={fmt}
+                      actions={
+                        <>
+                          <button onClick={() => saveEditLine(it.id)} disabled={savingLine} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: 11 }}>💾</button>
+                          <button onClick={() => setEditingLineId(null)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }}>✕</button>
+                        </>
+                      }
+                    />
+                  ) : (
+                    <LineItemRow
+                      key={it.id}
+                      viewMode
+                      type={it.type}
+                      description={it.description}
+                      quantity={it.quantity}
+                      msrp={it.msrp}
+                      unitPrice={it.unit_price}
+                      supplierPrice={it.supplier_price}
+                      exempt={!!it.exempt_reason}
+                      photoUrl={it.photo_signed_url}
+                      fmt={fmt}
+                      actions={
+                        <>
+                          <button onClick={() => startEditLine(it)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, padding: '2px 6px' }}>✏️</button>
+                          <button onClick={() => deleteLineItem(it.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, padding: '2px 6px' }}>×</button>
+                        </>
+                      }
+                    />
+                  )
+                ))
               )}
               {addingLine && (
-                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 70px 100px 100px 70px 32px', gap: 8, alignItems: 'center', padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
-                  <select value={newLine.type} onChange={e => setNewLine(l => ({ ...l, type: e.target.value }))} style={{ fontSize: 13, padding: '6px 8px' }}>
-                    <option value="labor">Labor</option>
-                    <option value="product">Producto</option>
-                  </select>
-                  <input list="job-catalog" value={newLine.description} onChange={e => handleLineDescriptionSelect(e.target.value)} placeholder="Descripción o código..." style={{ fontSize: 13, padding: '6px 8px' }} />
-                  <datalist id="job-catalog">
-                    {catalogItems.filter(c => c.type === newLine.type).map(c => (
-                      <option key={c.id} value={`${c.item_code} — ${c.description}`} />
-                    ))}
-                  </datalist>
-                  <input type="number" value={newLine.quantity} onChange={e => setNewLine(l => ({ ...l, quantity: e.target.value }))} min="0" step="0.01" style={{ fontSize: 13, padding: '6px 8px' }} />
-                  <input type="number" value={newLine.unit_price} onChange={e => setNewLine(l => ({ ...l, unit_price: e.target.value }))} placeholder="0.00" min="0" step="0.01" style={{ fontSize: 13, padding: '6px 8px' }} />
-                  <div />
-                  <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={newLine.exempt} onChange={e => setNewLine(l => ({ ...l, exempt: e.target.checked }))} style={{ width: 14, height: 14 }} />
-                    Exento
-                  </label>
-                  <button onClick={addLineItem} disabled={savingLine} style={{ background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
-                    {savingLine ? '...' : '✓'}
-                  </button>
-                </div>
+                <LineItemRow
+                  type={newLine.type}
+                  onTypeChange={v => setNewLine(l => ({ ...l, type: v }))}
+                  description={newLine.description}
+                  onDescriptionChange={handleLineDescriptionSelect}
+                  catalogOptions={catalogItems.filter(c => c.type === newLine.type)}
+                  datalistId="job-catalog"
+                  quantity={newLine.quantity}
+                  onQuantityChange={v => setNewLine(l => ({ ...l, quantity: v }))}
+                  msrp={newLine.msrp}
+                  onMsrpChange={v => setNewLine(l => ({ ...l, msrp: v }))}
+                  unitPrice={newLine.unit_price}
+                  onUnitPriceChange={v => setNewLine(l => ({ ...l, unit_price: v }))}
+                  supplierPrice={newLine.supplier_price}
+                  onSupplierPriceChange={v => setNewLine(l => ({ ...l, supplier_price: v }))}
+                  exempt={newLine.exempt}
+                  onExemptChange={v => setNewLine(l => ({ ...l, exempt: v }))}
+                  photoUrl={newLine.photoPreview}
+                  onPhotoSelect={handleNewLinePhoto}
+                  fmt={fmt}
+                  actions={
+                    <button onClick={addLineItem} disabled={savingLine} style={{ background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                      {savingLine ? '...' : '✓'}
+                    </button>
+                  }
+                />
               )}
               {addingLine && (
                 <button onClick={() => setAddingLine(false)} style={{ marginTop: 10, background: 'none', border: 'none', color: 'var(--muted)', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>Cancelar</button>

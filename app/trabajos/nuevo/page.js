@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Sidebar from '../../Sidebar';
+import LineItemRow from '../../LineItemRow';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
@@ -19,7 +20,7 @@ export default function NuevoTrabajo() {
     property_name: '', street: '', city: '', state: 'PR', zip: '',
     contact_name: '', contact_phone: '', contact_email: '',
   });
-  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '' }]);
+  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [clientSearch, setClientSearch] = useState('');
@@ -38,7 +39,9 @@ export default function NuevoTrabajo() {
   function handleDescriptionSelect(idx, value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
-      setItems(prev => prev.map((it, n) => n === idx ? { ...it, type: match.type, description: match.description, unit_price: match.price } : it));
+      setItems(prev => prev.map((it, n) => n === idx ? {
+        ...it, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+      } : it));
     } else {
       setItem(idx, 'description', value);
     }
@@ -72,9 +75,14 @@ export default function NuevoTrabajo() {
   const selectedClient = clients.find(c => c.id === form.client_id);
   const clientType = selectedClient?.client_type ?? 'final';
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '' }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
+  function handleItemPhoto(idx, file) {
+    if (!file) return;
+    setItem(idx, 'photoFile', file);
+    setItem(idx, 'photoPreview', URL.createObjectURL(file));
+  }
 
   const calcTotals = () => {
     let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
@@ -144,11 +152,26 @@ export default function NuevoTrabajo() {
     if (err) { setError(err.message); setSaving(false); return; }
 
     if (!quickMode) {
-      const lineItems = items.filter(i => i.description.trim()).map((i, idx) => ({
-        job_id: job.id, type: i.type, description: i.description,
-        quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
-        sort_order: idx,
-      }));
+      const lineItems = [];
+      let sortOrder = 0;
+      for (const i of items.filter(i => i.description.trim())) {
+        let photoPath = null;
+        if (i.photoFile) {
+          const ext = i.photoFile.name.split('.').pop();
+          const path = `${job.id}/${Date.now()}-${sortOrder}.${ext}`;
+          const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, i.photoFile);
+          if (!upErr) photoPath = path;
+        }
+        lineItems.push({
+          job_id: job.id, type: i.type, description: i.description,
+          quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
+          msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
+          supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
+          exempt_reason: i.exempt ? 'Exento' : null,
+          photo_url: photoPath,
+          sort_order: sortOrder++,
+        });
+      }
       if (lineItems.length) await supabase.from('job_line_items').insert(lineItems);
     }
     router.push(quickMode ? '/trabajos' : `/trabajos/${job.id}`);
@@ -361,21 +384,31 @@ export default function NuevoTrabajo() {
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
                   </div>
                   {items.map((item, idx) => (
-                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 100px 32px', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-                      <select value={item.type} onChange={e => setItem(idx, 'type', e.target.value)} style={{ fontSize: 13 }}>
-                        <option value="labor">Labor</option>
-                        <option value="product">Producto</option>
-                      </select>
-                      <input list={`catalog-${idx}`} value={item.description} onChange={e => handleDescriptionSelect(idx, e.target.value)} placeholder="Descripción o código..." style={{ fontSize: 13 }} />
-                      <datalist id={`catalog-${idx}`}>
-                        {catalogItems.filter(c => c.type === item.type).map(c => (
-                          <option key={c.id} value={`${c.item_code} — ${c.description}`} />
-                        ))}
-                      </datalist>
-                      <input type="number" value={item.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)} placeholder="Cant." style={{ fontSize: 13 }} min="0" step="0.01" />
-                      <input type="number" value={item.unit_price} onChange={e => setItem(idx, 'unit_price', e.target.value)} placeholder="Precio" style={{ fontSize: 13 }} min="0" step="0.01" />
-                      <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
-                    </div>
+                    <LineItemRow
+                      key={idx}
+                      type={item.type}
+                      onTypeChange={v => setItem(idx, 'type', v)}
+                      description={item.description}
+                      onDescriptionChange={v => handleDescriptionSelect(idx, v)}
+                      catalogOptions={catalogItems.filter(c => c.type === item.type)}
+                      datalistId={`catalog-${idx}`}
+                      quantity={item.quantity}
+                      onQuantityChange={v => setItem(idx, 'quantity', v)}
+                      msrp={item.msrp}
+                      onMsrpChange={v => setItem(idx, 'msrp', v)}
+                      unitPrice={item.unit_price}
+                      onUnitPriceChange={v => setItem(idx, 'unit_price', v)}
+                      supplierPrice={item.supplier_price}
+                      onSupplierPriceChange={v => setItem(idx, 'supplier_price', v)}
+                      exempt={item.exempt}
+                      onExemptChange={v => setItem(idx, 'exempt', v)}
+                      photoUrl={item.photoPreview}
+                      onPhotoSelect={file => handleItemPhoto(idx, file)}
+                      fmt={fmt}
+                      actions={
+                        <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
+                      }
+                    />
                   ))}
                 </div>
               </>

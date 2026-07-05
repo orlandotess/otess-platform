@@ -61,6 +61,19 @@ function computeIVU(invIds, lines) {
   return { ivuProducts, ivuLaborFinal, ivuLaborB2B, ivuEstatal, ivuMunicipal, ivuTotal: ivuProducts + ivuLaborFinal + ivuLaborB2B };
 }
 
+function computeMargin(invIds, lines) {
+  const relevant = lines.filter(l => invIds.has(l.invoice_id));
+  let revenueWithCost = 0, cost = 0;
+  relevant.forEach(l => {
+    if (l.supplier_price == null) return;
+    revenueWithCost += Number(l.quantity ?? 0) * Number(l.unit_price ?? 0);
+    cost += Number(l.quantity ?? 0) * Number(l.supplier_price ?? 0);
+  });
+  const margin = revenueWithCost - cost;
+  const marginPct = revenueWithCost > 0 ? (margin / revenueWithCost) * 100 : null;
+  return { revenueWithCost, cost, margin, marginPct };
+}
+
 function computePayroll(start, end, techs, ents) {
   const filtered = ents.filter(e => e.clocked_in_at >= start && e.clocked_in_at <= end);
   let total = 0;
@@ -73,7 +86,7 @@ function computePayroll(start, end, techs, ents) {
   return total;
 }
 
-function PeriodSection({ label, id, revenue, ivu, payroll, fmt }) {
+function PeriodSection({ label, id, revenue, ivu, payroll, margin, fmt }) {
   const netEst = revenue.collected - payroll - ivu.ivuTotal;
   return (
     <div className="card" id={id} style={{ marginBottom: 24, scrollMarginTop: 20 }}>
@@ -143,6 +156,25 @@ function PeriodSection({ label, id, revenue, ivu, payroll, fmt }) {
           </div>
         </div>
       </div>
+      {margin.revenueWithCost > 0 && (
+        <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', marginBottom: 10 }}>Margen (sobre líneas con costo registrado)</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Facturado c/costo</div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{fmt(margin.revenueWithCost)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Costo suplidor</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#c0392b' }}>{fmt(margin.cost)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Margen</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#0e8f7a' }}>{fmt(margin.margin)} {margin.marginPct != null ? `(${margin.marginPct.toFixed(0)}%)` : ''}</div>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: netEst >= 0 ? 'var(--ok)' : 'var(--warn)', background: netEst >= 0 ? '#e6f4ee' : '#fdecea', padding: '6px 14px', borderRadius: 8 }}>
           Ganancia neta estimada: {fmt(netEst)}
@@ -200,7 +232,7 @@ export default async function AccountingDashboard({ searchParams }) {
 
   const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: allPayments }, { data: inboxNotifications }] = await Promise.all([
     supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name)').order('issued_at', { ascending: false }),
-    supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount'),
+    supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount, quantity, unit_price, supplier_price'),
     supabase.from('technicians').select('id, hourly_rate'),
     supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at').not('clocked_out_at', 'is', null).gte('clocked_in_at', entriesFetchStart).lte('clocked_in_at', entriesFetchEnd),
     supabase.from('payments').select('invoice_id, amount, paid_at'),
@@ -275,6 +307,7 @@ export default async function AccountingDashboard({ searchParams }) {
           revenue={computeRevenue(weekInvs, paymentsByInvoice)}
           ivu={computeIVU(getIds(selWeekStartISO, selWeekEndISO), lines)}
           payroll={computePayroll(selWeekStartISO, selWeekEndISO, techs, entries)}
+          margin={computeMargin(getIds(selWeekStartISO, selWeekEndISO), lines)}
           fmt={fmt}
         />
         <PeriodSection
@@ -283,6 +316,7 @@ export default async function AccountingDashboard({ searchParams }) {
           revenue={computeRevenue(monthInvs, paymentsByInvoice)}
           ivu={computeIVU(getIds(monthStart, monthEnd), lines)}
           payroll={computePayroll(monthStart, monthEnd, techs, entries)}
+          margin={computeMargin(getIds(monthStart, monthEnd), lines)}
           fmt={fmt}
         />
         <PeriodSection
@@ -291,6 +325,7 @@ export default async function AccountingDashboard({ searchParams }) {
           revenue={computeRevenue(yearInvs, paymentsByInvoice)}
           ivu={computeIVU(getIds(selYearStart, selYearEnd), lines)}
           payroll={computePayroll(selYearStart, selYearEnd, techs, entries)}
+          margin={computeMargin(getIds(selYearStart, selYearEnd), lines)}
           fmt={fmt}
         />
       </main>

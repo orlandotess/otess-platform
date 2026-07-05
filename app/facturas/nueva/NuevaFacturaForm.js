@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../../Sidebar';
 import ClientCombobox from './ClientCombobox';
+import LineItemRow from '../../LineItemRow';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
@@ -24,7 +25,7 @@ export default function NuevaFactura() {
     issued_at: new Date().toISOString().split('T')[0],
     due_at: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
-  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false }]);
+  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -40,11 +41,19 @@ export default function NuevaFactura() {
       if (job) {
         setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id }));
         if (job.job_line_items?.length) {
-          setItems(job.job_line_items.map(li => ({
-            type: li.type, description: li.description,
-            quantity: li.quantity, unit_price: li.unit_price,
-            msrp: '', supplier_price: '', exempt: false,
-          })));
+          Promise.all(job.job_line_items.map(async li => {
+            let photoPreview = null;
+            if (li.photo_url) {
+              const { data } = await supabase.storage.from('Job-photos').createSignedUrl(li.photo_url, 3600);
+              photoPreview = data?.signedUrl ?? null;
+            }
+            return {
+              type: li.type, description: li.description,
+              quantity: li.quantity, unit_price: li.unit_price,
+              msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
+              photoFile: null, photoPreview, existingPhotoPath: li.photo_url ?? null,
+            };
+          })).then(setItems);
         }
       }
     }
@@ -55,9 +64,13 @@ export default function NuevaFactura() {
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
+  function handleItemPhoto(idx, file) {
+    if (!file) return;
+    setItems(i => i.map((it, n) => n === idx ? { ...it, photoFile: file, photoPreview: URL.createObjectURL(file), existingPhotoPath: null } : it));
+  }
   function handleCatalogSelect(idx, value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
@@ -119,18 +132,29 @@ export default function NuevaFactura() {
 
     if (err) { setError(err.message); setSaving(false); return; }
 
-    const lineItems = items.filter(i => i.description.trim()).map((i, idx) => {
+    const lineItems = [];
+    let sortOrder = 0;
+    for (const i of items.filter(i => i.description.trim())) {
+      let photoPath = i.existingPhotoPath ?? null;
+      if (i.photoFile) {
+        const ext = i.photoFile.name.split('.').pop();
+        const path = `${invoice.id}/${Date.now()}-${sortOrder}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, i.photoFile);
+        if (!upErr) photoPath = path;
+      }
       const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
       const rate = i.exempt ? 0 : (TAX[`${clientType}_${i.type}`] ?? 0.115);
-      return {
+      lineItems.push({
         invoice_id: invoice.id, type: i.type, description: i.description,
         quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
         msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
         supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
+        exempt_reason: i.exempt ? 'Exento' : null,
+        photo_url: photoPath,
         tax_rate: rate, line_total: base, tax_amount: base * rate,
-        sort_order: idx,
-      };
-    });
+        sort_order: sortOrder++,
+      });
+    }
 
     await supabase.from('invoice_line_items').insert(lineItems);
     router.push(`/facturas/${invoice.id}`);
@@ -205,38 +229,32 @@ export default function NuevaFactura() {
                 <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 60px 90px 90px 90px 70px 32px', gap: 6, marginBottom: 8 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Tipo</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Descripción</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cant.</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>MSRP</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Precio</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Costo</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Exento</div>
-                <div></div>
-              </div>
-
               {items.map((item, idx) => (
-                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 60px 90px 90px 90px 70px 32px', gap: 6, marginBottom: 8, alignItems: 'center' }}>
-                  <select value={item.type} onChange={e => setItem(idx, 'type', e.target.value)} style={{ fontSize: 13 }}>
-                    <option value="labor">Labor</option>
-                    <option value="product">Producto</option>
-                  </select>
-                  <input list={`fact-cat-${idx}`} value={item.description} onChange={e => handleCatalogSelect(idx, e.target.value)} placeholder="Descripción o código..." style={{ fontSize: 13 }} />
-                  <datalist id={`fact-cat-${idx}`}>
-                    {catalogItems.filter(c => c.type === item.type).map(c => (
-                      <option key={c.id} value={`${c.item_code} — ${c.description}`} />
-                    ))}
-                  </datalist>
-                  <input type="number" value={item.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)} min="0" step="0.01" style={{ fontSize: 13 }} />
-                  <input type="number" value={item.msrp} onChange={e => setItem(idx, 'msrp', e.target.value)} placeholder="MSRP" min="0" step="0.01" style={{ fontSize: 12, color: 'var(--muted)' }} title="MSRP (referencia, solo interno)" />
-                  <input type="number" value={item.unit_price} onChange={e => setItem(idx, 'unit_price', e.target.value)} placeholder="0.00" min="0" step="0.01" style={{ fontSize: 13 }} />
-                  <input type="number" value={item.supplier_price} onChange={e => setItem(idx, 'supplier_price', e.target.value)} placeholder="Costo" min="0" step="0.01" style={{ fontSize: 12, color: '#c0392b' }} title="Costo del suplidor (solo interno)" />
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <input type="checkbox" checked={item.exempt} onChange={e => setItem(idx, 'exempt', e.target.checked)} style={{ width: 16, height: 16 }} />
-                  </div>
-                  <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>×</button>
-                </div>
+                <LineItemRow
+                  key={idx}
+                  type={item.type}
+                  onTypeChange={v => setItem(idx, 'type', v)}
+                  description={item.description}
+                  onDescriptionChange={v => handleCatalogSelect(idx, v)}
+                  catalogOptions={catalogItems.filter(c => c.type === item.type)}
+                  datalistId={`fact-cat-${idx}`}
+                  quantity={item.quantity}
+                  onQuantityChange={v => setItem(idx, 'quantity', v)}
+                  msrp={item.msrp}
+                  onMsrpChange={v => setItem(idx, 'msrp', v)}
+                  unitPrice={item.unit_price}
+                  onUnitPriceChange={v => setItem(idx, 'unit_price', v)}
+                  supplierPrice={item.supplier_price}
+                  onSupplierPriceChange={v => setItem(idx, 'supplier_price', v)}
+                  exempt={item.exempt}
+                  onExemptChange={v => setItem(idx, 'exempt', v)}
+                  photoUrl={item.photoPreview}
+                  onPhotoSelect={file => handleItemPhoto(idx, file)}
+                  fmt={fmt}
+                  actions={
+                    <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
+                  }
+                />
               ))}
             </div>
           </div>

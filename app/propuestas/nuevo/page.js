@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Sidebar from '../../Sidebar';
+import LineItemRow from '../../LineItemRow';
 
 function emptyItem() {
   return {
@@ -13,6 +14,7 @@ function emptyItem() {
     msrp: '',
     unit_price: '',
     supplier_price: '',
+    exempt: false,
     photoFile: null,
     photoPreview: null,
   };
@@ -199,6 +201,7 @@ export default function NuevaPropuesta() {
             msrp: it.msrp !== '' ? parseFloat(it.msrp) : null,
             unit_price: parseFloat(it.unit_price) || 0,
             supplier_price: it.supplier_price !== '' ? parseFloat(it.supplier_price) : null,
+            exempt_reason: it.exempt ? 'Exento' : null,
             photo_url: photoPath,
             sort_order: sortOrder++,
           });
@@ -347,53 +350,31 @@ export default function NuevaPropuesta() {
                   </div>
 
                   {area.items.map((it, itemIndex) => (
-                    <div key={it.key} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
-                      <label style={{ cursor: 'pointer', flexShrink: 0 }}>
-                        {it.photoPreview ? (
-                          <img src={it.photoPreview} style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 8, background: '#f4f6f9' }} />
-                        ) : (
-                          <div style={{ width: 56, height: 56, borderRadius: 8, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: 'var(--muted)' }}>📷</div>
-                        )}
-                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleItemPhoto(opt.key, area.key, it.key, e.target.files?.[0])} />
-                      </label>
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                          <select value={it.item_type} onChange={e => updateItem(opt.key, area.key, it.key, 'item_type', e.target.value)} style={{ fontSize: 11, padding: '3px 6px', width: 90 }}>
-                            <option value="labor">Labor</option>
-                            <option value="product">Producto</option>
-                          </select>
-                        </div>
-                        <input list={`cat-${optIndex}-${areaIndex}-${itemIndex}`} value={it.description}
-                          onChange={e => handleCatalogSelect(opt.key, area.key, it.key, e.target.value)}
-                          placeholder="Descripción o código..." style={{ fontSize: 13.5, fontWeight: 700, width: '100%' }} />
-                        <datalist id={`cat-${optIndex}-${areaIndex}-${itemIndex}`}>
-                          {catalogItems.filter(c => c.type === it.item_type).map(c => (
-                            <option key={c.id} value={`${c.item_code} — ${c.description}`} />
-                          ))}
-                        </datalist>
-                      </div>
-
-                      <div style={{ textAlign: 'right', flexShrink: 0, width: 100 }}>
-                        <input type="number" value={it.msrp} onChange={e => updateItem(opt.key, area.key, it.key, 'msrp', e.target.value)} placeholder="MSRP" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--muted)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="MSRP (referencia, solo interno)" />
-                        <input type="number" value={it.unit_price} onChange={e => updateItem(opt.key, area.key, it.key, 'unit_price', e.target.value)} placeholder="Precio venta" style={{ fontSize: 13, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="Precio de venta al cliente" />
-                        <input type="number" value={it.supplier_price} onChange={e => updateItem(opt.key, area.key, it.key, 'supplier_price', e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: '#c0392b', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
-                      </div>
-
-                      <div style={{ textAlign: 'center', flexShrink: 0, width: 50 }}>
-                        <label style={{ fontSize: 9, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Cant.</label>
-                        <input type="number" value={it.quantity} onChange={e => updateItem(opt.key, area.key, it.key, 'quantity', e.target.value)} style={{ fontSize: 13, padding: '4px 6px', textAlign: 'center', width: '100%' }} min="0" step="0.01" />
-                      </div>
-
-                      <div style={{ textAlign: 'right', flexShrink: 0, width: 90 }}>
-                        <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--navy)' }}>
-                          {`$${((parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                        </div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>Combinado</div>
-                      </div>
-
-                      <button type="button" onClick={() => removeItem(opt.key, area.key, it.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
-                    </div>
+                    <LineItemRow
+                      key={it.key}
+                      type={it.item_type}
+                      onTypeChange={v => updateItem(opt.key, area.key, it.key, 'item_type', v)}
+                      description={it.description}
+                      onDescriptionChange={v => handleCatalogSelect(opt.key, area.key, it.key, v)}
+                      catalogOptions={catalogItems.filter(c => c.type === it.item_type)}
+                      datalistId={`cat-${optIndex}-${areaIndex}-${itemIndex}`}
+                      quantity={it.quantity}
+                      onQuantityChange={v => updateItem(opt.key, area.key, it.key, 'quantity', v)}
+                      msrp={it.msrp}
+                      onMsrpChange={v => updateItem(opt.key, area.key, it.key, 'msrp', v)}
+                      unitPrice={it.unit_price}
+                      onUnitPriceChange={v => updateItem(opt.key, area.key, it.key, 'unit_price', v)}
+                      supplierPrice={it.supplier_price}
+                      onSupplierPriceChange={v => updateItem(opt.key, area.key, it.key, 'supplier_price', v)}
+                      exempt={it.exempt}
+                      onExemptChange={v => updateItem(opt.key, area.key, it.key, 'exempt', v)}
+                      photoUrl={it.photoPreview}
+                      onPhotoSelect={file => handleItemPhoto(opt.key, area.key, it.key, file)}
+                      fmt={fmt}
+                      actions={
+                        <button type="button" onClick={() => removeItem(opt.key, area.key, it.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
+                      }
+                    />
                   ))}
                   <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key)}>+ Línea</button>
                 </div>
