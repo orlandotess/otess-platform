@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase";
 const TYPE_META = {
   labor: { label: "Labor", icon: "🔧", color: "#e0972c" },
   product: { label: "Productos", icon: "📦", color: "#2a4cb5" },
+  catalog_view: { label: "Catálogo", icon: "🗂️", color: "#0e8f7a" },
 };
 
 export default function CatalogoClient({ items: initial }) {
@@ -26,9 +27,13 @@ export default function CatalogoClient({ items: initial }) {
   const newPhotoRef = useRef();
   const editPhotoRef = useRef();
 
-  const counts = { labor: items.filter(i => i.type === "labor").length, product: items.filter(i => i.type === "product").length };
+  const dataType = tab === "catalog_view" ? "product" : tab;
+  const isCardView = tab === "catalog_view";
 
-  const filtered = items.filter(i => i.type === tab && (
+  const counts = { labor: items.filter(i => i.type === "labor").length, product: items.filter(i => i.type === "product").length };
+  counts.catalog_view = counts.product;
+
+  const filtered = items.filter(i => i.type === dataType && (
     i.item_code.toLowerCase().includes(search.toLowerCase()) ||
     i.description.toLowerCase().includes(search.toLowerCase())
   ));
@@ -95,7 +100,7 @@ export default function CatalogoClient({ items: initial }) {
     let photo_url = null;
     if (newPhotoFile) photo_url = await uploadPhoto(newPhotoFile);
     const { data } = await supabase.from("catalog_items").insert([{
-      type: tab,
+      type: dataType,
       item_code: newItem.item_code.trim(),
       description: newItem.description.trim(),
       price: parseFloat(newItem.price) || 0,
@@ -120,7 +125,7 @@ export default function CatalogoClient({ items: initial }) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${tab === "labor" ? "Labor" : "Productos"}_OTESS.csv`;
+    link.download = `${dataType === "labor" ? "Labor" : "Productos"}_OTESS.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -137,7 +142,7 @@ export default function CatalogoClient({ items: initial }) {
 
     const toInsert = dataLines.map(line => {
       const cols = line.split(",").map(c => c.replace(/^"|"$/g, "").trim());
-      return { type: tab, item_code: cols[0] || "", description: cols[1] || "", price: parseFloat(cols[2]) || 0, msrp: cols[3] ? parseFloat(cols[3]) : null, supplier_price: cols[4] ? parseFloat(cols[4]) : null };
+      return { type: dataType, item_code: cols[0] || "", description: cols[1] || "", price: parseFloat(cols[2]) || 0, msrp: cols[3] ? parseFloat(cols[3]) : null, supplier_price: cols[4] ? parseFloat(cols[4]) : null };
     }).filter(i => i.item_code && i.description);
 
     if (toInsert.length === 0) { alert("No se encontraron filas válidas en el CSV."); return; }
@@ -232,7 +237,66 @@ export default function CatalogoClient({ items: initial }) {
 
       {/* List of items (filas horizontales estilo Portal.io) */}
       {filtered.length === 0 ? (
-        <div className="empty"><p>No hay ítems {tab === "labor" ? "de labor" : "de productos"} aún.</p></div>
+        <div className="empty"><p>No hay ítems {dataType === "labor" ? "de labor" : "de productos"} aún.</p></div>
+      ) : isCardView ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
+          {filtered.map(item => {
+            const margin = item.price > 0 && item.supplier_price != null
+              ? Math.round(((item.price - item.supplier_price) / item.price) * 100) : null;
+            return (
+              <div key={item.id} style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", gap: 8 }}>
+                {editingId === item.id ? (
+                  <>
+                    <label style={{ cursor: "pointer", alignSelf: "center" }}>
+                      {editPhotoPreview ? (
+                        <img src={editPhotoPreview} style={{ width: 80, height: 80, objectFit: "contain", borderRadius: 8, background: "#f4f6f9" }} />
+                      ) : (
+                        <div style={{ width: 80, height: 80, borderRadius: 8, background: "#f4f6f9", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "var(--muted)" }}>📷</div>
+                      )}
+                      <input ref={editPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) { setEditPhotoFile(f); setEditPhotoPreview(URL.createObjectURL(f)); }
+                      }} />
+                    </label>
+                    <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace" }} />
+                    <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
+                    <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)" }} />
+                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
+                    <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "#c0392b" }} />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px", flex: 1, justifyContent: "center" }}>💾 Guardar</button>
+                      <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>✕</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ width: "100%", height: 110, borderRadius: 8, background: "#f4f6f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, overflow: "hidden" }}>
+                      {item.photo_url && signedUrls[item.photo_url] ? (
+                        <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      ) : "📦"}
+                    </div>
+                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, minHeight: 34 }}>{item.description}</div>
+                    <div>
+                      {item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
+                      <div style={{ fontWeight: 800, fontSize: 18, color: "var(--navy)" }}>{fmt(item.price)}</div>
+                      {item.supplier_price != null && (
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#c0392b" }}>
+                          <span>Costo: {fmt(item.supplier_price)}</span>
+                          {margin != null && <span style={{ color: margin >= 0 ? "#0e8f7a" : "#c0392b", fontWeight: 700 }}>{margin}%</span>}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                      <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", flex: 1, justifyContent: "center" }}>✏️ Editar</button>
+                      <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", color: "var(--warn)" }}>🗑</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
           {filtered.map((item, idx) => (
