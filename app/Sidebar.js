@@ -7,11 +7,13 @@ import { useState, useEffect } from 'react';
 const links = [
  { href: '/clientes',   label: 'Clientes',   icon: '👥' },
  { href: '/trabajos',   label: 'Trabajos',   icon: '🔧' },
+ { href: '/calendario', label: 'Calendario', icon: '📅' },
  { href: '/propuestas', label: 'Propuestas', icon: '📄' },
  { href: '/field',      label: 'Field App',  icon: '📱' },
  { href: '/admin/plantillas', label: 'Plantillas', icon: '📋' },
  { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
  { href: '/catalogo', label: 'Labor & Productos', icon: '🧰' },
+ { href: '/admin/empresa', label: 'Empresa', icon: '🏢' },
 ];
 
 const accountingLinks = [
@@ -27,7 +29,6 @@ const accountingLinks = [
 // Extra sections that exist in the app but aren't primary sidebar links —
 // still searchable so the sidebar search can reach the whole platform.
 const extraSearchableLinks = [
- { href: '/calendario', label: 'Calendario', icon: '📅' },
  { href: '/facturas/recurrentes', label: 'Facturas · Recurrentes', icon: '🔁' },
 ];
 
