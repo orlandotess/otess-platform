@@ -5,6 +5,7 @@ import PhotoAnnotator from '../PhotoAnnotator';
 
 const ORANGE = '#E05C2A';
 const BG = '#EAEEF2';
+const JOB_FIELDS = 'id, title, status, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)';
 
 export default function FieldApp() {
   const [tab, setTab] = useState('home');
@@ -87,14 +88,18 @@ export default function FieldApp() {
     return () => clearInterval(interval);
   }, [clockedIn, activeEntry]);
 
-  useEffect(() => { loadJobs(); }, [jobFilter]);
+  useEffect(() => { if (techId) loadJobs(); }, [jobFilter, techId]);
 
   useEffect(() => {
-    supabase.from('jobs').select('id, title, status, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)')
-      .in('status', ['scheduled', 'in_progress'])
-      .order('scheduled_start', { ascending: true }).limit(20)
-      .then(({ data }) => setAllJobs(data ?? []));
-  }, []);
+    if (!techId) return;
+    supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId)
+      .then(({ data }) => {
+        const list = (data ?? []).map(row => row.jobs).filter(Boolean)
+          .filter(j => j.status === 'scheduled' || j.status === 'in_progress')
+          .sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
+        setAllJobs(list.slice(0, 20));
+      });
+  }, [techId]);
 
   useEffect(() => {
     if (!techId) return;
@@ -116,7 +121,7 @@ export default function FieldApp() {
     setLoadingCalendar(true);
     const { data } = await supabase
       .from('job_technicians')
-      .select('jobs(id, title, status, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email))')
+      .select(`jobs(${JOB_FIELDS})`)
       .eq('technician_id', techId);
     const jobsList = (data ?? []).map(row => row.jobs).filter(Boolean);
     setCalendarJobs(jobsList);
@@ -125,14 +130,15 @@ export default function FieldApp() {
 
   async function loadJobs() {
     setLoading(true);
-    let q = supabase.from('jobs').select('id, title, status, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)');
+    const { data } = await supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId);
+    let list = (data ?? []).map(row => row.jobs).filter(Boolean);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-    if (jobFilter === 'today') q = q.gte('scheduled_start', today.toISOString()).lt('scheduled_start', tomorrow.toISOString());
-    else if (jobFilter === 'upcoming') q = q.gte('scheduled_start', tomorrow.toISOString()).not('status', 'eq', 'completed');
-    else if (jobFilter === 'done') q = q.eq('status', 'completed');
-    const { data } = await q.order('scheduled_start', { ascending: true }).limit(20);
-    setJobs(data ?? []);
+    if (jobFilter === 'today') list = list.filter(j => j.scheduled_start && new Date(j.scheduled_start) >= today && new Date(j.scheduled_start) < tomorrow);
+    else if (jobFilter === 'upcoming') list = list.filter(j => j.scheduled_start && new Date(j.scheduled_start) >= tomorrow && j.status !== 'completed');
+    else if (jobFilter === 'done') list = list.filter(j => j.status === 'completed');
+    list.sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
+    setJobs(list.slice(0, 20));
     setLoading(false);
   }
 
@@ -423,7 +429,7 @@ export default function FieldApp() {
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {['today', 'upcoming', 'done', 'all'].map(f => (
-                  <button key={f} style={ftab(jobFilter === f)} onClick={() => { setJobFilter(f); loadJobs(); }}>
+                  <button key={f} style={ftab(jobFilter === f)} onClick={() => setJobFilter(f)}>
                     {f === 'today' ? 'Today' : f === 'upcoming' ? 'Upcoming' : f === 'done' ? 'Done' : 'All'}
                   </button>
                 ))}
