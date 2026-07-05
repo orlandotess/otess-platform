@@ -1,7 +1,14 @@
 import { supabaseServer as supabaseAdmin } from '../../../lib/supabase';
+import { getCurrentRole } from '../../../lib/supabase-server';
 
 export async function POST(request) {
-  const { email, name, role, password } = await request.json();
+  const currentRole = await getCurrentRole();
+  if (!['admin', 'secretaria'].includes(currentRole)) {
+    return Response.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
+  const { email, name: rawName, role, password } = await request.json();
+  const name = rawName?.trim();
 
   if (!email || !name || !role || !password) {
     return Response.json({ error: 'Email, nombre, rol y contraseña son requeridos' }, { status: 400 });

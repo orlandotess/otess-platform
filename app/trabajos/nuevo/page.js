@@ -4,6 +4,8 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Sidebar from '../../Sidebar';
 import LineItemRow from '../../LineItemRow';
+import { buildMapsLinks } from '../../../lib/mapsLinks';
+import { localInputToIso } from '../../../lib/datetimeLocal';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
@@ -99,7 +101,7 @@ export default function NuevoTrabajo() {
   const fmt = n => `$${n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
   const fullAddress = [form.street, form.city, form.state, form.zip].filter(Boolean).join(', ');
-  const mapsQuery = encodeURIComponent(fullAddress);
+  const mapsLinks = buildMapsLinks(form.street, form.city, form.state, form.zip);
 
   async function handleCreateQuickClient() {
     if (!newClientName.trim()) return;
@@ -135,8 +137,8 @@ export default function NuevoTrabajo() {
       description: form.description || null,
       status: quickMode ? 'estimate' : form.status,
       notes: form.notes || null,
-      scheduled_start: quickMode ? null : (form.scheduled_start || null),
-      scheduled_end: quickMode ? null : (form.scheduled_end || null),
+      scheduled_start: quickMode ? null : localInputToIso(form.scheduled_start),
+      scheduled_end: quickMode ? null : localInputToIso(form.scheduled_end),
       property_id: form.property_id || null,
       contact_id: form.contact_id || null,
       property_name: form.property_name || null,
@@ -333,18 +335,27 @@ export default function NuevoTrabajo() {
                   </div>
                   {fullAddress && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                        🗺️ Google Maps
-                      </a>
-                      <a href={`https://maps.apple.com/?q=${mapsQuery}`} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                        🍎 Apple Maps
-                      </a>
-                      <a href={`https://waze.com/ul?q=${mapsQuery}`} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                        🚗 Waze
-                      </a>
+                      {mapsLinks.direct ? (
+                        <a href={mapsLinks.direct} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                          🗺️ Abrir ubicación
+                        </a>
+                      ) : (
+                        <>
+                          <a href={mapsLinks.google} target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                            🗺️ Google Maps
+                          </a>
+                          <a href={mapsLinks.apple} target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                            🍎 Apple Maps
+                          </a>
+                          <a href={mapsLinks.waze} target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                            🚗 Waze
+                          </a>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

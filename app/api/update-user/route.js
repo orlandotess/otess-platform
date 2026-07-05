@@ -1,11 +1,18 @@
 import { supabaseServer as supabaseAdmin } from '../../../lib/supabase';
+import { getCurrentRole } from '../../../lib/supabase-server';
 
 // Names get compared ignoring case/accents so "Ricardo Diaz" still matches a
 // technicians row stored as "Ricardo Díaz" instead of looking unlinked.
 const normalizeName = s => s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 export async function POST(request) {
-  const { userId, name, email } = await request.json();
+  const currentRole = await getCurrentRole();
+  if (!['admin', 'secretaria'].includes(currentRole)) {
+    return Response.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
+  const { userId, name: rawName, email } = await request.json();
+  const name = rawName?.trim();
 
   if (!userId || !name || !email) {
     return Response.json({ error: 'userId, nombre y email son requeridos' }, { status: 400 });

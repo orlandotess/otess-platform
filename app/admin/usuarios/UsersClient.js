@@ -27,6 +27,7 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
   const [editForm, setEditForm] = useState({ name: '', email: '' });
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
+  const [enablingTechFor, setEnablingTechFor] = useState(null); // profile id currently being enabled, or null
 
   const canChangeRole = currentRole !== 'secretaria';
   const techNames = new Set((technicians ?? []).map(t => normalizeName(t.name)));
@@ -59,19 +60,25 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
     router.refresh();
   }
 
-  async function changeRole(profileId, newRole, profileName) {
+  async function changeRole(profileId, newRole, rawProfileName) {
     if (!canChangeRole) return;
+    const profileName = rawProfileName.trim();
     await supabase.from('profiles').update({ role: newRole }).eq('id', profileId);
 
     // Promoting someone to técnico must also give them a technicians row,
     // or they silently can't be assigned to jobs or show up in payroll.
-    if (newRole === 'tecnico' && !techNames.has(normalizeName(profileName))) {
-      const slug = profileName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
-      const { error: techError } = await supabase.from('technicians').insert([{ name: profileName, username: slug || profileId.slice(0, 8) }]);
-      if (techError) {
-        setSuccess(`⚠️ Rol cambiado, pero no se pudo crear el registro de técnico: ${techError.message}`);
-      } else {
-        setSuccess(`✓ ${profileName} ahora es técnico y ya puede asignarse a trabajos.`);
+    // Re-check against the DB (not just the techNames set from initial props)
+    // so a stale client won't insert a second row for the same name.
+    if (newRole === 'tecnico') {
+      const { data: existing } = await supabase.from('technicians').select('id').ilike('name', profileName).maybeSingle();
+      if (!existing) {
+        const slug = profileName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
+        const { error: techError } = await supabase.from('technicians').insert([{ name: profileName, username: slug || profileId.slice(0, 8) }]);
+        if (techError) {
+          setSuccess(`⚠️ Rol cambiado, pero no se pudo crear el registro de técnico: ${techError.message}`);
+        } else {
+          setSuccess(`✓ ${profileName} ahora es técnico y ya puede asignarse a trabajos.`);
+        }
       }
     }
     router.refresh();
@@ -89,18 +96,25 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
     router.refresh();
   }
 
-  async function enableAsTechnician(profile) {
-    if (techNames.has(normalizeName(profile.name))) {
+  async function enableAsTechnician(rawProfile) {
+    if (enablingTechFor) return;
+    const profile = { ...rawProfile, name: rawProfile.name.trim() };
+    setEnablingTechFor(profile.id);
+    const { data: existing } = await supabase.from('technicians').select('id').ilike('name', profile.name).maybeSingle();
+    if (existing) {
       setSuccess(`${profile.name} ya tiene un registro de técnico.`);
+      setEnablingTechFor(null);
       return;
     }
     const slug = profile.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
     const { error: techError } = await supabase.from('technicians').insert([{ name: profile.name, username: slug || profile.id.slice(0, 8) }]);
     if (techError) {
       setSuccess(`⚠️ No se pudo crear el registro de técnico: ${techError.message}`);
+      setEnablingTechFor(null);
       return;
     }
     setSuccess(`✓ ${profile.name} ya puede asignarse a trabajos y aparecerá en Payroll/Timesheet.`);
+    setEnablingTechFor(null);
     router.refresh();
   }
 
@@ -215,9 +229,10 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
                           className="btn btn-ghost"
                           style={{ fontSize: 12, padding: '5px 10px' }}
                           onClick={() => enableAsTechnician(p)}
+                          disabled={enablingTechFor === p.id}
                           title="Crea su registro de técnico sin cambiar su rol, para poder asignarlo a trabajos y verlo en Payroll/Timesheet"
                         >
-                          🔧 Habilitar como técnico
+                          {enablingTechFor === p.id ? '...' : '🔧 Habilitar como técnico'}
                         </button>
                       )}
                       <button

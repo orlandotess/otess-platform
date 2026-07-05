@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { buildMapsLinks } from '../../../lib/mapsLinks';
 
 const statusJob = {
   estimate: { cls: 'badge-gray', label: 'Estimado' },
@@ -22,13 +23,19 @@ const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDig
 function extractCoordsFromInput(text) {
   const trimmed = text.trim();
 
-  // Find ANY pair of coordinates anywhere in the text (covers @lat,lng, ?q=, ?ll=, 3d/4d params, etc.)
+  // Google embeds the exact pin location as !3d{lat}!4d{lng} in place/share links.
+  // The @lat,lng in the URL is only the map viewport center, which Google shifts
+  // to keep the pin visible next to the search panel (or averages multiple stops
+  // on a directions link) - using it directly can point to the wrong location.
+  const pinMatch = trimmed.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/);
+  if (pinMatch) return `${pinMatch[1]}, ${pinMatch[2]}`;
+
+  // Find ANY pair of coordinates anywhere in the text (covers @lat,lng, ?q=, ?ll=, etc.)
   // Matches patterns like: 18.4337058,-66.1137271 or 18.4337058, -66.1137271
   const coordPattern = /(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/g;
   const matches = [...trimmed.matchAll(coordPattern)];
 
   if (matches.length > 0) {
-    // Prefer a match near "@" (most accurate for Google Maps place links), otherwise take the last match (often most precise, e.g. 4d/3d pins)
     const atMatch = trimmed.match(/@(-?\d{1,2}\.\d{3,}),(-?\d{1,3}\.\d{3,})/);
     if (atMatch) return `${atMatch[1]}, ${atMatch[2]}`;
     const last = matches[matches.length - 1];
@@ -53,7 +60,8 @@ async function resolveShortLink(url) {
   }
 }
 
-export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts }) {
+export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts, currentRole }) {
+  const canDeleteClient = currentRole === 'admin' || currentRole === 'secretaria';
   const router = useRouter();
   const [tab, setTab] = useState('info');
   const [properties, setProperties] = useState(initProps);
@@ -131,6 +139,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
   }
 
   async function deleteClient() {
+    if (!canDeleteClient) return;
     setDeleting(true);
     const { data: clientJobs } = await supabase.from('jobs').select('id').eq('client_id', client.id);
     const jobIds = clientJobs?.map(j => j.id) ?? [];
@@ -319,9 +328,11 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                 </div>
               ))}
             </div>
-            <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5', justifyContent: 'center' }} onClick={handleDeleteClick}>
-              🗑 Eliminar cliente
-            </button>
+            {canDeleteClient && (
+              <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5', justifyContent: 'center' }} onClick={handleDeleteClick}>
+                🗑 Eliminar cliente
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -446,32 +457,26 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                           {p.city && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{p.city}{p.state ? `, ${p.state}` : ''}{p.zip ? ` ${p.zip}` : ''}</div>}
                           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                             {(() => {
-                              const isDirectLink = /^https?:\/\//i.test((p.street ?? '').trim());
-                              if (isDirectLink) {
+                              const links = buildMapsLinks(p.street, p.city, p.state, p.zip);
+                              if (links.direct) {
                                 return (
-                                  <a href={p.street} target="_blank" rel="noopener noreferrer"
+                                  <a href={links.direct} target="_blank" rel="noopener noreferrer"
                                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
                                     🗺️ Abrir ubicación
                                   </a>
                                 );
                               }
-                              const isCoords = /^-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+$/.test((p.street ?? '').trim());
-                              const hasPlusCode = /^[A-Z0-9]{4,}\+[A-Z0-9]{2,}/.test(p.street ?? '');
-                              const fullAddress = (isCoords || hasPlusCode)
-                                ? p.street
-                                : [p.street, p.city, p.state, p.zip].filter(Boolean).join(', ');
-                              const q = encodeURIComponent(fullAddress);
                               return (
                                 <>
-                                  <a href={`https://www.google.com/maps/search/?api=1&query=${q}`} target="_blank" rel="noopener noreferrer"
+                                  <a href={links.google} target="_blank" rel="noopener noreferrer"
                                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
                                     🗺️ Google Maps
                                   </a>
-                                  <a href={`https://maps.apple.com/?q=${q}`} target="_blank" rel="noopener noreferrer"
+                                  <a href={links.apple} target="_blank" rel="noopener noreferrer"
                                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
                                     🍎 Apple Maps
                                   </a>
-                                  <a href={`https://waze.com/ul?q=${q}`} target="_blank" rel="noopener noreferrer"
+                                  <a href={links.waze} target="_blank" rel="noopener noreferrer"
                                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
                                     🚗 Waze
                                   </a>

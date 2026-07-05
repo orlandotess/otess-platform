@@ -4,6 +4,8 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import PhotoAnnotator from '../../PhotoAnnotator';
 import LineItemRow from '../../LineItemRow';
+import { buildMapsLinks } from '../../../lib/mapsLinks';
+import { isoToLocalInput, localInputToIso } from '../../../lib/datetimeLocal';
 
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
@@ -43,8 +45,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [jobNumber, setJobNumber] = useState(job.job_number ?? '');
   const [savingNumber, setSavingNumber] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(false);
-  const [schedStart, setSchedStart] = useState(job.scheduled_start ? new Date(job.scheduled_start).toISOString().slice(0, 16) : '');
-  const [schedEnd, setSchedEnd] = useState(job.scheduled_end ? new Date(job.scheduled_end).toISOString().slice(0, 16) : '');
+  const [schedStart, setSchedStart] = useState(isoToLocalInput(job.scheduled_start));
+  const [schedEnd, setSchedEnd] = useState(isoToLocalInput(job.scheduled_end));
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [editingDetails, setEditingDetails] = useState(false);
   const [titleForm, setTitleForm] = useState(job.title ?? '');
@@ -74,8 +76,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   async function saveSchedule() {
     setSavingSchedule(true);
     await supabase.from('jobs').update({
-      scheduled_start: schedStart || null,
-      scheduled_end: schedEnd || null,
+      scheduled_start: localInputToIso(schedStart),
+      scheduled_end: localInputToIso(schedEnd),
     }).eq('id', job.id);
     setSavingSchedule(false);
     setEditingSchedule(false);
@@ -463,13 +465,23 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 {job.property_name && <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{job.property_name}</div>}
                 {job.street && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{job.street}</div>}
                 {job.city && <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 10 }}>{job.city}{job.state ? `, ${job.state}` : ''}{job.zip ? ` ${job.zip}` : ''}</div>}
-                {(job.street || job.city) && (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Google Maps</a>
-                    <a href={`https://maps.apple.com/?q=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🍎 Apple Maps</a>
-                    <a href={`https://waze.com/ul?q=${encodeURIComponent([job.street, job.city, job.state, job.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🚗 Waze</a>
-                  </div>
-                )}
+                {(job.street || job.city) && (() => {
+                  const links = buildMapsLinks(job.street, job.city, job.state, job.zip);
+                  if (links.direct) {
+                    return (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <a href={links.direct} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Abrir ubicación</a>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <a href={links.google} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Google Maps</a>
+                      <a href={links.apple} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🍎 Apple Maps</a>
+                      <a href={links.waze} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🚗 Waze</a>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

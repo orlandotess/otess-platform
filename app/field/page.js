@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import PhotoAnnotator from '../PhotoAnnotator';
+import { buildMapsLinks } from '../../lib/mapsLinks';
 
 const ORANGE = '#E05C2A';
 const BG = '#EAEEF2';
@@ -706,9 +707,12 @@ export default function FieldApp() {
                         {p.name && <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>}
                         {p.street && <div style={{ fontSize: 13, color: '#555' }}>{p.street}</div>}
                         {p.city && <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>{p.city}{p.state ? `, ${p.state}` : ''} {p.zip ?? ''}</div>}
-                        {(p.street || p.city) && (
-                          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>🗺️ Ver en Maps</a>
-                        )}
+                        {(p.street || p.city) && (() => {
+                          const links = buildMapsLinks(p.street, p.city, p.state, p.zip);
+                          return (
+                            <a href={links.direct ?? links.google} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>🗺️ Ver en Maps</a>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>
@@ -810,13 +814,23 @@ export default function FieldApp() {
                     {detailJob.property_name && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detailJob.property_name}</div>}
                     {detailJob.street && <div style={{ fontSize: 14, color: '#555' }}>{detailJob.street}</div>}
                     {detailJob.city && <div style={{ fontSize: 14, color: '#555', marginBottom: 10 }}>{detailJob.city}{detailJob.state ? `, ${detailJob.state}` : ''}{detailJob.zip ? ` ${detailJob.zip}` : ''}</div>}
-                    {(detailJob.street || detailJob.city) && (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([detailJob.street, detailJob.city, detailJob.state, detailJob.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Maps</a>
-                        <a href={`https://maps.apple.com/?q=${encodeURIComponent([detailJob.street, detailJob.city, detailJob.state, detailJob.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🍎 Apple</a>
-                        <a href={`https://waze.com/ul?q=${encodeURIComponent([detailJob.street, detailJob.city, detailJob.state, detailJob.zip].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🚗 Waze</a>
-                      </div>
-                    )}
+                    {(detailJob.street || detailJob.city) && (() => {
+                      const links = buildMapsLinks(detailJob.street, detailJob.city, detailJob.state, detailJob.zip);
+                      if (links.direct) {
+                        return (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <a href={links.direct} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Abrir ubicación</a>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <a href={links.google} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Maps</a>
+                          <a href={links.apple} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🍎 Apple</a>
+                          <a href={links.waze} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🚗 Waze</a>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
