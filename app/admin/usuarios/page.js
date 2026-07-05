@@ -33,6 +33,10 @@ export default async function UsuariosPage() {
     .select('*')
     .order('created_at');
 
+  const { data: technicians } = await supabase
+    .from('technicians')
+    .select('id, name');
+
   return (
     <div className="admin-shell">
       <Sidebar />
@@ -40,7 +44,7 @@ export default async function UsuariosPage() {
         <div className="page-header">
           <div className="page-title">Usuarios & Roles</div>
         </div>
-        <UsersClient profiles={profiles ?? []} currentRole={currentRole} />
+        <UsersClient profiles={profiles ?? []} technicians={technicians ?? []} currentRole={currentRole} />
       </main>
     </div>
   );

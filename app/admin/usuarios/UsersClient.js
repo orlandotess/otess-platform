@@ -6,7 +6,11 @@ import { useRouter } from 'next/navigation';
 const roleLabel = { admin: 'Admin', tecnico: 'Técnico', vendedor: 'Vendedor', secretaria: 'Secretaría' };
 const roleBadge = { admin: 'badge-blue', tecnico: 'badge-amber', vendedor: 'badge-green', secretaria: 'badge-gray' };
 
-export default function UsersClient({ profiles, currentRole }) {
+// Names get compared ignoring case/accents so "Ricardo Diaz" (profile) still
+// matches "Ricardo Díaz" (technician row) instead of looking unlinked.
+const normalizeName = s => s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+export default function UsersClient({ profiles, technicians, currentRole }) {
   const router = useRouter();
   const [showInvite, setShowInvite] = useState(false);
   const [invite, setInvite] = useState({ email: '', name: '', role: 'tecnico', password: '' });
@@ -19,7 +23,13 @@ export default function UsersClient({ profiles, currentRole }) {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
 
+  const [editUser, setEditUser] = useState(null); // { id, name } or null
+  const [editForm, setEditForm] = useState({ name: '', email: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+
   const canChangeRole = currentRole !== 'secretaria';
+  const techNames = new Set((technicians ?? []).map(t => normalizeName(t.name)));
 
   async function sendInvite(e) {
     e.preventDefault();
@@ -55,16 +65,13 @@ export default function UsersClient({ profiles, currentRole }) {
 
     // Promoting someone to técnico must also give them a technicians row,
     // or they silently can't be assigned to jobs or show up in payroll.
-    if (newRole === 'tecnico') {
-      const { data: existing, error: lookupError } = await supabase.from('technicians').select('id').ilike('name', profileName).maybeSingle();
-      if (!lookupError && !existing) {
-        const slug = profileName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
-        const { error: techError } = await supabase.from('technicians').insert([{ name: profileName, username: slug || profileId.slice(0, 8) }]);
-        if (techError) {
-          setSuccess(`⚠️ Rol cambiado, pero no se pudo crear el registro de técnico: ${techError.message}`);
-        } else {
-          setSuccess(`✓ ${profileName} ahora es técnico y ya puede asignarse a trabajos.`);
-        }
+    if (newRole === 'tecnico' && !techNames.has(normalizeName(profileName))) {
+      const slug = profileName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
+      const { error: techError } = await supabase.from('technicians').insert([{ name: profileName, username: slug || profileId.slice(0, 8) }]);
+      if (techError) {
+        setSuccess(`⚠️ Rol cambiado, pero no se pudo crear el registro de técnico: ${techError.message}`);
+      } else {
+        setSuccess(`✓ ${profileName} ahora es técnico y ya puede asignarse a trabajos.`);
       }
     }
     router.refresh();
@@ -79,6 +86,42 @@ export default function UsersClient({ profiles, currentRole }) {
     });
     const data = await res.json();
     if (data.error) { alert('Error: ' + data.error); return; }
+    router.refresh();
+  }
+
+  async function enableAsTechnician(profile) {
+    if (techNames.has(normalizeName(profile.name))) {
+      setSuccess(`${profile.name} ya tiene un registro de técnico.`);
+      return;
+    }
+    const slug = profile.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
+    const { error: techError } = await supabase.from('technicians').insert([{ name: profile.name, username: slug || profile.id.slice(0, 8) }]);
+    if (techError) {
+      setSuccess(`⚠️ No se pudo crear el registro de técnico: ${techError.message}`);
+      return;
+    }
+    setSuccess(`✓ ${profile.name} ya puede asignarse a trabajos y aparecerá en Payroll/Timesheet.`);
+    router.refresh();
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault();
+    setSavingEdit(true);
+    setEditError('');
+    const res = await fetch('/api/update-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: editUser.id, name: editForm.name, email: editForm.email }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      setEditError(data.error);
+      setSavingEdit(false);
+      return;
+    }
+    setSuccess(data.warning ? `Usuario actualizado — ⚠️ ${data.warning}` : 'Usuario actualizado correctamente');
+    setEditUser(null);
+    setSavingEdit(false);
     router.refresh();
   }
 
@@ -158,6 +201,25 @@ export default function UsersClient({ profiles, currentRole }) {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {canChangeRole && (
+                        <button
+                          className="btn btn-ghost"
+                          style={{ fontSize: 12, padding: '5px 10px' }}
+                          onClick={() => { setEditUser({ id: p.id, name: p.name }); setEditForm({ name: p.name, email: p.email }); setEditError(''); }}
+                        >
+                          ✏️ Editar
+                        </button>
+                      )}
+                      {canChangeRole && !techNames.has(normalizeName(p.name)) && (
+                        <button
+                          className="btn btn-ghost"
+                          style={{ fontSize: 12, padding: '5px 10px' }}
+                          onClick={() => enableAsTechnician(p)}
+                          title="Crea su registro de técnico sin cambiar su rol, para poder asignarlo a trabajos y verlo en Payroll/Timesheet"
+                        >
+                          🔧 Habilitar como técnico
+                        </button>
+                      )}
                       <button
                         className="btn btn-ghost"
                         style={{ fontSize: 12, padding: '5px 10px' }}
@@ -218,6 +280,32 @@ export default function UsersClient({ profiles, currentRole }) {
                   {sending ? 'Creando...' : '✅ Crear usuario'}
                 </button>
                 <button type="button" className="btn btn-ghost" onClick={() => setShowInvite(false)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit user modal */}
+      {editUser && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Editar usuario</h2>
+            <form onSubmit={saveEdit}>
+              {editError && <div style={{ background: '#fdecea', color: '#b52a2a', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{editError}</div>}
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label>Nombre completo</label>
+                <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: 24 }}>
+                <label>Email</label>
+                <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} required />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="submit" className="btn btn-primary" disabled={savingEdit} style={{ flex: 1, justifyContent: 'center' }}>
+                  {savingEdit ? 'Guardando...' : '💾 Guardar'}
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setEditUser(null)}>Cancelar</button>
               </div>
             </form>
           </div>
