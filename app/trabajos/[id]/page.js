@@ -1,16 +1,9 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { supabaseServer as supabase } from '../../../lib/supabase';
-import { createClient } from '@supabase/supabase-js';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import JobTabs from './JobTabs';
-
-// Service role client for generating signed URLs
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 const statusBadge = {
   estimate:    { cls: 'badge-gray',  label: 'Estimado' },
@@ -56,7 +49,7 @@ export default async function TrabajoDetail({ params }) {
         filePath = pathParts[1];
         if (!filePath) return null;
       }
-      const { data } = await supabaseAdmin.storage.from('Job-photos').createSignedUrl(filePath, 3600);
+      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(filePath, 3600);
       return data?.signedUrl ?? null;
     } catch {
       return null;

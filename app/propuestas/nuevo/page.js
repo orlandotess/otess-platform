@@ -310,7 +310,7 @@ export default function NuevaPropuesta() {
             </div>
           </div>
 
-          {options.map(opt => (
+          {options.map((opt, optIndex) => (
             <div key={opt.key} className="card" style={{ border: opt.is_recommended ? '2px solid var(--amber)' : undefined }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                 {multiOption ? (
@@ -336,7 +336,7 @@ export default function NuevaPropuesta() {
               )}
 
               {/* Áreas */}
-              {opt.areas.map(area => (
+              {opt.areas.map((area, areaIndex) => (
                 <div key={area.key} style={{ background: '#f8f9fb', border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <input value={area.name} onChange={e => updateAreaName(opt.key, area.key, e.target.value)}
@@ -346,7 +346,7 @@ export default function NuevaPropuesta() {
                     )}
                   </div>
 
-                  {area.items.map(it => (
+                  {area.items.map((it, itemIndex) => (
                     <div key={it.key} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
                       <label style={{ cursor: 'pointer', flexShrink: 0 }}>
                         {it.photoPreview ? (
@@ -364,10 +364,10 @@ export default function NuevaPropuesta() {
                             <option value="product">Producto</option>
                           </select>
                         </div>
-                        <input list={`cat-${it.key}`} value={it.description}
+                        <input list={`cat-${optIndex}-${areaIndex}-${itemIndex}`} value={it.description}
                           onChange={e => handleCatalogSelect(opt.key, area.key, it.key, e.target.value)}
                           placeholder="Descripción o código..." style={{ fontSize: 13.5, fontWeight: 700, width: '100%' }} />
-                        <datalist id={`cat-${it.key}`}>
+                        <datalist id={`cat-${optIndex}-${areaIndex}-${itemIndex}`}>
                           {catalogItems.filter(c => c.type === it.item_type).map(c => (
                             <option key={c.id} value={`${c.item_code} — ${c.description}`} />
                           ))}

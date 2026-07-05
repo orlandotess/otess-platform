@@ -1,14 +1,7 @@
 export const dynamic = 'force-dynamic';
 
-import { createClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
 import Link from 'next/link';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { supabaseServer as supabase } from '../../../lib/supabase';
 
 export default async function FacturaPublica({ params }) {
   const { id } = params;
@@ -20,22 +13,29 @@ export default async function FacturaPublica({ params }) {
     supabase.from('retenciones').select('retencion_aplicada').eq('invoice_id', id),
   ]);
 
-  // Trackear vista + notificar por email
+  // Trackear vista + notificar por email — nunca debe impedir que el cliente
+  // vea su factura, así que cualquier fallo (incluyendo Resend sin configurar) se ignora.
   if (inv) {
     await supabase.from('invoice_views').insert([{ invoice_id: id }]);
 
-    await resend.emails.send({
-      from: 'OTESS <info@otesspr.com>',
-      to: 'services@otesspr.com',
-      subject: `👁️ Factura ${inv.invoice_number} fue abierta`,
-      html: `
-        <div style="font-family:Arial,sans-serif;padding:20px">
-          <p style="font-size:15px;color:#16223d"><strong>${inv.clients?.name ?? 'Un cliente'}</strong> abrió la factura <strong>${inv.invoice_number}</strong>.</p>
-          <p style="font-size:13px;color:#888">Fecha: ${new Date().toLocaleString('es-PR', { dateStyle: 'medium', timeStyle: 'short' })}</p>
-          <a href="https://app.otesspr.com/facturas/${id}" style="color:#e0972c;font-size:13px">Ver factura en el dashboard →</a>
-        </div>
-      `,
-    }).catch(err => console.error('Error notificando vista:', err));
+    try {
+      const { Resend } = await import('resend');
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: 'OTESS <info@otesspr.com>',
+        to: 'services@otesspr.com',
+        subject: `👁️ Factura ${inv.invoice_number} fue abierta`,
+        html: `
+          <div style="font-family:Arial,sans-serif;padding:20px">
+            <p style="font-size:15px;color:#16223d"><strong>${inv.clients?.name ?? 'Un cliente'}</strong> abrió la factura <strong>${inv.invoice_number}</strong>.</p>
+            <p style="font-size:13px;color:#888">Fecha: ${new Date().toLocaleString('es-PR', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            <a href="https://app.otesspr.com/facturas/${id}" style="color:#e0972c;font-size:13px">Ver factura en el dashboard →</a>
+          </div>
+        `,
+      });
+    } catch (err) {
+      console.error('Error notificando vista:', err);
+    }
   }
 
   // Fetch attached job notes (photos/videos/PDFs selected by admin)

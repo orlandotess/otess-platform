@@ -1,12 +1,8 @@
 import { Resend } from 'resend';
-import { createClient } from '@supabase/supabase-js';
 import { withRetry } from '../../../../lib/withRetry';
+import { supabaseServer as supabase } from '../../../../lib/supabase';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 const APP_URL = 'https://app.otesspr.com';

@@ -24,6 +24,13 @@ export default async function CalendarioPage({ searchParams }) {
     .select('id, name')
     .order('name');
 
+  // Client service requests waiting to be scheduled into a visit.
+  const { data: pendingRequests } = await supabase
+    .from('requests')
+    .select('id, title, status, clients(name)')
+    .not('status', 'in', '(agendado,cancelado)')
+    .order('created_at', { ascending: true });
+
   return (
     <div className="admin-shell">
       <Sidebar />
@@ -31,6 +38,8 @@ export default async function CalendarioPage({ searchParams }) {
         <CalendarioClient
           jobs={jobs ?? []}
           technicians={technicians ?? []}
+          visits={[]}
+          pendingRequests={pendingRequests ?? []}
           initialView={view}
           initialYear={year}
           initialMonth={month}
