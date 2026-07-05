@@ -73,10 +73,10 @@ function computePayroll(start, end, techs, ents) {
   return total;
 }
 
-function PeriodSection({ label, revenue, ivu, payroll, fmt }) {
+function PeriodSection({ label, id, revenue, ivu, payroll, fmt }) {
   const netEst = revenue.collected - payroll - ivu.ivuTotal;
   return (
-    <div className="card" style={{ marginBottom: 24 }}>
+    <div className="card" id={id} style={{ marginBottom: 24, scrollMarginTop: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: '2px solid var(--border)' }}>
         <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0 }}>{label}</h2>
         <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>{revenue.count} facturas</span>
@@ -156,15 +156,53 @@ import AccountingDashboardClient from './accounting-dashboard-client';
 import DashboardSearch from './DashboardSearch';
 import InboxWidget from './InboxWidget';
 import AccountingCalendarWidget from './AccountingCalendarWidget';
+import MonthPeriodSelector from './MonthPeriodSelector';
+import WeekPeriodSelector from './WeekPeriodSelector';
+import YearPeriodSelector from './YearPeriodSelector';
 
 export default async function AccountingDashboard({ searchParams }) {
-  const { yearStart, yearEnd, monthStart, monthEnd, weekStart, weekEnd, year, month } = getPeriods();
+  const { yearStart, yearEnd, year, month } = getPeriods();
+
+  // The "month" section defaults to the current month but can be changed to
+  // any month via the ?myear=&mmonth= query params (set by MonthPeriodSelector).
+  const selMonthYear = parseInt(searchParams?.myear ?? year);
+  const selMonth = parseInt(searchParams?.mmonth ?? month);
+  const monthStart = new Date(selMonthYear, selMonth, 1).toISOString();
+  const monthEnd = new Date(selMonthYear, selMonth + 1, 0, 23, 59, 59).toISOString();
+
+  // The "week" section defaults to the current week (Mon–Sun) but can be
+  // changed via ?wstart= (the Monday date, set by WeekPeriodSelector).
+  const now = new Date();
+  const nowDiffToMon = (now.getDay() + 6) % 7;
+  const currentMonday = new Date(now);
+  currentMonday.setDate(now.getDate() - nowDiffToMon);
+  const currentMondayStr = `${currentMonday.getFullYear()}-${String(currentMonday.getMonth() + 1).padStart(2, '0')}-${String(currentMonday.getDate()).padStart(2, '0')}`;
+  const selWeekStartStr = searchParams?.wstart ?? currentMondayStr;
+  const selWeekStart = new Date(`${selWeekStartStr}T00:00:00`);
+  const selWeekEnd = new Date(selWeekStart);
+  selWeekEnd.setDate(selWeekStart.getDate() + 6);
+  selWeekEnd.setHours(23, 59, 59, 999);
+  const selWeekStartISO = selWeekStart.toISOString();
+  const selWeekEndISO = selWeekEnd.toISOString();
+
+  // The "año" section defaults to the current year but can be changed via
+  // ?yyear= (set by YearPeriodSelector).
+  const selYear = parseInt(searchParams?.yyear ?? year);
+  const selYearStart = new Date(selYear, 0, 1).toISOString();
+  const selYearEnd = new Date(selYear, 11, 31, 23, 59, 59).toISOString();
+
+  // Payroll needs to cover the current year (for quarters), plus whatever
+  // month/week/year is selected, in case those fall outside the current year.
+  const rangeStarts = [yearStart, monthStart, selWeekStartISO, selYearStart];
+  const rangeEnds = [yearEnd, monthEnd, selWeekEndISO, selYearEnd];
+  const entriesFetchStart = rangeStarts.reduce((a, b) => (a < b ? a : b));
+  const entriesFetchEnd = rangeEnds.reduce((a, b) => (a > b ? a : b));
 
   const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: allPayments }, { data: inboxNotifications }] = await Promise.all([
     supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name)').order('issued_at', { ascending: false }),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount'),
     supabase.from('technicians').select('id, hourly_rate'),
-    supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at').not('clocked_out_at', 'is', null).gte('clocked_in_at', yearStart).lte('clocked_in_at', yearEnd),
+    supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at').not('clocked_out_at', 'is', null).gte('clocked_in_at', entriesFetchStart).lte('clocked_in_at', entriesFetchEnd),
     supabase.from('payments').select('invoice_id, amount, paid_at'),
     supabase.from('inbox_notifications').select('*').order('created_at', { ascending: false }).limit(20),
   ]);
@@ -185,12 +223,9 @@ export default async function AccountingDashboard({ searchParams }) {
   const filterInvs = (start, end) => invoices.filter(i => i.issued_at && i.issued_at >= start.slice(0, 10) && i.issued_at <= end.slice(0, 10));
   const getIds = (start, end) => new Set(filterInvs(start, end).map(i => i.id));
 
-  const monthName = new Date(year, month, 1).toLocaleString('es-PR', { month: 'long' });
-  const monthLabel = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-
-  const weekInvs = filterInvs(weekStart, weekEnd);
+  const weekInvs = filterInvs(selWeekStartISO, selWeekEndISO);
   const monthInvs = filterInvs(monthStart, monthEnd);
-  const yearInvs = filterInvs(yearStart, yearEnd);
+  const yearInvs = filterInvs(selYearStart, selYearEnd);
 
   // Quarter data
   const quarters = [
@@ -235,24 +270,27 @@ export default async function AccountingDashboard({ searchParams }) {
         <InboxWidget notifications={inboxNotifications ?? []} />
 
         <PeriodSection
-          label="📅 Esta semana"
+          id="esta-semana"
+          label={<WeekPeriodSelector weekStart={selWeekStartStr} />}
           revenue={computeRevenue(weekInvs, paymentsByInvoice)}
-          ivu={computeIVU(getIds(weekStart, weekEnd), lines)}
-          payroll={computePayroll(weekStart, weekEnd, techs, entries)}
+          ivu={computeIVU(getIds(selWeekStartISO, selWeekEndISO), lines)}
+          payroll={computePayroll(selWeekStartISO, selWeekEndISO, techs, entries)}
           fmt={fmt}
         />
         <PeriodSection
-          label={`🗓 ${monthLabel} ${year}`}
+          id="mes-seleccionado"
+          label={<MonthPeriodSelector year={selMonthYear} month={selMonth} />}
           revenue={computeRevenue(monthInvs, paymentsByInvoice)}
           ivu={computeIVU(getIds(monthStart, monthEnd), lines)}
           payroll={computePayroll(monthStart, monthEnd, techs, entries)}
           fmt={fmt}
         />
         <PeriodSection
-          label={`📆 Año ${year}`}
+          id="ano-seleccionado"
+          label={<YearPeriodSelector year={selYear} />}
           revenue={computeRevenue(yearInvs, paymentsByInvoice)}
-          ivu={computeIVU(getIds(yearStart, yearEnd), lines)}
-          payroll={computePayroll(yearStart, yearEnd, techs, entries)}
+          ivu={computeIVU(getIds(selYearStart, selYearEnd), lines)}
+          payroll={computePayroll(selYearStart, selYearEnd, techs, entries)}
           fmt={fmt}
         />
       </main>
