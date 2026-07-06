@@ -1,23 +1,11 @@
 'use client';
 import { useState } from 'react';
+import ProposalDocument, { financialBreakdown } from '../../propuestas/ProposalDocument';
 
 const NAVY = '#16223d';
 const AMBER = '#e0972c';
 
-function financialBreakdown(opt, clientType, taxRules) {
-  let parts = 0, labor = 0, taxParts = 0, taxLabor = 0;
-  (opt.items ?? []).forEach(it => {
-    const base = (it.quantity || 0) * (it.unit_price || 0);
-    const lineType = it.item_type === 'product' ? 'product' : 'labor';
-    const rule = (taxRules ?? []).find(r => r.client_type === clientType && r.line_item_type === lineType);
-    const rate = rule?.rate ?? 0.115;
-    if (lineType === 'product') { parts += base; taxParts += base * rate; }
-    else { labor += base; taxLabor += base * rate; }
-  });
-  return { parts, labor, taxParts, taxLabor, tax: taxParts + taxLabor, subtotal: parts + labor, total: parts + labor + taxParts + taxLabor };
-}
-
-export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl, taxRules, payments }) {
+export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl, taxRules, payments, companyInfo, primaryAddress }) {
   const [selectedId, setSelectedId] = useState(
     options.find(o => o.is_recommended)?.id ?? options[0]?.id ?? null
   );
@@ -25,12 +13,33 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState(proposal.status === 'aprobada');
   const [error, setError] = useState('');
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
   const fmt = n => `$${(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const optionTotal = opt => financialBreakdown(opt, clientType, taxRules).total;
+  const optionTotal = opt => financialBreakdown(opt.items, clientType, taxRules).total;
 
   const canApprove = selectedId && (!proposal.requires_signature || signedName.trim().length > 1);
+
+  async function handlePdf() {
+    setGeneratingPdf(true);
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      const element = document.getElementById('proposal-doc-public');
+      const opt = {
+        margin: 0,
+        filename: `${proposal.proposal_number}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+        pagebreak: { mode: 'css' },
+      };
+      await html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.error('PDF error:', err);
+    }
+    setGeneratingPdf(false);
+  }
 
   async function handleApprove() {
     if (!canApprove) return;
@@ -114,13 +123,14 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                 <div style={{ fontSize: 20, fontWeight: 700, color: NAVY, marginBottom: 12 }}>{fmt(optionTotal(opt))}</div>
                 <div style={{ display: 'grid', gap: 16 }}>
                   {Object.entries(
-                    (opt.items ?? []).reduce((groups, it) => {
+                    (opt.items ?? []).filter(it => !it.parent_item_id).reduce((groups, it) => {
                       const area = it.area || 'General';
                       (groups[area] = groups[area] || []).push(it);
                       return groups;
                     }, {})
                   ).map(([areaName, areaItems]) => {
-                    const areaTotal = areaItems.reduce((s, it) => s + (it.quantity || 0) * (it.unit_price || 0), 0);
+                    const lineTotal = it => (it.quantity || 0) * (it.unit_price || 0) - (it.discount_amount || 0);
+                    const areaTotal = areaItems.reduce((s, it) => s + lineTotal(it), 0);
                     return (
                       <div key={areaName}>
                         {areaName !== 'General' && (
@@ -145,7 +155,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                               <span style={{ fontSize: 12.5, color: '#555', flex: 1 }}>{it.description}</span>
                               <span style={{ width: 60, textAlign: 'right', fontSize: 12, color: '#999' }}>{fmt(it.unit_price)}</span>
                               <span style={{ width: 30, textAlign: 'center', fontSize: 12, color: '#999' }}>x{it.quantity}</span>
-                              <span style={{ width: 70, textAlign: 'right', fontSize: 13, fontWeight: 600, color: NAVY }}>{fmt(it.quantity * it.unit_price)}</span>
+                              <span style={{ width: 70, textAlign: 'right', fontSize: 13, fontWeight: 600, color: NAVY }}>{fmt(lineTotal(it))}</span>
                             </div>
                           ))}
                         </div>
@@ -164,40 +174,17 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
         {selectedId && (() => {
           const opt = options.find(o => o.id === selectedId);
           if (!opt) return null;
-          const fb = financialBreakdown(opt, clientType, taxRules);
           return (
-            <div style={{ background: '#fff', borderRadius: 10, padding: 24, marginBottom: 14, border: '1px solid #eee' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Resumen — {opt.name}</div>
-              <div style={{ display: 'grid', gap: 6, fontSize: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#999' }}>Subtotal productos</span><span>{fmt(fb.parts)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#999' }}>IVU productos (11.5%)</span><span>{fmt(fb.taxParts)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#999' }}>Subtotal labor</span><span>{fmt(fb.labor)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#999' }}>IVU labor ({clientType === 'b2b' ? '4%' : '11.5%'})</span><span>{fmt(fb.taxLabor)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 17, color: NAVY, marginTop: 6, paddingTop: 10, borderTop: '1px solid #eee' }}>
-                  <span>Total</span><span>{fmt(fb.total)}</span>
-                </div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                <button onClick={handlePdf} disabled={generatingPdf}
+                  style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', color: NAVY }}>
+                  {generatingPdf ? '⏳ Generando...' : '🖨️ Descargar PDF'}
+                </button>
               </div>
-            </div>
-          );
-        })()}
-
-        {selectedId && payments && payments.length > 0 && (() => {
-          const opt = options.find(o => o.id === selectedId);
-          if (!opt) return null;
-          const fb = financialBreakdown(opt, clientType, taxRules);
-          const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
-          return (
-            <div style={{ background: '#fff', borderRadius: 10, padding: 24, marginBottom: 14, border: '1px solid #eee' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Payment Schedule</div>
-              {payments.map(p => (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f4f4f4' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{p.label}</div>
-                    <div style={{ fontSize: 11.5, color: '#999' }}>{p.percent}% de {p.basis === 'parts' ? 'Parts' : p.basis === 'labor' ? 'Labor' : 'Subtotal'}{p.due_trigger ? ` · ${p.due_trigger}` : ''}</div>
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>{fmt((basisAmount[p.basis] ?? 0) * (p.percent / 100))}</div>
-                </div>
-              ))}
+              <div id="proposal-doc-public" style={{ background: '#fff', borderRadius: 10, overflow: 'hidden', border: '1px solid #eee' }}>
+                <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} />
+              </div>
             </div>
           );
         })()}
@@ -217,18 +204,6 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
           </button>
         </div>
 
-        {(proposal.terms || proposal.valid_until) && (
-          <div style={{ marginTop: 20, padding: '0 4px' }}>
-            {proposal.valid_until && (
-              <p style={{ fontSize: 12, color: '#999', marginBottom: 6 }}>
-                Esta propuesta es válida hasta el {new Date(proposal.valid_until + 'T00:00:00').toLocaleDateString('es-PR', { year: 'numeric', month: 'long', day: 'numeric' })}.
-              </p>
-            )}
-            {proposal.terms && (
-              <p style={{ fontSize: 11.5, color: '#bbb', lineHeight: 1.6 }}>{proposal.terms}</p>
-            )}
-          </div>
-        )}
       </div>
       </div>
     </div>

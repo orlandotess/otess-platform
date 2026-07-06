@@ -2,31 +2,41 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
+import ProposalDocument, { financialBreakdown } from '../ProposalDocument';
 
 const STATUS_COLORS = { borrador: '#888', enviada: '#2a4cb5', vista: '#e0972c', aprobada: '#27ae60', rechazada: '#c0392b' };
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', aprobada: 'Aprobada', rechazada: 'Rechazada' };
 
-function financialBreakdown(opt, clientType, taxRules) {
-  let parts = 0, labor = 0, taxParts = 0, taxLabor = 0;
-  (opt.items ?? []).forEach(it => {
-    const base = (it.quantity || 0) * (it.unit_price || 0);
-    const lineType = it.item_type === 'product' ? 'product' : 'labor';
-    const rule = taxRules.find(r => r.client_type === clientType && r.line_item_type === lineType);
-    const rate = rule?.rate ?? 0.115;
-    if (lineType === 'product') { parts += base; taxParts += base * rate; }
-    else { labor += base; taxLabor += base * rate; }
-  });
-  return { parts, labor, taxParts, taxLabor, subtotal: parts + labor, tax: taxParts + taxLabor, total: parts + labor + taxParts + taxLabor };
-}
-
-export default function PropuestaDetailClient({ proposal, options, taxRules, payments }) {
+export default function PropuestaDetailClient({ proposal, options, taxRules, payments, companyInfo, primaryAddress }) {
   const router = useRouter();
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
   const [status, setStatus] = useState(proposal.status);
+  const [generatingPdf, setGeneratingPdf] = useState(null);
+
+  async function handlePdf(optId) {
+    setGeneratingPdf(optId);
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      const element = document.getElementById(`proposal-doc-${optId}`);
+      const opt = {
+        margin: 0,
+        filename: `${proposal.proposal_number}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+        pagebreak: { mode: 'css' },
+      };
+      await html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.error('PDF error:', err);
+    }
+    setGeneratingPdf(null);
+  }
 
   const fmt = n => `$${(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const optionTotal = opt => (opt.items ?? []).reduce((sum, it) => sum + (it.quantity || 0) * (it.unit_price || 0), 0);
+  const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
+  const optionTotal = opt => financialBreakdown(opt.items, clientType, taxRules ?? []).total;
 
   const publicUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/propuesta/${proposal.public_token}`
@@ -34,10 +44,22 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
 
   async function handleSend() {
     setSending(true);
-    await supabase.from('proposals').update({ status: 'enviada', sent_at: new Date().toISOString() }).eq('id', proposal.id);
-    setStatus('enviada');
-    setSending(false);
-    router.refresh();
+    try {
+      const res = await fetch('/api/propuestas/enviar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposalId: proposal.id }),
+      });
+      const data = await res.json();
+      if (data.error) { alert('Error: ' + data.error); return; }
+      setStatus('enviada');
+      if (data.warning) alert(data.warning);
+      router.refresh();
+    } catch (err) {
+      alert('Error al enviar la propuesta: ' + err.message);
+    } finally {
+      setSending(false);
+    }
   }
 
   function copyLink() {
@@ -62,6 +84,11 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
           {status === 'borrador' && (
             <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
               {sending ? 'Enviando...' : 'Enviar propuesta'}
+            </button>
+          )}
+          {status !== 'borrador' && status !== 'aprobada' && status !== 'rechazada' && (
+            <button className="btn btn-ghost" disabled={sending} onClick={handleSend}>
+              {sending ? 'Enviando...' : '↻ Reenviar propuesta'}
             </button>
           )}
         </div>
@@ -90,116 +117,45 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         </div>
       )}
 
-      {proposal.status === 'aprobada' && proposal.signed_name && (
+      {proposal.status === 'aprobada' && (
         <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid #27ae60', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#1a7a3d' }}>
-          Firmada por <strong>{proposal.signed_name}</strong> el {new Date(proposal.signed_at).toLocaleString('es-PR')}
+          {proposal.approved_option_id && (
+            <div>Opción elegida: <strong>{options.find(o => o.id === proposal.approved_option_id)?.name ?? '—'}</strong></div>
+          )}
+          {proposal.signed_name && (
+            <div style={{ marginTop: proposal.approved_option_id ? 4 : 0 }}>
+              Firmada por <strong>{proposal.signed_name}</strong> el {new Date(proposal.signed_at).toLocaleString('es-PR')}
+            </div>
+          )}
+          {proposal.approved_at && (
+            <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>
+              Aprobada el {new Date(proposal.approved_at).toLocaleString('es-PR')}
+            </div>
+          )}
         </div>
       )}
 
       <div style={{ display: 'grid', gap: 20 }}>
         {options.map(opt => (
-          <div key={opt.id} className="card" style={{ border: opt.is_recommended ? '1.5px solid var(--navy)' : undefined }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div key={opt.id}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div>
                 <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{opt.name}</span>
                 {opt.is_recommended && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--amber)' }}>RECOMENDADA</span>}
                 {proposal.approved_option_id === opt.id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#27ae60' }}>ELEGIDA POR CLIENTE</span>}
+                <span style={{ marginLeft: 12, fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{fmt(optionTotal(opt))}</span>
               </div>
-              <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--navy)' }}>{fmt(optionTotal(opt))}</span>
+              <button className="btn btn-ghost" onClick={() => handlePdf(opt.id)} disabled={generatingPdf === opt.id}>
+                {generatingPdf === opt.id ? '⏳ Generando...' : '🖨️ PDF'}
+              </button>
             </div>
             {opt.description && <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>{opt.description}</p>}
-
-            {Object.entries(
-              (opt.items ?? []).reduce((groups, it) => {
-                const area = it.area || 'General';
-                (groups[area] = groups[area] || []).push(it);
-                return groups;
-              }, {})
-            ).map(([areaName, areaItems]) => (
-              <div key={areaName} style={{ marginBottom: 12 }}>
-                {areaName !== 'General' && (
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6, marginTop: 8 }}>{areaName}</div>
-                )}
-                {areaItems.map(it => {
-                  const margin = (it.unit_price || 0) - (it.supplier_price || 0);
-                  return (
-                    <div key={it.id} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-                      <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 8, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                        {it.photo_signed_url ? (
-                          <img src={it.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                        ) : (
-                          <span style={{ fontSize: 20, color: 'var(--muted)' }}>{it.item_type === 'product' ? '📦' : '🔧'}</span>
-                        )}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700 }}>
-                          {it.description}
-                          <span style={{ fontSize: 10, fontWeight: 700, color: it.item_type === 'product' ? '#2a4cb5' : '#888', marginLeft: 8, textTransform: 'uppercase' }}>
-                            {it.item_type === 'product' ? 'Producto' : 'Labor'}
-                          </span>
-                        </div>
-                        {it.supplier_price != null && (
-                          <div style={{ fontSize: 11, color: '#c0392b', marginTop: 2 }}>
-                            Costo suplidor: {fmt(it.supplier_price)} <span style={{ color: '#27ae60', marginLeft: 8 }}>Margen: {fmt(margin)}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0, width: 90 }}>
-                        {it.msrp != null && <div style={{ fontSize: 11, color: 'var(--muted)', textDecoration: 'line-through' }}>msrp {fmt(it.msrp)}</div>}
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(it.unit_price)}</div>
-                      </div>
-                      <div style={{ width: 40, textAlign: 'center', fontWeight: 600, fontSize: 14, flexShrink: 0 }}>{it.quantity}</div>
-                      <div style={{ textAlign: 'right', flexShrink: 0, width: 90 }}>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{fmt(it.quantity * it.unit_price)}</div>
-                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>Combinado</div>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: 12.5, fontWeight: 700, color: 'var(--navy)', paddingTop: 6 }}>
-                  {areaName} Total: {fmt(areaItems.reduce((s, it) => s + it.quantity * it.unit_price, 0))}
-                </div>
-              </div>
-            ))}
-
-            {(() => {
-              const fb = financialBreakdown(opt, proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final', taxRules ?? []);
-              return (
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)', display: 'grid', gap: 6 }}>
-                  <div className="total-line"><span>Subtotal productos</span><span>{fmt(fb.parts)}</span></div>
-                  <div className="total-line"><span>IVU productos (11.5%)</span><span>{fmt(fb.taxParts)}</span></div>
-                  <div className="total-line"><span>Subtotal labor</span><span>{fmt(fb.labor)}</span></div>
-                  <div className="total-line">
-                    <span>IVU labor ({(proposal.tax_client_type ?? proposal.clients?.client_type) === 'b2b' ? '4%' : '11.5%'})</span>
-                    <span>{fmt(fb.taxLabor)}</span>
-                  </div>
-                  <div className="total-final"><span>Total</span><span>{fmt(fb.total)}</span></div>
-                </div>
-              );
-            })()}
+            <div id={`proposal-doc-${opt.id}`} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} />
+            </div>
           </div>
         ))}
       </div>
-
-      {payments && payments.length > 0 && (() => {
-        const mainOpt = options.find(o => proposal.approved_option_id === o.id) ?? options.find(o => o.is_recommended) ?? options[0];
-        const fb = financialBreakdown(mainOpt, proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final', taxRules ?? []);
-        const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
-        return (
-          <div className="card" style={{ marginTop: 20 }}>
-            <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', marginBottom: 14 }}>Payment Schedule</p>
-            {payments.map(p => (
-              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{p.label}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{p.percent}% de {p.basis === 'parts' ? 'Parts' : p.basis === 'labor' ? 'Labor' : 'Subtotal'}{p.due_trigger ? ` · ${p.due_trigger}` : ''}</div>
-                </div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{fmt((basisAmount[p.basis] ?? 0) * (p.percent / 100))}</div>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import PropuestaPublicClient from './public-client';
 export default async function PropuestaPublicPage({ params }) {
   const { data: proposal } = await supabase
     .from('proposals')
-    .select('*, clients(name, client_type), proposal_options(*, proposal_line_items(*))')
+    .select('*, clients(name, email, phone, company, client_type, client_addresses(*)), proposal_options(*, proposal_line_items(*))')
     .eq('public_token', params.token)
     .single();
 
@@ -21,6 +21,9 @@ export default async function PropuestaPublicPage({ params }) {
 
   const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
   const { data: payments } = await supabase.from('proposal_payments').select('*').eq('proposal_id', proposal.id).order('sort_order');
+  const { data: companyInfo } = await supabase.from('company_settings').select('*').limit(1).single();
+  const rawAddr = proposal.clients?.client_addresses?.find(a => a.is_primary) ?? proposal.clients?.client_addresses?.[0] ?? null;
+  const primaryAddress = rawAddr ? { street: rawAddr.line1, city: rawAddr.city, zip: rawAddr.zip } : null;
 
   // Marcar como vista (solo la primera vez)
   if (!proposal.viewed_at) {
@@ -46,5 +49,5 @@ export default async function PropuestaPublicPage({ params }) {
     coverPhotoUrl = data?.signedUrl ?? null;
   }
 
-  return <PropuestaPublicClient proposal={proposal} options={options} coverPhotoUrl={coverPhotoUrl} taxRules={taxRules ?? []} payments={payments ?? []} />;
+  return <PropuestaPublicClient proposal={proposal} options={options} coverPhotoUrl={coverPhotoUrl} taxRules={taxRules ?? []} payments={payments ?? []} companyInfo={companyInfo ?? null} primaryAddress={primaryAddress} />;
 }

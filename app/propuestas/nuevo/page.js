@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import Sidebar from '../../Sidebar';
 import LineItemRow from '../../LineItemRow';
 
-function emptyItem() {
+function emptyItem(parentKey = null) {
   return {
     key: Math.random().toString(36).slice(2),
+    parentKey,
     item_type: 'labor',
     description: '',
     quantity: 1,
@@ -15,6 +16,7 @@ function emptyItem() {
     unit_price: '',
     supplier_price: '',
     exempt: false,
+    discount: '',
     photoFile: null,
     photoPreview: null,
   };
@@ -40,6 +42,7 @@ export default function NuevaPropuesta() {
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const [title, setTitle] = useState('');
+  const [preparedBy, setPreparedBy] = useState('');
   const [introNote, setIntroNote] = useState('');
   const [requiresSignature, setRequiresSignature] = useState(false);
   const [taxClientType, setTaxClientType] = useState('final');
@@ -66,6 +69,11 @@ export default function NuevaPropuesta() {
   useEffect(() => {
     supabase.from('clients').select('id, name, client_type').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return;
+      const { data: profile } = await supabase.from('profiles').select('name').eq('id', session.user.id).single();
+      if (profile?.name) setPreparedBy(profile.name);
+    });
   }, []);
 
   function toggleMultiOption() {
@@ -97,9 +105,26 @@ export default function NuevaPropuesta() {
       ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: [...a.items, emptyItem()] } : a) }
       : o));
   }
+  // Accessories are inserted right after the last item already belonging to
+  // their parent's group, so they stay visually grouped under it.
+  function addAccessory(optKey, areaKey, parentKey) {
+    setOptions(prev => prev.map(o => o.key === optKey
+      ? { ...o, areas: o.areas.map(a => {
+          if (a.key !== areaKey) return a;
+          let insertAt = a.items.findIndex(it => it.key === parentKey);
+          for (let i = insertAt + 1; i < a.items.length; i++) {
+            if (a.items[i].parentKey === parentKey) insertAt = i;
+            else break;
+          }
+          const items = [...a.items];
+          items.splice(insertAt + 1, 0, emptyItem(parentKey));
+          return { ...a, items };
+        }) }
+      : o));
+  }
   function removeItem(optKey, areaKey, itemKey) {
     setOptions(prev => prev.map(o => o.key === optKey
-      ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.filter(it => it.key !== itemKey) } : a) }
+      ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.filter(it => it.key !== itemKey && it.parentKey !== itemKey) } : a) }
       : o));
   }
   function updateItem(optKey, areaKey, itemKey, field, value) {
@@ -125,8 +150,12 @@ export default function NuevaPropuesta() {
     updateItem(optKey, areaKey, itemKey, 'photoPreview', URL.createObjectURL(file));
   }
 
+  function itemLineTotal(it) {
+    if (it.parentKey) return 0;
+    return (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0) - (parseFloat(it.discount) || 0);
+  }
   function optionTotal(opt) {
-    return opt.areas.reduce((sum, a) => sum + a.items.reduce((s, it) => s + (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0), 0), 0);
+    return opt.areas.reduce((sum, a) => sum + a.items.reduce((s, it) => s + itemLineTotal(it), 0), 0);
   }
   const fmt = n => `$${(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -134,6 +163,14 @@ export default function NuevaPropuesta() {
     if (!file) return;
     setCoverPhoto(file);
     setCoverPreview(URL.createObjectURL(file));
+  }
+
+  async function uploadItemPhoto(it, optionId, sortOrder) {
+    if (!it.photoFile) return null;
+    const ext = it.photoFile.name.split('.').pop();
+    const path = `proposals/${optionId}/${Date.now()}-${sortOrder}.${ext}`;
+    const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, it.photoFile);
+    return upErr ? null : path;
   }
 
   async function handleSave() {
@@ -158,6 +195,7 @@ export default function NuevaPropuesta() {
       proposal_number: `PROP-${nextNum}`,
       client_id: selectedClient.id,
       title: title.trim(),
+      prepared_by: preparedBy.trim() || null,
       intro_note: introNote.trim() || null,
       requires_signature: requiresSignature,
       status: 'borrador',
@@ -180,21 +218,18 @@ export default function NuevaPropuesta() {
       }]).select().single();
       if (optErr) { setError(optErr.message); setSaving(false); return; }
 
+      // Parents are inserted first so their DB ids can be attached to their
+      // accessories' parent_item_id in a second pass.
       let sortOrder = 0;
-      const lineItems = [];
+      const keyToId = {};
       for (const area of opt.areas) {
-        for (const it of area.items) {
-          if (!it.description.trim()) continue;
-          let photoPath = null;
-          if (it.photoFile) {
-            const ext = it.photoFile.name.split('.').pop();
-            const path = `proposals/${optRow.id}/${Date.now()}-${sortOrder}.${ext}`;
-            const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, it.photoFile);
-            if (!upErr) photoPath = path;
-          }
-          lineItems.push({
+        const parents = area.items.filter(it => !it.parentKey && it.description.trim());
+        for (const it of parents) {
+          const photoPath = await uploadItemPhoto(it, optRow.id, sortOrder);
+          const { data: row } = await supabase.from('proposal_line_items').insert([{
             option_id: optRow.id,
             area: area.name,
+            parent_item_id: null,
             item_type: it.item_type,
             description: it.description.trim(),
             quantity: parseFloat(it.quantity) || 1,
@@ -202,12 +237,34 @@ export default function NuevaPropuesta() {
             unit_price: parseFloat(it.unit_price) || 0,
             supplier_price: it.supplier_price !== '' ? parseFloat(it.supplier_price) : null,
             exempt_reason: it.exempt ? 'Exento' : null,
+            discount_amount: it.discount !== '' ? parseFloat(it.discount) : null,
             photo_url: photoPath,
             sort_order: sortOrder++,
-          });
+          }]).select().single();
+          if (row) keyToId[it.key] = row.id;
         }
       }
-      if (lineItems.length) await supabase.from('proposal_line_items').insert(lineItems);
+      for (const area of opt.areas) {
+        const children = area.items.filter(it => it.parentKey && it.description.trim() && keyToId[it.parentKey]);
+        for (const it of children) {
+          const photoPath = await uploadItemPhoto(it, optRow.id, sortOrder);
+          await supabase.from('proposal_line_items').insert([{
+            option_id: optRow.id,
+            area: area.name,
+            parent_item_id: keyToId[it.parentKey],
+            item_type: it.item_type,
+            description: it.description.trim(),
+            quantity: parseFloat(it.quantity) || 1,
+            msrp: null,
+            unit_price: 0,
+            supplier_price: null,
+            exempt_reason: null,
+            discount_amount: null,
+            photo_url: photoPath,
+            sort_order: sortOrder++,
+          }]);
+        }
+      }
     }
 
     const paymentsToInsert = paymentSchedule
@@ -270,6 +327,11 @@ export default function NuevaPropuesta() {
             <div className="form-group">
               <label>Título de la propuesta *</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Sistema de cámaras CCTV — Oficina Caguas" />
+            </div>
+
+            <div className="form-group">
+              <label>Preparado por</label>
+              <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Nombre de quien prepara la propuesta" style={{ maxWidth: 300 }} />
             </div>
 
             <div className="form-group">
@@ -350,31 +412,57 @@ export default function NuevaPropuesta() {
                   </div>
 
                   {area.items.map((it, itemIndex) => (
-                    <LineItemRow
-                      key={it.key}
-                      type={it.item_type}
-                      onTypeChange={v => updateItem(opt.key, area.key, it.key, 'item_type', v)}
-                      description={it.description}
-                      onDescriptionChange={v => handleCatalogSelect(opt.key, area.key, it.key, v)}
-                      catalogOptions={catalogItems.filter(c => c.type === it.item_type)}
-                      datalistId={`cat-${optIndex}-${areaIndex}-${itemIndex}`}
-                      quantity={it.quantity}
-                      onQuantityChange={v => updateItem(opt.key, area.key, it.key, 'quantity', v)}
-                      msrp={it.msrp}
-                      onMsrpChange={v => updateItem(opt.key, area.key, it.key, 'msrp', v)}
-                      unitPrice={it.unit_price}
-                      onUnitPriceChange={v => updateItem(opt.key, area.key, it.key, 'unit_price', v)}
-                      supplierPrice={it.supplier_price}
-                      onSupplierPriceChange={v => updateItem(opt.key, area.key, it.key, 'supplier_price', v)}
-                      exempt={it.exempt}
-                      onExemptChange={v => updateItem(opt.key, area.key, it.key, 'exempt', v)}
-                      photoUrl={it.photoPreview}
-                      onPhotoSelect={file => handleItemPhoto(opt.key, area.key, it.key, file)}
-                      fmt={fmt}
-                      actions={
-                        <button type="button" onClick={() => removeItem(opt.key, area.key, it.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
-                      }
-                    />
+                    it.parentKey ? (
+                      <LineItemRow
+                        key={it.key}
+                        isAccessory
+                        description={it.description}
+                        onDescriptionChange={v => updateItem(opt.key, area.key, it.key, 'description', v)}
+                        catalogOptions={catalogItems}
+                        datalistId={`cat-${optIndex}-${areaIndex}-${itemIndex}`}
+                        quantity={it.quantity}
+                        onQuantityChange={v => updateItem(opt.key, area.key, it.key, 'quantity', v)}
+                        photoUrl={it.photoPreview}
+                        onPhotoSelect={file => handleItemPhoto(opt.key, area.key, it.key, file)}
+                        fmt={fmt}
+                        actions={
+                          <button type="button" onClick={() => removeItem(opt.key, area.key, it.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 15 }}>×</button>
+                        }
+                      />
+                    ) : (
+                      <div key={it.key}>
+                        <LineItemRow
+                          type={it.item_type}
+                          onTypeChange={v => updateItem(opt.key, area.key, it.key, 'item_type', v)}
+                          description={it.description}
+                          onDescriptionChange={v => handleCatalogSelect(opt.key, area.key, it.key, v)}
+                          catalogOptions={catalogItems.filter(c => c.type === it.item_type)}
+                          datalistId={`cat-${optIndex}-${areaIndex}-${itemIndex}`}
+                          quantity={it.quantity}
+                          onQuantityChange={v => updateItem(opt.key, area.key, it.key, 'quantity', v)}
+                          msrp={it.msrp}
+                          onMsrpChange={v => updateItem(opt.key, area.key, it.key, 'msrp', v)}
+                          unitPrice={it.unit_price}
+                          onUnitPriceChange={v => updateItem(opt.key, area.key, it.key, 'unit_price', v)}
+                          supplierPrice={it.supplier_price}
+                          onSupplierPriceChange={v => updateItem(opt.key, area.key, it.key, 'supplier_price', v)}
+                          exempt={it.exempt}
+                          onExemptChange={v => updateItem(opt.key, area.key, it.key, 'exempt', v)}
+                          discount={it.discount}
+                          onDiscountChange={v => updateItem(opt.key, area.key, it.key, 'discount', v)}
+                          photoUrl={it.photoPreview}
+                          onPhotoSelect={file => handleItemPhoto(opt.key, area.key, it.key, file)}
+                          fmt={fmt}
+                          actions={
+                            <button type="button" onClick={() => removeItem(opt.key, area.key, it.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
+                          }
+                        />
+                        <button type="button" onClick={() => addAccessory(opt.key, area.key, it.key)}
+                          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, marginLeft: 32, marginBottom: 8, marginTop: -4 }}>
+                          + Accesorio
+                        </button>
+                      </div>
+                    )
                   ))}
                   <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key)}>+ Línea</button>
                 </div>

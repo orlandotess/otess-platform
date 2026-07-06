@@ -7,6 +7,7 @@ import { useState } from 'react';
 // so the row stays as compact as Propuestas').
 export default function LineItemRow({
   viewMode = false,
+  isAccessory = false,
   type, onTypeChange,
   description, onDescriptionChange, catalogOptions = [], datalistId,
   quantity, onQuantityChange,
@@ -14,12 +15,53 @@ export default function LineItemRow({
   unitPrice, onUnitPriceChange,
   supplierPrice, onSupplierPriceChange,
   exempt, onExemptChange,
+  discount, onDiscountChange,
   photoUrl, onPhotoSelect, uploadingPhoto = false,
   fmt,
   actions,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const subtotal = (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
+
+  if (isAccessory) {
+    return (
+      <div style={{ display: 'flex', gap: 10, marginBottom: 8, marginLeft: 32, alignItems: 'center', background: '#f8f9fb', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}>
+        <label style={{ cursor: viewMode ? 'default' : 'pointer', flexShrink: 0 }}>
+          {photoUrl ? (
+            <img src={photoUrl} style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 6, background: '#fff' }} />
+          ) : !viewMode ? (
+            <div style={{ width: 36, height: 36, borderRadius: 6, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: 'var(--muted)' }}>
+              {uploadingPhoto ? '...' : '📷'}
+            </div>
+          ) : null}
+          {!viewMode && (
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => onPhotoSelect?.(e.target.files?.[0])} />
+          )}
+        </label>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {viewMode ? (
+            <div style={{ fontSize: 13 }}>{description}</div>
+          ) : (
+            <input list={datalistId} value={description} onChange={e => onDescriptionChange(e.target.value)}
+              placeholder="Accesorio..." style={{ fontSize: 13, width: '100%' }} />
+          )}
+          <datalist id={datalistId}>
+            {catalogOptions.map(c => (
+              <option key={c.id} value={`${c.item_code} — ${c.description}`} />
+            ))}
+          </datalist>
+        </div>
+        <div style={{ textAlign: 'center', flexShrink: 0, width: 40 }}>
+          {viewMode ? (
+            <span style={{ fontSize: 13 }}>x{quantity}</span>
+          ) : (
+            <input type="number" value={quantity} onChange={e => onQuantityChange(e.target.value)} style={{ fontSize: 13, padding: '4px 6px', textAlign: 'center', width: '100%' }} min="0" step="0.01" />
+          )}
+        </div>
+        {actions}
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 10, position: 'relative' }}>
@@ -104,6 +146,13 @@ export default function LineItemRow({
                     style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' }}>
                     {exempt ? '☑ Exento de IVU' : '☐ Marcar exento de IVU'}
                   </button>
+                  {onDiscountChange && (
+                    <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Descuento ($)</label>
+                      <input type="number" value={discount} onChange={e => onDiscountChange(e.target.value)} placeholder="0.00" min="0" step="0.01"
+                        style={{ fontSize: 12.5, padding: '4px 6px', width: '100%' }} onClick={e => e.stopPropagation()} />
+                    </div>
+                  )}
                 </div>
               </>
             )}
