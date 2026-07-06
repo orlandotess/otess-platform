@@ -52,6 +52,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [titleForm, setTitleForm] = useState(job.title ?? '');
   const [descForm, setDescForm] = useState(job.description ?? '');
   const [savingDetails, setSavingDetails] = useState(false);
+  const [editingContact, setEditingContact] = useState(false);
+  const [contactForm, setContactForm] = useState({ contact_name: job.contact_name ?? '', contact_phone: job.contact_phone ?? '', contact_email: job.contact_email ?? '' });
+  const [savingContact, setSavingContact] = useState(false);
 
   async function saveDetails() {
     setSavingDetails(true);
@@ -61,6 +64,18 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     }).eq('id', job.id);
     setSavingDetails(false);
     setEditingDetails(false);
+    router.refresh();
+  }
+
+  async function saveContact() {
+    setSavingContact(true);
+    await supabase.from('jobs').update({
+      contact_name: contactForm.contact_name.trim() || null,
+      contact_phone: contactForm.contact_phone.trim() || null,
+      contact_email: contactForm.contact_email.trim() || null,
+    }).eq('id', job.id);
+    setSavingContact(false);
+    setEditingContact(false);
     router.refresh();
   }
 
@@ -448,16 +463,47 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               )}
             </div>
 
-            {(job.contact_name || job.contact_phone || job.contact_email) && (
-              <div className="card">
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>👤 Contacto encargado</p>
-                {job.contact_name && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>{job.contact_name}</div>}
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {job.contact_phone && <a href={`tel:${job.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.contact_phone}</a>}
-                  {job.contact_email && <a href={`mailto:${job.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.contact_email}</a>}
-                </div>
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>👤 Contacto encargado</p>
+                {!editingContact && (
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => {
+                    setContactForm({ contact_name: job.contact_name ?? '', contact_phone: job.contact_phone ?? '', contact_email: job.contact_email ?? '' });
+                    setEditingContact(true);
+                  }}>✏️ Editar</button>
+                )}
               </div>
-            )}
+              {editingContact ? (
+                <div>
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label>Nombre</label>
+                    <input value={contactForm.contact_name} onChange={e => setContactForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="Nombre del contacto" />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label>Teléfono</label>
+                    <input value={contactForm.contact_phone} onChange={e => setContactForm(f => ({ ...f, contact_phone: e.target.value }))} placeholder="787-000-0000" />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label>Email</label>
+                    <input type="email" value={contactForm.contact_email} onChange={e => setContactForm(f => ({ ...f, contact_email: e.target.value }))} placeholder="contacto@email.com" />
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button className="btn btn-primary" onClick={saveContact} disabled={savingContact}>{savingContact ? 'Guardando...' : '💾 Guardar'}</button>
+                    <button className="btn btn-ghost" onClick={() => setEditingContact(false)}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (job.contact_name || job.contact_phone || job.contact_email) ? (
+                <div>
+                  {job.contact_name && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>{job.contact_name}</div>}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {job.contact_phone && <a href={`tel:${job.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.contact_phone}</a>}
+                    {job.contact_email && <a href={`mailto:${job.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.contact_email}</a>}
+                  </div>
+                </div>
+              ) : (
+                <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin contacto asignado.</p>
+              )}
+            </div>
 
             {(job.street || job.city || job.property_name) && (
               <div className="card">
