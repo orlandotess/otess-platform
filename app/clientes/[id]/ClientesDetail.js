@@ -18,6 +18,13 @@ const statusInv = {
   paid: { cls: 'badge-green', label: 'Pagada' },
   overdue: { cls: 'badge-red', label: 'Vencida' }
 };
+const statusProp = {
+  borrador: { cls: 'badge-gray', label: 'Borrador' },
+  enviada: { cls: 'badge-blue', label: 'Enviada' },
+  vista: { cls: 'badge-amber', label: 'Vista' },
+  aprobada: { cls: 'badge-green', label: 'Aprobada' },
+  rechazada: { cls: 'badge-red', label: 'Rechazada' }
+};
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function extractCoordsFromInput(text) {
@@ -60,7 +67,7 @@ async function resolveShortLink(url) {
   }
 }
 
-export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts, currentRole }) {
+export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts, proposals, currentRole }) {
   const canDeleteClient = currentRole === 'admin' || currentRole === 'secretaria';
   const router = useRouter();
   const [tab, setTab] = useState('info');
@@ -238,6 +245,10 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
           🧾 Facturas
           {invoices.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{invoices.length}</span>}
         </button>
+        <button style={tabStyle('proposals')} onClick={() => setTab('proposals')}>
+          📄 Propuestas
+          {proposals.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{proposals.length}</span>}
+        </button>
       </div>
 
       {/* INFO TAB */}
@@ -321,6 +332,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                 { label: 'Trabajos', value: jobs.length },
                 { label: 'Facturas', value: invoices.length },
                 { label: 'Total facturado', value: fmt(invoices.reduce((a, i) => a + Number(i.total ?? 0), 0)) },
+                { label: 'Propuestas', value: proposals.length },
               ].map(s => (
                 <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
                   <span style={{ color: 'var(--muted)' }}>{s.label}</span>
@@ -715,6 +727,44 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                         <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(inv.created_at).toLocaleDateString('es-PR')}</td>
                         <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* PROPOSALS TAB */}
+      {tab === 'proposals' && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Propuestas</h2>
+            <Link href={`/propuestas/nuevo?client=${client.id}`} className="btn btn-primary">+ Nueva propuesta</Link>
+          </div>
+          {proposals.length === 0 ? (
+            <div className="empty"><p>No hay propuestas para este cliente.</p></div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Título</th><th>Estado</th><th>Total</th><th>Fecha</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {proposals.map(p => {
+                    const b = statusProp[p.status] ?? statusProp.borrador;
+                    const opt = (p.proposal_options ?? []).find(o => o.is_recommended) ?? (p.proposal_options ?? [])[0];
+                    const total = (opt?.proposal_line_items ?? []).reduce((s, li) => s + Number(li.quantity ?? 0) * Number(li.unit_price ?? 0), 0);
+                    return (
+                      <tr key={p.id}>
+                        <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{p.proposal_number}</td>
+                        <td style={{ fontWeight: 600 }}>{p.title}</td>
+                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                        <td style={{ fontWeight: 700 }}>{fmt(total)}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(p.created_at).toLocaleDateString('es-PR')}</td>
+                        <td><Link href={`/propuestas/${p.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
                   })}

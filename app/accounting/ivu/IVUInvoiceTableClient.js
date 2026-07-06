@@ -66,6 +66,33 @@ export default function IVUInvoiceTableClient({ invoices, ivuByInvoice, periodLa
                 );
               })}
             </tbody>
+            <tfoot>
+              {(() => {
+                const totals = visible.reduce((acc, inv) => {
+                  const v = ivuByInvoice[inv.id] ?? { ivuProducts: 0, ivuLaborFinal: 0, ivuLaborB2B: 0 };
+                  const finalBase = v.ivuProducts + v.ivuLaborFinal;
+                  acc.ivuProducts += v.ivuProducts;
+                  acc.ivuLaborFinal += v.ivuLaborFinal;
+                  acc.ivuLaborB2B += v.ivuLaborB2B;
+                  acc.estatal += finalBase * (10.5 / 11.5);
+                  acc.municipal += finalBase * (1 / 11.5);
+                  acc.total += finalBase + v.ivuLaborB2B;
+                  return acc;
+                }, { ivuProducts: 0, ivuLaborFinal: 0, ivuLaborB2B: 0, estatal: 0, municipal: 0, total: 0 });
+                return (
+                  <tr style={{ borderTop: '2px solid var(--border)' }}>
+                    <td colSpan={4} style={{ fontWeight: 700, paddingTop: 12 }}>TOTAL</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.ivuProducts)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.ivuLaborFinal)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.ivuLaborB2B)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.estatal)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.municipal)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.total)}</td>
+                    <td></td>
+                  </tr>
+                );
+              })()}
+            </tfoot>
           </table>
         </div>
       )}

@@ -137,7 +137,7 @@ export default async function AccountingIVU({ searchParams }) {
         </div>
 
         {/* Summary cards */}
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: 20 }}>
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', marginBottom: 20 }}>
           <div className="stat-card">
             <div className="stat-label">IVU Total</div>
             <div className="stat-value" style={{ color: 'var(--navy)' }}>{fmt(totIVU)}</div>
@@ -151,12 +151,16 @@ export default async function AccountingIVU({ searchParams }) {
             <div className="stat-value" style={{ fontSize: 20 }}>{fmt(totMunicipal)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">B2B Labor (4%)</div>
-            <div className="stat-value" style={{ fontSize: 20 }}>{fmt(totB2B)}</div>
-          </div>
-          <div className="stat-card">
             <div className="stat-label">Productos (11.5%)</div>
             <div className="stat-value" style={{ fontSize: 20 }}>{fmt(totProducts)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Labor Final (11.5%)</div>
+            <div className="stat-value" style={{ fontSize: 20 }}>{fmt(totLaborFinal)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">B2B Labor (4%)</div>
+            <div className="stat-value" style={{ fontSize: 20 }}>{fmt(totB2B)}</div>
           </div>
         </div>
 
