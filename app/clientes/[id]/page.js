@@ -2,12 +2,21 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { createSupabaseServerClient } from '../../../lib/supabase-server';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import ClientesDetail from './ClientesDetail';
 
 export default async function ClienteDetailPage({ params }) {
   const { id } = params;
+
+  const authClient = createSupabaseServerClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  let currentRole = 'tecnico';
+  if (user?.email) {
+    const { data: myProfile } = await supabase.from('profiles').select('role').eq('email', user.email).single();
+    currentRole = myProfile?.role ?? 'tecnico';
+  }
 
   const [{ data: client }, { data: jobs }, { data: invoices }, { data: properties }, { data: contacts }] = await Promise.all([
     supabase.from('clients').select('*').eq('id', id).single(),
@@ -53,6 +62,7 @@ export default async function ClienteDetailPage({ params }) {
           invoices={invoices ?? []}
           properties={properties ?? []}
           contacts={contacts ?? []}
+          currentRole={currentRole}
         />
       </main>
     </div>

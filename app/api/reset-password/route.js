@@ -1,6 +1,12 @@
 import { supabaseServer as supabaseAdmin } from '../../../lib/supabase';
+import { getCurrentRole } from '../../../lib/supabase-server';
 
 export async function POST(request) {
+  const currentRole = await getCurrentRole();
+  if (!['admin', 'secretaria'].includes(currentRole)) {
+    return Response.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
   const { userId, password } = await request.json();
 
   if (!userId || !password) {

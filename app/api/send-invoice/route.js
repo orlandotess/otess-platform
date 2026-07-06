@@ -1,10 +1,20 @@
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { getCurrentRole } from '../../../lib/supabase-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
   try {
+    const auth = request.headers.get('authorization');
+    const isCron = auth === `Bearer ${process.env.CRON_SECRET}`;
+    if (!isCron) {
+      const role = await getCurrentRole();
+      if (!['admin', 'secretaria', 'vendedor'].includes(role)) {
+        return Response.json({ error: 'No autorizado' }, { status: 403 });
+      }
+    }
+
     const { invoiceId, toEmail } = await request.json();
     const [{ data: inv }, { data: items }] = await Promise.all([
       supabase.from('invoices').select('*, clients(name, email, company, client_type)').eq('id', invoiceId).single(),
