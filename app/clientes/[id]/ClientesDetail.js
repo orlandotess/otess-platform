@@ -398,6 +398,16 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                   {!p.is_primary && (
                     <button onClick={() => setPrimary(p.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}>Principal</button>
                   )}
+                  <button
+                    onClick={() => {
+                      setExpandedProp(p.id);
+                      setEditingProp(p.id);
+                      setEditPropData({ name: p.name, street: p.street ?? '', city: p.city ?? '', state: p.state ?? 'PR', zip: p.zip ?? '' });
+                    }}
+                    className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}
+                  >
+                    ✏️ Editar
+                  </button>
                   <button onClick={() => setExpandedProp(expandedProp === p.id ? null : p.id)} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>
                     {expandedProp === p.id ? 'Cerrar ↑' : 'Ver →'}
                   </button>
