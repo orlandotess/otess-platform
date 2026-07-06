@@ -26,7 +26,7 @@ export default function InboxWidget({ notifications: initial }) {
     <div className="card" style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Inbox</span>
+          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Bandeja de entrada</span>
           {unread > 0 && (
             <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--amber)', borderRadius: 10, padding: '1px 7px' }}>{unread}</span>
           )}

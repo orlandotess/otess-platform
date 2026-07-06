@@ -31,22 +31,23 @@ export default function AccountingDashboardClient({ quarterData, year }) {
     taxProducts: acc.taxProducts + q.revenue.taxProducts,
     taxLabor: acc.taxLabor + q.revenue.taxLabor,
     payroll: acc.payroll + q.payroll,
+    gastos: acc.gastos + (q.gastos ?? 0),
     ivuTotal: acc.ivuTotal + q.ivu.ivuTotal,
     ivuEstatal: acc.ivuEstatal + q.ivu.ivuEstatal,
     ivuMunicipal: acc.ivuMunicipal + q.ivu.ivuMunicipal,
     ivuB2B: acc.ivuB2B + q.ivu.ivuLaborB2B,
     ivuProducts: acc.ivuProducts + q.ivu.ivuProducts,
     count: acc.count + q.revenue.count,
-  }), { total: 0, collected: 0, outstanding: 0, subProducts: 0, subLabor: 0, taxProducts: 0, taxLabor: 0, payroll: 0, ivuTotal: 0, ivuEstatal: 0, ivuMunicipal: 0, ivuB2B: 0, ivuProducts: 0, count: 0 });
+  }), { total: 0, collected: 0, outstanding: 0, subProducts: 0, subLabor: 0, taxProducts: 0, taxLabor: 0, payroll: 0, gastos: 0, ivuTotal: 0, ivuEstatal: 0, ivuMunicipal: 0, ivuB2B: 0, ivuProducts: 0, count: 0 });
 
-  const netEst = combined.collected - combined.payroll - combined.ivuTotal;
+  const netEst = combined.collected - combined.payroll - combined.ivuTotal - combined.gastos;
 
   return (
     <div>
       {/* Quarter selector */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>📆 Quarters — {year}</p>
+          <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>📆 Trimestres — {year}</p>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
               onClick={() => setSelected(['Q1','Q2','Q3','Q4'])}>Todos</button>
@@ -84,12 +85,13 @@ export default function AccountingDashboardClient({ quarterData, year }) {
             <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>{combined.count} facturas</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 16 }}>
             {[
               { label: 'Facturado', value: combined.total, color: 'var(--navy)' },
               { label: 'Cobrado', value: combined.collected, color: 'var(--ok)' },
               { label: 'Pendiente', value: combined.outstanding, color: 'var(--amber)' },
-              { label: 'Payroll', value: combined.payroll, color: '#e05c2a' },
+              { label: 'Nómina', value: combined.payroll, color: '#e05c2a' },
+              { label: 'Gastos', value: combined.gastos, color: '#c0392b' },
             ].map(item => (
               <div key={item.label}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{item.label}</div>
@@ -140,7 +142,7 @@ export default function AccountingDashboardClient({ quarterData, year }) {
 
       {/* Individual quarter cards */}
       {selected.length > 1 && selectedData.map(q => {
-        const netQ = q.revenue.collected - q.payroll - q.ivu.ivuTotal;
+        const netQ = q.revenue.collected - q.payroll - q.ivu.ivuTotal - (q.gastos ?? 0);
         return (
           <div key={q.key} className="card" style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
@@ -149,12 +151,13 @@ export default function AccountingDashboardClient({ quarterData, year }) {
               </h3>
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>{q.revenue.count} facturas</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 12 }}>
               {[
                 { label: 'Facturado', value: q.revenue.total, color: 'var(--navy)' },
                 { label: 'Cobrado', value: q.revenue.collected, color: 'var(--ok)' },
                 { label: 'Pendiente', value: q.revenue.outstanding, color: 'var(--amber)' },
-                { label: 'Payroll', value: q.payroll, color: '#e05c2a' },
+                { label: 'Nómina', value: q.payroll, color: '#e05c2a' },
+                { label: 'Gastos', value: q.gastos ?? 0, color: '#c0392b' },
               ].map(item => (
                 <div key={item.label}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{item.label}</div>

@@ -113,7 +113,7 @@ function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt }
           <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--amber)' }}>{fmt(revenue.outstanding)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Payroll</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Nómina</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: '#e05c2a' }}>{fmt(payroll)}</div>
         </div>
         <div>
@@ -286,6 +286,7 @@ export default async function AccountingDashboard({ searchParams }) {
       revenue: computeRevenue(qInvs, paymentsByInvoice),
       ivu: computeIVU(qIds, lines),
       payroll: computePayroll(q.start + 'T00:00:00.000Z', q.end + 'T23:59:59.999Z', techs, entries),
+      gastos: computeExpenses(q.start, q.end, expenses),
     };
   });
 
@@ -295,14 +296,14 @@ export default async function AccountingDashboard({ searchParams }) {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Accounting Dashboard</div>
+            <div className="page-title">Panel de Contabilidad</div>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>Resumen financiero de OTESS</p>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <DashboardSearch invoices={invoices.map(i => ({ id: i.id, invoice_number: i.invoice_number, clientName: i.clients?.name, total: i.total, status: i.status }))} />
             <Link href="/accounting/facturas" className="btn btn-ghost">🧾 Facturas</Link>
             <Link href="/accounting/ivu" className="btn btn-ghost">🏛 IVU</Link>
-            <Link href="/accounting/payroll" className="btn btn-ghost">⏱ Payroll</Link>
+            <Link href="/accounting/payroll" className="btn btn-ghost">⏱ Nómina</Link>
             <Link href="/accounting/gastos" className="btn btn-ghost">💸 Gastos</Link>
           </div>
         </div>
