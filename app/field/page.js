@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import PhotoAnnotator from '../PhotoAnnotator';
 import { buildMapsLinks } from '../../lib/mapsLinks';
 import { normalizeName } from '../../lib/normalizeName';
+import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
 
 const ORANGE = '#E05C2A';
 const BG = '#EAEEF2';
@@ -18,6 +19,7 @@ export default function FieldApp() {
   const [timeEntries, setTimeEntries] = useState([]);
   const [techId, setTechId] = useState(null);
   const [techName, setTechName] = useState('OTESS');
+  const [profileId, setProfileId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [showFab, setShowFab] = useState(false);
@@ -29,6 +31,8 @@ export default function FieldApp() {
   const [fabNoteText, setFabNoteText] = useState('');
   const [savingFabNote, setSavingFabNote] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [fabUploadProgress, setFabUploadProgress] = useState(0);
+  const [photoError, setPhotoError] = useState('');
   const [photoSuccess, setPhotoSuccess] = useState('');
   const [allJobs, setAllJobs] = useState([]);
   const fileRef = useRef();
@@ -47,6 +51,10 @@ export default function FieldApp() {
   const [detailPhotos, setDetailPhotos] = useState([]);
   const [detailPhotoPreviews, setDetailPhotoPreviews] = useState([]);
   const [savingDetailNote, setSavingDetailNote] = useState(false);
+  const [detailUploadProgress, setDetailUploadProgress] = useState({});
+  const [detailNoteError, setDetailNoteError] = useState('');
+  const [editingDetailNoteId, setEditingDetailNoteId] = useState(null);
+  const [editingDetailNoteText, setEditingDetailNoteText] = useState('');
   const [newCheckItem, setNewCheckItem] = useState('');
   const [lightbox, setLightbox] = useState(null); // { urls: [], index: 0 }
   const [annotatingIdx, setAnnotatingIdx] = useState(null);
@@ -72,6 +80,7 @@ export default function FieldApp() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { window.location.replace('/login'); return; }
+      setProfileId(session.user.id);
       const { data: profile } = await supabase.from('profiles').select('name').eq('id', session.user.id).single();
       if (profile) setTechName(profile.name);
       const { data: allTechs } = await supabase.from('technicians').select('id, name');
@@ -295,7 +304,7 @@ export default function FieldApp() {
     e.preventDefault();
     if (!fabSelectedJob || !fabNoteText.trim()) return;
     setSavingFabNote(true);
-    await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, note: fabNoteText.trim() }]);
+    await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, note: fabNoteText.trim(), created_by: profileId }]);
     setSavingFabNote(false); setFabNoteText(''); setShowJobNote(false); setShowFab(false); setFabSelectedJob(null);
   }
 
@@ -303,14 +312,18 @@ export default function FieldApp() {
     const file = e.target.files?.[0];
     if (!file || !fabSelectedJob) return;
     setUploadingPhoto(true);
+    setPhotoError('');
+    setFabUploadProgress(0);
     const ext = file.name.split('.').pop();
     const path = fabSelectedJob.id + '/' + Date.now() + '.' + ext;
-    const { error } = await supabase.storage.from('Job-photos').upload(path, file);
+    const { error } = await uploadFileWithProgress('Job-photos', path, file, setFabUploadProgress);
     setUploadingPhoto(false);
     if (!error) {
-      await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, photo_url: path }]);
+      await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, photo_url: path, created_by: profileId }]);
       setPhotoSuccess('Foto subida');
       setTimeout(() => { setPhotoSuccess(''); setShowJobPhoto(false); setShowFab(false); setFabSelectedJob(null); }, 2000);
+    } else {
+      setPhotoError('No se pudo subir el archivo. Verifica tu conexión e intenta de nuevo.');
     }
   }
 
@@ -318,13 +331,19 @@ export default function FieldApp() {
     e.preventDefault();
     if (!detailNoteText.trim() && detailPhotos.length === 0) return;
     setSavingDetailNote(true);
+    setDetailNoteError('');
 
     const uploadedPaths = [];
-    for (const file of detailPhotos) {
+    const failedNames = [];
+    for (let i = 0; i < detailPhotos.length; i++) {
+      const file = detailPhotos[i];
       const ext = file.name.split('.').pop();
       const path = detailJob.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.' + ext;
-      const { error } = await supabase.storage.from('Job-photos').upload(path, file);
+      const { error } = await uploadFileWithProgress('Job-photos', path, file, pct => {
+        setDetailUploadProgress(prev => ({ ...prev, [i]: pct }));
+      });
       if (!error) uploadedPaths.push(path);
+      else failedNames.push(file.name);
     }
 
     const { data: note } = await supabase.from('job_notes').insert([{
@@ -332,14 +351,32 @@ export default function FieldApp() {
       note: detailNoteText.trim() || null,
       photo_url: uploadedPaths[0] ?? null,
       photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
+      created_by: profileId,
     }]).select().single();
 
     if (note) {
       const signedUrls = await Promise.all(uploadedPaths.map(p => getSignedUrl(p)));
-      setDetailNotes(prev => [{ ...note, photo_urls: signedUrls, photo_url: signedUrls[0] ?? null }, ...prev]);
+      setDetailNotes(prev => [{
+        ...note,
+        photo_urls: uploadedPaths.length > 0 ? signedUrls : null,
+        photo_url: signedUrls[0] ?? null,
+        raw_photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
+        raw_photo_url: uploadedPaths[0] ?? null,
+      }, ...prev]);
+    }
+    if (failedNames.length > 0) {
+      setDetailNoteError(`No se pudo subir: ${failedNames.join(', ')}. La nota se guardó, intenta subir el archivo de nuevo.`);
     }
 
-    setDetailNoteText(''); setDetailPhotos([]); setDetailPhotoPreviews([]); setSavingDetailNote(false);
+    setDetailNoteText(''); setDetailPhotos([]); setDetailPhotoPreviews([]); setDetailUploadProgress({}); setSavingDetailNote(false);
+  }
+
+  async function saveDetailNoteEdit(noteId) {
+    const text = editingDetailNoteText.trim() || null;
+    const { error } = await supabase.from('job_notes').update({ note: text }).eq('id', noteId);
+    if (!error) setDetailNotes(prev => prev.map(n => n.id === noteId ? { ...n, note: text } : n));
+    setEditingDetailNoteId(null);
+    setEditingDetailNoteText('');
   }
 
   function handleAnnotateSave(blob) {
@@ -1065,17 +1102,32 @@ export default function FieldApp() {
                             ) : (
                               <img src={preview} onClick={() => setAnnotatingIdx(idx)} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }} />
                             )}
-                            {!detailPhotos[idx]?.type?.startsWith('video') && (
+                            {!detailPhotos[idx]?.type?.startsWith('video') && !savingDetailNote && (
                               <button type="button" onClick={() => setAnnotatingIdx(idx)}
                                 style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
                             )}
-                            <button type="button" onClick={() => {
-                              setDetailPhotos(prev => prev.filter((_, i) => i !== idx));
-                              setDetailPhotoPreviews(prev => prev.filter((_, i) => i !== idx));
-                            }}
-                              style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 13 }}>×</button>
+                            {savingDetailNote && (
+                              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', borderRadius: '0 0 8px 8px', padding: '3px 6px' }}>
+                                <div style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 20, height: 4, overflow: 'hidden' }}>
+                                  <div style={{ background: ORANGE, height: '100%', width: `${detailUploadProgress[idx] ?? 0}%`, transition: 'width 0.2s' }} />
+                                </div>
+                                <div style={{ color: '#fff', fontSize: 9, fontWeight: 700, textAlign: 'center' }}>{detailUploadProgress[idx] ?? 0}%</div>
+                              </div>
+                            )}
+                            {!savingDetailNote && (
+                              <button type="button" onClick={() => {
+                                setDetailPhotos(prev => prev.filter((_, i) => i !== idx));
+                                setDetailPhotoPreviews(prev => prev.filter((_, i) => i !== idx));
+                              }}
+                                style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 13 }}>×</button>
+                            )}
                           </div>
                         ))}
+                      </div>
+                    )}
+                    {detailNoteError && (
+                      <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '8px 10px', fontSize: 12, marginBottom: 8 }}>
+                        ⚠️ {detailNoteError}
                       </div>
                     )}
                     <input ref={fileRef2} type="file" accept="image/*,video/*,application/pdf" multiple
@@ -1090,7 +1142,7 @@ export default function FieldApp() {
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="button" onClick={() => fileRef2.current?.click()} style={{ padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>📷{detailPhotos.length > 0 ? ` ${detailPhotos.length}` : ''}</button>
                       <button type="submit" disabled={savingDetailNote} style={{ flex: 1, padding: '10px 14px', background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                        {savingDetailNote ? 'Guardando...' : '💾 Guardar'}
+                        {savingDetailNote ? 'Subiendo...' : '💾 Guardar'}
                       </button>
                     </div>
                   </form>
@@ -1099,8 +1151,13 @@ export default function FieldApp() {
                   ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>No hay notas aún.</div>
                   : detailNotes.map(n => (
                     <div key={n.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                      <div style={{ fontSize: 11, color: '#aaa', marginBottom: 8 }}>
-                        {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, color: '#aaa' }}>
+                          {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        {n.created_by === profileId && editingDetailNoteId !== n.id && (
+                          <button onClick={() => { setEditingDetailNoteId(n.id); setEditingDetailNoteText(n.note ?? ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 14 }}>✏️</button>
+                        )}
                       </div>
                       {n.photo_urls && n.photo_urls.length > 1 ? (
                         <div style={{ display: 'grid', gridTemplateColumns: n.photo_urls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 6, marginBottom: 8 }}>
@@ -1137,7 +1194,16 @@ export default function FieldApp() {
                             style={{ width: '100%', maxHeight: 250, objectFit: 'cover', borderRadius: 10, marginBottom: 8, cursor: 'zoom-in' }} />
                         );
                       })()}
-                      {n.note && <p style={{ fontSize: 14, margin: 0 }}>{n.note}</p>}
+                      {editingDetailNoteId === n.id ? (
+                        <div>
+                          <textarea autoFocus value={editingDetailNoteText} onChange={e => setEditingDetailNoteText(e.target.value)} rows={3}
+                            style={{ width: '100%', padding: 8, border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', marginBottom: 8 }} />
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button type="button" onClick={() => saveDetailNoteEdit(n.id)} style={{ padding: '6px 14px', background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Guardar</button>
+                            <button type="button" onClick={() => { setEditingDetailNoteId(null); setEditingDetailNoteText(''); }} style={{ padding: '6px 14px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                          </div>
+                        </div>
+                      ) : n.note && <p style={{ fontSize: 14, margin: 0 }}>{n.note}</p>}
                     </div>
                   ))
                 }
@@ -1265,10 +1331,20 @@ export default function FieldApp() {
                 ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
                 : <div>
                   <div style={{ fontWeight: 600, marginBottom: 16, color: ORANGE }}>{fabSelectedJob.title}</div>
+                  {photoError && (
+                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '8px 10px', fontSize: 12, marginBottom: 12 }}>
+                      ⚠️ {photoError}
+                    </div>
+                  )}
                   <input ref={fileRef} type="file" accept="image/*,video/*,application/pdf" onChange={uploadFabPhoto} style={{ display: 'none' }} />
                   <button onClick={() => fileRef.current?.click()} disabled={uploadingPhoto} style={{ width: '100%', padding: 16, background: '#f0f0f0', border: '2px dashed #dde1e7', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', color: '#555' }}>
-                    {uploadingPhoto ? '📤 Subiendo...' : '📷 Tomar foto o elegir de galería'}
+                    {uploadingPhoto ? `📤 Subiendo... ${fabUploadProgress}%` : '📷 Tomar foto o elegir de galería'}
                   </button>
+                  {uploadingPhoto && (
+                    <div style={{ background: '#e5e7eb', borderRadius: 20, height: 8, overflow: 'hidden', marginTop: 10 }}>
+                      <div style={{ background: ORANGE, height: '100%', width: `${fabUploadProgress}%`, transition: 'width 0.2s' }} />
+                    </div>
+                  )}
                   <button onClick={() => { setFabSelectedJob(null); setShowJobPhoto(false); }} style={{ marginTop: 10, width: '100%', padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                 </div>
             }

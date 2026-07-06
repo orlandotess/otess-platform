@@ -6,6 +6,7 @@ import PhotoAnnotator from '../../PhotoAnnotator';
 import LineItemRow from '../../LineItemRow';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso } from '../../../lib/datetimeLocal';
+import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
@@ -146,20 +147,33 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   // each with its own time range and technician, beyond the primary scheduled_start/end above.
   const [scheduleDays, setScheduleDays] = useState(initialScheduleDays);
   const [addingDay, setAddingDay] = useState(false);
-  const [newDay, setNewDay] = useState({ start: '', end: '', technician_id: '' });
+  const [newDay, setNewDay] = useState({ start: '', end: '', technician_ids: [] });
   const [savingDay, setSavingDay] = useState(false);
+
+  function toggleNewDayTechnician(techId) {
+    setNewDay(d => ({
+      ...d,
+      technician_ids: d.technician_ids.includes(techId)
+        ? d.technician_ids.filter(id => id !== techId)
+        : [...d.technician_ids, techId],
+    }));
+  }
 
   async function addScheduleDay() {
     if (!newDay.start) return;
     setSavingDay(true);
-    const { data } = await supabase.from('job_schedule_days').insert([{
+    // One row per selected technician so each tech's hours count toward the day/grand totals;
+    // falls back to a single unassigned row when no technician is picked.
+    const techIds = newDay.technician_ids.length > 0 ? newDay.technician_ids : [null];
+    const rows = techIds.map(techId => ({
       job_id: job.id,
       scheduled_start: localInputToIso(newDay.start),
       scheduled_end: localInputToIso(newDay.end),
-      technician_id: newDay.technician_id || null,
-    }]).select('*, technicians(name)').single();
-    if (data) setScheduleDays(prev => [...prev, data].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
-    setNewDay({ start: '', end: '', technician_id: '' });
+      technician_id: techId,
+    }));
+    const { data } = await supabase.from('job_schedule_days').insert(rows).select('*, technicians(name)');
+    if (data) setScheduleDays(prev => [...prev, ...data].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
+    setNewDay({ start: '', end: '', technician_ids: [] });
     setAddingDay(false);
     setSavingDay(false);
   }
@@ -293,6 +307,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [noteError, setNoteError] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
   const fileRef = useRef();
   const [pendingPhotos, setPendingPhotos] = useState([]);
   const [pendingPhotoPreviews, setPendingPhotoPreviews] = useState([]);
@@ -439,15 +457,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     e.preventDefault();
     if (!noteText.trim() && pendingPhotos.length === 0) return;
     setSavingNote(true);
+    setNoteError('');
 
     const uploadedPaths = [];
+    const failedNames = [];
     if (pendingPhotos.length > 0) {
       setUploadingPhoto(true);
-      for (const file of pendingPhotos) {
+      for (let i = 0; i < pendingPhotos.length; i++) {
+        const file = pendingPhotos[i];
         const ext = file.name.split('.').pop();
         const path = `${job.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-        const { error } = await supabase.storage.from('Job-photos').upload(path, file);
+        const { error } = await uploadFileWithProgress('Job-photos', path, file, pct => {
+          setUploadProgress(prev => ({ ...prev, [i]: pct }));
+        });
         if (!error) uploadedPaths.push(path);
+        else failedNames.push(file.name);
       }
       setUploadingPhoto(false);
     }
@@ -459,9 +483,23 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
     }]).select().single();
 
-    if (newNote) setNotesList(prev => [newNote, ...prev]);
-    setNoteText(''); setPendingPhotos([]); setPendingPhotoPreviews([]); setSavingNote(false);
-    if (uploadedPaths.length > 0) window.location.reload();
+    if (newNote) {
+      const signedUrls = await Promise.all(uploadedPaths.map(async p => {
+        const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
+        return data?.signedUrl ?? null;
+      }));
+      setNotesList(prev => [{
+        ...newNote,
+        photo_urls: uploadedPaths.length > 0 ? signedUrls : null,
+        photo_url: signedUrls[0] ?? null,
+        raw_photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
+        raw_photo_url: uploadedPaths[0] ?? null,
+      }, ...prev]);
+    }
+    if (failedNames.length > 0) {
+      setNoteError(`No se pudo subir: ${failedNames.join(', ')}. La nota se guardó, intenta subir el archivo de nuevo.`);
+    }
+    setNoteText(''); setPendingPhotos([]); setPendingPhotoPreviews([]); setUploadProgress({}); setSavingNote(false);
   }
 
   function handleAnnotateSave(blob) {
@@ -496,6 +534,14 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   async function deleteNote(noteId) {
     await supabase.from('job_notes').delete().eq('id', noteId);
     setNotesList(prev => prev.filter(n => n.id !== noteId));
+  }
+
+  async function saveNoteEdit(noteId) {
+    const text = editingNoteText.trim() || null;
+    await supabase.from('job_notes').update({ note: text }).eq('id', noteId);
+    setNotesList(prev => prev.map(n => n.id === noteId ? { ...n, note: text } : n));
+    setEditingNoteId(null);
+    setEditingNoteText('');
   }
 
   async function toggleItem(itemId, completed) {
@@ -533,6 +579,33 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     });
     return { subProd, taxProd, subLabor, taxLabor, total: subProd + taxProd + subLabor + taxLabor };
   })();
+
+  function hoursBetween(start, end) {
+    if (!start || !end) return 0;
+    const diff = new Date(end) - new Date(start);
+    return diff > 0 ? diff / 3600000 : 0;
+  }
+  function formatHours(totalHours) {
+    const h = Math.floor(totalHours);
+    const m = Math.round((totalHours - h) * 60);
+    if (h > 0 && m > 0) return `${h}h ${m}min`;
+    if (h > 0) return `${h}h`;
+    return `${m}min`;
+  }
+  const scheduleDayGroups = (() => {
+    const map = {};
+    scheduleDays.forEach(d => {
+      const key = new Date(d.scheduled_start).toLocaleDateString('en-CA');
+      if (!map[key]) map[key] = [];
+      map[key].push(d);
+    });
+    return Object.keys(map).sort().map(key => ({
+      key,
+      entries: map[key],
+      totalHours: map[key].reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end), 0),
+    }));
+  })();
+  const scheduleDaysTotalHours = scheduleDays.reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end), 0);
 
   const completedCount = checklistItems.filter(i => i.completed && !i.__placeholder).length;
   const realCount = checklistItems.filter(i => !i.__placeholder).length;
@@ -818,19 +891,36 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               )}
 
               {scheduleDays.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: addingDay ? 14 : 0 }}>
-                  {scheduleDays.map(d => (
-                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f8f9fb', borderRadius: 8 }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600 }} suppressHydrationWarning>
-                          {new Date(d.scheduled_start).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          {d.scheduled_end && ` – ${new Date(d.scheduled_end).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}`}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: addingDay ? 14 : 0 }}>
+                  {scheduleDayGroups.map(group => (
+                    <div key={group.key}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }} suppressHydrationWarning>
+                          {new Date(group.entries[0].scheduled_start).toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric' })}
                         </div>
-                        {d.technicians?.name && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.technicians.name}</div>}
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(group.totalHours)} total</div>
                       </div>
-                      <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--warn)' }} onClick={() => removeScheduleDay(d.id)}>🗑</button>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {group.entries.map(d => (
+                          <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f8f9fb', borderRadius: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600 }} suppressHydrationWarning>
+                                {new Date(d.scheduled_start).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}
+                                {d.scheduled_end && ` – ${new Date(d.scheduled_end).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}`}
+                                {d.scheduled_end && <span style={{ color: 'var(--muted)', fontWeight: 500 }}> ({formatHours(hoursBetween(d.scheduled_start, d.scheduled_end))})</span>}
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.technicians?.name ?? '— Sin asignar —'}</div>
+                            </div>
+                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--warn)' }} onClick={() => removeScheduleDay(d.id)}>🗑</button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg)', borderRadius: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>Total de horas</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(scheduleDaysTotalHours)}</span>
+                  </div>
                 </div>
               )}
 
@@ -847,15 +937,23 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     </div>
                   </div>
                   <div className="form-group" style={{ marginBottom: 12 }}>
-                    <label>Técnico</label>
-                    <select value={newDay.technician_id} onChange={e => setNewDay(d => ({ ...d, technician_id: e.target.value }))}>
-                      <option value="">— Sin asignar —</option>
-                      {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
+                    <label>Técnicos (puedes escoger más de uno)</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {technicians.map(t => {
+                        const checked = newDay.technician_ids.includes(t.id);
+                        return (
+                          <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : '#fff', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleNewDayTechnician(t.id)} style={{ margin: 0 }} />
+                            {t.name}
+                          </label>
+                        );
+                      })}
+                      {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button className="btn btn-primary" onClick={addScheduleDay} disabled={savingDay || !newDay.start}>{savingDay ? 'Guardando...' : '💾 Guardar'}</button>
-                    <button className="btn btn-ghost" onClick={() => { setAddingDay(false); setNewDay({ start: '', end: '', technician_id: '' }); }}>Cancelar</button>
+                    <button className="btn btn-ghost" onClick={() => { setAddingDay(false); setNewDay({ start: '', end: '', technician_ids: [] }); }}>Cancelar</button>
                   </div>
                 </div>
               )}
@@ -1038,20 +1136,35 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                             style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
                         </>
                       )}
-                      <button type="button" onClick={() => {
-                        setPendingPhotos(prev => prev.filter((_, i) => i !== idx));
-                        setPendingPhotoPreviews(prev => prev.filter((_, i) => i !== idx));
-                      }}
-                        style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14 }}>×</button>
+                      {uploadingPhoto && (
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', borderRadius: '0 0 10px 10px', padding: '4px 6px' }}>
+                          <div style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 20, height: 5, overflow: 'hidden' }}>
+                            <div style={{ background: 'var(--amber)', height: '100%', width: `${uploadProgress[idx] ?? 0}%`, transition: 'width 0.2s' }} />
+                          </div>
+                          <div style={{ color: '#fff', fontSize: 10, fontWeight: 700, textAlign: 'center', marginTop: 2 }}>{uploadProgress[idx] ?? 0}%</div>
+                        </div>
+                      )}
+                      {!uploadingPhoto && (
+                        <button type="button" onClick={() => {
+                          setPendingPhotos(prev => prev.filter((_, i) => i !== idx));
+                          setPendingPhotoPreviews(prev => prev.filter((_, i) => i !== idx));
+                        }}
+                          style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14 }}>×</button>
+                      )}
                     </div>
                   ))}
+                </div>
+              )}
+              {noteError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
+                  ⚠️ {noteError}
                 </div>
               )}
               <input ref={fileRef} type="file" accept="image/*,video/*,application/pdf" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 Foto / Video{pendingPhotos.length > 0 ? ` (${pendingPhotos.length})` : ''}</button>
                 <button type="submit" className="btn btn-primary" disabled={savingNote || uploadingPhoto} style={{ flex: 1, justifyContent: 'center' }}>
-                  {uploadingPhoto ? 'Subiendo foto...' : savingNote ? 'Guardando...' : '💾 Guardar'}
+                  {uploadingPhoto ? 'Subiendo...' : savingNote ? 'Guardando...' : '💾 Guardar'}
                 </button>
               </div>
             </form>
@@ -1145,7 +1258,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 <div style={{ fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
                   {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
-                <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {editingNoteId !== n.id && (
+                    <button onClick={() => { setEditingNoteId(n.id); setEditingNoteText(n.note ?? ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 15 }}>✏️</button>
+                  )}
+                  <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
+                </div>
               </div>
               {n.photo_urls && n.photo_urls.length > 1 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: n.photo_urls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: n.note ? 10 : 0 }}>
@@ -1182,7 +1300,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0, cursor: 'zoom-in' }} />
                 );
               })()}
-              {n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0 }}>{n.note}</p>}
+              {editingNoteId === n.id ? (
+                <div>
+                  <textarea autoFocus value={editingNoteText} onChange={e => setEditingNoteText(e.target.value)} rows={3}
+                    style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 8 }} />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-primary" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => saveNoteEdit(n.id)}>Guardar</button>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => { setEditingNoteId(null); setEditingNoteText(''); }}>Cancelar</button>
+                  </div>
+                </div>
+              ) : n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0 }}>{n.note}</p>}
             </div>
           ))}
         </div>
