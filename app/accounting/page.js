@@ -74,6 +74,11 @@ function computeMargin(invIds, lines) {
   return { revenueWithCost, cost, margin, marginPct };
 }
 
+function computeExpenses(start, end, expenses) {
+  const filtered = expenses.filter(e => e.expense_date && e.expense_date >= start.slice(0, 10) && e.expense_date <= end.slice(0, 10));
+  return filtered.reduce((a, e) => a + Number(e.amount ?? 0), 0);
+}
+
 function computePayroll(start, end, techs, ents) {
   const filtered = ents.filter(e => e.clocked_in_at >= start && e.clocked_in_at <= end);
   let total = 0;
@@ -86,15 +91,15 @@ function computePayroll(start, end, techs, ents) {
   return total;
 }
 
-function PeriodSection({ label, id, revenue, ivu, payroll, margin, fmt }) {
-  const netEst = revenue.collected - payroll - ivu.ivuTotal;
+function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt }) {
+  const netEst = revenue.collected - payroll - ivu.ivuTotal - gastos;
   return (
     <div className="card" id={id} style={{ marginBottom: 24, scrollMarginTop: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: '2px solid var(--border)' }}>
         <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0 }}>{label}</h2>
         <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>{revenue.count} facturas</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Facturado</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--navy)' }}>{fmt(revenue.total)}</div>
@@ -110,6 +115,10 @@ function PeriodSection({ label, id, revenue, ivu, payroll, margin, fmt }) {
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Payroll</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: '#e05c2a' }}>{fmt(payroll)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Gastos</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#c0392b' }}>{fmt(gastos)}</div>
         </div>
       </div>
 
@@ -230,13 +239,14 @@ export default async function AccountingDashboard({ searchParams }) {
   const entriesFetchStart = rangeStarts.reduce((a, b) => (a < b ? a : b));
   const entriesFetchEnd = rangeEnds.reduce((a, b) => (a > b ? a : b));
 
-  const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: allPayments }, { data: inboxNotifications }] = await Promise.all([
+  const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: allPayments }, { data: inboxNotifications }, { data: allExpenses }] = await Promise.all([
     supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name)').order('issued_at', { ascending: false }),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount, quantity, unit_price, supplier_price'),
     supabase.from('technicians').select('id, hourly_rate'),
     supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at').not('clocked_out_at', 'is', null).gte('clocked_in_at', entriesFetchStart).lte('clocked_in_at', entriesFetchEnd),
     supabase.from('payments').select('invoice_id, amount, paid_at'),
     supabase.from('inbox_notifications').select('*').order('created_at', { ascending: false }).limit(20),
+    supabase.from('expenses').select('expense_date, amount, category, job_id'),
   ]);
 
   const invoices = allInvoices ?? [];
@@ -244,6 +254,7 @@ export default async function AccountingDashboard({ searchParams }) {
   const techs = technicians ?? [];
   const entries = timeEntries ?? [];
   const payments = allPayments ?? [];
+  const expenses = allExpenses ?? [];
 
   const paymentsByInvoice = {};
   payments.forEach(p => {
@@ -292,6 +303,7 @@ export default async function AccountingDashboard({ searchParams }) {
             <Link href="/accounting/facturas" className="btn btn-ghost">🧾 Facturas</Link>
             <Link href="/accounting/ivu" className="btn btn-ghost">🏛 IVU</Link>
             <Link href="/accounting/payroll" className="btn btn-ghost">⏱ Payroll</Link>
+            <Link href="/accounting/gastos" className="btn btn-ghost">💸 Gastos</Link>
           </div>
         </div>
 
@@ -308,6 +320,7 @@ export default async function AccountingDashboard({ searchParams }) {
           ivu={computeIVU(getIds(selWeekStartISO, selWeekEndISO), lines)}
           payroll={computePayroll(selWeekStartISO, selWeekEndISO, techs, entries)}
           margin={computeMargin(getIds(selWeekStartISO, selWeekEndISO), lines)}
+          gastos={computeExpenses(selWeekStartISO, selWeekEndISO, expenses)}
           fmt={fmt}
         />
         <PeriodSection
@@ -317,6 +330,7 @@ export default async function AccountingDashboard({ searchParams }) {
           ivu={computeIVU(getIds(monthStart, monthEnd), lines)}
           payroll={computePayroll(monthStart, monthEnd, techs, entries)}
           margin={computeMargin(getIds(monthStart, monthEnd), lines)}
+          gastos={computeExpenses(monthStart, monthEnd, expenses)}
           fmt={fmt}
         />
         <PeriodSection
@@ -326,6 +340,7 @@ export default async function AccountingDashboard({ searchParams }) {
           ivu={computeIVU(getIds(selYearStart, selYearEnd), lines)}
           payroll={computePayroll(selYearStart, selYearEnd, techs, entries)}
           margin={computeMargin(getIds(selYearStart, selYearEnd), lines)}
+          gastos={computeExpenses(selYearStart, selYearEnd, expenses)}
           fmt={fmt}
         />
       </main>

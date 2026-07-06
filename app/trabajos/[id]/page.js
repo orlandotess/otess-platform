@@ -16,7 +16,7 @@ const statusBadge = {
 export default async function TrabajoDetail({ params }) {
   const { id } = params;
 
-  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }] = await Promise.all([
+  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }, { data: expenses }] = await Promise.all([
     supabase.from('jobs').select('*, clients(name, email, phone, client_type), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
     supabase.from('job_line_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('technicians').select('*').order('name'),
@@ -25,6 +25,7 @@ export default async function TrabajoDetail({ params }) {
     supabase.from('checklist_templates').select('*, checklist_template_items(*)').order('name'),
     supabase.from('job_technicians').select('*, technicians(name)').eq('job_id', id),
     supabase.from('job_schedule_days').select('*, technicians(name)').eq('job_id', id).order('scheduled_start'),
+    supabase.from('expenses').select('*').eq('job_id', id).order('expense_date', { ascending: false }),
   ]);
 
   if (!job) return (
@@ -83,6 +84,10 @@ export default async function TrabajoDetail({ params }) {
     (items ?? []).map(async (item) => ({ ...item, photo_signed_url: await signPath(item.photo_url) }))
   );
 
+  const expensesWithSignedUrls = await Promise.all(
+    (expenses ?? []).map(async (exp) => ({ ...exp, receipt_signed_url: await signPath(exp.receipt_url) }))
+  );
+
   const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
   const clientType = job.clients?.client_type ?? 'final';
 
@@ -127,6 +132,7 @@ export default async function TrabajoDetail({ params }) {
           clientProperties={clientProperties ?? []}
           clientContacts={clientContacts ?? []}
           scheduleDays={scheduleDays ?? []}
+          expenses={expensesWithSignedUrls}
         />
       </main>
     </div>

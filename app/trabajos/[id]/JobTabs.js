@@ -17,7 +17,16 @@ const statusOptions = [
   { value: 'cancelled', label: 'Cancelado' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [] }) {
+const expenseCategories = [
+  { value: 'materiales', label: 'Materiales' },
+  { value: 'gasolina', label: 'Gasolina' },
+  { value: 'herramientas', label: 'Herramientas' },
+  { value: 'subcontratista', label: 'Subcontratista' },
+  { value: 'oficina', label: 'Oficina' },
+  { value: 'otro', label: 'Otro' },
+];
+
+export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
@@ -288,6 +297,50 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [pendingPhotos, setPendingPhotos] = useState([]);
   const [pendingPhotoPreviews, setPendingPhotoPreviews] = useState([]);
 
+  // Expenses state — job-tied costs (material dañado, viaje extra, permisos, etc.)
+  // that aren't already captured as a job_line_item / invoice line.
+  const [expensesList, setExpensesList] = useState(initialExpenses);
+  const [addingExpense, setAddingExpense] = useState(false);
+  const [newExpense, setNewExpense] = useState({ category: 'materiales', description: '', vendor: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), photoFile: null, photoPreview: null });
+  const [savingExpense, setSavingExpense] = useState(false);
+
+  function handleExpensePhoto(file) {
+    if (!file) return;
+    setNewExpense(e => ({ ...e, photoFile: file, photoPreview: URL.createObjectURL(file) }));
+  }
+
+  async function addExpense() {
+    if (!newExpense.description.trim() || !newExpense.amount) return;
+    setSavingExpense(true);
+    let receiptPath = null;
+    if (newExpense.photoFile) {
+      const ext = newExpense.photoFile.name.split('.').pop();
+      const path = `${job.id}/expenses/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, newExpense.photoFile);
+      if (!upErr) receiptPath = path;
+    }
+    const { data } = await supabase.from('expenses').insert([{
+      job_id: job.id,
+      category: newExpense.category,
+      description: newExpense.description.trim(),
+      vendor: newExpense.vendor.trim() || null,
+      amount: parseFloat(newExpense.amount) || 0,
+      expense_date: newExpense.expense_date,
+      receipt_url: receiptPath,
+    }]).select().single();
+    if (data) setExpensesList(prev => [{ ...data, receipt_signed_url: newExpense.photoPreview }, ...prev]);
+    setNewExpense({ category: 'materiales', description: '', vendor: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), photoFile: null, photoPreview: null });
+    setAddingExpense(false);
+    setSavingExpense(false);
+  }
+
+  async function deleteExpense(expenseId) {
+    await supabase.from('expenses').delete().eq('id', expenseId);
+    setExpensesList(prev => prev.filter(e => e.id !== expenseId));
+  }
+
+  const totalExpenses = expensesList.reduce((a, e) => a + Number(e.amount ?? 0), 0);
+
   // Lightbox state — { urls: [], index: 0, noteId }
   const [lightbox, setLightbox] = useState(null);
   const [annotatingIdx, setAnnotatingIdx] = useState(null);
@@ -370,6 +423,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     await supabase.from('job_line_items').delete().eq('job_id', job.id);
     await supabase.from('job_notes').delete().eq('job_id', job.id);
     await supabase.from('job_checklist_items').delete().eq('job_id', job.id);
+    await supabase.from('expenses').delete().eq('job_id', job.id);
     await supabase.from('jobs').delete().eq('id', job.id);
     window.location.replace('/trabajos');
   }
@@ -1002,6 +1056,87 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </div>
             </form>
           </div>
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>
+                💸 Gastos del trabajo {expensesList.length > 0 && <span style={{ color: 'var(--muted)', fontWeight: 600 }}>— {fmt(totalExpenses)}</span>}
+              </p>
+              {!addingExpense && (
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingExpense(true)}>+ Agregar gasto</button>
+              )}
+            </div>
+
+            {addingExpense && (
+              <div style={{ padding: '12px 14px', background: '#f8f9fb', borderRadius: 8, marginBottom: expensesList.length > 0 ? 14 : 0 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div className="form-group">
+                    <label>Categoría</label>
+                    <select value={newExpense.category} onChange={e => setNewExpense(f => ({ ...f, category: e.target.value }))}>
+                      {expenseCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Fecha</label>
+                    <input type="date" value={newExpense.expense_date} onChange={e => setNewExpense(f => ({ ...f, expense_date: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginBottom: 10 }}>
+                  <label>Descripción</label>
+                  <input value={newExpense.description} onChange={e => setNewExpense(f => ({ ...f, description: e.target.value }))} placeholder="Ej: Cable THHN 12AWG, gasolina, permiso..." />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div className="form-group">
+                    <label>Suplidor (opcional)</label>
+                    <input value={newExpense.vendor} onChange={e => setNewExpense(f => ({ ...f, vendor: e.target.value }))} placeholder="Ej: Home Depot" />
+                  </div>
+                  <div className="form-group">
+                    <label>Monto</label>
+                    <input type="number" step="0.01" value={newExpense.amount} onChange={e => setNewExpense(f => ({ ...f, amount: e.target.value }))} placeholder="0.00" />
+                  </div>
+                </div>
+                {newExpense.photoPreview && (
+                  <img src={newExpense.photoPreview} alt="recibo" style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, marginBottom: 10 }} />
+                )}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>
+                    📷 Recibo
+                    <input type="file" accept="image/*" onChange={e => handleExpensePhoto(e.target.files?.[0])} style={{ display: 'none' }} />
+                  </label>
+                  <button className="btn btn-primary" onClick={addExpense} disabled={savingExpense || !newExpense.description.trim() || !newExpense.amount}>
+                    {savingExpense ? 'Guardando...' : '💾 Guardar'}
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => setAddingExpense(false)}>Cancelar</button>
+                </div>
+              </div>
+            )}
+
+            {expensesList.length === 0 && !addingExpense ? (
+              <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin gastos registrados para este trabajo.</p>
+            ) : expensesList.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {expensesList.map(e => (
+                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f8f9fb', borderRadius: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {e.receipt_signed_url && (
+                        <img src={e.receipt_signed_url} alt="recibo" onClick={() => setLightbox({ urls: [e.receipt_signed_url], index: 0, noteId: null })} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, cursor: 'zoom-in' }} />
+                      )}
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{e.description}</div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                          {expenseCategories.find(c => c.value === e.category)?.label ?? e.category}{e.vendor ? ` · ${e.vendor}` : ''} · {e.expense_date}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>{fmt(e.amount)}</span>
+                      <button onClick={() => deleteExpense(e.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>🗑</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {notesList.length === 0 ? (
             <div className="empty"><p>No hay notas aún.</p></div>
           ) : notesList.map(n => (
