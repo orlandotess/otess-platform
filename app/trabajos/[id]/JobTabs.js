@@ -32,6 +32,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
   const [status, setStatus] = useState(job.status);
+  const [billTo, setBillTo] = useState(job.bill_to ?? 'person');
   const [assignedTechs, setAssignedTechs] = useState(jobTechnicians);
   const [addingTech, setAddingTech] = useState('');
   const [savingTech, setSavingTech] = useState(false);
@@ -62,6 +63,32 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [titleForm, setTitleForm] = useState(job.title ?? '');
   const [descForm, setDescForm] = useState(job.description ?? '');
   const [savingDetails, setSavingDetails] = useState(false);
+  const [editingClient, setEditingClient] = useState(false);
+  const [allClients, setAllClients] = useState([]);
+  const [clientPickerSearch, setClientPickerSearch] = useState('');
+  const [savingClient, setSavingClient] = useState(false);
+
+  useEffect(() => {
+    if (editingClient && allClients.length === 0) {
+      supabase.from('clients').select('id, name, client_type, company').order('name').then(({ data }) => setAllClients(data ?? []));
+    }
+  }, [editingClient]);
+
+  async function saveClientChange(newClientId) {
+    if (!newClientId || newClientId === job.client_id) { setEditingClient(false); return; }
+    setSavingClient(true);
+    await supabase.from('jobs').update({
+      client_id: newClientId,
+      bill_to: 'person',
+      property_id: null, property_name: null, street: null, city: null, state: null, zip: null,
+      contact_id: null, contact_name: null, contact_phone: null, contact_email: null,
+    }).eq('id', job.id);
+    setSavingClient(false);
+    setEditingClient(false);
+    setClientPickerSearch('');
+    router.refresh();
+  }
+
   const [editingContact, setEditingContact] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
   const [contactForm, setContactForm] = useState({ contact_name: job.contact_name ?? '', contact_phone: job.contact_phone ?? '', contact_email: job.contact_email ?? '' });
@@ -436,6 +463,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     router.refresh();
   }
 
+  async function updateBillTo(val) {
+    setBillTo(val);
+    await supabase.from('jobs').update({ bill_to: val }).eq('id', job.id);
+    router.refresh();
+  }
+
   async function deleteJob() {
     setDeleting(true);
     await supabase.from('job_line_items').delete().eq('job_id', job.id);
@@ -637,16 +670,55 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Cliente</p>
-                <a href={`/clientes/${job.client_id}`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>Ver cliente →</a>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <a href={`/clientes/${job.client_id}`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>Ver cliente →</a>
+                  {!editingClient && (
+                    <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingClient(true)}>✏️ Editar</button>
+                  )}
+                </div>
               </div>
-              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{job.clients?.name}</div>
-              <span className={`badge ${job.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`} style={{ marginBottom: 12, display: 'inline-block' }}>
-                {job.clients?.client_type === 'b2b' ? 'B2B' : 'Consumidor final'}
-              </span>
-              {(job.clients?.phone || job.clients?.email) && (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                  {job.clients?.phone && <a href={`tel:${job.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.clients.phone}</a>}
-                  {job.clients?.email && <a href={`mailto:${job.clients.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.clients.email}</a>}
+              {editingClient ? (
+                <div>
+                  <input list="job-client-picker-datalist" value={clientPickerSearch} onChange={e => setClientPickerSearch(e.target.value)}
+                    placeholder="Escribe para buscar cliente..." style={{ marginBottom: 8 }} />
+                  <datalist id="job-client-picker-datalist">
+                    {allClients.map(c => <option key={c.id} value={`${c.name}${c.client_type === 'b2b' ? ' (B2B)' : ''}`} />)}
+                  </datalist>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-primary" style={{ fontSize: 13, padding: '6px 14px' }} disabled={savingClient} onClick={() => {
+                      const match = allClients.find(c => `${c.name}${c.client_type === 'b2b' ? ' (B2B)' : ''}` === clientPickerSearch);
+                      saveClientChange(match?.id);
+                    }}>{savingClient ? 'Guardando...' : 'Guardar'}</button>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 14px' }} onClick={() => { setEditingClient(false); setClientPickerSearch(''); }}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{job.clients?.name}</div>
+                  <span className={`badge ${job.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`} style={{ marginBottom: 12, display: 'inline-block' }}>
+                    {job.clients?.client_type === 'b2b' ? 'B2B' : 'Consumidor final'}
+                  </span>
+                  {(job.clients?.phone || job.clients?.email) && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                      {job.clients?.phone && <a href={`tel:${job.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.clients.phone}</a>}
+                      {job.clients?.email && <a href={`mailto:${job.clients.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.clients.email}</a>}
+                    </div>
+                  )}
+                </>
+              )}
+              {job.clients?.company && (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>FACTURAR A</p>
+                  <div style={{ display: 'flex', gap: 14 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                      <input type="radio" name="bill_to" checked={billTo === 'person'} onChange={() => updateBillTo('person')} />
+                      {job.clients.name}
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                      <input type="radio" name="bill_to" checked={billTo === 'company'} onChange={() => updateBillTo('company')} />
+                      {job.clients.company}
+                    </label>
+                  </div>
                 </div>
               )}
             </div>

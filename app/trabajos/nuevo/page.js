@@ -17,7 +17,7 @@ export default function NuevoTrabajo() {
   const [contacts, setContacts] = useState([]);
   const [form, setForm] = useState({
     client_id: '', title: '', description: '', status: 'estimate',
-    scheduled_start: '', scheduled_end: '', notes: '',
+    scheduled_start: '', scheduled_end: '', notes: '', bill_to: 'person',
     property_id: '', contact_id: '',
     property_name: '', street: '', city: '', state: 'PR', zip: '',
     contact_name: '', contact_phone: '', contact_email: '',
@@ -34,7 +34,7 @@ export default function NuevoTrabajo() {
   const [creatingClient, setCreatingClient] = useState(false);
 
   useEffect(() => {
-    supabase.from('clients').select('id, name, client_type').order('name').then(({ data }) => setClients(data ?? []));
+    supabase.from('clients').select('id, name, client_type, company').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
 
@@ -76,6 +76,7 @@ export default function NuevoTrabajo() {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const selectedClient = clients.find(c => c.id === form.client_id);
   const clientType = selectedClient?.client_type ?? 'final';
+  const hasCompany = !!selectedClient?.company;
 
   const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
@@ -137,6 +138,7 @@ export default function NuevoTrabajo() {
       description: form.description || null,
       status: quickMode ? 'estimate' : form.status,
       notes: form.notes || null,
+      bill_to: form.bill_to,
       scheduled_start: quickMode ? null : localInputToIso(form.scheduled_start),
       scheduled_end: quickMode ? null : localInputToIso(form.scheduled_end),
       property_id: form.property_id || null,
@@ -214,7 +216,7 @@ export default function NuevoTrabajo() {
                 {selectedClient ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: '#f8f9fb' }}>
                     <span style={{ flex: 1, fontWeight: 600 }}>{selectedClient.name}{selectedClient.client_type === 'b2b' ? ' (B2B)' : ''}</span>
-                    <button type="button" onClick={() => { set('client_id', ''); setClientSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700 }}>Cambiar</button>
+                    <button type="button" onClick={() => { set('client_id', ''); set('bill_to', 'person'); setClientSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700 }}>Cambiar</button>
                   </div>
                 ) : showNewClient ? (
                   <div style={{ border: '1.5px solid var(--border)', borderRadius: 8, padding: 12 }}>
@@ -246,7 +248,7 @@ export default function NuevoTrabajo() {
                           {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 ? (
                             <div style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13 }}>No se encontraron clientes.</div>
                           ) : clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(c => (
-                            <div key={c.id} onClick={() => { set('client_id', c.id); setClientSearch(''); setShowClientDropdown(false); }}
+                            <div key={c.id} onClick={() => { set('client_id', c.id); set('bill_to', 'person'); setClientSearch(''); setShowClientDropdown(false); }}
                               style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 500, borderBottom: '1px solid var(--border)' }}
                               onMouseEnter={e => e.currentTarget.style.background = '#f8f9fb'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -263,6 +265,21 @@ export default function NuevoTrabajo() {
                   </>
                 )}
               </div>
+              {hasCompany && (
+                <div className="form-group" style={{ marginTop: 4 }}>
+                  <label>Facturar a</label>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
+                      <input type="radio" name="bill_to" value="person" checked={form.bill_to === 'person'} onChange={() => set('bill_to', 'person')} />
+                      {selectedClient?.name}
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
+                      <input type="radio" name="bill_to" value="company" checked={form.bill_to === 'company'} onChange={() => set('bill_to', 'company')} />
+                      {selectedClient?.company}
+                    </label>
+                  </div>
+                </div>
+              )}
               <div className="form-group">
                 <label>{quickMode ? '¿Qué necesita el cliente? *' : 'Título del trabajo *'}</label>
                 <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="Ej: Instalación cámaras CCTV" />

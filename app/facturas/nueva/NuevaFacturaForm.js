@@ -31,7 +31,7 @@ export default function NuevaFactura() {
 
   useEffect(() => {
     supabase.from('clients').select('id, name, company, client_type').order('name').then(({ data }) => setClients(data ?? []));
-    supabase.from('jobs').select('id, title, client_id, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
+    supabase.from('jobs').select('id, title, client_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
 
@@ -39,7 +39,7 @@ export default function NuevaFactura() {
     if (jobIdParam && jobs.length) {
       const job = jobs.find(j => j.id === jobIdParam);
       if (job) {
-        setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id }));
+        setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id, bill_to: job.bill_to ?? 'person' }));
         if (job.job_line_items?.length) {
           Promise.all(job.job_line_items.map(async li => {
             let photoPreview = null;
