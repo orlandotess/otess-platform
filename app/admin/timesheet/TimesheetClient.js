@@ -28,7 +28,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     const dayKey = dayIso.slice(0, 10);
     const dayEntries = tech.byDay[dayKey] ?? [];
     return dayEntries.reduce((a, e) => a + (e.clocked_out_at
-      ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000
+      ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60
       : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
   }
 
@@ -204,7 +204,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               {getDayEntries(tech, selectedDay).map((e, i, arr) => {
                 const inTime = new Date(e.clocked_in_at);
                 const outTime = e.clocked_out_at ? new Date(e.clocked_out_at) : null;
-                const dur = outTime ? ((outTime - inTime) / 3600000).toFixed(2) : null;
+                const dur = outTime ? ((outTime - inTime) / 3600000 - (e.lunch_minutes ?? 0) / 60).toFixed(2) : null;
                 const isEditingThis = editingEntry === e.id;
                 return (
                   <div key={e.id} style={{ padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -235,6 +235,8 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                             {outTime ? ' → ' + outTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' }) : ' → En progreso ⏱'}
                           </div>
                           {e.job_id && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Trabajo asociado</div>}
+                          {(e.lunch_minutes ?? 0) > 0 && <div style={{ fontSize: 11, color: 'var(--warn)', marginTop: 2 }}>🍽️ Lunch -{(e.lunch_minutes / 60).toFixed(1)}h</div>}
+                          {e.notes && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, fontStyle: 'italic' }}>"{e.notes}"</div>}
                         </div>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                           <div style={{ fontWeight: 700, color: dur ? 'var(--navy)' : 'var(--amber)', fontSize: 15 }}>{dur ? dur + 'h' : '—'}</div>

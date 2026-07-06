@@ -68,7 +68,7 @@ export default async function TimesheetPage({ searchParams }) {
     let regularHours = 0, overtimeHours = 0;
     Object.values(byDay).forEach(dayEntries => {
       const hours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
-        ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000
+        ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60
         : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
       if (hours > 8) { regularHours += 8; overtimeHours += hours - 8; }
       else regularHours += hours;
@@ -77,7 +77,7 @@ export default async function TimesheetPage({ searchParams }) {
     const adj = adjs.find(a => a.technician_id === tech.id);
     const finalRegular = adj?.regular_hours_override ?? regularHours;
     const finalOvertime = adj?.overtime_hours_override ?? overtimeHours;
-    const hasOverride = adj !== undefined;
+    const hasOverride = adj?.regular_hours_override !== null && adj?.regular_hours_override !== undefined;
 
     const rate = Number(tech.hourly_rate ?? 0);
     const grossPay = (finalRegular * rate) + (finalOvertime * rate * 1.5);

@@ -71,7 +71,7 @@ export default async function AccountingPayroll({ searchParams }) {
     techEntries.forEach(e => {
       const day = e.clocked_in_at.slice(0, 10);
       if (!byDay[day]) byDay[day] = 0;
-      byDay[day] += (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000;
+      byDay[day] += (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
     });
     Object.values(byDay).forEach(hours => {
       if (hours > 8) { rawRegular += 8; rawOvertime += hours - 8; }
@@ -121,7 +121,7 @@ export default async function AccountingPayroll({ searchParams }) {
     let gross = 0;
     techs.forEach(tech => {
       const te = mEntries.filter(e => e.technician_id === tech.id);
-      const hours = te.reduce((a, e) => a + (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000, 0);
+      const hours = te.reduce((a, e) => a + (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60, 0);
       gross += hours * Number(tech.hourly_rate ?? 0);
     });
     return { name: m.slice(0, 3), gross, net: gross * 0.9, idx: i };

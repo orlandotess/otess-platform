@@ -24,7 +24,7 @@ function calcDayHours(entries) {
   Object.entries(byDay).forEach(([day, dayEntries]) => {
     let dayTotal = 0;
     dayEntries.forEach(e => {
-      const duration = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000;
+      const duration = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
       dayTotal += duration;
     });
     const reg = Math.min(dayTotal, OVERTIME_THRESHOLD);
@@ -209,12 +209,12 @@ export default function PayrollClient({ technicians, entries, weekStart, weekEnd
                   </thead>
                   <tbody>
                     {day.entries.map((e, i) => {
-                      const duration = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000;
+                      const duration = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
                       return (
                         <tr key={e.id}>
                           <td>{fmtTime(e.clocked_in_at)}</td>
                           <td>{fmtTime(e.clocked_out_at)}</td>
-                          <td style={{ textAlign: 'right' }}>{fmtH(duration)}</td>
+                          <td style={{ textAlign: 'right' }}>{fmtH(duration)}{(e.lunch_minutes ?? 0) > 0 && ' 🍽️'}</td>
                           <td style={{ textAlign: 'right' }}>
                             {duration > OVERTIME_THRESHOLD
                               ? <span className="badge badge-red">Incluye OT</span>

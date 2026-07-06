@@ -64,7 +64,7 @@ export default async function PayrollHistorial() {
       techEntries.forEach(e => {
         const day = e.clocked_in_at.slice(0, 10);
         if (!byDay[day]) byDay[day] = 0;
-        byDay[day] += (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000;
+        byDay[day] += (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
       });
       let rawRegular = 0, rawOvertime = 0;
       Object.values(byDay).forEach(h => {

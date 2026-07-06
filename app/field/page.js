@@ -33,6 +33,11 @@ export default function FieldApp() {
   const [allJobs, setAllJobs] = useState([]);
   const fileRef = useRef();
 
+  // Manual weekly timesheet (feeds payroll via time_entries)
+  const [editingWeek, setEditingWeek] = useState(false);
+  const [weekDayForms, setWeekDayForms] = useState({});
+  const [savingDay, setSavingDay] = useState(null);
+
   // Job detail state
   const [detailJob, setDetailJob] = useState(null);
   const [detailTab, setDetailTab] = useState('info');
@@ -199,6 +204,91 @@ export default function FieldApp() {
     if (!activeEntry) return;
     await supabase.from('time_entries').update({ clocked_out_at: new Date().toISOString() }).eq('id', activeEntry.id);
     setClockedIn(false); setActiveEntry(null); setElapsed(0);
+  }
+
+  // Payroll week runs Wed–Tue (matches /admin/timesheet and /accounting/payroll)
+  function getPayrollWeekDays(offset = 0) {
+    const n = new Date();
+    const daysSinceWed = (n.getDay() + 4) % 7;
+    const weekStart = new Date(n);
+    weekStart.setDate(n.getDate() - daysSinceWed + offset * 7);
+    weekStart.setHours(0, 0, 0, 0);
+    return Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d; });
+  }
+  const dayKey = d => d.toISOString().slice(0, 10);
+  function to12h(date) {
+    let h = date.getHours();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    return { hour: String(h), minute: String(date.getMinutes()).padStart(2, '0'), ampm };
+  }
+  function blankDayForm() {
+    return { id: null, entryHour: '', entryMinute: '', entryAmPm: 'AM', exitHour: '', exitMinute: '', exitAmPm: 'PM', lunch: false, notes: '' };
+  }
+
+  async function loadWeekDayForms() {
+    if (!techId) return;
+    const days = getPayrollWeekDays();
+    const start = days[0];
+    const end = new Date(days[6]); end.setHours(23, 59, 59, 999);
+    const { data } = await supabase.from('time_entries').select('*')
+      .eq('technician_id', techId)
+      .gte('clocked_in_at', start.toISOString())
+      .lte('clocked_in_at', end.toISOString())
+      .order('clocked_in_at');
+    const forms = {};
+    days.forEach(d => {
+      const key = dayKey(d);
+      const entry = (data ?? []).find(e => e.clocked_in_at.slice(0, 10) === key);
+      if (!entry) { forms[key] = blankDayForm(); return; }
+      const inT = to12h(new Date(entry.clocked_in_at));
+      const outT = entry.clocked_out_at ? to12h(new Date(entry.clocked_out_at)) : null;
+      forms[key] = {
+        id: entry.id,
+        entryHour: inT.hour, entryMinute: inT.minute, entryAmPm: inT.ampm,
+        exitHour: outT?.hour ?? '', exitMinute: outT?.minute ?? '', exitAmPm: outT?.ampm ?? 'PM',
+        lunch: (entry.lunch_minutes ?? 0) > 0,
+        notes: entry.notes ?? '',
+      };
+    });
+    setWeekDayForms(forms);
+  }
+
+  useEffect(() => { if (techId && tab === 'time') loadWeekDayForms(); }, [techId, tab]);
+
+  function updateDayForm(key, patch) {
+    setWeekDayForms(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  }
+
+  async function saveDayForm(dateObj) {
+    const key = dayKey(dateObj);
+    const form = weekDayForms[key];
+    if (!form?.entryHour || !form?.exitHour) return;
+    setSavingDay(key);
+    const to24 = (hour, ampm) => { let h = parseInt(hour, 10) % 12; if (ampm === 'PM') h += 12; return h; };
+    const clockedIn = new Date(dateObj);
+    clockedIn.setHours(to24(form.entryHour, form.entryAmPm), parseInt(form.entryMinute, 10) || 0, 0, 0);
+    const clockedOut = new Date(dateObj);
+    clockedOut.setHours(to24(form.exitHour, form.exitAmPm), parseInt(form.exitMinute, 10) || 0, 0, 0);
+    const payload = {
+      technician_id: techId,
+      clocked_in_at: clockedIn.toISOString(),
+      clocked_out_at: clockedOut.toISOString(),
+      lunch_minutes: form.lunch ? 60 : 0,
+      notes: form.notes.trim() || null,
+    };
+    if (form.id) {
+      await supabase.from('time_entries').update(payload).eq('id', form.id);
+    } else {
+      const { data } = await supabase.from('time_entries').insert([payload]).select().single();
+      if (data) updateDayForm(key, { id: data.id });
+    }
+    setSavingDay(null);
+    // Refresh the week summary card above so hours reflect the saved entry
+    const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); weekStart.setHours(0, 0, 0, 0);
+    const { data: refreshed } = await supabase.from('time_entries').select('*').eq('technician_id', techId)
+      .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false });
+    setTimeEntries(refreshed ?? []);
   }
 
   async function saveFabNote(e) {
@@ -532,6 +622,67 @@ export default function FieldApp() {
                 </div>
               </div>
             </div>
+
+            <div style={{ padding: '4px 20px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 15, fontWeight: 700 }}>Editar mi horario semanal</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: ORANGE, cursor: 'pointer' }} onClick={() => setEditingWeek(v => !v)}>
+                {editingWeek ? 'Ocultar' : 'Editar'}
+              </span>
+            </div>
+
+            {editingWeek && getPayrollWeekDays().map(dateObj => {
+              const key = dayKey(dateObj);
+              const form = weekDayForms[key] ?? blankDayForm();
+              const dayLabel = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+              const dateLabel = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const saving = savingDay === key;
+              return (
+                <div key={key} style={card}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <div><span style={{ fontWeight: 700, fontSize: 16 }}>{dayLabel}</span> <span style={{ color: '#888', fontSize: 13 }}>{dateLabel}</span></div>
+                    <button onClick={() => saveDayForm(dateObj)} disabled={saving || !form.entryHour || !form.exitHour}
+                      style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!form.entryHour || !form.exitHour) ? 0.5 : 1 }}>
+                      {saving ? '...' : '💾'}
+                    </button>
+                  </div>
+
+                  {[['ENTRY', 'entry'], ['EXIT', 'exit']].map(([label, prefix]) => (
+                    <div key={prefix} style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.06em', marginBottom: 6 }}>{label}</div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input type="text" inputMode="numeric" maxLength={2} placeholder="--" value={form[prefix + 'Hour']}
+                          onChange={e => updateDayForm(key, { [prefix + 'Hour']: e.target.value.replace(/\D/g, '').slice(0, 2) })}
+                          style={{ width: 46, textAlign: 'center', padding: '10px 0', border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 15, fontWeight: 600, outline: 'none' }} />
+                        <span style={{ fontWeight: 700, color: '#888' }}>:</span>
+                        <input type="text" inputMode="numeric" maxLength={2} placeholder="--" value={form[prefix + 'Minute']}
+                          onChange={e => updateDayForm(key, { [prefix + 'Minute']: e.target.value.replace(/\D/g, '').slice(0, 2) })}
+                          style={{ width: 46, textAlign: 'center', padding: '10px 0', border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 15, fontWeight: 600, outline: 'none' }} />
+                        <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1.5px solid #dde1e7' }}>
+                          {['AM', 'PM'].map(ap => (
+                            <button key={ap} onClick={() => updateDayForm(key, { [prefix + 'AmPm']: ap })}
+                              style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', background: form[prefix + 'AmPm'] === ap ? '#16223d' : '#fff', color: form[prefix + 'AmPm'] === ap ? '#fff' : '#888' }}>
+                              {ap}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.06em', marginBottom: 6 }}>LUNCH</div>
+                      <div onClick={() => updateDayForm(key, { lunch: !form.lunch })}
+                        style={{ width: 44, height: 26, borderRadius: 50, background: form.lunch ? ORANGE : '#dde1e7', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: form.lunch ? 21 : 3, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                      </div>
+                    </div>
+                    <input value={form.notes} onChange={e => updateDayForm(key, { notes: e.target.value })} placeholder="Notes..."
+                      style={{ flex: 1, padding: '10px 14px', border: '1.5px solid #dde1e7', borderRadius: 50, fontSize: 13, outline: 'none' }} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
