@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import PhotoAnnotator from '../PhotoAnnotator';
 import { buildMapsLinks } from '../../lib/mapsLinks';
+import { normalizeName } from '../../lib/normalizeName';
 
 const ORANGE = '#E05C2A';
 const BG = '#EAEEF2';
@@ -68,7 +69,9 @@ export default function FieldApp() {
       if (!session) { window.location.replace('/login'); return; }
       const { data: profile } = await supabase.from('profiles').select('name').eq('id', session.user.id).single();
       if (profile) setTechName(profile.name);
-      const { data: tech } = await supabase.from('technicians').select('id').ilike('name', profile?.name ?? 'OTESS').single();
+      const { data: allTechs } = await supabase.from('technicians').select('id, name');
+      const target = normalizeName(profile?.name ?? 'OTESS');
+      const tech = (allTechs ?? []).find(t => normalizeName(t.name) === target);
       if (tech) setTechId(tech.id);
       setLoading(false);
     });

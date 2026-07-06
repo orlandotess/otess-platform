@@ -2,13 +2,10 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { normalizeName } from '../../../lib/normalizeName';
 
 const roleLabel = { admin: 'Admin', tecnico: 'Técnico', vendedor: 'Vendedor', secretaria: 'Secretaría' };
 const roleBadge = { admin: 'badge-blue', tecnico: 'badge-amber', vendedor: 'badge-green', secretaria: 'badge-gray' };
-
-// Names get compared ignoring case/accents so "Ricardo Diaz" (profile) still
-// matches "Ricardo Díaz" (technician row) instead of looking unlinked.
-const normalizeName = s => s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 export default function UsersClient({ profiles, technicians, currentRole }) {
   const router = useRouter();
@@ -70,7 +67,8 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
     // Re-check against the DB (not just the techNames set from initial props)
     // so a stale client won't insert a second row for the same name.
     if (newRole === 'tecnico') {
-      const { data: existing } = await supabase.from('technicians').select('id').ilike('name', profileName).maybeSingle();
+      const { data: allTechs } = await supabase.from('technicians').select('id, name');
+      const existing = (allTechs ?? []).find(t => normalizeName(t.name) === normalizeName(profileName));
       if (!existing) {
         const slug = profileName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
         const { error: techError } = await supabase.from('technicians').insert([{ name: profileName, username: slug || profileId.slice(0, 8) }]);
@@ -100,7 +98,8 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
     if (enablingTechFor) return;
     const profile = { ...rawProfile, name: rawProfile.name.trim() };
     setEnablingTechFor(profile.id);
-    const { data: existing } = await supabase.from('technicians').select('id').ilike('name', profile.name).maybeSingle();
+    const { data: allTechs } = await supabase.from('technicians').select('id, name');
+    const existing = (allTechs ?? []).find(t => normalizeName(t.name) === normalizeName(profile.name));
     if (existing) {
       setSuccess(`${profile.name} ya tiene un registro de técnico.`);
       setEnablingTechFor(null);

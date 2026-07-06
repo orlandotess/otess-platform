@@ -1,5 +1,6 @@
 import { supabaseServer as supabaseAdmin } from '../../../lib/supabase';
 import { getCurrentRole } from '../../../lib/supabase-server';
+import { normalizeName } from '../../../lib/normalizeName';
 
 export async function POST(request) {
   const currentRole = await getCurrentRole();
@@ -42,7 +43,8 @@ export async function POST(request) {
   // If role is tecnico, also create a technicians record so they can be assigned to jobs
   let warning = null;
   if (role === 'tecnico') {
-    const { data: existing, error: lookupError } = await supabaseAdmin.from('technicians').select('id').ilike('name', name).maybeSingle();
+    const { data: allTechs, error: lookupError } = await supabaseAdmin.from('technicians').select('id, name');
+    const existing = (allTechs ?? []).find(t => normalizeName(t.name) === normalizeName(name));
     if (lookupError) {
       warning = `Usuario creado, pero no se pudo verificar si ya exist\u00eda como t\u00e9cnico: ${lookupError.message}`;
     } else if (!existing) {
