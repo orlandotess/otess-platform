@@ -84,7 +84,7 @@ function computePayroll(start, end, techs, ents) {
   let total = 0;
   techs.forEach(tech => {
     const hours = filtered.filter(e => e.technician_id === tech.id).reduce((a, e) => {
-      return a + (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000;
+      return a + (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
     }, 0);
     total += hours * Number(tech.hourly_rate ?? 0);
   });
@@ -243,7 +243,7 @@ export default async function AccountingDashboard({ searchParams }) {
     supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name)').order('issued_at', { ascending: false }),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount, quantity, unit_price, supplier_price'),
     supabase.from('technicians').select('id, hourly_rate'),
-    supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at').not('clocked_out_at', 'is', null).gte('clocked_in_at', entriesFetchStart).lte('clocked_in_at', entriesFetchEnd),
+    supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at, lunch_minutes').not('clocked_out_at', 'is', null).gte('clocked_in_at', entriesFetchStart).lte('clocked_in_at', entriesFetchEnd),
     supabase.from('payments').select('invoice_id, amount, paid_at'),
     supabase.from('inbox_notifications').select('*').order('created_at', { ascending: false }).limit(20),
     supabase.from('expenses').select('expense_date, amount, category, job_id'),
