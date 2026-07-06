@@ -3,6 +3,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
+import { isoToLocalInput, localInputToIso } from '../../lib/datetimeLocal';
 
 const TECH_COLORS = [
   '#16223d', '#e0972c', '#27ae60', '#2a4cb5', '#e05c2a',
@@ -48,6 +49,30 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const [addToJobModal, setAddToJobModal] = useState(false);
   const [addedToJob, setAddedToJob] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reschedulingJob, setReschedulingJob] = useState(false);
+  const [rescheduleForm, setRescheduleForm] = useState({ start: '', end: '' });
+  const [savingReschedule, setSavingReschedule] = useState(false);
+
+  function openJobReschedule(job) {
+    setRescheduleForm({ start: isoToLocalInput(job.scheduled_start), end: isoToLocalInput(job.scheduled_end) });
+    setReschedulingJob(true);
+  }
+
+  async function saveJobReschedule() {
+    setSavingReschedule(true);
+    // Extra work days live in job_schedule_days; the job's primary date range lives on jobs itself.
+    const table = selectedJob.schedule_day_id ? 'job_schedule_days' : 'jobs';
+    const targetId = selectedJob.schedule_day_id ?? selectedJob.id;
+    const { error } = await supabase.from(table).update({
+      scheduled_start: localInputToIso(rescheduleForm.start),
+      scheduled_end: localInputToIso(rescheduleForm.end),
+    }).eq('id', targetId);
+    setSavingReschedule(false);
+    if (error) { alert('Error al reagendar: ' + error.message); return; }
+    setReschedulingJob(false);
+    setSelectedJob(null);
+    router.refresh();
+  }
 
   const techColors = useMemo(() => {
     const map = {};
@@ -591,14 +616,17 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       {/* Job detail modal */}
       {selectedJob && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-          onClick={() => setSelectedJob(null)}>
+          onClick={() => { setSelectedJob(null); setReschedulingJob(false); }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{selectedJob.title}</div>
-                <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{selectedJob.clients?.name}</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+                  {selectedJob.clients?.name}
+                  {selectedJob.schedule_day_id && ' · día adicional'}
+                </div>
               </div>
-              <button onClick={() => setSelectedJob(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
+              <button onClick={() => { setSelectedJob(null); setReschedulingJob(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
             </div>
             <div style={{ display: 'grid', gap: 0, marginBottom: 20 }}>
               {[
@@ -613,9 +641,36 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 </div>
               ))}
             </div>
-            <Link href={`/trabajos/${selectedJob.id}`} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-              Ver trabajo completo →
-            </Link>
+
+            {reschedulingJob ? (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div className="form-group">
+                    <label>Inicio</label>
+                    <input type="datetime-local" value={rescheduleForm.start} onChange={e => setRescheduleForm(f => ({ ...f, start: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Fin</label>
+                    <input type="datetime-local" value={rescheduleForm.end} onChange={e => setRescheduleForm(f => ({ ...f, end: e.target.value }))} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-primary" onClick={saveJobReschedule} disabled={savingReschedule} style={{ flex: 1, justifyContent: 'center' }}>
+                    {savingReschedule ? 'Guardando...' : '💾 Guardar'}
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => setReschedulingJob(false)}>Cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button className="btn btn-amber" style={{ width: '100%', justifyContent: 'center' }} onClick={() => openJobReschedule(selectedJob)}>
+                  🗓️ Reagendar
+                </button>
+                <Link href={`/trabajos/${selectedJob.job_id ?? selectedJob.id}`} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                  Ver trabajo completo →
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}

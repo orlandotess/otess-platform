@@ -20,6 +20,31 @@ export default async function CalendarioPage({ searchParams }) {
     .not('scheduled_start', 'is', null)
     .order('scheduled_start');
 
+  // Extra work days for jobs that span multiple (possibly non-consecutive) days.
+  // Each is rendered as its own calendar entry, carrying the parent job's info.
+  const { data: scheduleDayRows } = await supabase
+    .from('job_schedule_days')
+    .select('id, job_id, scheduled_start, scheduled_end, technician_id, technicians(id, name), jobs(id, title, status, clients(name), job_technicians(technician_id))')
+    .order('scheduled_start');
+
+  const extraJobDays = (scheduleDayRows ?? [])
+    .filter(d => d.jobs)
+    .map(d => ({
+      id: `day-${d.id}`,
+      job_id: d.job_id,
+      schedule_day_id: d.id,
+      title: d.jobs.title,
+      status: d.jobs.status,
+      scheduled_start: d.scheduled_start,
+      scheduled_end: d.scheduled_end,
+      technician_id: d.technician_id,
+      technicians: d.technicians,
+      clients: d.jobs.clients,
+      job_technicians: d.jobs.job_technicians ?? [],
+    }));
+
+  const allJobs = [...(jobs ?? []), ...extraJobDays];
+
   const { data: visits } = await supabase
     .from('visits')
     .select('id, request_id, technician_id, scheduled_at, duration_minutes, status, requests(title, clients(name)), technicians(name)')
@@ -70,7 +95,7 @@ export default async function CalendarioPage({ searchParams }) {
       <Sidebar />
       <main className="main-content" style={{ padding: '24px 28px' }}>
         <CalendarioClient
-          jobs={jobs ?? []}
+          jobs={allJobs}
           technicians={technicians ?? []}
           visits={visits ?? []}
           calendarEvents={calendarEvents ?? []}

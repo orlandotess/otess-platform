@@ -17,7 +17,7 @@ const statusOptions = [
   { value: 'cancelled', label: 'Cancelado' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
@@ -131,6 +131,33 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setSavingSchedule(false);
     setEditingSchedule(false);
     router.refresh();
+  }
+
+  // Extra work days — a job can span multiple (possibly non-consecutive) days,
+  // each with its own time range and technician, beyond the primary scheduled_start/end above.
+  const [scheduleDays, setScheduleDays] = useState(initialScheduleDays);
+  const [addingDay, setAddingDay] = useState(false);
+  const [newDay, setNewDay] = useState({ start: '', end: '', technician_id: '' });
+  const [savingDay, setSavingDay] = useState(false);
+
+  async function addScheduleDay() {
+    if (!newDay.start) return;
+    setSavingDay(true);
+    const { data } = await supabase.from('job_schedule_days').insert([{
+      job_id: job.id,
+      scheduled_start: localInputToIso(newDay.start),
+      scheduled_end: localInputToIso(newDay.end),
+      technician_id: newDay.technician_id || null,
+    }]).select('*, technicians(name)').single();
+    if (data) setScheduleDays(prev => [...prev, data].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
+    setNewDay({ start: '', end: '', technician_id: '' });
+    setAddingDay(false);
+    setSavingDay(false);
+  }
+
+  async function removeScheduleDay(dayId) {
+    await supabase.from('job_schedule_days').delete().eq('id', dayId);
+    setScheduleDays(prev => prev.filter(d => d.id !== dayId));
   }
 
   // Line items state
@@ -720,6 +747,62 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               {job.notes && (
                 <div style={{ marginTop: 12, padding: '12px 14px', background: '#f8f9fb', borderRadius: 8, fontSize: 13, color: 'var(--muted)' }}>
                   <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {job.notes}
+                </div>
+              )}
+            </div>
+
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Días de trabajo</p>
+                {!addingDay && (
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingDay(true)}>+ Añadir día</button>
+                )}
+              </div>
+
+              {scheduleDays.length === 0 && !addingDay && (
+                <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin días adicionales. Usa "+ Añadir día" para agendar más visitas a este trabajo.</p>
+              )}
+
+              {scheduleDays.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: addingDay ? 14 : 0 }}>
+                  {scheduleDays.map(d => (
+                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f8f9fb', borderRadius: 8 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }} suppressHydrationWarning>
+                          {new Date(d.scheduled_start).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {d.scheduled_end && ` – ${new Date(d.scheduled_end).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}`}
+                        </div>
+                        {d.technicians?.name && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.technicians.name}</div>}
+                      </div>
+                      <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--warn)' }} onClick={() => removeScheduleDay(d.id)}>🗑</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {addingDay && (
+                <div style={{ padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
+                    <div className="form-group">
+                      <label>Inicio</label>
+                      <input type="datetime-local" value={newDay.start} onChange={e => setNewDay(d => ({ ...d, start: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label>Fin</label>
+                      <input type="datetime-local" value={newDay.end} onChange={e => setNewDay(d => ({ ...d, end: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 12 }}>
+                    <label>Técnico</label>
+                    <select value={newDay.technician_id} onChange={e => setNewDay(d => ({ ...d, technician_id: e.target.value }))}>
+                      <option value="">— Sin asignar —</option>
+                      {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button className="btn btn-primary" onClick={addScheduleDay} disabled={savingDay || !newDay.start}>{savingDay ? 'Guardando...' : '💾 Guardar'}</button>
+                    <button className="btn btn-ghost" onClick={() => { setAddingDay(false); setNewDay({ start: '', end: '', technician_id: '' }); }}>Cancelar</button>
+                  </div>
                 </div>
               )}
             </div>
