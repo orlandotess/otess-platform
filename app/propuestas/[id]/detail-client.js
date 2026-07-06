@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import ProposalDocument, { financialBreakdown } from '../ProposalDocument';
@@ -38,9 +38,11 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
   const optionTotal = opt => financialBreakdown(opt.items, clientType, taxRules ?? []).total;
 
-  const publicUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/propuesta/${proposal.public_token}`
-    : '';
+  const [publicUrl, setPublicUrl] = useState('');
+
+  useEffect(() => {
+    setPublicUrl(`${window.location.origin}/propuesta/${proposal.public_token}`);
+  }, [proposal.public_token]);
 
   async function handleSend() {
     setSending(true);
