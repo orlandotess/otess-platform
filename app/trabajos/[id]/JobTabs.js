@@ -17,7 +17,7 @@ const statusOptions = [
   { value: 'cancelled', label: 'Cancelado' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
@@ -53,8 +53,27 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [descForm, setDescForm] = useState(job.description ?? '');
   const [savingDetails, setSavingDetails] = useState(false);
   const [editingContact, setEditingContact] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
   const [contactForm, setContactForm] = useState({ contact_name: job.contact_name ?? '', contact_phone: job.contact_phone ?? '', contact_email: job.contact_email ?? '' });
   const [savingContact, setSavingContact] = useState(false);
+  const [editingProperty, setEditingProperty] = useState(false);
+  const [propertySearch, setPropertySearch] = useState('');
+  const [propertyForm, setPropertyForm] = useState({ property_id: job.property_id ?? '', property_name: job.property_name ?? '', street: job.street ?? '', city: job.city ?? '', state: job.state ?? 'PR', zip: job.zip ?? '' });
+  const [savingProperty, setSavingProperty] = useState(false);
+
+  function contactLabel(c) { return `${c.name}${c.phone ? ' — ' + c.phone : ''}`; }
+  function handleContactSearchChange(value) {
+    setContactSearch(value);
+    const match = clientContacts.find(c => contactLabel(c) === value);
+    if (match) setContactForm({ contact_name: match.name ?? '', contact_phone: match.phone ?? '', contact_email: match.email ?? '' });
+  }
+
+  function propertyLabel(p) { return `${p.name}${p.city ? ' — ' + p.city : ''}`; }
+  function handlePropertySearchChange(value) {
+    setPropertySearch(value);
+    const match = clientProperties.find(p => propertyLabel(p) === value);
+    if (match) setPropertyForm({ property_id: match.id, property_name: match.name ?? '', street: match.street ?? '', city: match.city ?? '', state: match.state ?? 'PR', zip: match.zip ?? '' });
+  }
 
   async function saveDetails() {
     setSavingDetails(true);
@@ -76,6 +95,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     }).eq('id', job.id);
     setSavingContact(false);
     setEditingContact(false);
+    router.refresh();
+  }
+
+  async function saveProperty() {
+    setSavingProperty(true);
+    await supabase.from('jobs').update({
+      property_id: propertyForm.property_id || null,
+      property_name: propertyForm.property_name.trim() || null,
+      street: propertyForm.street.trim() || null,
+      city: propertyForm.city.trim() || null,
+      state: propertyForm.state.trim() || null,
+      zip: propertyForm.zip.trim() || null,
+    }).eq('id', job.id);
+    setSavingProperty(false);
+    setEditingProperty(false);
     router.refresh();
   }
 
@@ -469,12 +503,22 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 {!editingContact && (
                   <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => {
                     setContactForm({ contact_name: job.contact_name ?? '', contact_phone: job.contact_phone ?? '', contact_email: job.contact_email ?? '' });
+                    setContactSearch('');
                     setEditingContact(true);
                   }}>✏️ Editar</button>
                 )}
               </div>
               {editingContact ? (
                 <div>
+                  {clientContacts.length > 0 && (
+                    <div className="form-group" style={{ marginBottom: 10 }}>
+                      <label>Buscar contacto del cliente</label>
+                      <input list="job-contact-datalist" value={contactSearch} onChange={e => handleContactSearchChange(e.target.value)} placeholder="Escribe para buscar..." />
+                      <datalist id="job-contact-datalist">
+                        {clientContacts.map(c => <option key={c.id} value={contactLabel(c)} />)}
+                      </datalist>
+                    </div>
+                  )}
                   <div className="form-group" style={{ marginBottom: 10 }}>
                     <label>Nombre</label>
                     <input value={contactForm.contact_name} onChange={e => setContactForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="Nombre del contacto" />
@@ -505,31 +549,82 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               )}
             </div>
 
-            {(job.street || job.city || job.property_name) && (
-              <div className="card">
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>📍 Propiedad</p>
-                {job.property_name && <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{job.property_name}</div>}
-                {job.street && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{job.street}</div>}
-                {job.city && <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 10 }}>{job.city}{job.state ? `, ${job.state}` : ''}{job.zip ? ` ${job.zip}` : ''}</div>}
-                {(job.street || job.city) && (() => {
-                  const links = buildMapsLinks(job.street, job.city, job.state, job.zip);
-                  if (links.direct) {
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>📍 Propiedad</p>
+                {!editingProperty && (
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => {
+                    setPropertyForm({ property_id: job.property_id ?? '', property_name: job.property_name ?? '', street: job.street ?? '', city: job.city ?? '', state: job.state ?? 'PR', zip: job.zip ?? '' });
+                    setPropertySearch('');
+                    setEditingProperty(true);
+                  }}>✏️ Editar</button>
+                )}
+              </div>
+              {editingProperty ? (
+                <div>
+                  {clientProperties.length > 0 && (
+                    <div className="form-group" style={{ marginBottom: 10 }}>
+                      <label>Buscar propiedad del cliente</label>
+                      <input list="job-property-datalist" value={propertySearch} onChange={e => handlePropertySearchChange(e.target.value)} placeholder="Escribe para buscar..." />
+                      <datalist id="job-property-datalist">
+                        {clientProperties.map(p => <option key={p.id} value={propertyLabel(p)} />)}
+                      </datalist>
+                    </div>
+                  )}
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label>Nombre de la propiedad</label>
+                    <input value={propertyForm.property_name} onChange={e => setPropertyForm(f => ({ ...f, property_name: e.target.value }))} placeholder="Ej: Oficina Principal" />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
+                    <input value={propertyForm.street} onChange={e => setPropertyForm(f => ({ ...f, street: e.target.value }))} placeholder="Calle y número" />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10, marginBottom: 10 }}>
+                    <div className="form-group">
+                      <label>Ciudad</label>
+                      <input value={propertyForm.city} onChange={e => setPropertyForm(f => ({ ...f, city: e.target.value }))} placeholder="San Juan" />
+                    </div>
+                    <div className="form-group">
+                      <label>Estado</label>
+                      <input value={propertyForm.state} onChange={e => setPropertyForm(f => ({ ...f, state: e.target.value }))} placeholder="PR" />
+                    </div>
+                    <div className="form-group">
+                      <label>Zip</label>
+                      <input value={propertyForm.zip} onChange={e => setPropertyForm(f => ({ ...f, zip: e.target.value }))} placeholder="00901" />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button className="btn btn-primary" onClick={saveProperty} disabled={savingProperty}>{savingProperty ? 'Guardando...' : '💾 Guardar'}</button>
+                    <button className="btn btn-ghost" onClick={() => setEditingProperty(false)}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (job.street || job.city || job.property_name) ? (
+                <div>
+                  {job.property_name && <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{job.property_name}</div>}
+                  {job.street && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{job.street}</div>}
+                  {job.city && <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 10 }}>{job.city}{job.state ? `, ${job.state}` : ''}{job.zip ? ` ${job.zip}` : ''}</div>}
+                  {(job.street || job.city) && (() => {
+                    const links = buildMapsLinks(job.street, job.city, job.state, job.zip);
+                    if (links.direct) {
+                      return (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <a href={links.direct} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Abrir ubicación</a>
+                        </div>
+                      );
+                    }
                     return (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <a href={links.direct} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Abrir ubicación</a>
+                        <a href={links.google} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Google Maps</a>
+                        <a href={links.apple} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🍎 Apple Maps</a>
+                        <a href={links.waze} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🚗 Waze</a>
                       </div>
                     );
-                  }
-                  return (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <a href={links.google} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Google Maps</a>
-                      <a href={links.apple} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🍎 Apple Maps</a>
-                      <a href={links.waze} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🚗 Waze</a>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
+                  })()}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin propiedad asignada.</p>
+              )}
+            </div>
 
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>

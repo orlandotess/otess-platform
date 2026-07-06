@@ -38,6 +38,16 @@ export default async function TrabajoDetail({ params }) {
     </div>
   );
 
+  // Full lists (not just the one linked via property_id/contact_id) so the
+  // job editor can offer a searchable selector over all of the client's
+  // properties/contacts, not just the one currently assigned.
+  const [{ data: clientProperties }, { data: clientContacts }] = job.client_id
+    ? await Promise.all([
+        supabase.from('client_properties').select('*').eq('client_id', job.client_id).order('is_primary', { ascending: false }),
+        supabase.from('client_contacts').select('*').eq('client_id', job.client_id).order('is_primary', { ascending: false }),
+      ])
+    : [{ data: [] }, { data: [] }];
+
   // Generate signed URLs for notes with photos (1 hour expiry)
   async function signPath(rawPath) {
     if (!rawPath) return null;
@@ -113,6 +123,8 @@ export default async function TrabajoDetail({ params }) {
           clientType={clientType}
           totals={{ subProd, taxProd, subLabor, taxLabor, total }}
           jobTechnicians={jobTechnicians ?? []}
+          clientProperties={clientProperties ?? []}
+          clientContacts={clientContacts ?? []}
         />
       </main>
     </div>
