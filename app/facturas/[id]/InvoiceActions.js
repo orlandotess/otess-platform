@@ -201,8 +201,15 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
     await supabase.from('retenciones').delete().eq('invoice_id', invoiceId);
     await supabase.from('payments').delete().eq('invoice_id', invoiceId);
     await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId);
-    await supabase.from('invoices').delete().eq('id', invoiceId);
-    router.push('/facturas');
+    const { error } = await supabase.from('invoices').delete().eq('id', invoiceId);
+    if (error) {
+      setDeleting(false);
+      alert('No se pudo eliminar la factura: ' + error.message);
+      return;
+    }
+    // Full reload (not router.push) so the facturas list and client balance
+    // don't serve a stale cached render of the just-deleted invoice.
+    window.location.href = '/facturas';
   }
 
   async function openAttachments() {

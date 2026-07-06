@@ -34,8 +34,15 @@ export default function JobActions({ jobId, status, showTechOnly = false, techni
   async function deleteJob() {
     setDeleting(true);
     await supabase.from('job_line_items').delete().eq('job_id', jobId);
-    await supabase.from('jobs').delete().eq('id', jobId);
-    router.push('/trabajos');
+    const { error } = await supabase.from('jobs').delete().eq('id', jobId);
+    if (error) {
+      setDeleting(false);
+      alert('No se pudo eliminar el trabajo: ' + error.message);
+      return;
+    }
+    // Full reload (not router.push) so the trabajos list doesn't serve a
+    // stale cached render of the just-deleted job.
+    window.location.href = '/trabajos';
   }
 
   if (showTechOnly) {
