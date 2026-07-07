@@ -11,6 +11,37 @@ export default async function EstimaPublica({ params }) {
     .eq('id', id)
     .single();
 
+  // Trackear vista + notificar por email — nunca debe impedir que el cliente
+  // vea su estimado, así que cualquier fallo (incluyendo Resend sin configurar) se ignora.
+  if (est) {
+    await supabase.from('estimate_views').insert([{ estimate_id: id }]);
+    await supabase.from('inbox_notifications').insert([{
+      type: 'estimate_viewed',
+      title: `👁️ Estimado ${est.estimate_number} fue abierto`,
+      body: `${est.clients?.name ?? 'Un cliente'} abrió el estimado.`,
+      link: `/estimados/${id}`,
+    }]);
+
+    try {
+      const { Resend } = await import('resend');
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      await resend.emails.send({
+        from: 'OTESS <info@otesspr.com>',
+        to: 'services@otesspr.com',
+        subject: `👁️ Estimado ${est.estimate_number} fue abierto`,
+        html: `
+          <div style="font-family:Arial,sans-serif;padding:20px">
+            <p style="font-size:15px;color:#16223d"><strong>${est.clients?.name ?? 'Un cliente'}</strong> abrió el estimado <strong>${est.estimate_number}</strong>.</p>
+            <p style="font-size:13px;color:#888">Fecha: ${new Date().toLocaleString('es-PR', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            <a href="https://app.otesspr.com/estimados/${id}" style="color:#e0972c;font-size:13px">Ver estimado en el dashboard →</a>
+          </div>
+        `,
+      });
+    } catch (err) {
+      console.error('Error notificando vista:', err);
+    }
+  }
+
   if (!est) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <div style={{ textAlign: 'center' }}>

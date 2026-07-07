@@ -17,6 +17,12 @@ export default async function FacturaPublica({ params }) {
   // vea su factura, así que cualquier fallo (incluyendo Resend sin configurar) se ignora.
   if (inv) {
     await supabase.from('invoice_views').insert([{ invoice_id: id }]);
+    await supabase.from('inbox_notifications').insert([{
+      type: 'invoice_viewed',
+      title: `👁️ Factura ${inv.invoice_number} fue abierta`,
+      body: `${inv.clients?.name ?? 'Un cliente'} abrió la factura.`,
+      link: `/facturas/${id}`,
+    }]);
 
     try {
       const { Resend } = await import('resend');

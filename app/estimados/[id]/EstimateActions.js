@@ -94,6 +94,7 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
 
   async function deleteEstimate() {
     setDeleting(true);
+    await supabase.from('estimate_views').delete().eq('estimate_id', estimateId);
     const { error } = await supabase.from('estimates').delete().eq('id', estimateId);
     if (error) {
       setDeleting(false);
