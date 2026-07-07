@@ -285,7 +285,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {selectedNoteIds.length > 0 && (
         <button className="btn btn-ghost" style={{ color: 'var(--warn)' }} onClick={clearAttachments}>🗑 Quitar adjuntos</button>
       )}
-      {status === 'draft' && <button className="btn btn-primary" onClick={() => updateStatus('sent')}>📤 Enviar</button>}
+      {status === 'draft' && <button className="btn btn-primary" onClick={() => setShowEmail(true)}>📤 Enviar</button>}
       {status === 'sent' && (
         <>
           <button className="btn btn-amber" onClick={() => setShowPayment(true)}>💰 Pago</button>

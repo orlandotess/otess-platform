@@ -7,7 +7,7 @@ export default async function FacturaPublica({ params }) {
   const { id } = params;
 
   const [{ data: inv }, { data: items }, { data: payments }, { data: retenciones }] = await Promise.all([
-    supabase.from('invoices').select('*, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*))').eq('id', id).single(),
+    supabase.from('invoices').select('*, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*)), jobs(id, title, client_properties(*))').eq('id', id).single(),
     supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order'),
     supabase.from('payments').select('*').eq('invoice_id', id).order('paid_at'),
     supabase.from('retenciones').select('retencion_aplicada').eq('invoice_id', id),
@@ -66,6 +66,10 @@ export default async function FacturaPublica({ params }) {
   const totalRetained = retenciones?.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0) ?? 0;
   const balance = Number(inv.total) - totalPaid - totalRetained;
   const primaryAddr = inv.clients?.client_addresses?.find(a => a.is_primary) ?? inv.clients?.client_addresses?.[0];
+  const clientProperties = inv.clients?.client_properties ?? [];
+  const property = inv.property_id
+    ? clientProperties.find(p => p.id === inv.property_id) ?? null
+    : inv.jobs?.client_properties ?? null;
   const billToName = inv.bill_to === 'company' && inv.clients?.company ? inv.clients.company : inv.clients?.name;
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -104,6 +108,14 @@ export default async function FacturaPublica({ params }) {
               {primaryAddr && <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>{primaryAddr.line1}, {primaryAddr.city} {primaryAddr.zip}</div>}
               {inv.clients?.email && <div style={{ color: '#999', fontSize: 13 }}>{inv.clients.email}</div>}
             </div>
+
+            {property && (
+              <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 24, border: '1px solid #f0f0f0' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Propiedad del servicio</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{property.name}</div>
+                {property.street && <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>{property.street}{property.city ? `, ${property.city}` : ''}{property.zip ? ` ${property.zip}` : ''}</div>}
+              </div>
+            )}
 
             {/* Line items */}
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
