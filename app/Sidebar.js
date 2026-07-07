@@ -4,17 +4,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 import { useState, useEffect } from 'react';
 
-const links = [
+const operationsLinks = [
  { href: '/clientes',   label: 'Clientes',   icon: '👥' },
  { href: '/trabajos',   label: 'Trabajos',   icon: '🔧' },
  { href: '/calendario', label: 'Calendario', icon: '📅' },
  { href: '/propuestas', label: 'Propuestas', icon: '📄' },
  { href: '/estimados', label: 'Estimados', icon: '🧮' },
  { href: '/field',      label: 'Field App',  icon: '📱' },
- { href: '/admin/plantillas', label: 'Plantillas', icon: '📋' },
- { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
- { href: '/catalogo', label: 'Labor & Productos', icon: '🧰' },
- { href: '/admin/empresa', label: 'Empresa', icon: '🏢' },
 ];
 
 const accountingLinks = [
@@ -28,6 +24,19 @@ const accountingLinks = [
   { href: '/admin/timesheet', label: 'Timesheet', icon: '🕐' },
 ];
 
+const adminLinks = [
+ { href: '/admin/plantillas', label: 'Plantillas', icon: '📋' },
+ { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
+ { href: '/catalogo', label: 'Labor & Productos', icon: '🧰' },
+ { href: '/admin/empresa', label: 'Empresa', icon: '🏢' },
+];
+
+const sections = [
+ { id: 'operations', label: 'Operaciones',   icon: '🔧', links: operationsLinks },
+ { id: 'accounting', label: 'Contabilidad',  icon: '💰', links: accountingLinks },
+ { id: 'admin',      label: 'Administración',icon: '⚙️', links: adminLinks },
+];
+
 // Extra sections that exist in the app but aren't primary sidebar links —
 // still searchable so the sidebar search can reach the whole platform.
 const extraSearchableLinks = [
@@ -36,15 +45,20 @@ const extraSearchableLinks = [
 
 const searchableLinks = [
  { href: '/', label: 'Dashboard', icon: '⊞' },
- ...links,
- ...accountingLinks.map(l => ({ ...l, label: `Accounting · ${l.label}` })),
+ ...sections.flatMap(s => s.links.map(l => ({ ...l, label: `${s.label} · ${l.label}` }))),
  ...extraSearchableLinks,
 ];
 
 export default function Sidebar() {
  const path = usePathname();
  const router = useRouter();
- const [accountingOpen, setAccountingOpen] = useState(path.startsWith('/accounting') || path.startsWith('/horario'));
+ const [openSections, setOpenSections] = useState(() => {
+   const state = {};
+   for (const s of sections) {
+     state[s.id] = s.id === 'operations' || s.links.some(l => path.startsWith(l.href));
+   }
+   return state;
+ });
  const [search, setSearch] = useState('');
  const [hidden, setHidden] = useState(false);
 
@@ -61,6 +75,10 @@ export default function Sidebar() {
      localStorage.setItem('sidebar-hidden', h ? '0' : '1');
      return !h;
    });
+ }
+
+ function toggleSection(id) {
+   setOpenSections(prev => ({ ...prev, [id]: !prev[id] }));
  }
 
  async function handleLogout() {
@@ -125,46 +143,38 @@ export default function Sidebar() {
              Dashboard
            </Link>
 
-           {/* Accounting group */}
-           <button
-             onClick={() => setAccountingOpen(!accountingOpen)}
-             style={{
-               display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-               padding: '10px 16px', background: accountingOpen ? 'rgba(255,255,255,0.08)' : 'none',
-               border: 'none', color: 'rgba(255,255,255,0.85)', cursor: 'pointer',
-               fontSize: 14, fontWeight: 600, borderRadius: 8, textAlign: 'left',
-             }}
-           >
-             <span>💰</span>
-             Accounting
-             <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>{accountingOpen ? '▼' : '▶'}</span>
-           </button>
+           {sections.map(s => (
+             <div key={s.id}>
+               <button
+                 onClick={() => toggleSection(s.id)}
+                 style={{
+                   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                   padding: '10px 16px', background: openSections[s.id] ? 'rgba(255,255,255,0.08)' : 'none',
+                   border: 'none', color: 'rgba(255,255,255,0.85)', cursor: 'pointer',
+                   fontSize: 14, fontWeight: 600, borderRadius: 8, textAlign: 'left',
+                 }}
+               >
+                 <span>{s.icon}</span>
+                 {s.label}
+                 <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>{openSections[s.id] ? '▼' : '▶'}</span>
+               </button>
 
-           {accountingOpen && (
-             <div style={{ paddingLeft: 16 }}>
-               {accountingLinks.map(l => (
-                 <Link
-                   key={l.href}
-                   href={l.href}
-                   className={isActive(l.href) ? 'active' : ''}
-                   style={{ fontSize: 13 }}
-                 >
-                   <span>{l.icon}</span>
-                   {l.label}
-                 </Link>
-               ))}
+               {openSections[s.id] && (
+                 <div style={{ paddingLeft: 16 }}>
+                   {s.links.map(l => (
+                     <Link
+                       key={l.href}
+                       href={l.href}
+                       className={isActive(l.href) ? 'active' : ''}
+                       style={{ fontSize: 13 }}
+                     >
+                       <span>{l.icon}</span>
+                       {l.label}
+                     </Link>
+                   ))}
+                 </div>
+               )}
              </div>
-           )}
-
-           {links.map(l => (
-             <Link
-               key={l.href}
-               href={l.href}
-               className={isActive(l.href) ? 'active' : ''}
-             >
-               <span>{l.icon}</span>
-               {l.label}
-             </Link>
            ))}
          </>
        )}

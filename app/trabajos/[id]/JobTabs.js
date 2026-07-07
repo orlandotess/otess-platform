@@ -1030,8 +1030,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     </div>
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg)', borderRadius: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>Total de horas</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(scheduleDaysTotalHours)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{scheduleDayGroups.length} {scheduleDayGroups.length === 1 ? 'día asignado' : 'días asignados'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(scheduleDaysTotalHours)} total</span>
                   </div>
                 </div>
               )}
