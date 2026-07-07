@@ -27,7 +27,7 @@ const expenseCategories = [
   { value: 'otro', label: 'Otro' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
@@ -613,6 +613,41 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     return { subProd, taxProd, subLabor, taxLabor, total: subProd + taxProd + subLabor + taxLabor };
   })();
 
+  const MARGIN_ALERT_THRESHOLD = 20; // margen % por debajo del cual se resalta el trabajo
+
+  const profitability = (() => {
+    const facturado = invoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
+    const invoiceIds = new Set(invoices.map(i => i.id));
+    const cobrado = payments.filter(p => invoiceIds.has(p.invoice_id)).reduce((a, p) => a + Number(p.amount ?? 0), 0);
+    const pendiente = Math.max(facturado - cobrado, 0);
+
+    const materialesCosto = lineItems.reduce((a, it) => {
+      if (it.supplier_price == null) return a;
+      return a + Number(it.quantity ?? 0) * Number(it.supplier_price ?? 0);
+    }, 0);
+
+    const techRateById = {};
+    technicians.forEach(t => { techRateById[t.id] = Number(t.hourly_rate ?? 0); });
+    const hoursByTech = {};
+    timeEntries.forEach(e => {
+      const hrs = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
+      if (hrs <= 0) return;
+      hoursByTech[e.technician_id] = (hoursByTech[e.technician_id] ?? 0) + hrs;
+    });
+    const laborRows = Object.entries(hoursByTech).map(([techId, hours]) => {
+      const tech = technicians.find(t => t.id === techId);
+      const rate = techRateById[techId] ?? 0;
+      return { techId, name: tech?.name ?? 'Técnico', hours, rate, cost: hours * rate };
+    }).sort((a, b) => b.cost - a.cost);
+    const manoDeObraCosto = laborRows.reduce((a, r) => a + r.cost, 0);
+    const totalHoras = laborRows.reduce((a, r) => a + r.hours, 0);
+
+    const gananciaNeta = cobrado - materialesCosto - manoDeObraCosto - totalExpenses;
+    const margenPct = cobrado > 0 ? (gananciaNeta / cobrado) * 100 : null;
+
+    return { facturado, cobrado, pendiente, materialesCosto, laborRows, manoDeObraCosto, totalHoras, gastos: totalExpenses, gananciaNeta, margenPct };
+  })();
+
   function hoursBetween(start, end) {
     if (!start || !end) return 0;
     const diff = new Date(end) - new Date(start);
@@ -660,6 +695,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
         </button>
         <button style={tabStyle('checklist')} onClick={() => setTab('checklist')}>
           ✅ Checklist {realCount > 0 && <span style={{ background: progress === 100 ? '#e6f4ee' : 'var(--bg)', color: progress === 100 ? '#1a7a4a' : 'var(--muted)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{completedCount}/{realCount}</span>}
+        </button>
+        <button style={tabStyle('rentabilidad')} onClick={() => setTab('rentabilidad')}>
+          💰 Rentabilidad {profitability.margenPct != null && profitability.margenPct < MARGIN_ALERT_THRESHOLD && (
+            <span style={{ background: '#fdecea', color: '#c0392b', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>⚠</span>
+          )}
         </button>
       </div>
 
@@ -1521,6 +1561,91 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ─── RENTABILIDAD TAB ─── */}
+      {tab === 'rentabilidad' && (
+        <div style={{ maxWidth: 760 }}>
+          {profitability.margenPct != null && profitability.margenPct < MARGIN_ALERT_THRESHOLD && (
+            <div style={{ background: '#fdecea', color: '#c0392b', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
+              ⚠ Margen bajo ({profitability.margenPct.toFixed(0)}%) — por debajo del {MARGIN_ALERT_THRESHOLD}% recomendado.
+            </div>
+          )}
+
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>Facturación</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Facturado</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)' }}>{fmt(profitability.facturado)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Cobrado</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ok)' }}>{fmt(profitability.cobrado)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Pendiente</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--amber)' }}>{fmt(profitability.pendiente)}</div>
+              </div>
+            </div>
+            {invoices.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>Este trabajo aún no tiene facturas.</div>
+            )}
+          </div>
+
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>Costos</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Materiales</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#c0392b' }}>{fmt(profitability.materialesCosto)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Mano de obra ({formatHours(profitability.totalHoras)})</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#c0392b' }}>{fmt(profitability.manoDeObraCosto)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Gastos</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#c0392b' }}>{fmt(profitability.gastos)}</div>
+              </div>
+            </div>
+          </div>
+
+          {profitability.laborRows.length > 0 && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>Mano de obra por técnico</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
+                    <th style={{ paddingBottom: 8 }}>Técnico</th>
+                    <th style={{ paddingBottom: 8 }}>Horas</th>
+                    <th style={{ paddingBottom: 8 }}>Tarifa/hr</th>
+                    <th style={{ paddingBottom: 8, textAlign: 'right' }}>Costo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {profitability.laborRows.map(r => (
+                    <tr key={r.techId} style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={{ padding: '8px 0' }}>{r.name}</td>
+                      <td style={{ padding: '8px 0' }}>{formatHours(r.hours)}</td>
+                      <td style={{ padding: '8px 0' }}>{fmt(r.rate)}</td>
+                      <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>{fmt(r.cost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="card" style={{ background: 'var(--bg)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>Ganancia neta (sobre lo cobrado)</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: profitability.gananciaNeta >= 0 ? 'var(--ok)' : '#c0392b' }}>
+                {fmt(profitability.gananciaNeta)} {profitability.margenPct != null ? `(${profitability.margenPct.toFixed(0)}%)` : ''}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

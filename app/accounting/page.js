@@ -305,6 +305,7 @@ export default async function AccountingDashboard({ searchParams }) {
             <Link href="/accounting/ivu" className="btn btn-ghost">🏛 IVU</Link>
             <Link href="/accounting/payroll" className="btn btn-ghost">⏱ Nómina</Link>
             <Link href="/accounting/gastos" className="btn btn-ghost">💸 Gastos</Link>
+            <Link href="/accounting/rentabilidad" className="btn btn-ghost">💰 Rentabilidad</Link>
           </div>
         </div>
 

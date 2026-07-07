@@ -16,7 +16,7 @@ const statusBadge = {
 export default async function TrabajoDetail({ params }) {
   const { id } = params;
 
-  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }, { data: expenses }] = await Promise.all([
+  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }] = await Promise.all([
     supabase.from('jobs').select('*, clients(name, email, phone, client_type, company), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
     supabase.from('job_line_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('technicians').select('*').order('name'),
@@ -26,7 +26,14 @@ export default async function TrabajoDetail({ params }) {
     supabase.from('job_technicians').select('*, technicians(name)').eq('job_id', id),
     supabase.from('job_schedule_days').select('*, technicians(name)').eq('job_id', id).order('scheduled_start'),
     supabase.from('expenses').select('*').eq('job_id', id).order('expense_date', { ascending: false }),
+    supabase.from('invoices').select('id, invoice_number, total, status, issued_at').eq('job_id', id).order('issued_at', { ascending: false }),
+    supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at, lunch_minutes').eq('job_id', id).not('clocked_out_at', 'is', null),
   ]);
+
+  const jobInvoiceIds = (jobInvoices ?? []).map(i => i.id);
+  const { data: jobPayments } = jobInvoiceIds.length
+    ? await supabase.from('payments').select('invoice_id, amount').in('invoice_id', jobInvoiceIds)
+    : { data: [] };
 
   if (!job) return (
     <div className="admin-shell">
@@ -134,6 +141,9 @@ export default async function TrabajoDetail({ params }) {
           clientContacts={clientContacts ?? []}
           scheduleDays={scheduleDays ?? []}
           expenses={expensesWithSignedUrls}
+          invoices={jobInvoices ?? []}
+          payments={jobPayments ?? []}
+          timeEntries={jobTimeEntries ?? []}
         />
       </main>
     </div>
