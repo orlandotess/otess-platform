@@ -21,6 +21,18 @@ function blankExpenseForm() {
   return { category: 'materiales', description: '', vendor: '', amount: '', expense_date: new Date().toISOString().slice(0, 10) };
 }
 
+// Extra non-consecutive work days (job_schedule_days) can carry their own technician
+// and date, independent of the job's main scheduled_start/technician_id assignment.
+async function fetchScheduleDayJobs(techId) {
+  const { data } = await supabase
+    .from('job_schedule_days')
+    .select(`id, scheduled_start, scheduled_end, jobs(${JOB_FIELDS})`)
+    .eq('technician_id', techId);
+  return (data ?? [])
+    .filter(d => d.jobs)
+    .map(d => ({ ...d.jobs, scheduled_start: d.scheduled_start, scheduled_end: d.scheduled_end, _scheduleDayId: d.id }));
+}
+
 export default function FieldApp() {
   const [tab, setTab] = useState('home');
   const [jobs, setJobs] = useState([]);
@@ -88,6 +100,9 @@ export default function FieldApp() {
   const [detailExpensePhotoFile, setDetailExpensePhotoFile] = useState(null);
   const [detailExpensePhotoPreview, setDetailExpensePhotoPreview] = useState(null);
   const [savingDetailExpense, setSavingDetailExpense] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
+  const [editExpenseForm, setEditExpenseForm] = useState(blankExpenseForm());
+  const [savingExpenseEdit, setSavingExpenseEdit] = useState(false);
   const fileRef4 = useRef();
   const [lightbox, setLightbox] = useState(null); // { urls: [], index: 0 }
   const [annotatingIdx, setAnnotatingIdx] = useState(null);
@@ -143,13 +158,18 @@ export default function FieldApp() {
 
   useEffect(() => {
     if (!techId) return;
-    supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId)
-      .then(({ data }) => {
-        const list = (data ?? []).map(row => row.jobs).filter(Boolean)
-          .filter(j => j.status === 'scheduled' || j.status === 'in_progress')
-          .sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
-        setAllJobs(list.slice(0, 20));
-      });
+    Promise.all([
+      supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId),
+      fetchScheduleDayJobs(techId),
+    ]).then(([{ data }, scheduleDayJobs]) => {
+      const direct = (data ?? []).map(row => row.jobs).filter(Boolean);
+      const merged = [...direct];
+      for (const j of scheduleDayJobs) if (!merged.some(m => m.id === j.id)) merged.push(j);
+      const list = merged
+        .filter(j => j.status === 'scheduled' || j.status === 'in_progress')
+        .sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
+      setAllJobs(list.slice(0, 20));
+    });
   }, [techId]);
 
   useEffect(() => {
@@ -168,19 +188,22 @@ export default function FieldApp() {
 
   async function loadCalendarJobs() {
     setLoadingCalendar(true);
-    const { data } = await supabase
-      .from('job_technicians')
-      .select(`jobs(${JOB_FIELDS})`)
-      .eq('technician_id', techId);
+    const [{ data }, scheduleDayJobs] = await Promise.all([
+      supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId),
+      fetchScheduleDayJobs(techId),
+    ]);
     const jobsList = (data ?? []).map(row => row.jobs).filter(Boolean);
-    setCalendarJobs(jobsList);
+    setCalendarJobs([...jobsList, ...scheduleDayJobs]);
     setLoadingCalendar(false);
   }
 
   async function loadJobs() {
     setLoading(true);
-    const { data } = await supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId);
-    let list = (data ?? []).map(row => row.jobs).filter(Boolean);
+    const [{ data }, scheduleDayJobs] = await Promise.all([
+      supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId),
+      fetchScheduleDayJobs(techId),
+    ]);
+    let list = [...(data ?? []).map(row => row.jobs).filter(Boolean), ...scheduleDayJobs];
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
     if (jobFilter === 'today') list = list.filter(j => j.scheduled_start && new Date(j.scheduled_start) >= today && new Date(j.scheduled_start) < tomorrow);
@@ -462,6 +485,37 @@ export default function FieldApp() {
     setSavingDetailExpense(false);
   }
 
+  function startEditExpense(exp) {
+    setEditingExpenseId(exp.id);
+    setEditExpenseForm({
+      category: exp.category,
+      description: exp.description ?? '',
+      vendor: exp.vendor ?? '',
+      amount: String(exp.amount ?? ''),
+      expense_date: exp.expense_date,
+    });
+  }
+
+  function cancelEditExpense() {
+    setEditingExpenseId(null);
+    setEditExpenseForm(blankExpenseForm());
+  }
+
+  async function saveExpenseEdit() {
+    if (!editExpenseForm.description.trim() || !editExpenseForm.amount) return;
+    setSavingExpenseEdit(true);
+    const { data } = await supabase.from('expenses').update({
+      category: editExpenseForm.category,
+      description: editExpenseForm.description.trim(),
+      vendor: editExpenseForm.vendor.trim() || null,
+      amount: parseFloat(editExpenseForm.amount) || 0,
+      expense_date: editExpenseForm.expense_date,
+    }).eq('id', editingExpenseId).select().single();
+    if (data) setDetailExpenses(prev => prev.map(x => x.id === data.id ? data : x));
+    setSavingExpenseEdit(false);
+    cancelEditExpense();
+  }
+
   async function deleteDetailExpense(id) {
     if (!confirm('¿Eliminar este gasto?')) return;
     await supabase.from('expenses').delete().eq('id', id);
@@ -712,7 +766,7 @@ export default function FieldApp() {
             <div style={card}>
               {loading ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Loading...</div>
                 : jobs.length === 0 ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>No jobs here.</div>
-                  : jobs.map(j => <JobRow key={j.id} j={j} onClick={() => openJobDetail(j)} />)
+                  : jobs.map((j, i) => <JobRow key={j._scheduleDayId ? `day-${j._scheduleDayId}` : `${j.id}-${i}`} j={j} onClick={() => openJobDetail(j)} />)
               }
             </div>
           </div>
@@ -947,7 +1001,7 @@ export default function FieldApp() {
                 </div>
               ) : (
                 jobsForSelectedDay.map((j, i) => (
-                  <div key={j.id} onClick={() => openJobDetail(j)} style={{ display: 'flex', gap: 12, paddingBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, marginBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, borderBottom: i < jobsForSelectedDay.length - 1 ? '1px solid #eee' : 'none', cursor: 'pointer' }}>
+                  <div key={j._scheduleDayId ? `day-${j._scheduleDayId}` : `${j.id}-${i}`} onClick={() => openJobDetail(j)} style={{ display: 'flex', gap: 12, paddingBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, marginBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, borderBottom: i < jobsForSelectedDay.length - 1 ? '1px solid #eee' : 'none', cursor: 'pointer' }}>
                     <div style={{ width: 62, flexShrink: 0, fontSize: 13, fontWeight: 700, color: ORANGE }}>
                       {new Date(j.scheduled_start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                     </div>
@@ -1426,17 +1480,48 @@ export default function FieldApp() {
                 {detailExpenses.length === 0
                   ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>No hay gastos registrados para este trabajo.</div>
                   : detailExpenses.map(exp => (
-                    <div key={exp.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{exp.description}</div>
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 3 }}>
-                          {EXPENSE_CATEGORIES.find(c => c.value === exp.category)?.label ?? exp.category} · {exp.expense_date}{exp.vendor ? ` · ${exp.vendor}` : ''}
+                    <div key={exp.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                      {editingExpenseId === exp.id ? (
+                        <div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                            <select value={editExpenseForm.category} onChange={e => setEditExpenseForm(f => ({ ...f, category: e.target.value }))}
+                              style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }}>
+                              {EXPENSE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                            </select>
+                            <input type="date" value={editExpenseForm.expense_date} onChange={e => setEditExpenseForm(f => ({ ...f, expense_date: e.target.value }))}
+                              style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+                          </div>
+                          <input value={editExpenseForm.description} onChange={e => setEditExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción"
+                            style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                            <input value={editExpenseForm.vendor} onChange={e => setEditExpenseForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor (opcional)"
+                              style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                            <input type="number" step="0.01" value={editExpenseForm.amount} onChange={e => setEditExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="Monto"
+                              style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button type="button" onClick={saveExpenseEdit} disabled={savingExpenseEdit || !editExpenseForm.description.trim() || !editExpenseForm.amount}
+                              style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                              {savingExpenseEdit ? 'Guardando...' : '💾 Guardar'}
+                            </button>
+                            <button type="button" onClick={cancelEditExpense} style={{ padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                          </div>
                         </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{fmtMoney(exp.amount)}</div>
-                        <button onClick={() => deleteDetailExpense(exp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 14 }}>🗑</button>
-                      </div>
+                      ) : (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 14 }}>{exp.description}</div>
+                            <div style={{ fontSize: 12, color: '#888', marginTop: 3 }}>
+                              {EXPENSE_CATEGORIES.find(c => c.value === exp.category)?.label ?? exp.category} · {exp.expense_date}{exp.vendor ? ` · ${exp.vendor}` : ''}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 14 }}>{fmtMoney(exp.amount)}</div>
+                            <button onClick={() => startEditExpense(exp)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 14 }}>✏️</button>
+                            <button onClick={() => deleteDetailExpense(exp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 14 }}>🗑</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 }
