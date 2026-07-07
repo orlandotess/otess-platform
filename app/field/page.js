@@ -41,6 +41,12 @@ export default function FieldApp() {
   const [weekDayForms, setWeekDayForms] = useState({});
   const [savingDay, setSavingDay] = useState(null);
 
+  // Inline edit for an individual clock entry (fix a mistaken clock in/out)
+  const [editingEntryId, setEditingEntryId] = useState(null);
+  const [editEntryIn, setEditEntryIn] = useState('');
+  const [editEntryOut, setEditEntryOut] = useState('');
+  const [savingEntry, setSavingEntry] = useState(false);
+
   // Job detail state
   const [detailJob, setDetailJob] = useState(null);
   const [detailTab, setDetailTab] = useState('info');
@@ -295,6 +301,32 @@ export default function FieldApp() {
     const { data: refreshed } = await supabase.from('time_entries').select('*').eq('technician_id', techId)
       .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false });
     setTimeEntries(refreshed ?? []);
+  }
+
+  function startEditEntry(entry) {
+    setEditingEntryId(entry.id);
+    setEditEntryIn(new Date(entry.clocked_in_at).toTimeString().slice(0, 5));
+    setEditEntryOut(entry.clocked_out_at ? new Date(entry.clocked_out_at).toTimeString().slice(0, 5) : '');
+  }
+
+  async function saveEntryEdit(entry) {
+    if (!editEntryIn) return;
+    setSavingEntry(true);
+    const baseDate = entry.clocked_in_at.slice(0, 10);
+    const newIn = new Date(baseDate + 'T' + editEntryIn + ':00');
+    const newOut = editEntryOut ? new Date(baseDate + 'T' + editEntryOut + ':00') : null;
+    await supabase.from('time_entries').update({
+      clocked_in_at: newIn.toISOString(),
+      clocked_out_at: newOut ? newOut.toISOString() : null,
+    }).eq('id', entry.id);
+
+    const weekStart = getPayrollWeekDays()[0];
+    const { data: refreshed } = await supabase.from('time_entries').select('*').eq('technician_id', techId)
+      .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false });
+    setTimeEntries(refreshed ?? []);
+    setSelectedDay(sd => sd ? { ...sd, entries: (refreshed ?? []).filter(e => e.clocked_in_at.slice(0, 10) === baseDate) } : sd);
+    setEditingEntryId(null);
+    setSavingEntry(false);
   }
 
   async function saveFabNote(e) {
@@ -624,7 +656,36 @@ export default function FieldApp() {
                 {selectedDay.entries.map((e, i) => {
                   const inTime = new Date(e.clocked_in_at);
                   const outTime = e.clocked_out_at ? new Date(e.clocked_out_at) : null;
-                  const dur = outTime ? ((outTime - inTime) / 3600000).toFixed(2) : null;
+                  const dur = outTime ? ((outTime - inTime) / 3600000 - (e.lunch_minutes ?? 0) / 60).toFixed(2) : null;
+                  const isEditing = editingEntryId === e.id;
+                  if (isEditing) {
+                    return (
+                      <div key={e.id} style={{ padding: '10px 0', borderBottom: i < selectedDay.entries.length - 1 ? '1px solid #eee' : 'none' }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <div>
+                            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Entrada</div>
+                            <input type="time" value={editEntryIn} onChange={ev => setEditEntryIn(ev.target.value)}
+                              style={{ padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14 }} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Salida</div>
+                            <input type="time" value={editEntryOut} onChange={ev => setEditEntryOut(ev.target.value)}
+                              style={{ padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14 }} />
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, marginTop: 16 }}>
+                            <button onClick={() => saveEntryEdit(e)} disabled={savingEntry || !editEntryIn}
+                              style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                              {savingEntry ? '...' : 'Guardar'}
+                            </button>
+                            <button onClick={() => setEditingEntryId(null)}
+                              style={{ background: '#f0f0f0', color: '#333', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
                     <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < selectedDay.entries.length - 1 ? '1px solid #eee' : 'none' }}>
                       <div>
@@ -633,9 +694,13 @@ export default function FieldApp() {
                           {outTime ? ' → ' + outTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' }) : ' → En progreso'}
                         </div>
                         {e.job_id && <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>Con trabajo</div>}
+                        {(e.lunch_minutes ?? 0) > 0 && <div style={{ fontSize: 11, color: ORANGE, marginTop: 2 }}>🍽️ Lunch -{(e.lunch_minutes / 60).toFixed(1)}h</div>}
                       </div>
-                      <div style={{ fontWeight: 700, color: dur ? '#16223d' : ORANGE, fontSize: 14 }}>
-                        {dur ? dur + 'h' : '⏱'}
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <div style={{ fontWeight: 700, color: dur ? '#16223d' : ORANGE, fontSize: 14 }}>
+                          {dur ? dur + 'h' : '⏱'}
+                        </div>
+                        <button onClick={() => startEditEntry(e)} style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', padding: 4 }}>✏️</button>
                       </div>
                     </div>
                   );
