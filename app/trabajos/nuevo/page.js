@@ -25,6 +25,7 @@ export default function NuevoTrabajo() {
   const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [quickSuccess, setQuickSuccess] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [quickMode, setQuickMode] = useState(false);
@@ -178,7 +179,23 @@ export default function NuevoTrabajo() {
       }
       if (lineItems.length) await supabase.from('job_line_items').insert(lineItems);
     }
-    router.push(quickMode ? '/trabajos' : `/trabajos/${job.id}`);
+
+    if (quickMode) {
+      setForm({
+        client_id: '', title: '', description: '', status: 'estimate',
+        scheduled_start: '', scheduled_end: '', notes: '', bill_to: 'person',
+        property_id: '', contact_id: '',
+        property_name: '', street: '', city: '', state: 'PR', zip: '',
+        contact_name: '', contact_phone: '', contact_email: '',
+      });
+      setClientSearch('');
+      setShowNewClient(false);
+      setSaving(false);
+      setQuickSuccess(true);
+      setTimeout(() => setQuickSuccess(false), 3000);
+      return;
+    }
+    router.push(`/trabajos/${job.id}`);
   }
 
   return (
@@ -196,7 +213,15 @@ export default function NuevoTrabajo() {
           </div>
         </div>
 
-        {quickMode && (
+        {quickMode && quickSuccess && (
+          <div className="card" style={{ marginBottom: 20, background: '#eafaf0', border: '1.5px solid #34c759' }}>
+            <p style={{ fontSize: 13, color: 'var(--navy)', margin: 0, fontWeight: 600 }}>
+              ✓ Solicitud creada. Puedes seguir agregando más.
+            </p>
+          </div>
+        )}
+
+        {quickMode && !quickSuccess && (
           <div className="card" style={{ marginBottom: 20, background: '#fff8ee', border: '1.5px solid var(--amber)' }}>
             <p style={{ fontSize: 13, color: 'var(--navy)', margin: 0 }}>
               Modo solicitud rápida: solo cliente + título. Se crea como <strong>Estimado</strong> sin fecha — la agendas después desde el calendario.

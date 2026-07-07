@@ -45,6 +45,18 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     return tech.byDay[dayIso.slice(0, 10)] ?? [];
   }
 
+  function computeRawWeekHours(byDay) {
+    let regular = 0, overtime = 0;
+    Object.values(byDay).forEach(dayEntries => {
+      const hours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
+        ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60
+        : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
+      if (hours > 8) { regular += 8; overtime += hours - 8; }
+      else regular += hours;
+    });
+    return { regular, overtime };
+  }
+
   function startEdit(tech) {
     setEditingTech(tech.id);
     setEditRegular(tech.regularHours.toFixed(2));
@@ -102,8 +114,18 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
           ? { ...e, clocked_in_at: newIn.toISOString(), clocked_out_at: newOut ? newOut.toISOString() : null }
           : e
         );
+      } else {
+        return t;
       }
-      return { ...t, byDay: newByDay };
+
+      const { regular: regularHoursRaw, overtime: overtimeHoursRaw } = computeRawWeekHours(newByDay);
+      if (t.hasOverride) {
+        return { ...t, byDay: newByDay, regularHoursRaw, overtimeHoursRaw };
+      }
+      const rate = Number(t.hourly_rate ?? 0);
+      const totalHours = regularHoursRaw + overtimeHoursRaw;
+      const grossPay = (regularHoursRaw * rate) + (overtimeHoursRaw * rate * 1.5);
+      return { ...t, byDay: newByDay, regularHoursRaw, overtimeHoursRaw, regularHours: regularHoursRaw, overtimeHours: overtimeHoursRaw, totalHours, grossPay };
     }));
 
     setEditingEntry(null);

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import SearchBox from '../../SearchBox';
 import NuevaRetencionForm from './NuevaRetencionForm';
@@ -8,6 +9,7 @@ import NuevaRetencionForm from './NuevaRetencionForm';
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function RetencionesByClientClient({ clientTotals, exemptionYear }) {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null); // { id, name }
   const [history, setHistory] = useState([]);
@@ -29,6 +31,14 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
     if (selected) detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [selected]);
 
+  // Keep the selected client's totals/exemption in sync once router.refresh()
+  // brings in recalculated clientTotals after a retención is added/edited/deleted.
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = clientTotals.find(c => c.id === selected.id);
+    if (fresh && fresh !== selected) setSelected(fresh);
+  }, [clientTotals]);
+
   async function selectClient(c) {
     setSelected(c);
     setShowForm(false);
@@ -44,12 +54,14 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
   function handleSaved(newRow) {
     setHistory(prev => [newRow, ...prev]);
     setShowForm(false);
+    router.refresh();
   }
 
   async function deleteRetencion(id) {
     if (!confirm('¿Eliminar esta retención?')) return;
     await supabase.from('retenciones').delete().eq('id', id);
     setHistory(prev => prev.filter(r => r.id !== id));
+    router.refresh();
   }
 
   function startEdit(r) {
@@ -81,6 +93,7 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
     if (data) setHistory(prev => prev.map(r => r.id === id ? data : r));
     setEditingId(null);
     setEditData(null);
+    router.refresh();
   }
 
   return (
