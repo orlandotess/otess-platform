@@ -453,7 +453,7 @@ export default function FieldApp() {
   }
 
   const fmtE = s => String(Math.floor(s / 3600)).padStart(2, '0') + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const fmtH = es => (es.reduce((a, e) => a + (e.clocked_out_at ? new Date(e.clocked_out_at) - new Date(e.clocked_in_at) : 0), 0) / 3600000).toFixed(1) + 'h';
+  const fmtH = es => (es.reduce((a, e) => a + (e.clocked_out_at ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60 : 0), 0)).toFixed(1) + 'h';
   const now = new Date();
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -602,7 +602,9 @@ export default function FieldApp() {
                   const eDate = new Date(e.clocked_in_at);
                   return eDate.getDate() === dayDate.getDate() && eDate.getMonth() === dayDate.getMonth();
                 });
-                const dayHours = (dayEntries.reduce((a, e) => a + (e.clocked_out_at ? new Date(e.clocked_out_at) - new Date(e.clocked_in_at) : Date.now() - new Date(e.clocked_in_at)), 0) / 3600000).toFixed(1);
+                const dayHours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
+                  ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60
+                  : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0).toFixed(1);
                 const isToday = dayDate.getDate() === now.getDate() && dayDate.getMonth() === now.getMonth();
                 const hasHours = parseFloat(dayHours) > 0;
                 return (
