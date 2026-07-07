@@ -9,6 +9,17 @@ import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
 const ORANGE = '#E05C2A';
 const BG = '#EAEEF2';
 const JOB_FIELDS = 'id, title, status, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)';
+const EXPENSE_CATEGORIES = [
+  { value: 'materiales', label: 'Materiales' },
+  { value: 'gasolina', label: 'Gasolina' },
+  { value: 'herramientas', label: 'Herramientas' },
+  { value: 'subcontratista', label: 'Subcontratista' },
+  { value: 'oficina', label: 'Oficina' },
+  { value: 'otro', label: 'Otro' },
+];
+function blankExpenseForm() {
+  return { category: 'materiales', description: '', vendor: '', amount: '', expense_date: new Date().toISOString().slice(0, 10) };
+}
 
 export default function FieldApp() {
   const [tab, setTab] = useState('home');
@@ -37,6 +48,16 @@ export default function FieldApp() {
   const [allJobs, setAllJobs] = useState([]);
   const fileRef = useRef();
 
+  // General/job expense (FAB) — job optional, blank job = gasto general
+  const [showJobExpense, setShowJobExpense] = useState(false);
+  const [expenseJob, setExpenseJob] = useState(undefined); // undefined = choosing target, null = general, job = job-tied
+  const [expenseForm, setExpenseForm] = useState(blankExpenseForm());
+  const [expensePhotoFile, setExpensePhotoFile] = useState(null);
+  const [expensePhotoPreview, setExpensePhotoPreview] = useState(null);
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [expenseSuccess, setExpenseSuccess] = useState('');
+  const fileRef3 = useRef();
+
   // Manual weekly timesheet (feeds payroll via time_entries)
   const [weekDayForms, setWeekDayForms] = useState({});
   const [savingDay, setSavingDay] = useState(null);
@@ -61,6 +82,13 @@ export default function FieldApp() {
   const [editingDetailNoteId, setEditingDetailNoteId] = useState(null);
   const [editingDetailNoteText, setEditingDetailNoteText] = useState('');
   const [newCheckItem, setNewCheckItem] = useState('');
+  const [detailExpenses, setDetailExpenses] = useState([]);
+  const [showDetailExpenseForm, setShowDetailExpenseForm] = useState(false);
+  const [detailExpenseForm, setDetailExpenseForm] = useState(blankExpenseForm());
+  const [detailExpensePhotoFile, setDetailExpensePhotoFile] = useState(null);
+  const [detailExpensePhotoPreview, setDetailExpensePhotoPreview] = useState(null);
+  const [savingDetailExpense, setSavingDetailExpense] = useState(false);
+  const fileRef4 = useRef();
   const [lightbox, setLightbox] = useState(null); // { urls: [], index: 0 }
   const [annotatingIdx, setAnnotatingIdx] = useState(null);
   const [annotatingExisting, setAnnotatingExisting] = useState(null); // { noteId, url, path, isGallery, galleryIdx }
@@ -185,10 +213,14 @@ export default function FieldApp() {
     setDetailTab('info');
     setDetailNotes([]);
     setDetailChecklist([]);
-    const [{ data: notes }, { data: checklist }] = await Promise.all([
+    setDetailExpenses([]);
+    setShowDetailExpenseForm(false);
+    const [{ data: notes }, { data: checklist }, { data: jobExpenses }] = await Promise.all([
       supabase.from('job_notes').select('*').eq('job_id', job.id).order('created_at', { ascending: false }),
       supabase.from('job_checklist_items').select('*').eq('job_id', job.id).order('sort_order'),
+      supabase.from('expenses').select('*').eq('job_id', job.id).order('expense_date', { ascending: false }),
     ]);
+    setDetailExpenses(jobExpenses ?? []);
     // Generate signed URLs for photos
     const notesWithUrls = await Promise.all((notes ?? []).map(async n => {
       if (n.photo_urls && n.photo_urls.length > 0) {
@@ -356,6 +388,86 @@ export default function FieldApp() {
     }
   }
 
+  function closeExpenseModal() {
+    setShowJobExpense(false);
+    setExpenseJob(undefined);
+    setExpenseSuccess('');
+    setExpenseForm(blankExpenseForm());
+    setExpensePhotoFile(null);
+    setExpensePhotoPreview(null);
+  }
+
+  function handleExpensePhotoSelect(file) {
+    if (!file) return;
+    setExpensePhotoFile(file);
+    setExpensePhotoPreview(URL.createObjectURL(file));
+  }
+
+  async function saveExpense(e) {
+    e.preventDefault();
+    if (!expenseForm.description.trim() || !expenseForm.amount) return;
+    setSavingExpense(true);
+    let receiptPath = null;
+    if (expensePhotoFile) {
+      const ext = expensePhotoFile.name.split('.').pop();
+      const path = expenseJob ? `${expenseJob.id}/expenses/${Date.now()}.${ext}` : `general/expenses/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, expensePhotoFile);
+      if (!upErr) receiptPath = path;
+    }
+    await supabase.from('expenses').insert([{
+      job_id: expenseJob ? expenseJob.id : null,
+      category: expenseForm.category,
+      description: expenseForm.description.trim(),
+      vendor: expenseForm.vendor.trim() || null,
+      amount: parseFloat(expenseForm.amount) || 0,
+      expense_date: expenseForm.expense_date,
+      receipt_url: receiptPath,
+    }]);
+    setSavingExpense(false);
+    setExpenseSuccess('Gasto guardado');
+    setTimeout(closeExpenseModal, 1200);
+  }
+
+  function handleDetailExpensePhoto(file) {
+    if (!file) return;
+    setDetailExpensePhotoFile(file);
+    setDetailExpensePhotoPreview(URL.createObjectURL(file));
+  }
+
+  async function addDetailExpense(e) {
+    e.preventDefault();
+    if (!detailExpenseForm.description.trim() || !detailExpenseForm.amount) return;
+    setSavingDetailExpense(true);
+    let receiptPath = null;
+    if (detailExpensePhotoFile) {
+      const ext = detailExpensePhotoFile.name.split('.').pop();
+      const path = `${detailJob.id}/expenses/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, detailExpensePhotoFile);
+      if (!upErr) receiptPath = path;
+    }
+    const { data } = await supabase.from('expenses').insert([{
+      job_id: detailJob.id,
+      category: detailExpenseForm.category,
+      description: detailExpenseForm.description.trim(),
+      vendor: detailExpenseForm.vendor.trim() || null,
+      amount: parseFloat(detailExpenseForm.amount) || 0,
+      expense_date: detailExpenseForm.expense_date,
+      receipt_url: receiptPath,
+    }]).select().single();
+    if (data) setDetailExpenses(prev => [data, ...prev]);
+    setDetailExpenseForm(blankExpenseForm());
+    setDetailExpensePhotoFile(null);
+    setDetailExpensePhotoPreview(null);
+    setShowDetailExpenseForm(false);
+    setSavingDetailExpense(false);
+  }
+
+  async function deleteDetailExpense(id) {
+    if (!confirm('¿Eliminar este gasto?')) return;
+    await supabase.from('expenses').delete().eq('id', id);
+    setDetailExpenses(prev => prev.filter(x => x.id !== id));
+  }
+
   async function saveDetailNote(e) {
     e.preventDefault();
     if (!detailNoteText.trim() && detailPhotos.length === 0) return;
@@ -514,6 +626,8 @@ export default function FieldApp() {
     </div>
   );
 
+  const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const totalDetailExpenses = detailExpenses.reduce((a, e) => a + Number(e.amount ?? 0), 0);
   const completedCount = detailChecklist.filter(i => i.completed).length;
   const progress = detailChecklist.length > 0 ? Math.round((completedCount / detailChecklist.length) * 100) : 0;
 
@@ -1009,7 +1123,7 @@ export default function FieldApp() {
           </div>
 
           <div style={{ background: '#fff', display: 'flex', borderBottom: '1px solid #dde1e7', flexShrink: 0 }}>
-            {[['info', '📋 Info'], ['checklist', `✅ (${completedCount}/${detailChecklist.length})`], ['notes', `📸 (${detailNotes.length})`]].map(([t, label]) => (
+            {[['info', '📋 Info'], ['checklist', `✅ (${completedCount}/${detailChecklist.length})`], ['notes', `📸 (${detailNotes.length})`], ['gastos', `💸 ${detailExpenses.length > 0 ? fmtMoney(totalDetailExpenses) : ''}`]].map(([t, label]) => (
               <button key={t} onClick={() => setDetailTab(t)} style={{ flex: 1, padding: '12px 8px', background: 'none', border: 'none', borderBottom: detailTab === t ? '2px solid ' + ORANGE : '2px solid transparent', fontWeight: detailTab === t ? 700 : 500, color: detailTab === t ? ORANGE : '#888', cursor: 'pointer', fontSize: 13 }}>
                 {label}
               </button>
@@ -1270,6 +1384,64 @@ export default function FieldApp() {
                 }
               </div>
             )}
+
+            {/* GASTOS TAB */}
+            {detailTab === 'gastos' && (
+              <div>
+                <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                  {!showDetailExpenseForm ? (
+                    <button onClick={() => setShowDetailExpenseForm(true)} style={{ width: '100%', padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>+ Agregar gasto</button>
+                  ) : (
+                    <form onSubmit={addDetailExpense}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <select value={detailExpenseForm.category} onChange={e => setDetailExpenseForm(f => ({ ...f, category: e.target.value }))}
+                          style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }}>
+                          {EXPENSE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                        <input type="date" value={detailExpenseForm.expense_date} onChange={e => setDetailExpenseForm(f => ({ ...f, expense_date: e.target.value }))}
+                          style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+                      </div>
+                      <input value={detailExpenseForm.description} onChange={e => setDetailExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción"
+                        style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <input value={detailExpenseForm.vendor} onChange={e => setDetailExpenseForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor (opcional)"
+                          style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                        <input type="number" step="0.01" value={detailExpenseForm.amount} onChange={e => setDetailExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="Monto"
+                          style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                      </div>
+                      {detailExpensePhotoPreview && (
+                        <img src={detailExpensePhotoPreview} alt="recibo" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+                      )}
+                      <input ref={fileRef4} type="file" accept="image/*" onChange={e => handleDetailExpensePhoto(e.target.files?.[0])} style={{ display: 'none' }} />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" onClick={() => fileRef4.current?.click()} style={{ padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>📷 Recibo</button>
+                        <button type="submit" disabled={savingDetailExpense || !detailExpenseForm.description.trim() || !detailExpenseForm.amount} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                          {savingDetailExpense ? 'Guardando...' : '💾 Guardar'}
+                        </button>
+                        <button type="button" onClick={() => setShowDetailExpenseForm(false)} style={{ padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+                {detailExpenses.length === 0
+                  ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>No hay gastos registrados para este trabajo.</div>
+                  : detailExpenses.map(exp => (
+                    <div key={exp.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{exp.description}</div>
+                        <div style={{ fontSize: 12, color: '#888', marginTop: 3 }}>
+                          {EXPENSE_CATEGORIES.find(c => c.value === exp.category)?.label ?? exp.category} · {exp.expense_date}{exp.vendor ? ` · ${exp.vendor}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{fmtMoney(exp.amount)}</div>
+                        <button onClick={() => deleteDetailExpense(exp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 14 }}>🗑</button>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1343,6 +1515,7 @@ export default function FieldApp() {
           <div style={{ position: 'fixed', bottom: 140, right: 20, zIndex: 98, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
             <button style={fmi('#2a4cb5')} onClick={() => { setShowJobNote(true); setShowFab(false); }}>📝 Agregar nota</button>
             <button style={fmi('#27ae60')} onClick={() => { setShowJobPhoto(true); setShowFab(false); }}>📸 Agregar foto</button>
+            <button style={fmi('#7a4cb5')} onClick={() => { setShowJobExpense(true); setShowFab(false); }}>💸 Agregar gasto</button>
             <button style={fmi(ORANGE)} onClick={() => { setShowJobClock(true); setShowFab(false); }}>⏱ Clock In a trabajo</button>
           </div>
         </>
@@ -1409,6 +1582,63 @@ export default function FieldApp() {
                   <button onClick={() => { setFabSelectedJob(null); setShowJobPhoto(false); }} style={{ marginTop: 10, width: '100%', padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                 </div>
             }
+          </div>
+        </div>
+      )}
+
+      {showJobExpense && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={closeExpenseModal}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 16 }}>💸 Agregar gasto</div>
+            {expenseSuccess ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#27ae60', fontWeight: 700 }}>{expenseSuccess} ✅</div>
+            ) : expenseJob === undefined ? (
+              <>
+                <p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo o registra un gasto general:</p>
+                <div onClick={() => setExpenseJob(null)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 700, color: '#7a4cb5' }}>💼 Gasto general</div>
+                  <span style={{ color: ORANGE }}>→</span>
+                </div>
+                {allJobs.map(j => (
+                  <div key={j.id} onClick={() => setExpenseJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
+                    <div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div>
+                    <span style={{ color: ORANGE }}>→</span>
+                  </div>
+                ))}
+                <button onClick={closeExpenseModal} style={{ marginTop: 16, width: '100%', padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              </>
+            ) : (
+              <form onSubmit={saveExpense}>
+                <div style={{ fontWeight: 600, marginBottom: 12, color: ORANGE }}>{expenseJob ? expenseJob.title : 'Gasto general'}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <select value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}
+                    style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }}>
+                    {EXPENSE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                  <input type="date" value={expenseForm.expense_date} onChange={e => setExpenseForm(f => ({ ...f, expense_date: e.target.value }))}
+                    style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+                </div>
+                <input value={expenseForm.description} onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción"
+                  style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <input value={expenseForm.vendor} onChange={e => setExpenseForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor (opcional)"
+                    style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                  <input type="number" step="0.01" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="Monto"
+                    style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                </div>
+                {expensePhotoPreview && (
+                  <img src={expensePhotoPreview} alt="recibo" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+                )}
+                <input ref={fileRef3} type="file" accept="image/*" onChange={e => handleExpensePhotoSelect(e.target.files?.[0])} style={{ display: 'none' }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => fileRef3.current?.click()} style={{ padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>📷 Recibo</button>
+                  <button type="submit" disabled={savingExpense || !expenseForm.description.trim() || !expenseForm.amount} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                    {savingExpense ? 'Guardando...' : '💾 Guardar'}
+                  </button>
+                </div>
+                <button type="button" onClick={closeExpenseModal} style={{ marginTop: 10, width: '100%', padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              </form>
+            )}
           </div>
         </div>
       )}
