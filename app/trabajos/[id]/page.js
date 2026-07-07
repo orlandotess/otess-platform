@@ -115,6 +115,7 @@ export default async function TrabajoDetail({ params }) {
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <Link href="/trabajos" className="btn btn-ghost">← Trabajos</Link>
+            <Link href={`/estimados/nueva?job=${job.id}`} className="btn btn-ghost">🧮 Crear estimado</Link>
             <Link href={`/facturas/nueva?job=${job.id}`} className="btn btn-amber">🧾 Crear factura</Link>
           </div>
         </div>

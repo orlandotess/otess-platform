@@ -9,6 +9,7 @@ const links = [
  { href: '/trabajos',   label: 'Trabajos',   icon: '🔧' },
  { href: '/calendario', label: 'Calendario', icon: '📅' },
  { href: '/propuestas', label: 'Propuestas', icon: '📄' },
+ { href: '/estimados', label: 'Estimados', icon: '🧮' },
  { href: '/field',      label: 'Field App',  icon: '📱' },
  { href: '/admin/plantillas', label: 'Plantillas', icon: '📋' },
  { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
