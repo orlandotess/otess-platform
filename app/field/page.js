@@ -384,6 +384,18 @@ export default function FieldApp() {
     setSavingEntry(false);
   }
 
+  async function deleteEntry(entry) {
+    if (!confirm('¿Eliminar esta entrada de horario?')) return;
+    await supabase.from('time_entries').delete().eq('id', entry.id);
+    const baseDate = entry.clocked_in_at.slice(0, 10);
+    const weekStart = getPayrollWeekDays()[0];
+    const { data: refreshed } = await supabase.from('time_entries').select('*').eq('technician_id', techId)
+      .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false });
+    setTimeEntries(refreshed ?? []);
+    setSelectedDay(sd => sd ? { ...sd, entries: (refreshed ?? []).filter(e => e.clocked_in_at.slice(0, 10) === baseDate) } : sd);
+    if (activeEntry?.id === entry.id) { setClockedIn(false); setActiveEntry(null); setElapsed(0); }
+  }
+
   async function saveFabNote(e) {
     e.preventDefault();
     if (!fabSelectedJob || !fabNoteText.trim()) return;
@@ -869,6 +881,7 @@ export default function FieldApp() {
                           {dur ? dur + 'h' : '⏱'}
                         </div>
                         <button onClick={() => startEditEntry(e)} style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', padding: 4 }}>✏️</button>
+                        <button onClick={() => deleteEntry(e)} style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', padding: 4 }}>🗑️</button>
                       </div>
                     </div>
                   );
