@@ -174,7 +174,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   // each with its own time range and technician, beyond the primary scheduled_start/end above.
   const [scheduleDays, setScheduleDays] = useState(initialScheduleDays);
   const [addingDay, setAddingDay] = useState(false);
-  const [newDay, setNewDay] = useState({ start: '', end: '', technician_ids: [] });
+  const [newDay, setNewDay] = useState({ start: '', end: '', technician_ids: [], lunch_minutes: 0 });
   const [savingDay, setSavingDay] = useState(false);
 
   function toggleNewDayTechnician(techId) {
@@ -197,10 +197,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       scheduled_start: localInputToIso(newDay.start),
       scheduled_end: localInputToIso(newDay.end),
       technician_id: techId,
+      lunch_minutes: newDay.lunch_minutes,
     }));
     const { data } = await supabase.from('job_schedule_days').insert(rows).select('*, technicians(name)');
     if (data) setScheduleDays(prev => [...prev, ...data].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
-    setNewDay({ start: '', end: '', technician_ids: [] });
+    setNewDay({ start: '', end: '', technician_ids: [], lunch_minutes: 0 });
     setAddingDay(false);
     setSavingDay(false);
   }
@@ -208,6 +209,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   async function removeScheduleDay(dayId) {
     await supabase.from('job_schedule_days').delete().eq('id', dayId);
     setScheduleDays(prev => prev.filter(d => d.id !== dayId));
+  }
+
+  async function updateDayLunch(dayId, minutes) {
+    setScheduleDays(prev => prev.map(d => d.id === dayId ? { ...d, lunch_minutes: minutes } : d));
+    await supabase.from('job_schedule_days').update({ lunch_minutes: minutes }).eq('id', dayId);
   }
 
   // Line items state
@@ -648,10 +654,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     return { facturado, cobrado, pendiente, materialesCosto, laborRows, manoDeObraCosto, totalHoras, gastos: totalExpenses, gananciaNeta, margenPct };
   })();
 
-  function hoursBetween(start, end) {
+  function hoursBetween(start, end, lunchMinutes = 0) {
     if (!start || !end) return 0;
     const diff = new Date(end) - new Date(start);
-    return diff > 0 ? diff / 3600000 : 0;
+    const hrs = diff > 0 ? diff / 3600000 : 0;
+    return Math.max(hrs - (lunchMinutes ?? 0) / 60, 0);
   }
   function formatHours(totalHours) {
     const h = Math.floor(totalHours);
@@ -670,10 +677,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     return Object.keys(map).sort().map(key => ({
       key,
       entries: map[key],
-      totalHours: map[key].reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end), 0),
+      totalHours: map[key].reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes), 0),
     }));
   })();
-  const scheduleDaysTotalHours = scheduleDays.reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end), 0);
+  const scheduleDaysTotalHours = scheduleDays.reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes), 0);
 
   const completedCount = checklistItems.filter(i => i.completed && !i.__placeholder).length;
   const realCount = checklistItems.filter(i => !i.__placeholder).length;
@@ -981,6 +988,18 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       </div>
                     );
                   })()}
+                  {scheduleDays.length > 0 && (
+                    <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                        <span style={{ fontSize: 13 }}>📅</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{scheduleDayGroups.length} {scheduleDayGroups.length === 1 ? 'día asignado' : 'días asignados'}</span>
+                      </div>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                        <span style={{ fontSize: 13 }}>⏱</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(scheduleDaysTotalHours)} en total</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {job.notes && (
@@ -1019,20 +1038,25 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                               <div style={{ fontSize: 13, fontWeight: 600 }} suppressHydrationWarning>
                                 {new Date(d.scheduled_start).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}
                                 {d.scheduled_end && ` – ${new Date(d.scheduled_end).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}`}
-                                {d.scheduled_end && <span style={{ color: 'var(--muted)', fontWeight: 500 }}> ({formatHours(hoursBetween(d.scheduled_start, d.scheduled_end))})</span>}
+                                {d.scheduled_end && <span style={{ color: 'var(--muted)', fontWeight: 500 }}> ({formatHours(hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes))})</span>}
                               </div>
                               <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.technicians?.name ?? '— Sin asignar —'}</div>
                             </div>
-                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--warn)' }} onClick={() => removeScheduleDay(d.id)}>🗑</button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <select value={d.lunch_minutes ?? 0} onChange={e => updateDayLunch(d.id, parseInt(e.target.value))}
+                                style={{ fontSize: 12, padding: '4px 6px', border: '1.5px solid var(--border)', borderRadius: 6, color: 'var(--muted)' }}>
+                                <option value={0}>🍽️ Sin almuerzo</option>
+                                <option value={30}>🍽️ 30 min</option>
+                                <option value={45}>🍽️ 45 min</option>
+                                <option value={60}>🍽️ 60 min</option>
+                              </select>
+                              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--warn)' }} onClick={() => removeScheduleDay(d.id)}>🗑</button>
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
                   ))}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg)', borderRadius: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{scheduleDayGroups.length} {scheduleDayGroups.length === 1 ? 'día asignado' : 'días asignados'}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(scheduleDaysTotalHours)} total</span>
-                  </div>
                 </div>
               )}
 
@@ -1047,6 +1071,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       <label>Fin</label>
                       <input type="datetime-local" value={newDay.end} onChange={e => setNewDay(d => ({ ...d, end: e.target.value }))} />
                     </div>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 12 }}>
+                    <label>Almuerzo</label>
+                    <select value={newDay.lunch_minutes} onChange={e => setNewDay(d => ({ ...d, lunch_minutes: parseInt(e.target.value) }))}>
+                      <option value={0}>Sin almuerzo</option>
+                      <option value={30}>30 min</option>
+                      <option value={45}>45 min</option>
+                      <option value={60}>60 min</option>
+                    </select>
                   </div>
                   <div className="form-group" style={{ marginBottom: 12 }}>
                     <label>Técnicos (puedes escoger más de uno)</label>
