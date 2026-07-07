@@ -53,6 +53,7 @@ export default async function EstimaDetail({ params }) {
             clientProperties={clientProperties}
             propertyId={est.property_id ?? null}
             terms={est.terms ?? ''}
+            items={items ?? []}
           />
         </div>
 
@@ -116,7 +117,10 @@ export default async function EstimaDetail({ params }) {
             <tbody>
               {items?.map(item => (
                 <tr key={item.id}>
-                  <td style={{ padding: '12px 14px', fontWeight: 500 }}>{item.description}</td>
+                  <td style={{ padding: '12px 14px', fontWeight: 500 }}>
+                    {item.description}
+                    {item.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {item.area}</div>}
+                  </td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                     <span className={`badge ${item.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
                       {item.type === 'labor' ? 'Labor' : 'Producto'}

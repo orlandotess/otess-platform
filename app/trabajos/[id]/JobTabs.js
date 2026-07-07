@@ -4,6 +4,8 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import PhotoAnnotator from '../../PhotoAnnotator';
 import LineItemRow from '../../LineItemRow';
+import CableCalculator from '../../CableCalculator';
+import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
@@ -219,20 +221,29 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   // Line items state
   const [lineItems, setLineItems] = useState(items);
   const [addingLine, setAddingLine] = useState(false);
-  const [newLine, setNewLine] = useState({ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null });
+  const [newLine, setNewLine] = useState({ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
   const [catalogItems, setCatalogItems] = useState([]);
+  const [showCableCalc, setShowCableCalc] = useState(false);
 
   useEffect(() => {
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
 
+  const areaOptions = [...new Set(lineItems.map(i => i.area).filter(Boolean))];
+  const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
+
   function handleLineDescriptionSelect(value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
-      setNewLine(l => ({ ...l, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' }));
+      setNewLine(l => ({ ...l, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '' }));
     } else {
       setNewLine(l => ({ ...l, description: value }));
     }
+  }
+
+  function addPrefilledLineItem(item) {
+    setNewLine(l => ({ ...l, type: 'product', ...item }));
+    setAddingLine(true);
   }
   const [savingLine, setSavingLine] = useState(false);
   const [editingLineId, setEditingLineId] = useState(null);
@@ -248,6 +259,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       msrp: item.msrp ?? '',
       supplier_price: item.supplier_price ?? '',
       exempt: !!item.exempt_reason,
+      area: item.area ?? '',
+      vendor: item.vendor ?? '',
       photoFile: null,
       photoPreview: item.photo_signed_url ?? null,
     });
@@ -285,6 +298,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       msrp: editLineForm.msrp !== '' ? parseFloat(editLineForm.msrp) : null,
       supplier_price: editLineForm.supplier_price !== '' ? parseFloat(editLineForm.supplier_price) : null,
       exempt_reason: editLineForm.exempt ? 'Exento' : null,
+      area: editLineForm.area || null,
+      vendor: editLineForm.vendor || null,
       ...(photoPath !== undefined ? { photo_url: photoPath } : {}),
     }).eq('id', id);
     setLineItems(prev => prev.map(i => i.id === id ? {
@@ -296,6 +311,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       msrp: editLineForm.msrp !== '' ? parseFloat(editLineForm.msrp) : null,
       supplier_price: editLineForm.supplier_price !== '' ? parseFloat(editLineForm.supplier_price) : null,
       exempt_reason: editLineForm.exempt ? 'Exento' : null,
+      area: editLineForm.area || null,
+      vendor: editLineForm.vendor || null,
       ...(photoPath !== undefined ? { photo_url: photoPath, photo_signed_url: photoSignedUrl } : {}),
     } : i));
     setEditingLineId(null);
@@ -321,11 +338,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       msrp: newLine.msrp !== '' ? parseFloat(newLine.msrp) : null,
       supplier_price: newLine.supplier_price !== '' ? parseFloat(newLine.supplier_price) : null,
       exempt_reason: newLine.exempt ? 'Exento' : null,
+      area: newLine.area || null,
+      vendor: newLine.vendor || null,
       photo_url: photoPath,
       sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
-    setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null });
+    setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
     setAddingLine(false);
     setSavingLine(false);
   }
@@ -1107,7 +1126,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de trabajo</p>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingLine(true)}>+ Agregar línea</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => exportPurchaseListCSV(lineItems, job.job_number)}>📦 Lista de compra</button>
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setShowCableCalc(true)}>🧮 Calcular cable/tubo</button>
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingLine(true)}>+ Agregar línea</button>
+                </div>
               </div>
               {!lineItems?.length ? <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: addingLine ? 14 : 0 }}>Sin líneas.</p> : (
                 lineItems.map(it => (
@@ -1134,6 +1157,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       onSupplierPriceChange={v => setEditLineForm(f => ({ ...f, supplier_price: v }))}
                       exempt={editLineForm.exempt}
                       onExemptChange={v => setEditLineForm(f => ({ ...f, exempt: v }))}
+                      area={editLineForm.area}
+                      onAreaChange={v => setEditLineForm(f => ({ ...f, area: v }))}
+                      areaOptions={areaOptions}
+                      vendor={editLineForm.vendor}
+                      onVendorChange={v => setEditLineForm(f => ({ ...f, vendor: v }))}
+                      vendorOptions={vendorOptions}
                       photoUrl={editLineForm.photoPreview}
                       onPhotoSelect={handleEditLinePhoto}
                       fmt={fmt}
@@ -1185,6 +1214,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   onSupplierPriceChange={v => setNewLine(l => ({ ...l, supplier_price: v }))}
                   exempt={newLine.exempt}
                   onExemptChange={v => setNewLine(l => ({ ...l, exempt: v }))}
+                  area={newLine.area}
+                  onAreaChange={v => setNewLine(l => ({ ...l, area: v }))}
+                  areaOptions={areaOptions}
+                  vendor={newLine.vendor}
+                  onVendorChange={v => setNewLine(l => ({ ...l, vendor: v }))}
+                  vendorOptions={vendorOptions}
                   photoUrl={newLine.photoPreview}
                   onPhotoSelect={handleNewLinePhoto}
                   fmt={fmt}
@@ -1752,6 +1787,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             </div>
           </div>
         </div>
+      )}
+
+      {showCableCalc && (
+        <CableCalculator
+          areaOptions={areaOptions}
+          vendorOptions={vendorOptions}
+          onAdd={item => { addPrefilledLineItem(item); setShowCableCalc(false); }}
+          onClose={() => setShowCableCalc(false)}
+        />
       )}
     </div>
   );

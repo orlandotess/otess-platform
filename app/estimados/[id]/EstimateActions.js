@@ -2,12 +2,13 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { exportPurchaseListCSV } from '../../purchaseListCsv';
 
 const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
-export default function EstimateActions({ estimateId, status, clientEmail, estimateNumber, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '' }) {
+export default function EstimateActions({ estimateId, status, clientEmail, estimateNumber, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', items = [] }) {
   const router = useRouter();
   const [showEmail, setShowEmail] = useState(false);
   const [showEditNumber, setShowEditNumber] = useState(false);
@@ -110,6 +111,7 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
         {generatingPdf ? '⏳ Generando...' : '🖨️ PDF'}
       </button>
       <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 Email</button>
+      <button className="btn btn-ghost" onClick={() => exportPurchaseListCSV(items, estimateNumber)}>📦 Lista de compra</button>
       <button className="btn btn-ghost" onClick={() => { setNewNumber(estimateNumber); setShowEditNumber(true); }}>✏️ # Estimado</button>
       {clientCompany && (
         <button className="btn btn-ghost" onClick={() => setShowEditBillTo(true)}>👤 A nombre de</button>

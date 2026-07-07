@@ -25,7 +25,7 @@ export default function NuevaFactura() {
     issued_at: new Date().toISOString().split('T')[0],
     due_at: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
-  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -51,6 +51,7 @@ export default function NuevaFactura() {
               type: li.type, description: li.description,
               quantity: li.quantity, unit_price: li.unit_price,
               msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
+              catalog_item_id: li.catalog_item_id ?? null,
               photoFile: null, photoPreview, existingPhotoPath: li.photo_url ?? null,
             };
           })).then(setItems);
@@ -64,7 +65,7 @@ export default function NuevaFactura() {
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
   function handleItemPhoto(idx, file) {
@@ -76,9 +77,10 @@ export default function NuevaFactura() {
     if (match) {
       setItems(i => i.map((it, n) => n === idx ? {
         ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+        catalog_item_id: match.id,
       } : it));
     } else {
-      setItem(idx, 'description', value);
+      setItems(i => i.map((it, n) => n === idx ? { ...it, description: value, catalog_item_id: null } : it));
     }
   }
 
@@ -100,6 +102,18 @@ export default function NuevaFactura() {
     e.preventDefault();
     if (!form.client_id) { setError('Selecciona un cliente'); return; }
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
+
+    const shortages = items.filter(i => i.type === 'product' && i.catalog_item_id).map(i => {
+      const cat = catalogItems.find(c => c.id === i.catalog_item_id);
+      const requested = parseFloat(i.quantity) || 0;
+      return cat && cat.stock_quantity != null && requested > cat.stock_quantity
+        ? `${cat.description}: pedido ${requested}, disponible ${cat.stock_quantity}`
+        : null;
+    }).filter(Boolean);
+    if (shortages.length && !confirm(`Stock insuficiente para:\n${shortages.join('\n')}\n\n¿Guardar la factura de todas formas?`)) {
+      return;
+    }
+
     setSaving(true); setError('');
 
     const { data: allInvoices } = await supabase.from('invoices').select('invoice_number');
@@ -150,6 +164,7 @@ export default function NuevaFactura() {
         msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
         supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
         exempt_reason: i.exempt ? 'Exento' : null,
+        catalog_item_id: i.catalog_item_id || null,
         photo_url: photoPath,
         tax_rate: rate, line_total: base, tax_amount: base * rate,
         sort_order: sortOrder++,
@@ -157,6 +172,16 @@ export default function NuevaFactura() {
     }
 
     await supabase.from('invoice_line_items').insert(lineItems);
+
+    for (const li of lineItems.filter(li => li.type === 'product' && li.catalog_item_id)) {
+      await supabase.rpc('adjust_catalog_stock', {
+        p_catalog_item_id: li.catalog_item_id,
+        p_delta: -li.quantity,
+        p_invoice_id: invoice.id,
+        p_reason: 'invoice_created',
+      });
+    }
+
     router.push(`/facturas/${invoice.id}`);
   }
 
@@ -237,6 +262,7 @@ export default function NuevaFactura() {
                   description={item.description}
                   onDescriptionChange={v => handleCatalogSelect(idx, v)}
                   catalogOptions={catalogItems.filter(c => c.type === item.type)}
+                  catalogItemId={item.catalog_item_id}
                   datalistId={`fact-cat-${idx}`}
                   quantity={item.quantity}
                   onQuantityChange={v => setItem(idx, 'quantity', v)}

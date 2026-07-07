@@ -65,7 +65,20 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
     setGeneratingPdf(false);
   }
 
+  async function restoreInventoryForInvoice(reason) {
+    const { data: lineItems } = await supabase.from('invoice_line_items').select('catalog_item_id, quantity, type').eq('invoice_id', invoiceId);
+    for (const li of (lineItems ?? []).filter(li => li.type === 'product' && li.catalog_item_id)) {
+      await supabase.rpc('adjust_catalog_stock', {
+        p_catalog_item_id: li.catalog_item_id,
+        p_delta: li.quantity,
+        p_invoice_id: invoiceId,
+        p_reason: reason,
+      });
+    }
+  }
+
   async function updateStatus(newStatus) {
+    if (newStatus === 'cancelled') await restoreInventoryForInvoice('invoice_cancelled');
     await supabase.from('invoices').update({ status: newStatus }).eq('id', invoiceId);
     router.refresh();
   }
@@ -194,6 +207,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
 
   async function deleteInvoice() {
     setDeleting(true);
+    await restoreInventoryForInvoice('invoice_deleted');
     const photoPaths = checkPhotos.map(p => p.photo_url).filter(Boolean);
     if (photoPaths.length) await supabase.storage.from('Job-photos').remove(photoPaths);
     await supabase.from('invoice_internal_attachments').delete().eq('invoice_id', invoiceId);

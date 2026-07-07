@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../../Sidebar';
 import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 import LineItemRow from '../../LineItemRow';
+import CableCalculator from '../../CableCalculator';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
@@ -25,9 +26,10 @@ export default function NuevaEstimaForm() {
     issued_at: new Date().toISOString().split('T')[0],
     valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
-  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showCableCalc, setShowCableCalc] = useState(false);
 
   useEffect(() => {
     supabase.from('clients').select('id, name, company, client_type').order('name').then(({ data }) => setClients(data ?? []));
@@ -51,6 +53,7 @@ export default function NuevaEstimaForm() {
               type: li.type, description: li.description,
               quantity: li.quantity, unit_price: li.unit_price,
               msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
+              area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
               photoFile: null, photoPreview, existingPhotoPath: li.photo_url ?? null,
             };
           })).then(setItems);
@@ -64,7 +67,8 @@ export default function NuevaEstimaForm() {
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null, ...item }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
   function handleItemPhoto(idx, file) {
@@ -76,9 +80,10 @@ export default function NuevaEstimaForm() {
     if (match) {
       setItems(i => i.map((it, n) => n === idx ? {
         ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id,
       } : it));
     } else {
-      setItem(idx, 'description', value);
+      setItems(i => i.map((it, n) => n === idx ? { ...it, description: value, catalog_item_id: null } : it));
     }
   }
 
@@ -95,6 +100,8 @@ export default function NuevaEstimaForm() {
 
   const t = calcTotals();
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
+  const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -150,6 +157,7 @@ export default function NuevaEstimaForm() {
         msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
         supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
         exempt_reason: i.exempt ? 'Exento' : null,
+        area: i.area || null, vendor: i.vendor || null, catalog_item_id: i.catalog_item_id || null,
         photo_url: photoPath,
         tax_rate: rate, line_total: base, tax_amount: base * rate,
         sort_order: sortOrder++,
@@ -226,7 +234,10 @@ export default function NuevaEstimaForm() {
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas del estimado</p>
-                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setShowCableCalc(true)}>🧮 Calcular cable/tubo</button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
+                </div>
               </div>
 
               {items.map((item, idx) => (
@@ -237,6 +248,7 @@ export default function NuevaEstimaForm() {
                   description={item.description}
                   onDescriptionChange={v => handleCatalogSelect(idx, v)}
                   catalogOptions={catalogItems.filter(c => c.type === item.type)}
+                  catalogItemId={item.catalog_item_id}
                   datalistId={`est-cat-${idx}`}
                   quantity={item.quantity}
                   onQuantityChange={v => setItem(idx, 'quantity', v)}
@@ -248,6 +260,12 @@ export default function NuevaEstimaForm() {
                   onSupplierPriceChange={v => setItem(idx, 'supplier_price', v)}
                   exempt={item.exempt}
                   onExemptChange={v => setItem(idx, 'exempt', v)}
+                  area={item.area}
+                  onAreaChange={v => setItem(idx, 'area', v)}
+                  areaOptions={areaOptions}
+                  vendor={item.vendor}
+                  onVendorChange={v => setItem(idx, 'vendor', v)}
+                  vendorOptions={vendorOptions}
                   photoUrl={item.photoPreview}
                   onPhotoSelect={file => handleItemPhoto(idx, file)}
                   fmt={fmt}
@@ -292,6 +310,14 @@ export default function NuevaEstimaForm() {
             <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>Cancelar</button>
           </div>
         </form>
+        {showCableCalc && (
+          <CableCalculator
+            areaOptions={areaOptions}
+            vendorOptions={vendorOptions}
+            onAdd={item => { addPrefilledItem(item); setShowCableCalc(false); }}
+            onClose={() => setShowCableCalc(false)}
+          />
+        )}
       </main>
     </div>
   );

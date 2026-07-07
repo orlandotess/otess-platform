@@ -9,19 +9,23 @@ export default function LineItemRow({
   viewMode = false,
   isAccessory = false,
   type, onTypeChange,
-  description, onDescriptionChange, catalogOptions = [], datalistId,
+  description, onDescriptionChange, catalogOptions = [], datalistId, catalogItemId,
   quantity, onQuantityChange,
   msrp, onMsrpChange,
   unitPrice, onUnitPriceChange,
   supplierPrice, onSupplierPriceChange,
   exempt, onExemptChange,
   discount, onDiscountChange,
+  area, onAreaChange, areaOptions = [],
+  vendor, onVendorChange, vendorOptions = [],
   photoUrl, onPhotoSelect, uploadingPhoto = false,
   fmt,
   actions,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const subtotal = (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
+  const matchedCatalogItem = catalogItemId ? catalogOptions.find(c => c.id === catalogItemId) : null;
+  const stockHint = type === 'product' && matchedCatalogItem?.stock_quantity != null ? matchedCatalogItem.stock_quantity : null;
 
   if (isAccessory) {
     return (
@@ -127,6 +131,9 @@ export default function LineItemRow({
         ) : (
           <input type="number" value={quantity} onChange={e => onQuantityChange(e.target.value)} style={{ fontSize: 13, padding: '4px 6px', textAlign: 'center', width: '100%' }} min="0" step="0.01" />
         )}
+        {stockHint != null && (
+          <div style={{ fontSize: 9, color: stockHint <= 0 ? '#c0392b' : 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' }} title="Cantidad en inventario">Stock: {stockHint}</div>
+        )}
       </div>
 
       <div style={{ textAlign: 'right', flexShrink: 0, width: 90 }}>
@@ -151,6 +158,26 @@ export default function LineItemRow({
                       <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Descuento ($)</label>
                       <input type="number" value={discount} onChange={e => onDiscountChange(e.target.value)} placeholder="0.00" min="0" step="0.01"
                         style={{ fontSize: 12.5, padding: '4px 6px', width: '100%' }} onClick={e => e.stopPropagation()} />
+                    </div>
+                  )}
+                  {onAreaChange && (
+                    <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Área</label>
+                      <input list="line-item-area-options" value={area ?? ''} onChange={e => onAreaChange(e.target.value)} placeholder="Piso 1, Oficina 2..."
+                        style={{ fontSize: 12.5, padding: '4px 6px', width: '100%' }} onClick={e => e.stopPropagation()} />
+                      <datalist id="line-item-area-options">
+                        {areaOptions.map(a => <option key={a} value={a} />)}
+                      </datalist>
+                    </div>
+                  )}
+                  {onVendorChange && (
+                    <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Suplidor</label>
+                      <input list="line-item-vendor-options" value={vendor ?? ''} onChange={e => onVendorChange(e.target.value)} placeholder="Adi, Multi Electric..."
+                        style={{ fontSize: 12.5, padding: '4px 6px', width: '100%' }} onClick={e => e.stopPropagation()} />
+                      <datalist id="line-item-vendor-options">
+                        {vendorOptions.map(v => <option key={v} value={v} />)}
+                      </datalist>
                     </div>
                   )}
                 </div>

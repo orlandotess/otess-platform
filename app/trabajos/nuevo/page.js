@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Sidebar from '../../Sidebar';
 import LineItemRow from '../../LineItemRow';
+import CableCalculator from '../../CableCalculator';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { localInputToIso } from '../../../lib/datetimeLocal';
 
@@ -22,9 +23,10 @@ export default function NuevoTrabajo() {
     property_name: '', street: '', city: '', state: 'PR', zip: '',
     contact_name: '', contact_phone: '', contact_email: '',
   });
-  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null }]);
+  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showCableCalc, setShowCableCalc] = useState(false);
   const [quickSuccess, setQuickSuccess] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
@@ -44,6 +46,7 @@ export default function NuevoTrabajo() {
     if (match) {
       setItems(prev => prev.map((it, n) => n === idx ? {
         ...it, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+        vendor: it.vendor || match.vendor || '',
       } : it));
     } else {
       setItem(idx, 'description', value);
@@ -79,7 +82,8 @@ export default function NuevoTrabajo() {
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, photoFile: null, photoPreview: null }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
+  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null, ...item }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
   function handleItemPhoto(idx, file) {
@@ -101,6 +105,8 @@ export default function NuevoTrabajo() {
 
   const t = calcTotals();
   const fmt = n => `$${n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+  const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
+  const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
 
   const fullAddress = [form.street, form.city, form.state, form.zip].filter(Boolean).join(', ');
   const mapsLinks = buildMapsLinks(form.street, form.city, form.state, form.zip);
@@ -124,78 +130,84 @@ export default function NuevoTrabajo() {
     if (!form.client_id || !form.title.trim()) { setError('Cliente y título son requeridos'); return; }
     setSaving(true); setError('');
 
-    const { data: lastJob } = await supabase.from('jobs').select('job_number').order('created_at', { ascending: false }).limit(1).single();
-    let nextNum = 1001;
-    if (lastJob?.job_number) {
-      const n = parseInt(lastJob.job_number.replace('JOB-', ''));
-      if (!isNaN(n)) nextNum = n + 1;
-    }
-    const jobNumber = `JOB-${nextNum}`;
-
-    const { data: job, error: err } = await supabase.from('jobs').insert([{
-      job_number: jobNumber,
-      client_id: form.client_id,
-      title: form.title,
-      description: form.description || null,
-      status: quickMode ? 'estimate' : form.status,
-      notes: form.notes || null,
-      bill_to: form.bill_to,
-      scheduled_start: quickMode ? null : localInputToIso(form.scheduled_start),
-      scheduled_end: quickMode ? null : localInputToIso(form.scheduled_end),
-      property_id: form.property_id || null,
-      contact_id: form.contact_id || null,
-      property_name: form.property_name || null,
-      street: form.street || null,
-      city: form.city || null,
-      state: form.state || null,
-      zip: form.zip || null,
-      contact_name: form.contact_name || null,
-      contact_phone: form.contact_phone || null,
-      contact_email: form.contact_email || null,
-    }]).select().single();
-
-    if (err) { setError(err.message); setSaving(false); return; }
-
-    if (!quickMode) {
-      const lineItems = [];
-      let sortOrder = 0;
-      for (const i of items.filter(i => i.description.trim())) {
-        let photoPath = null;
-        if (i.photoFile) {
-          const ext = i.photoFile.name.split('.').pop();
-          const path = `${job.id}/${Date.now()}-${sortOrder}.${ext}`;
-          const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, i.photoFile);
-          if (!upErr) photoPath = path;
-        }
-        lineItems.push({
-          job_id: job.id, type: i.type, description: i.description,
-          quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
-          msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
-          supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
-          exempt_reason: i.exempt ? 'Exento' : null,
-          photo_url: photoPath,
-          sort_order: sortOrder++,
-        });
+    try {
+      const { data: lastJob } = await supabase.from('jobs').select('job_number').order('created_at', { ascending: false }).limit(1).single();
+      let nextNum = 1001;
+      if (lastJob?.job_number) {
+        const n = parseInt(lastJob.job_number.replace('JOB-', ''));
+        if (!isNaN(n)) nextNum = n + 1;
       }
-      if (lineItems.length) await supabase.from('job_line_items').insert(lineItems);
-    }
+      const jobNumber = `JOB-${nextNum}`;
 
-    if (quickMode) {
-      setForm({
-        client_id: '', title: '', description: '', status: 'estimate',
-        scheduled_start: '', scheduled_end: '', notes: '', bill_to: 'person',
-        property_id: '', contact_id: '',
-        property_name: '', street: '', city: '', state: 'PR', zip: '',
-        contact_name: '', contact_phone: '', contact_email: '',
-      });
-      setClientSearch('');
-      setShowNewClient(false);
+      const { data: job, error: err } = await supabase.from('jobs').insert([{
+        job_number: jobNumber,
+        client_id: form.client_id,
+        title: form.title,
+        description: form.description || null,
+        status: quickMode ? 'estimate' : form.status,
+        notes: form.notes || null,
+        bill_to: form.bill_to,
+        scheduled_start: quickMode ? null : localInputToIso(form.scheduled_start),
+        scheduled_end: quickMode ? null : localInputToIso(form.scheduled_end),
+        property_id: form.property_id || null,
+        contact_id: form.contact_id || null,
+        property_name: form.property_name || null,
+        street: form.street || null,
+        city: form.city || null,
+        state: form.state || null,
+        zip: form.zip || null,
+        contact_name: form.contact_name || null,
+        contact_phone: form.contact_phone || null,
+        contact_email: form.contact_email || null,
+      }]).select().single();
+
+      if (err) { setError(err.message); return; }
+
+      if (!quickMode) {
+        const lineItems = [];
+        let sortOrder = 0;
+        for (const i of items.filter(i => i.description.trim())) {
+          let photoPath = null;
+          if (i.photoFile) {
+            const ext = i.photoFile.name.split('.').pop();
+            const path = `${job.id}/${Date.now()}-${sortOrder}.${ext}`;
+            const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, i.photoFile);
+            if (!upErr) photoPath = path;
+          }
+          lineItems.push({
+            job_id: job.id, type: i.type, description: i.description,
+            quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
+            msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
+            supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
+            exempt_reason: i.exempt ? 'Exento' : null,
+            area: i.area || null, vendor: i.vendor || null,
+            photo_url: photoPath,
+            sort_order: sortOrder++,
+          });
+        }
+        if (lineItems.length) await supabase.from('job_line_items').insert(lineItems);
+      }
+
+      if (quickMode) {
+        setForm({
+          client_id: '', title: '', description: '', status: 'estimate',
+          scheduled_start: '', scheduled_end: '', notes: '', bill_to: 'person',
+          property_id: '', contact_id: '',
+          property_name: '', street: '', city: '', state: 'PR', zip: '',
+          contact_name: '', contact_phone: '', contact_email: '',
+        });
+        setClientSearch('');
+        setShowNewClient(false);
+        setQuickSuccess(true);
+        setTimeout(() => setQuickSuccess(false), 3000);
+        return;
+      }
+      router.push(`/trabajos/${job.id}`);
+    } catch (e) {
+      setError(e.message || 'Ocurrió un error al guardar el trabajo. Intenta de nuevo.');
+    } finally {
       setSaving(false);
-      setQuickSuccess(true);
-      setTimeout(() => setQuickSuccess(false), 3000);
-      return;
     }
-    router.push(`/trabajos/${job.id}`);
   }
 
   return (
@@ -434,7 +446,10 @@ export default function NuevoTrabajo() {
                 <div className="card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de trabajo</p>
-                    <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setShowCableCalc(true)}>🧮 Calcular cable/tubo</button>
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
+                    </div>
                   </div>
                   {items.map((item, idx) => (
                     <LineItemRow
@@ -455,6 +470,12 @@ export default function NuevoTrabajo() {
                       onSupplierPriceChange={v => setItem(idx, 'supplier_price', v)}
                       exempt={item.exempt}
                       onExemptChange={v => setItem(idx, 'exempt', v)}
+                      area={item.area}
+                      onAreaChange={v => setItem(idx, 'area', v)}
+                      areaOptions={areaOptions}
+                      vendor={item.vendor}
+                      onVendorChange={v => setItem(idx, 'vendor', v)}
+                      vendorOptions={vendorOptions}
                       photoUrl={item.photoPreview}
                       onPhotoSelect={file => handleItemPhoto(idx, file)}
                       fmt={fmt}
@@ -513,6 +534,14 @@ export default function NuevoTrabajo() {
             </div>
           )}
         </form>
+        {showCableCalc && (
+          <CableCalculator
+            areaOptions={areaOptions}
+            vendorOptions={vendorOptions}
+            onAdd={item => { addPrefilledItem(item); setShowCableCalc(false); }}
+            onClose={() => setShowCableCalc(false)}
+          />
+        )}
       </main>
     </div>
   );
