@@ -38,7 +38,6 @@ export default function FieldApp() {
   const fileRef = useRef();
 
   // Manual weekly timesheet (feeds payroll via time_entries)
-  const [editingWeek, setEditingWeek] = useState(false);
   const [weekDayForms, setWeekDayForms] = useState({});
   const [savingDay, setSavingDay] = useState(null);
 
@@ -121,9 +120,7 @@ export default function FieldApp() {
 
   useEffect(() => {
     if (!techId) return;
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
-    weekStart.setHours(0, 0, 0, 0);
+    const weekStart = getPayrollWeekDays()[0];
     supabase.from('time_entries').select('*').eq('technician_id', techId)
       .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false })
       .then(({ data }) => setTimeEntries(data ?? []));
@@ -294,7 +291,7 @@ export default function FieldApp() {
     }
     setSavingDay(null);
     // Refresh the week summary card above so hours reflect the saved entry
-    const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); weekStart.setHours(0, 0, 0, 0);
+    const weekStart = getPayrollWeekDays()[0];
     const { data: refreshed } = await supabase.from('time_entries').select('*').eq('technician_id', techId)
       .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false });
     setTimeEntries(refreshed ?? []);
@@ -662,12 +659,9 @@ export default function FieldApp() {
 
             <div style={{ padding: '4px 20px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 15, fontWeight: 700 }}>Editar mi horario semanal</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: ORANGE, cursor: 'pointer' }} onClick={() => setEditingWeek(v => !v)}>
-                {editingWeek ? 'Ocultar' : 'Editar'}
-              </span>
             </div>
 
-            {editingWeek && getPayrollWeekDays().map(dateObj => {
+            {getPayrollWeekDays().map(dateObj => {
               const key = dayKey(dateObj);
               const form = weekDayForms[key] ?? blankDayForm();
               const dayLabel = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
