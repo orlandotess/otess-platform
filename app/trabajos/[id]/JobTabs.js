@@ -178,6 +178,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [addingDay, setAddingDay] = useState(false);
   const [newDay, setNewDay] = useState({ start: '', end: '', technician_ids: [], lunch_minutes: 0 });
   const [savingDay, setSavingDay] = useState(false);
+  const [editingDayId, setEditingDayId] = useState(null);
+  const [editDayForm, setEditDayForm] = useState({ start: '', end: '', technician_id: '', lunch_minutes: 0 });
+  const [savingEditDay, setSavingEditDay] = useState(false);
 
   function toggleNewDayTechnician(techId) {
     setNewDay(d => ({
@@ -216,6 +219,35 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   async function updateDayLunch(dayId, minutes) {
     setScheduleDays(prev => prev.map(d => d.id === dayId ? { ...d, lunch_minutes: minutes } : d));
     await supabase.from('job_schedule_days').update({ lunch_minutes: minutes }).eq('id', dayId);
+  }
+
+  function startEditDay(d) {
+    setEditingDayId(d.id);
+    setEditDayForm({
+      start: isoToLocalInput(d.scheduled_start),
+      end: isoToLocalInput(d.scheduled_end),
+      technician_id: d.technician_id ?? '',
+      lunch_minutes: d.lunch_minutes ?? 0,
+    });
+  }
+
+  function cancelEditDay() {
+    setEditingDayId(null);
+  }
+
+  async function saveEditDay(dayId) {
+    if (!editDayForm.start) return;
+    setSavingEditDay(true);
+    const payload = {
+      scheduled_start: localInputToIso(editDayForm.start),
+      scheduled_end: editDayForm.end ? localInputToIso(editDayForm.end) : null,
+      technician_id: editDayForm.technician_id || null,
+      lunch_minutes: editDayForm.lunch_minutes,
+    };
+    const { data } = await supabase.from('job_schedule_days').update(payload).eq('id', dayId).select('*, technicians(name)').single();
+    if (data) setScheduleDays(prev => prev.map(d => d.id === dayId ? data : d).sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
+    setEditingDayId(null);
+    setSavingEditDay(false);
   }
 
   // Line items state
@@ -1059,26 +1091,64 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {group.entries.map(d => (
-                          <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f8f9fb', borderRadius: 8 }}>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 600 }} suppressHydrationWarning>
-                                {new Date(d.scheduled_start).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}
-                                {d.scheduled_end && ` – ${new Date(d.scheduled_end).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}`}
-                                {d.scheduled_end && <span style={{ color: 'var(--muted)', fontWeight: 500 }}> ({formatHours(hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes))})</span>}
+                          editingDayId === d.id ? (
+                            <div key={d.id} style={{ padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
+                                <div className="form-group">
+                                  <label>Inicio</label>
+                                  <input type="datetime-local" value={editDayForm.start} onChange={e => setEditDayForm(f => ({ ...f, start: e.target.value }))} />
+                                </div>
+                                <div className="form-group">
+                                  <label>Fin</label>
+                                  <input type="datetime-local" value={editDayForm.end} onChange={e => setEditDayForm(f => ({ ...f, end: e.target.value }))} />
+                                </div>
                               </div>
-                              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.technicians?.name ?? '— Sin asignar —'}</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                                <div className="form-group">
+                                  <label>Técnico</label>
+                                  <select value={editDayForm.technician_id ?? ''} onChange={e => setEditDayForm(f => ({ ...f, technician_id: e.target.value }))}>
+                                    <option value="">— Sin asignar —</option>
+                                    {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                  </select>
+                                </div>
+                                <div className="form-group">
+                                  <label>Almuerzo</label>
+                                  <select value={editDayForm.lunch_minutes} onChange={e => setEditDayForm(f => ({ ...f, lunch_minutes: parseInt(e.target.value) }))}>
+                                    <option value={0}>Sin almuerzo</option>
+                                    <option value={30}>30 min</option>
+                                    <option value={45}>45 min</option>
+                                    <option value={60}>60 min</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: 10 }}>
+                                <button className="btn btn-primary" onClick={() => saveEditDay(d.id)} disabled={savingEditDay || !editDayForm.start}>{savingEditDay ? 'Guardando...' : '💾 Guardar'}</button>
+                                <button className="btn btn-ghost" onClick={cancelEditDay}>Cancelar</button>
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <select value={d.lunch_minutes ?? 0} onChange={e => updateDayLunch(d.id, parseInt(e.target.value))}
-                                style={{ fontSize: 12, padding: '4px 6px', border: '1.5px solid var(--border)', borderRadius: 6, color: 'var(--muted)' }}>
-                                <option value={0}>🍽️ Sin almuerzo</option>
-                                <option value={30}>🍽️ 30 min</option>
-                                <option value={45}>🍽️ 45 min</option>
-                                <option value={60}>🍽️ 60 min</option>
-                              </select>
-                              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--warn)' }} onClick={() => removeScheduleDay(d.id)}>🗑</button>
+                          ) : (
+                            <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f8f9fb', borderRadius: 8 }}>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600 }} suppressHydrationWarning>
+                                  {new Date(d.scheduled_start).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}
+                                  {d.scheduled_end && ` – ${new Date(d.scheduled_end).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}`}
+                                  {d.scheduled_end && <span style={{ color: 'var(--muted)', fontWeight: 500 }}> ({formatHours(hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes))})</span>}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.technicians?.name ?? '— Sin asignar —'}</div>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <select value={d.lunch_minutes ?? 0} onChange={e => updateDayLunch(d.id, parseInt(e.target.value))}
+                                  style={{ fontSize: 12, padding: '4px 6px', border: '1.5px solid var(--border)', borderRadius: 6, color: 'var(--muted)' }}>
+                                  <option value={0}>🍽️ Sin almuerzo</option>
+                                  <option value={30}>🍽️ 30 min</option>
+                                  <option value={45}>🍽️ 45 min</option>
+                                  <option value={60}>🍽️ 60 min</option>
+                                </select>
+                                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => startEditDay(d)}>✏️</button>
+                                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px', color: 'var(--warn)' }} onClick={() => removeScheduleDay(d.id)}>🗑</button>
+                              </div>
                             </div>
-                          </div>
+                          )
                         ))}
                       </div>
                     </div>
