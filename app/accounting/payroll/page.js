@@ -102,12 +102,15 @@ export default async function AccountingPayroll({ searchParams }) {
     const adj = adjs.find(a => a.technician_id === tech.id);
     const regularHours = adj?.regular_hours_override ?? rawRegular;
     const overtimeHours = adj?.overtime_hours_override ?? rawOvertime;
-    const hasOverride = adj?.regular_hours_override !== null && adj?.regular_hours_override !== undefined;
+    const hasGrossOverride = adj?.gross_pay_override !== null && adj?.gross_pay_override !== undefined;
+    const hasOverride = (adj?.regular_hours_override !== null && adj?.regular_hours_override !== undefined) || hasGrossOverride;
 
     const rate = Number(tech.hourly_rate ?? 0);
-    const regularPay = regularHours * rate;
-    const overtimePay = overtimeHours * rate * 1.5;
-    const grossPay = regularPay + overtimePay;
+    // A direct gross-pay override (used for historical backfill where hours/rate at the time are unknown)
+    // takes priority over the hours × rate calculation.
+    const grossPay = hasGrossOverride ? Number(adj.gross_pay_override) : (regularHours * rate) + (overtimeHours * rate * 1.5);
+    const regularPay = hasGrossOverride ? grossPay : regularHours * rate;
+    const overtimePay = hasGrossOverride ? 0 : overtimeHours * rate * 1.5;
     const retention = grossPay * 0.10;
 
     return {

@@ -79,11 +79,13 @@ export default async function PayrollHistorial() {
       const regularHours = adj?.regular_hours_override ?? rawRegular;
       const overtimeHours = adj?.overtime_hours_override ?? rawOvertime;
       const totalHours = regularHours + overtimeHours;
+      const hasGrossOverride = adj?.gross_pay_override !== null && adj?.gross_pay_override !== undefined;
 
       if (totalHours === 0 && !adj) return; // skip empty rows with no adjustment record
 
       const rate = Number(tech.hourly_rate ?? 0);
-      const gross = (regularHours * rate) + (overtimeHours * rate * 1.5);
+      // A direct gross-pay override (historical backfill where hours/rate at the time are unknown) wins.
+      const gross = hasGrossOverride ? Number(adj.gross_pay_override) : (regularHours * rate) + (overtimeHours * rate * 1.5);
       const retention = gross * 0.10;
       const net = gross - retention;
 

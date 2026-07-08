@@ -13,7 +13,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
   const [saving, setSaving] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [manualTechId, setManualTechId] = useState('');
-  const [manualForm, setManualForm] = useState({ regular: '', overtime: '', date: periodStart });
+  const [manualForm, setManualForm] = useState({ regular: '', overtime: '', date: periodStart, grossPay: '', paid: false });
   const [savingManual, setSavingManual] = useState(false);
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -55,13 +55,15 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     // Save rate to technicians table
     await supabase.from('technicians').update({ hourly_rate: newRate }).eq('id', tech.id);
 
-    // Save hour overrides to payroll_adjustments
+    // Save hour overrides to payroll_adjustments. Editing hours here means the pay should follow
+    // hours × rate going forward, so clear any previous direct gross-pay override for this period.
     await supabase.from('payroll_adjustments').upsert({
       technician_id: tech.id,
       period_start: periodStart,
       period_end: periodEnd,
       regular_hours_override: newRegular !== tech.regularHoursRaw ? newRegular : null,
       overtime_hours_override: newOvertime !== tech.overtimeHoursRaw ? newOvertime : null,
+      gross_pay_override: null,
     }, { onConflict: 'technician_id,period_start,period_end' });
 
     const updated = recalc(newRate, newRegular, newOvertime);
@@ -102,6 +104,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     const tech = stats.find(t => t.id === manualTechId) || allTechnicians.find(t => t.id === manualTechId);
     const regular = parseFloat(manualForm.regular) || 0;
     const overtime = parseFloat(manualForm.overtime) || 0;
+    const grossOverride = manualForm.grossPay !== '' ? parseFloat(manualForm.grossPay) : null;
     const { start: targetPeriodStart, end: targetPeriodEnd } = getWeekRangeForDate(manualForm.date || periodStart);
 
     await supabase.from('payroll_adjustments').upsert({
@@ -110,6 +113,8 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
       period_end: targetPeriodEnd,
       regular_hours_override: regular,
       overtime_hours_override: overtime,
+      gross_pay_override: grossOverride,
+      paid: manualForm.paid,
     }, { onConflict: 'technician_id,period_start,period_end' });
 
     const isCurrentPeriod = targetPeriodStart === periodStart && targetPeriodEnd === periodEnd;
@@ -120,7 +125,9 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
 
     if (isCurrentPeriod) {
       const rate = Number(tech?.hourly_rate ?? 0);
-      const updated = recalc(rate, regular, overtime);
+      const updated = grossOverride != null
+        ? { regularHours: regular, overtimeHours: overtime, totalHours: regular + overtime, regularPay: grossOverride, overtimePay: 0, grossPay: grossOverride, retention: grossOverride * 0.10, netPay: grossOverride * 0.90 }
+        : recalc(rate, regular, overtime);
       setStats(prev => {
         const exists = prev.find(t => t.id === manualTechId);
         if (exists) {
@@ -128,7 +135,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
         }
         return [...prev, { ...tech, ...updated, hasOverride: true }];
       });
-      setManualForm({ regular: '', overtime: '', date: periodStart });
+      setManualForm({ regular: '', overtime: '', date: periodStart, grossPay: '', paid: false });
     } else {
       // Navigate to the week view containing the chosen date so the entry is visible immediately
       const now = new Date();
@@ -303,7 +310,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
               <label>Fecha (define la semana de pago)</label>
               <input type="date" value={manualForm.date} onChange={e => setManualForm(f => ({ ...f, date: e.target.value }))} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
               <div className="form-group">
                 <label>Horas regulares</label>
                 <input type="number" step="0.1" min="0" value={manualForm.regular} onChange={e => setManualForm(f => ({ ...f, regular: e.target.value }))} placeholder="0.0" />
@@ -313,11 +320,20 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
                 <input type="number" step="0.1" min="0" value={manualForm.overtime} onChange={e => setManualForm(f => ({ ...f, overtime: e.target.value }))} placeholder="0.0" />
               </div>
             </div>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label>Pago bruto directo (opcional — úsalo si no tienes las horas)</label>
+              <input type="number" step="0.01" min="0" value={manualForm.grossPay} onChange={e => setManualForm(f => ({ ...f, grossPay: e.target.value }))} placeholder="0.00" />
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Si lo llenas, este monto reemplaza el cálculo de horas × tarifa. La retención (10%) y el neto se calculan sobre este bruto.</p>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" checked={manualForm.paid} onChange={e => setManualForm(f => ({ ...f, paid: e.target.checked }))} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+              Ya fue pagado
+            </label>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-primary" onClick={saveManualPayroll} disabled={savingManual || !manualTechId} style={{ flex: 1, justifyContent: 'center' }}>
                 {savingManual ? 'Guardando...' : '💾 Guardar'}
               </button>
-              <button className="btn btn-ghost" onClick={() => { setShowManualAdd(false); setManualTechId(''); setManualForm({ regular: '', overtime: '' }); }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => { setShowManualAdd(false); setManualTechId(''); setManualForm({ regular: '', overtime: '', date: periodStart, grossPay: '', paid: false }); }}>Cancelar</button>
             </div>
           </div>
         </div>
