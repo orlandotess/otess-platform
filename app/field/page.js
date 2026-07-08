@@ -7,7 +7,25 @@ import { normalizeName } from '../../lib/normalizeName';
 import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
 
 const ORANGE = '#E05C2A';
+const AMBER = '#e0972c';
 const BG = '#EAEEF2';
+// Same status color/icon language as the office Sidebar/badges — a technician and an
+// office user should see the exact same color for "atrasado", "programado", etc.
+const ICON_PATHS = {
+  home: <><path d="M4 11 L12 4 L20 11"/><path d="M6 10 V20 h5 v-6 h2 v6 h5 V10"/></>,
+  jobs: <><rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3" rx="1"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></>,
+  time: <><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5 v4.5 l3 2"/></>,
+  calendar: <><rect x="4" y="5" width="16" height="15" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></>,
+  projects: <><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></>,
+  clientes: <><circle cx="9" cy="8" r="3.2"/><path d="M3 20 a 6 6 0 0 1 12 0"/><circle cx="17.5" cy="8.5" r="2.3"/><path d="M15.5 13.7 a 5.2 5.2 0 0 1 5.5 5.3"/></>,
+};
+function FieldIcon({ name }) {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {ICON_PATHS[name] || null}
+    </svg>
+  );
+}
 const JOB_FIELDS = 'id, title, status, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)';
 const EXPENSE_CATEGORIES = [
   { value: 'materiales', label: 'Materiales' },
@@ -679,7 +697,7 @@ export default function FieldApp() {
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
-  const SC = { estimate: '#888', scheduled: '#2a4cb5', in_progress: ORANGE, completed: '#27ae60', cancelled: '#b52a2a' };
+  const SC = { estimate: '#5b6473', scheduled: '#2a4cb5', in_progress: AMBER, completed: '#1a7a4a', cancelled: '#b52a2a' };
   const SL = { estimate: 'Estimate', scheduled: 'Scheduled', in_progress: 'In Progress', completed: 'Done', cancelled: 'Cancelled' };
   const DSH = ['Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue'];
   const WD = DSH.map((_, i) => { const d = new Date(now); const off = now.getDay() === 0 ? -4 : now.getDay() >= 3 ? now.getDay() - 3 : now.getDay() + 4; d.setDate(now.getDate() - off + i); return d.getDate(); });
@@ -689,7 +707,7 @@ export default function FieldApp() {
   const fmi = c => ({ background: c || ORANGE, color: '#fff', border: 'none', borderRadius: 50, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' });
   const NavI = ({ tab: t, icon, label }) => (
     <button style={navBtn(tab === t)} onClick={() => { setTab(t); setShowFab(false); }}>
-      <span style={{ fontSize: 20 }}>{icon}</span>{label}
+      <FieldIcon name={icon} />{label}
     </button>
   );
   const JobRow = ({ j, onClick }) => (
@@ -1775,12 +1793,12 @@ export default function FieldApp() {
       )}
 
       <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#fff', borderTop: '1px solid #dde1e7', display: 'flex', zIndex: 100, paddingBottom: 'env(safe-area-inset-bottom,4px)' }}>
-        <NavI tab="home" icon="🏠" label="Home" />
-        <NavI tab="jobs" icon="📋" label="Jobs" />
-        <NavI tab="time" icon="⏱" label="Time" />
-        <NavI tab="calendar" icon="📅" label="Calendar" />
-        <NavI tab="projects" icon="⊞" label="Projects" />
-        <NavI tab="clientes" icon="👥" label="Clientes" />
+        <NavI tab="home" icon="home" label="Home" />
+        <NavI tab="jobs" icon="jobs" label="Jobs" />
+        <NavI tab="time" icon="time" label="Time" />
+        <NavI tab="calendar" icon="calendar" label="Calendar" />
+        <NavI tab="projects" icon="projects" label="Projects" />
+        <NavI tab="clientes" icon="clientes" label="Clientes" />
       </nav>
     </div>
   );
