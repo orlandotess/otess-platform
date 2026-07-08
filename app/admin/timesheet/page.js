@@ -65,13 +65,17 @@ export default async function TimesheetPage({ searchParams }) {
       if (byDay[day] !== undefined) byDay[day].push(e);
     });
 
-    let regularHours = 0, overtimeHours = 0;
-    Object.values(byDay).forEach(dayEntries => {
+    let regularHours = 0, overtimeHours = 0, cumulativeHours = 0;
+    weekDays.forEach(d => {
+      const dayEntries = byDay[d.toISOString().slice(0, 10)];
       const hours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
         ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60
         : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
-      if (hours > 8) { regularHours += 8; overtimeHours += hours - 8; }
-      else regularHours += hours;
+      const dayRegular = Math.min(hours, Math.max(0, 40 - cumulativeHours));
+      const dayOvertime = hours - dayRegular;
+      regularHours += dayRegular;
+      overtimeHours += dayOvertime;
+      cumulativeHours += hours;
     });
 
     const adj = adjs.find(a => a.technician_id === tech.id);

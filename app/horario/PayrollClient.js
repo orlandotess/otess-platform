@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
-const OVERTIME_THRESHOLD = 8; // hours per day
+const OVERTIME_THRESHOLD = 40; // hours per week
 const OVERTIME_MULTIPLIER = 1.5;
 const RETENTION_RATE = 0.10;
 
@@ -19,6 +19,7 @@ function calcDayHours(entries) {
 
   let regularHours = 0;
   let overtimeHours = 0;
+  let cumulativeHours = 0;
   const dayDetails = [];
 
   Object.entries(byDay).forEach(([day, dayEntries]) => {
@@ -27,10 +28,11 @@ function calcDayHours(entries) {
       const duration = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
       dayTotal += duration;
     });
-    const reg = Math.min(dayTotal, OVERTIME_THRESHOLD);
-    const ot = Math.max(0, dayTotal - OVERTIME_THRESHOLD);
+    const reg = Math.min(dayTotal, Math.max(0, OVERTIME_THRESHOLD - cumulativeHours));
+    const ot = dayTotal - reg;
     regularHours += reg;
     overtimeHours += ot;
+    cumulativeHours += dayTotal;
     dayDetails.push({ day, total: dayTotal, regular: reg, overtime: ot, entries: dayEntries });
   });
 
@@ -82,7 +84,7 @@ export default function PayrollClient({ technicians, entries, weekStart, weekEnd
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Resumen semanal — {weekLabel}</h2>
-          <div style={{ fontSize: 13, color: 'var(--muted)' }}>Semana: Mié → Mar · Overtime después de 8h/día · Retención 10%</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>Semana: Mié → Mar · Overtime después de 40h/semana · Retención 10%</div>
         </div>
         <div className="table-wrap">
           <table>
@@ -216,7 +218,7 @@ export default function PayrollClient({ technicians, entries, weekStart, weekEnd
                           <td>{fmtTime(e.clocked_out_at)}</td>
                           <td style={{ textAlign: 'right' }}>{fmtH(duration)}{(e.lunch_minutes ?? 0) > 0 && ' 🍽️'}</td>
                           <td style={{ textAlign: 'right' }}>
-                            {duration > OVERTIME_THRESHOLD
+                            {day.overtime > 0
                               ? <span className="badge badge-red">Incluye OT</span>
                               : <span className="badge badge-green">Regular</span>}
                           </td>

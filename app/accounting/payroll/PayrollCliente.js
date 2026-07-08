@@ -65,7 +65,22 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     }, { onConflict: 'technician_id,period_start,period_end' });
 
     const updated = recalc(newRate, newRegular, newOvertime);
-    setStats(prev => prev.map(t => t.id === tech.id ? { ...t, hourly_rate: newRate, ...updated } : t));
+    setStats(prev => prev.map(t => t.id === tech.id ? { ...t, hourly_rate: newRate, ...updated, hasOverride: true } : t));
+    setEditing(null);
+    setSaving(false);
+  }
+
+  async function resetOverride(tech) {
+    if (!confirm(`¿Borrar el ajuste manual de ${tech.name} para este período? Las horas volverán al cálculo automático.`)) return;
+    setSaving(true);
+
+    await supabase.from('payroll_adjustments').delete()
+      .eq('technician_id', tech.id)
+      .eq('period_start', periodStart)
+      .eq('period_end', periodEnd);
+
+    const updated = recalc(tech.hourly_rate, tech.regularHoursRaw, tech.overtimeHoursRaw);
+    setStats(prev => prev.map(t => t.id === tech.id ? { ...t, ...updated, hasOverride: false } : t));
     setEditing(null);
     setSaving(false);
   }
@@ -146,7 +161,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
             <button className="btn btn-amber" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setShowManualAdd(true)}>+ Agregar payroll manual</button>
           </div>
         </div>
-        {stats.every(t => t.totalHours === 0) ? (
+        {stats.every(t => t.totalHours === 0 && !t.hasOverride) ? (
           <div className="empty"><p>No hay entradas de tiempo para este período.</p></div>
         ) : visibleStats.length === 0 ? (
           <div className="empty"><p>Sin resultados para "{search}".</p></div>
@@ -169,7 +184,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
                 </tr>
               </thead>
               <tbody>
-                {visibleStats.filter(t => t.totalHours > 0 || editing === t.id).map(t => (
+                {visibleStats.filter(t => t.totalHours > 0 || t.hasOverride || editing === t.id).map(t => (
                   <tr key={t.id}>
                     <td style={{ fontWeight: 700 }}>{t.name}</td>
                     <td style={{ textAlign: 'right' }}>
@@ -211,7 +226,12 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
                           <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditing(null)}>✕</button>
                         </div>
                       ) : (
-                        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => startEdit(t)}>✏️</button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => startEdit(t)}>✏️</button>
+                          {t.hasOverride && (
+                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px', color: 'var(--warn)' }} onClick={() => resetOverride(t)} disabled={saving} title="Borrar ajuste manual">🗑</button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>

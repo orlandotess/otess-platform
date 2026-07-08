@@ -66,10 +66,13 @@ export default async function PayrollHistorial() {
         if (!byDay[day]) byDay[day] = 0;
         byDay[day] += (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
       });
-      let rawRegular = 0, rawOvertime = 0;
-      Object.values(byDay).forEach(h => {
-        if (h > 8) { rawRegular += 8; rawOvertime += h - 8; }
-        else rawRegular += h;
+      let rawRegular = 0, rawOvertime = 0, cumulativeHours = 0;
+      Object.keys(byDay).sort().forEach(day => {
+        const h = byDay[day];
+        const dayRegular = Math.min(h, Math.max(0, 40 - cumulativeHours));
+        rawRegular += dayRegular;
+        rawOvertime += h - dayRegular;
+        cumulativeHours += h;
       });
 
       const adj = adjustments.find(a => a.technician_id === tech.id && a.period_start === wsStr);

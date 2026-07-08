@@ -19,6 +19,36 @@ function getWeekRange(offset = 0) {
   return { weekStart, weekEnd };
 }
 
+// Overtime is calculated per pay-week (Wed-Tue): first 40h/week are regular, the rest is overtime.
+// Entries are bucketed into pay-weeks first so this works for week, month, and year views alike.
+function computeWeeklyOvertimeHours(techEntries) {
+  const byWeek = {};
+  techEntries.forEach(e => {
+    const d = new Date(e.clocked_in_at);
+    const daysSinceWed = (d.getDay() + 4) % 7;
+    const weekStart = new Date(d);
+    weekStart.setDate(d.getDate() - daysSinceWed);
+    const wsKey = weekStart.toISOString().slice(0, 10);
+    const dayKey = e.clocked_in_at.slice(0, 10);
+    if (!byWeek[wsKey]) byWeek[wsKey] = {};
+    if (!byWeek[wsKey][dayKey]) byWeek[wsKey][dayKey] = 0;
+    byWeek[wsKey][dayKey] += (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
+  });
+
+  let regular = 0, overtime = 0;
+  Object.keys(byWeek).sort().forEach(wsKey => {
+    let cumulative = 0;
+    Object.keys(byWeek[wsKey]).sort().forEach(dayKey => {
+      const hours = byWeek[wsKey][dayKey];
+      const dayRegular = Math.min(hours, Math.max(0, 40 - cumulative));
+      regular += dayRegular;
+      overtime += hours - dayRegular;
+      cumulative += hours;
+    });
+  });
+  return { regular, overtime };
+}
+
 export default async function AccountingPayroll({ searchParams }) {
   const view = searchParams?.view ?? 'month';
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
@@ -66,17 +96,7 @@ export default async function AccountingPayroll({ searchParams }) {
 
   const techStats = techs.map(tech => {
     const techEntries = ents.filter(e => e.technician_id === tech.id);
-    let rawRegular = 0, rawOvertime = 0;
-    const byDay = {};
-    techEntries.forEach(e => {
-      const day = e.clocked_in_at.slice(0, 10);
-      if (!byDay[day]) byDay[day] = 0;
-      byDay[day] += (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
-    });
-    Object.values(byDay).forEach(hours => {
-      if (hours > 8) { rawRegular += 8; rawOvertime += hours - 8; }
-      else rawRegular += hours;
-    });
+    const { regular: rawRegular, overtime: rawOvertime } = computeWeeklyOvertimeHours(techEntries);
 
     // Apply overrides if they exist
     const adj = adjs.find(a => a.technician_id === tech.id);

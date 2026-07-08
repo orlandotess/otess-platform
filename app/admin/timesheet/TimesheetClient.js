@@ -46,15 +46,31 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   }
 
   function computeRawWeekHours(byDay) {
-    let regular = 0, overtime = 0;
-    Object.values(byDay).forEach(dayEntries => {
+    let regular = 0, overtime = 0, cumulative = 0;
+    weekDays.forEach(dayIso => {
+      const dayEntries = byDay[dayIso.slice(0, 10)] ?? [];
       const hours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
         ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60
         : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
-      if (hours > 8) { regular += 8; overtime += hours - 8; }
-      else regular += hours;
+      const dayRegular = Math.min(hours, Math.max(0, 40 - cumulative));
+      regular += dayRegular;
+      overtime += hours - dayRegular;
+      cumulative += hours;
     });
     return { regular, overtime };
+  }
+
+  function getDayOvertimeHours(tech, dayIso) {
+    let cumulative = 0;
+    for (const d of weekDays) {
+      const hours = getRawDayHours(tech, d);
+      if (d.slice(0, 10) === dayIso.slice(0, 10)) {
+        const dayRegular = Math.min(hours, Math.max(0, 40 - cumulative));
+        return hours - dayRegular;
+      }
+      cumulative += hours;
+    }
+    return 0;
   }
 
   function startEdit(tech) {
@@ -80,6 +96,29 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
 
     setLocalStats(prev => prev.map(t => t.id === tech.id
       ? { ...t, regularHours: regular, overtimeHours: overtime, totalHours: regular + overtime, grossPay, hasOverride: true }
+      : t
+    ));
+
+    setEditingTech(null);
+    setSaving(false);
+  }
+
+  async function resetOverride(tech, weekStart, weekEnd) {
+    if (!confirm(`¿Borrar el ajuste manual de ${tech.name} para esta semana? Las horas volverán al cálculo automático.`)) return;
+    setSaving(true);
+
+    await supabase.from('payroll_adjustments').delete()
+      .eq('technician_id', tech.id)
+      .eq('period_start', weekStart)
+      .eq('period_end', weekEnd);
+
+    const rate = Number(tech.hourly_rate ?? 0);
+    const regularHours = tech.regularHoursRaw;
+    const overtimeHours = tech.overtimeHoursRaw;
+    const grossPay = (regularHours * rate) + (overtimeHours * rate * 1.5);
+
+    setLocalStats(prev => prev.map(t => t.id === tech.id
+      ? { ...t, regularHours, overtimeHours, totalHours: regularHours + overtimeHours, grossPay, hasOverride: false }
       : t
     ));
 
@@ -165,6 +204,12 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                       className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 12 }}>
                       {saving ? '...' : '💾'}
                     </button>
+                    {tech.hasOverride && (
+                      <button onClick={() => resetOverride(tech, weekStart, weekEnd)} disabled={saving}
+                        className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12, color: 'var(--warn)' }} title="Borrar ajuste manual">
+                        🗑
+                      </button>
+                    )}
                     <button onClick={() => setEditingTech(null)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
                   </div>
                 </div>
@@ -188,7 +233,16 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                     <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Gross</div>
                     <div style={{ fontWeight: 700, color: 'var(--ok)' }}>${tech.grossPay.toFixed(2)}</div>
                   </div>
+                  {tech.hasOverride && (
+                    <div style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 700 }} title="Horas ajustadas manualmente">✏️ ajuste manual</div>
+                  )}
                   <button onClick={() => startEdit(tech)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>✏️ Editar</button>
+                  {tech.hasOverride && (
+                    <button onClick={() => resetOverride(tech, weekStart, weekEnd)} disabled={saving}
+                      className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12, color: 'var(--warn)' }} title="Borrar ajuste manual">
+                      🗑
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -199,7 +253,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               const hours = getDayHours(tech, dayIso);
               const isToday = dayIso.slice(0, 10) === todayPR;
               const hasHours = getRawDayHours(tech, dayIso) > 0;
-              const isOvertime = hours > 8;
+              const isOvertime = getDayOvertimeHours(tech, dayIso) > 0;
               const isSelected = selectedDay === dayIso && selectedTech === tech.id;
               const [y,m,d] = dayIso.slice(0,10).split('-');
               return (
