@@ -11,18 +11,34 @@ const STATUS_LABELS = {
   completed: 'Completado', cancelled: 'Cancelado',
 };
 
+const STATUS_BADGE_CLS = {
+  estimate: 'badge-gray', scheduled: 'badge-blue', in_progress: 'badge-amber',
+  completed: 'badge-green', cancelled: 'badge-red',
+};
+
 export default async function DashboardCalendarWidget() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+  // Current week (Monday–Sunday), matching the /calendario week view.
+  const dayOfWeek = now.getDay();
+  const diffToMon = (dayOfWeek + 6) % 7;
+  const weekStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMon);
+  const weekEndDate = new Date(weekStartDate.getFullYear(), weekStartDate.getMonth(), weekStartDate.getDate() + 6);
+  const weekStart = weekStartDate.toISOString().slice(0, 10);
+  const weekEnd = weekEndDate.toISOString().slice(0, 10);
+
+  const rangeStart = weekStart < monthStart ? weekStart : monthStart;
+  const rangeEnd = weekEnd > monthEnd ? weekEnd : monthEnd;
 
   const [{ data: technicians }, { data: jobs }] = await Promise.all([
     supabase.from('technicians').select('id, name').order('name'),
     supabase.from('jobs')
       .select('id, title, status, scheduled_start, scheduled_end, technician_id, technicians(name), clients(name)')
       .not('scheduled_start', 'is', null)
-      .gte('scheduled_start', monthStart)
-      .lte('scheduled_start', monthEnd + 'T23:59:59')
+      .gte('scheduled_start', rangeStart)
+      .lte('scheduled_start', rangeEnd + 'T23:59:59')
       .order('scheduled_start'),
   ]);
 
@@ -33,9 +49,21 @@ export default async function DashboardCalendarWidget() {
   techs.forEach((t, i) => { techColors[t.id] = TECH_COLORS[i % TECH_COLORS.length]; });
 
   const today = now.toISOString().slice(0, 10);
-  const upcoming = allJobs
-    .filter(j => j.scheduled_start.slice(0, 10) >= today && j.status !== 'cancelled' && j.status !== 'completed')
-    .slice(0, 6);
+  const weekJobs = allJobs
+    .filter(j => {
+      const start = j.scheduled_start?.slice(0, 10);
+      const end = (j.scheduled_end ?? j.scheduled_start)?.slice(0, 10);
+      return start && start <= weekEnd && end >= weekStart;
+    })
+    .sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start));
+
+  const fmtRangeLabel = (start, end) => {
+    const sameMonth = start.getMonth() === end.getMonth();
+    const startLabel = start.toLocaleDateString('es-PR', { day: 'numeric', month: sameMonth ? undefined : 'short' });
+    const endLabel = end.toLocaleDateString('es-PR', { day: 'numeric', month: 'short' });
+    return `${startLabel} – ${endLabel}`;
+  };
+  const weekRangeLabel = fmtRangeLabel(weekStartDate, weekEndDate);
 
   // Mini month calendar
   const year = now.getFullYear();
@@ -75,7 +103,10 @@ export default async function DashboardCalendarWidget() {
     <div className="card" style={{ marginTop: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>📅 Calendario — {months[month]} {year}</h2>
-        <Link href="/calendario" className="btn btn-ghost" style={{ fontSize: 13, padding: '7px 14px' }}>Ver completo →</Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link href="/calendario?view=week" className="btn btn-ghost" style={{ fontSize: 13, padding: '7px 14px' }}>Ver semana →</Link>
+          <Link href="/calendario" className="btn btn-ghost" style={{ fontSize: 13, padding: '7px 14px' }}>Ver completo →</Link>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20 }}>
@@ -121,25 +152,34 @@ export default async function DashboardCalendarWidget() {
           )}
         </div>
 
-        {/* Upcoming jobs timeline */}
+        {/* This week's jobs */}
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 10 }}>Próximos trabajos</div>
-          {upcoming.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>No hay trabajos próximos.</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Trabajos de esta semana</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{weekRangeLabel}</div>
+          </div>
+          {weekJobs.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>No hay trabajos esta semana.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {upcoming.map(j => (
-                <Link key={j.id} href={`/trabajos/${j.id}`} style={{ textDecoration: 'none', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: techColors[j.technician_id] ?? '#888', marginTop: 4, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{j.clients?.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                      {fmtDay(j.scheduled_start)} · {fmtTime(j.scheduled_start)} {j.technicians?.name ? `· ${j.technicians.name}` : ''}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 340, overflowY: 'auto', paddingRight: 4 }}>
+              {weekJobs.map(j => {
+                const badge = STATUS_BADGE_CLS[j.status] ?? 'badge-gray';
+                return (
+                  <Link key={j.id} href={`/trabajos/${j.id}`} style={{ textDecoration: 'none', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: techColors[j.technician_id] ?? '#888', marginTop: 4, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.title}</div>
+                        <span className={`badge ${badge}`} style={{ fontSize: 10, flexShrink: 0 }}>{STATUS_LABELS[j.status] ?? j.status}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{j.clients?.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                        {fmtDay(j.scheduled_start)} · {fmtTime(j.scheduled_start)} {j.technicians?.name ? `· ${j.technicians.name}` : ''}
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
