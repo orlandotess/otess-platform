@@ -75,7 +75,7 @@ export default async function PayrollHistorial() {
         cumulativeHours += h;
       });
 
-      const adj = adjustments.find(a => a.technician_id === tech.id && a.period_start === wsStr);
+      const adj = adjustments.find(a => a.technician_id === tech.id && a.period_start === wsStr && a.period_end === weekEndStr);
       const regularHours = adj?.regular_hours_override ?? rawRegular;
       const overtimeHours = adj?.overtime_hours_override ?? rawOvertime;
       const totalHours = regularHours + overtimeHours;
