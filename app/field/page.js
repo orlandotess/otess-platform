@@ -770,7 +770,7 @@ export default function FieldApp() {
                   <div style={{ fontWeight: 600, fontSize: 15 }}>{clockedIn ? 'Clocked in' : 'Not clocked in'}</div>
                   <div style={{ fontSize: 12, color: '#888' }}>{clockedIn ? fmtE(elapsed) : 'Tap to start your shift'}</div>
                 </div>
-                <button style={{ background: clockedIn ? '#27ae60' : ORANGE, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }} onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
+                <button style={{ background: clockedIn ? '#1a7a4a' : ORANGE, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }} onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
                   {clockedIn ? 'Clock Out' : 'Clock In'}
                 </button>
               </div>
@@ -829,7 +829,7 @@ export default function FieldApp() {
                   <div style={{ fontWeight: 600 }}>{clockedIn ? 'Clocked in' : 'Not clocked in'}</div>
                   <div style={{ fontSize: 12, color: '#888' }}>{clockedIn ? fmtE(elapsed) : fmtH(timeEntries) + ' logged this week'}</div>
                 </div>
-                <button style={{ background: clockedIn ? '#27ae60' : '#f5ddd3', color: clockedIn ? '#fff' : '#c04a1a', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }} onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
+                <button style={{ background: clockedIn ? '#1a7a4a' : '#f5ddd3', color: clockedIn ? '#fff' : '#c04a1a', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }} onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
                   {clockedIn ? 'Clock Out' : 'Clock In'}
                 </button>
               </div>
@@ -1149,7 +1149,7 @@ export default function FieldApp() {
                     {clientDetail.client_type === 'b2b' ? 'B2B' : 'Consumidor final'}
                   </span>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                    {clientDetail.phone && <a href={`tel:${clientDetail.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {clientDetail.phone}</a>}
+                    {clientDetail.phone && <a href={`tel:${clientDetail.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {clientDetail.phone}</a>}
                     {clientDetail.email && <a href={`mailto:${clientDetail.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#16223d', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {clientDetail.email}</a>}
                   </div>
                 </div>
@@ -1162,7 +1162,7 @@ export default function FieldApp() {
                       <div key={ct.id} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid #f0f0f0' }}>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{ct.name}</div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-                          {ct.phone && <a href={`tel:${ct.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>📞 {ct.phone}</a>}
+                          {ct.phone && <a href={`tel:${ct.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>📞 {ct.phone}</a>}
                           {ct.email && <a href={`mailto:${ct.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#16223d', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>✉️ {ct.email}</a>}
                         </div>
                       </div>
@@ -1261,7 +1261,7 @@ export default function FieldApp() {
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>Cliente</div>
                     <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>{detailJob.clients.name}</div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {detailJob.clients?.phone && <a href={`tel:${detailJob.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {detailJob.clients.phone}</a>}
+                      {detailJob.clients?.phone && <a href={`tel:${detailJob.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {detailJob.clients.phone}</a>}
                       {detailJob.clients?.email && <a href={`mailto:${detailJob.clients.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#16223d', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {detailJob.clients.email}</a>}
                     </div>
                   </div>
@@ -1273,7 +1273,7 @@ export default function FieldApp() {
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>👤 Contacto encargado</div>
                     {detailJob.contact_name && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>{detailJob.contact_name}</div>}
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {detailJob.contact_phone && <a href={`tel:${detailJob.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {detailJob.contact_phone}</a>}
+                      {detailJob.contact_phone && <a href={`tel:${detailJob.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {detailJob.contact_phone}</a>}
                       {detailJob.contact_email && <a href={`mailto:${detailJob.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#16223d', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {detailJob.contact_email}</a>}
                     </div>
                   </div>
@@ -1315,10 +1315,10 @@ export default function FieldApp() {
                   <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                       <span style={{ fontWeight: 700, fontSize: 14 }}>Progreso</span>
-                      <span style={{ fontWeight: 700, color: progress === 100 ? '#27ae60' : ORANGE }}>{progress}%</span>
+                      <span style={{ fontWeight: 700, color: progress === 100 ? '#1a7a4a' : ORANGE }}>{progress}%</span>
                     </div>
                     <div style={{ background: '#eee', borderRadius: 50, height: 8 }}>
-                      <div style={{ background: progress === 100 ? '#27ae60' : ORANGE, borderRadius: 50, height: 8, width: progress + '%', transition: 'width 0.3s' }} />
+                      <div style={{ background: progress === 100 ? '#1a7a4a' : ORANGE, borderRadius: 50, height: 8, width: progress + '%', transition: 'width 0.3s' }} />
                     </div>
                     <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{completedCount} de {detailChecklist.length} completados</div>
                   </div>
@@ -1347,7 +1347,7 @@ export default function FieldApp() {
                         )}
                         {items.map(item => (
                           <div key={item.id} onClick={() => toggleCheckItem(item)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
-                            <div style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #dde1e7', background: item.completed ? '#27ae60' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <div style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #dde1e7', background: item.completed ? '#1a7a4a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                               {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
                             </div>
                             <div style={{ flex: 1 }}>
@@ -1651,7 +1651,7 @@ export default function FieldApp() {
           <div style={{ position: 'fixed', inset: 0, zIndex: 97 }} onClick={() => setShowFab(false)} />
           <div style={{ position: 'fixed', bottom: 140, right: 20, zIndex: 98, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
             <button style={fmi('#2a4cb5')} onClick={() => { setShowJobNote(true); setShowFab(false); }}>📝 Agregar nota</button>
-            <button style={fmi('#27ae60')} onClick={() => { setShowJobPhoto(true); setShowFab(false); }}>📸 Agregar foto</button>
+            <button style={fmi('#1a7a4a')} onClick={() => { setShowJobPhoto(true); setShowFab(false); }}>📸 Agregar foto</button>
             <button style={fmi('#7a4cb5')} onClick={() => { setShowJobExpense(true); setShowFab(false); }}>💸 Agregar gasto</button>
             <button style={fmi(ORANGE)} onClick={() => { setShowJobClock(true); setShowFab(false); }}>⏱ Clock In a trabajo</button>
           </div>
@@ -1706,7 +1706,7 @@ export default function FieldApp() {
               <div style={{ fontWeight: 800, fontSize: 18 }}>📸 Agregar foto</div>
               <button onClick={() => { setShowJobPhoto(false); setFabSelectedJob(null); }} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
-            {photoSuccess ? <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#27ae60', fontWeight: 700 }}>{photoSuccess} ✅</div>
+            {photoSuccess ? <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#1a7a4a', fontWeight: 700 }}>{photoSuccess} ✅</div>
               : !fabSelectedJob
                 ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
                 : <div>
@@ -1740,7 +1740,7 @@ export default function FieldApp() {
               <button onClick={closeExpenseModal} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             {expenseSuccess ? (
-              <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#27ae60', fontWeight: 700 }}>{expenseSuccess} ✅</div>
+              <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#1a7a4a', fontWeight: 700 }}>{expenseSuccess} ✅</div>
             ) : expenseJob === undefined ? (
               <>
                 <p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo o registra un gasto general:</p>

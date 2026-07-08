@@ -91,7 +91,7 @@ export default function AccountingDashboardClient({ quarterData, year }) {
               { label: 'Cobrado', value: combined.collected, color: 'var(--ok)' },
               { label: 'Pendiente', value: combined.outstanding, color: 'var(--amber)' },
               { label: 'Nómina', value: combined.payroll, color: '#e05c2a' },
-              { label: 'Gastos', value: combined.gastos, color: '#c0392b' },
+              { label: 'Gastos', value: combined.gastos, color: '#b52a2a' },
             ].map(item => (
               <div key={item.label}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{item.label}</div>
@@ -157,7 +157,7 @@ export default function AccountingDashboardClient({ quarterData, year }) {
                 { label: 'Cobrado', value: q.revenue.collected, color: 'var(--ok)' },
                 { label: 'Pendiente', value: q.revenue.outstanding, color: 'var(--amber)' },
                 { label: 'Nómina', value: q.payroll, color: '#e05c2a' },
-                { label: 'Gastos', value: q.gastos ?? 0, color: '#c0392b' },
+                { label: 'Gastos', value: q.gastos ?? 0, color: '#b52a2a' },
               ].map(item => (
                 <div key={item.label}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{item.label}</div>

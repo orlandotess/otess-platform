@@ -167,7 +167,7 @@ export default async function FacturaDetail({ params }) {
                     )}
                     ${Number(item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     {item.supplier_price != null && (
-                      <div style={{ fontSize: 10, color: '#c0392b' }}>Costo: ${Number(item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                      <div style={{ fontSize: 10, color: '#b52a2a' }}>Costo: ${Number(item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                     )}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>

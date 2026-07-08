@@ -50,7 +50,7 @@ export default async function FacturasRecurrentesPage() {
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <span className="badge" style={{ color: r.active ? '#27ae60' : '#888' }}>{r.active ? 'Activa' : 'Pausada'}</span>
+                    <span className="badge" style={{ color: r.active ? '#1a7a4a' : '#888' }}>{r.active ? 'Activa' : 'Pausada'}</span>
                     <RecurringInvoiceActions id={r.id} active={r.active} />
                   </div>
                 </Link>

@@ -41,7 +41,7 @@ export default function EmpresaClient({ settings }) {
           <button type="submit" className="btn btn-primary" disabled={saving}>
             {saving ? 'Guardando...' : 'Guardar'}
           </button>
-          {saved && <span style={{ color: '#27ae60', fontSize: 13, fontWeight: 600 }}>✓ Guardado</span>}
+          {saved && <span style={{ color: '#1a7a4a', fontSize: 13, fontWeight: 600 }}>✓ Guardado</span>}
         </div>
       </form>
     </div>

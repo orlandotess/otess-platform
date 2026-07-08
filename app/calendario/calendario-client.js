@@ -11,8 +11,8 @@ const TECH_COLORS = [
 ];
 
 const STATUS_COLORS = {
-  estimate: '#888', scheduled: '#2a4cb5', in_progress: '#e0972c',
-  completed: '#27ae60', cancelled: '#ccc',
+  estimate: '#5b6473', scheduled: '#2a4cb5', in_progress: '#e0972c',
+  completed: '#1a7a4a', cancelled: '#ccc',
 };
 
 const STATUS_LABELS = {
@@ -732,7 +732,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 </div>
               ))}
             </div>
-            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: '#c0392b' }}
+            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: '#b52a2a' }}
               onClick={() => deleteEvent(selectedEvent.id)}>
               Eliminar evento
             </button>
@@ -791,7 +791,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => toggleTaskCompleted(selectedTask)}>
                 {selectedTask.completed ? 'Marcar pendiente' : 'Marcar completada'}
               </button>
-              <button className="btn btn-ghost" style={{ color: '#c0392b' }} onClick={() => deleteTask(selectedTask.id)}>
+              <button className="btn btn-ghost" style={{ color: '#b52a2a' }} onClick={() => deleteTask(selectedTask.id)}>
                 Eliminar
               </button>
             </div>
@@ -1188,7 +1188,7 @@ function ChecklistItemRow({ item, onToggle, onUploadFiles, onRemoveAttachment, o
                     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
                 )}
                 <button type="button" onClick={() => onRemoveAttachment(i)}
-                  style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#c0392b', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 11, lineHeight: 1 }}>
+                  style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#b52a2a', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 11, lineHeight: 1 }}>
                   ×
                 </button>
               </div>

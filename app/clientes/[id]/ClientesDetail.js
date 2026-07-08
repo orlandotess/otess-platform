@@ -562,7 +562,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
                               </div>
-                              {c.phone && <a href={`tel:${c.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#27ae60', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {c.phone}</a>}
+                              {c.phone && <a href={`tel:${c.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#1a7a4a', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {c.phone}</a>}
                               {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'var(--navy)', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
                             </div>
                           ))
@@ -684,7 +684,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                         {c.phone && (
                           <div>
                             <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Teléfono</p>
-                            <a href={`tel:${c.phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                            <a href={`tel:${c.phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
                               📞 {c.phone}
                             </a>
                           </div>

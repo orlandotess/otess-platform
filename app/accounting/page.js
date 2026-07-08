@@ -149,7 +149,7 @@ function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt }
         </div>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Gastos</div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: '#c0392b' }}>{fmt(gastos)}</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#b52a2a' }}>{fmt(gastos)}</div>
         </div>
       </div>
 
@@ -206,7 +206,7 @@ function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt }
             </div>
             <div>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Costo suplidor</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#c0392b' }}>{fmt(margin.cost)}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#b52a2a' }}>{fmt(margin.cost)}</div>
             </div>
             <div>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Margen</div>

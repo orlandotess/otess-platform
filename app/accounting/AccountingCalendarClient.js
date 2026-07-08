@@ -6,7 +6,7 @@ const EVENT_COLORS = {
   job: '#2a4cb5',
   invoice_issued: '#16223d',
   invoice_due: '#e05c2a',
-  payment: '#27ae60',
+  payment: '#1a7a4a',
   retencion: '#8e44ad',
 };
 const EVENT_LABELS = {

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabaseServer as supabase } from '../../lib/supabase';
 import Sidebar from '../Sidebar';
 
-const STATUS_COLORS = { borrador: '#888', enviada: '#2a4cb5', vista: '#e0972c', aprobada: '#27ae60', rechazada: '#c0392b' };
+const STATUS_COLORS = { borrador: '#5b6473', enviada: '#2a4cb5', vista: '#e0972c', aprobada: '#1a7a4a', rechazada: '#b52a2a' };
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', aprobada: 'Aprobada', rechazada: 'Rechazada' };
 
 export default async function PropuestasPage() {

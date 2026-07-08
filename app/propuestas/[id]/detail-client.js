@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import ProposalDocument, { financialBreakdown } from '../ProposalDocument';
 
-const STATUS_COLORS = { borrador: '#888', enviada: '#2a4cb5', vista: '#e0972c', aprobada: '#27ae60', rechazada: '#c0392b' };
+const STATUS_COLORS = { borrador: '#5b6473', enviada: '#2a4cb5', vista: '#e0972c', aprobada: '#1a7a4a', rechazada: '#b52a2a' };
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', aprobada: 'Aprobada', rechazada: 'Rechazada' };
 
 export default function PropuestaDetailClient({ proposal, options, taxRules, payments, companyInfo, primaryAddress }) {
@@ -120,7 +120,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
       )}
 
       {proposal.status === 'aprobada' && (
-        <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid #27ae60', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#1a7a3d' }}>
+        <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid #1a7a4a', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#1a7a4a' }}>
           {proposal.approved_option_id && (
             <div>Opción elegida: <strong>{options.find(o => o.id === proposal.approved_option_id)?.name ?? '—'}</strong></div>
           )}
@@ -144,7 +144,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
               <div>
                 <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{opt.name}</span>
                 {opt.is_recommended && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--amber)' }}>RECOMENDADA</span>}
-                {proposal.approved_option_id === opt.id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#27ae60' }}>ELEGIDA POR CLIENTE</span>}
+                {proposal.approved_option_id === opt.id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#1a7a4a' }}>ELEGIDA POR CLIENTE</span>}
                 <span style={{ marginLeft: 12, fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{fmt(optionTotal(opt))}</span>
               </div>
               <button className="btn btn-ghost" onClick={() => handlePdf(opt.id)} disabled={generatingPdf === opt.id}>

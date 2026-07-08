@@ -31,7 +31,7 @@ export default function RecurringInvoiceActions({ id, active }) {
       <button className="btn btn-ghost" disabled={busy} onClick={toggleActive} style={{ fontSize: 12, padding: '6px 12px' }}>
         {active ? 'Pausar' : 'Reanudar'}
       </button>
-      <button className="btn btn-ghost" disabled={busy} onClick={remove} style={{ fontSize: 12, padding: '6px 12px', color: '#c0392b' }}>
+      <button className="btn btn-ghost" disabled={busy} onClick={remove} style={{ fontSize: 12, padding: '6px 12px', color: '#b52a2a' }}>
         Eliminar
       </button>
     </div>

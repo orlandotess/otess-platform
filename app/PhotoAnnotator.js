@@ -202,7 +202,7 @@ export default function PhotoAnnotator({ imageUrl, onSave, onCancel }) {
       </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-        <button onClick={handleSave} style={{ background: "#27ae60", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>💾 Guardar</button>
+        <button onClick={handleSave} style={{ background: "#1a7a4a", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>💾 Guardar</button>
         <button onClick={onCancel} style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
       </div>
     </div>

@@ -236,7 +236,7 @@ export default function CatalogoClient({ items: initial }) {
               <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
               <input type="number" value={newItem.msrp} onChange={e => setNewItem(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)" }} />
               <input type="number" value={newItem.price} onChange={e => setNewItem(f => ({ ...f, price: e.target.value }))} placeholder="Precio venta" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
-              <input type="number" value={newItem.supplier_price} onChange={e => setNewItem(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "#c0392b" }} />
+              <input type="number" value={newItem.supplier_price} onChange={e => setNewItem(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "#b52a2a" }} />
               <input list="vendor-options" value={newItem.vendor} onChange={e => setNewItem(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
               {dataType === "product" && (
                 <input type="number" value={newItem.stock_quantity} onChange={e => setNewItem(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--navy)" }} title="Cantidad en inventario" />
@@ -277,7 +277,7 @@ export default function CatalogoClient({ items: initial }) {
                     <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
                     <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)" }} />
                     <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
-                    <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "#c0392b" }} />
+                    <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "#b52a2a" }} />
                     <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} />
                     {item.type === "product" && (
                       <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)" }} title="Cantidad en inventario" />
@@ -300,14 +300,14 @@ export default function CatalogoClient({ items: initial }) {
                       {item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
                       <div style={{ fontWeight: 800, fontSize: 18, color: "var(--navy)" }}>{fmt(item.price)}</div>
                       {item.supplier_price != null && (
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#c0392b" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#b52a2a" }}>
                           <span>Costo: {fmt(item.supplier_price)}</span>
-                          {margin != null && <span style={{ color: margin >= 0 ? "#0e8f7a" : "#c0392b", fontWeight: 700 }}>{margin}%</span>}
+                          {margin != null && <span style={{ color: margin >= 0 ? "#0e8f7a" : "#b52a2a", fontWeight: 700 }}>{margin}%</span>}
                         </div>
                       )}
                       {item.vendor && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>🏪 {item.vendor}</div>}
                       {item.type === "product" && item.stock_quantity != null && (
-                        <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "#c0392b" : "var(--navy)", fontWeight: 700, marginTop: 2 }}>📦 Stock: {item.stock_quantity}</div>
+                        <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "#b52a2a" : "var(--navy)", fontWeight: 700, marginTop: 2 }}>📦 Stock: {item.stock_quantity}</div>
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
@@ -350,7 +350,7 @@ export default function CatalogoClient({ items: initial }) {
                   <div style={{ textAlign: "right", flexShrink: 0, width: 100 }}>
                     <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)", textAlign: "right", width: "100%", marginBottom: 3 }} />
                     <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: "right", width: "100%", marginBottom: 3 }} />
-                    <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "#c0392b", textAlign: "right", width: "100%" }} />
+                    <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "#b52a2a", textAlign: "right", width: "100%" }} />
                     <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} />
                     {item.type === "product" && (
                       <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)", textAlign: "right", width: "100%", marginTop: 3 }} title="Cantidad en inventario" />
@@ -371,13 +371,13 @@ export default function CatalogoClient({ items: initial }) {
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{item.description}</div>
                     {item.vendor && <div style={{ fontSize: 11, color: "var(--muted)" }}>🏪 {item.vendor}</div>}
                     {item.type === "product" && item.stock_quantity != null && (
-                      <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "#c0392b" : "var(--navy)", fontWeight: 700 }}>📦 Stock: {item.stock_quantity}</div>
+                      <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "#b52a2a" : "var(--navy)", fontWeight: 700 }}>📦 Stock: {item.stock_quantity}</div>
                     )}
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0, width: 110 }}>
                     {item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
                     <div style={{ fontWeight: 800, fontSize: 16, color: "var(--navy)" }}>{fmt(item.price)}</div>
-                    {item.supplier_price != null && <div style={{ fontSize: 11, color: "#c0392b" }}>Costo: {fmt(item.supplier_price)}</div>}
+                    {item.supplier_price != null && <div style={{ fontSize: 11, color: "#b52a2a" }}>Costo: {fmt(item.supplier_price)}</div>}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                     <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 12px" }}>✏️ Editar</button>

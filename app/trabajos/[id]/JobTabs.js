@@ -731,7 +731,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
         </button>
         <button style={tabStyle('rentabilidad')} onClick={() => setTab('rentabilidad')}>
           💰 Rentabilidad {profitability.margenPct != null && profitability.margenPct < MARGIN_ALERT_THRESHOLD && (
-            <span style={{ background: '#fdecea', color: '#c0392b', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>⚠</span>
+            <span style={{ background: '#fdecea', color: '#b52a2a', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>⚠</span>
           )}
         </button>
       </div>
@@ -773,7 +773,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   </span>
                   {(job.clients?.phone || job.clients?.email) && (
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                      {job.clients?.phone && <a href={`tel:${job.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.clients.phone}</a>}
+                      {job.clients?.phone && <a href={`tel:${job.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.clients.phone}</a>}
                       {job.clients?.email && <a href={`mailto:${job.clients.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.clients.email}</a>}
                     </div>
                   )}
@@ -839,7 +839,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 <div>
                   {job.contact_name && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>{job.contact_name}</div>}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {job.contact_phone && <a href={`tel:${job.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#27ae60', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.contact_phone}</a>}
+                    {job.contact_phone && <a href={`tel:${job.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.contact_phone}</a>}
                     {job.contact_email && <a href={`mailto:${job.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.contact_email}</a>}
                   </div>
                 </div>
@@ -1604,7 +1604,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 {realItems.map(item => (
                   <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                     <div onClick={() => toggleItem(item.id, item.completed)}
-                      style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #ccc', background: item.completed ? '#27ae60' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
+                      style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #ccc', background: item.completed ? '#1a7a4a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
                       {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
                     </div>
                     <div style={{ flex: 1 }}>
@@ -1647,7 +1647,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       {tab === 'rentabilidad' && (
         <div style={{ maxWidth: 760 }}>
           {profitability.margenPct != null && profitability.margenPct < MARGIN_ALERT_THRESHOLD && (
-            <div style={{ background: '#fdecea', color: '#c0392b', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
+            <div style={{ background: '#fdecea', color: '#b52a2a', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
               ⚠ Margen bajo ({profitability.margenPct.toFixed(0)}%) — por debajo del {MARGIN_ALERT_THRESHOLD}% recomendado.
             </div>
           )}
@@ -1678,15 +1678,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Materiales</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#c0392b' }}>{fmt(profitability.materialesCosto)}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#b52a2a' }}>{fmt(profitability.materialesCosto)}</div>
               </div>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Mano de obra ({formatHours(profitability.totalHoras)})</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#c0392b' }}>{fmt(profitability.manoDeObraCosto)}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#b52a2a' }}>{fmt(profitability.manoDeObraCosto)}</div>
               </div>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Gastos</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#c0392b' }}>{fmt(profitability.gastos)}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#b52a2a' }}>{fmt(profitability.gastos)}</div>
               </div>
             </div>
           </div>
@@ -1720,7 +1720,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
           <div className="card" style={{ background: 'var(--bg)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>Ganancia neta (sobre lo cobrado)</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: profitability.gananciaNeta >= 0 ? 'var(--ok)' : '#c0392b' }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: profitability.gananciaNeta >= 0 ? 'var(--ok)' : '#b52a2a' }}>
                 {fmt(profitability.gananciaNeta)} {profitability.margenPct != null ? `(${profitability.margenPct.toFixed(0)}%)` : ''}
               </div>
             </div>

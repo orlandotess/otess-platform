@@ -113,13 +113,13 @@ export default function LineItemRow({
           <>
             <div style={{ fontSize: 11, color: 'var(--muted)', textDecoration: msrp != null ? 'line-through' : 'none' }}>{msrp != null ? fmt(msrp) : '—'}</div>
             <div style={{ fontSize: 13, fontWeight: 700 }}>{fmt(unitPrice)}</div>
-            <div style={{ fontSize: 11, color: '#c0392b' }}>{supplierPrice != null ? fmt(supplierPrice) : '—'}</div>
+            <div style={{ fontSize: 11, color: '#b52a2a' }}>{supplierPrice != null ? fmt(supplierPrice) : '—'}</div>
           </>
         ) : (
           <>
             <input type="number" value={msrp} onChange={e => onMsrpChange(e.target.value)} placeholder="MSRP" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--muted)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="MSRP (referencia, solo interno)" />
             <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder="Precio venta" style={{ fontSize: 13, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="Precio de venta al cliente" />
-            <input type="number" value={supplierPrice} onChange={e => onSupplierPriceChange(e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: '#c0392b', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
+            <input type="number" value={supplierPrice} onChange={e => onSupplierPriceChange(e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: '#b52a2a', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
           </>
         )}
       </div>
@@ -132,7 +132,7 @@ export default function LineItemRow({
           <input type="number" value={quantity} onChange={e => onQuantityChange(e.target.value)} style={{ fontSize: 13, padding: '4px 6px', textAlign: 'center', width: '100%' }} min="0" step="0.01" />
         )}
         {stockHint != null && (
-          <div style={{ fontSize: 9, color: stockHint <= 0 ? '#c0392b' : 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' }} title="Cantidad en inventario">Stock: {stockHint}</div>
+          <div style={{ fontSize: 9, color: stockHint <= 0 ? '#b52a2a' : 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' }} title="Cantidad en inventario">Stock: {stockHint}</div>
         )}
       </div>
 
