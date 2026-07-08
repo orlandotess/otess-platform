@@ -7,15 +7,34 @@ import Link from 'next/link';
 import DashboardCalendarWidget from './DashboardCalendarWidget';
 
 async function getStats() {
-  const [clients, jobs, activeJobs] = await Promise.all([
+  const [clients, jobs, activeJobs, { data: invoices }, { data: payments }, { data: expenses }] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }),
     supabase.from('jobs').select('*', { count: 'exact', head: true }),
     supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
+    supabase.from('invoices').select('id, total, status'),
+    supabase.from('payments').select('invoice_id, amount'),
+    supabase.from('expenses').select('amount'),
   ]);
+
+  const collectedByInvoice = {};
+  (payments ?? []).forEach(p => {
+    collectedByInvoice[p.invoice_id] = (collectedByInvoice[p.invoice_id] ?? 0) + Number(p.amount ?? 0);
+  });
+  const totalCollected = (payments ?? []).reduce((a, p) => a + Number(p.amount ?? 0), 0);
+  const totalExpenses = (expenses ?? []).reduce((a, e) => a + Number(e.amount ?? 0), 0);
+  const pendingInvoices = (invoices ?? []).filter(i => i.status === 'sent');
+  const pendingTotal = pendingInvoices.reduce((a, i) => {
+    const collected = collectedByInvoice[i.id] ?? 0;
+    return a + Math.max(Number(i.total ?? 0) - collected, 0);
+  }, 0);
+
   return {
     clients: clients.count ?? 0,
     jobs: jobs.count ?? 0,
     activeJobs: activeJobs.count ?? 0,
+    caja: totalCollected - totalExpenses,
+    pendingTotal,
+    pendingCount: pendingInvoices.length,
   };
 }
 
@@ -36,6 +55,8 @@ const statusBadge = {
   cancelled:   { cls: 'badge-red',   label: 'Cancelado' },
 };
 
+const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 export default async function Home() {
   const [stats, recentJobs] = await Promise.all([getStats(), getRecentJobs()]);
 
@@ -54,6 +75,16 @@ export default async function Home() {
         </div>
 
         <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-label">Caja</div>
+            <div className="stat-value" style={{ color: stats.caja >= 0 ? 'var(--ok)' : 'var(--warn)' }}>{fmt(stats.caja)}</div>
+            <div className="stat-sub">Cobrado − gastos</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Facturas pendientes</div>
+            <div className="stat-value" style={{ color: 'var(--amber)' }}>{fmt(stats.pendingTotal)}</div>
+            <div className="stat-sub"><Link href="/accounting/facturas" style={{ color: 'var(--amber)' }}>{stats.pendingCount} por cobrar →</Link></div>
+          </div>
           <div className="stat-card">
             <div className="stat-label">Clientes</div>
             <div className="stat-value">{stats.clients}</div>
