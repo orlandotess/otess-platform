@@ -11,6 +11,7 @@ const operationsLinks = [
  { href: '/propuestas', label: 'Propuestas', icon: '📄' },
  { href: '/estimados', label: 'Estimados', icon: '🧮' },
  { href: '/field',      label: 'Field App',  icon: '📱' },
+ { href: '/catalogo', label: 'Labor & Productos', icon: '🧰' },
 ];
 
 const accountingLinks = [
@@ -27,7 +28,6 @@ const accountingLinks = [
 const adminLinks = [
  { href: '/admin/plantillas', label: 'Plantillas', icon: '📋' },
  { href: '/admin/usuarios', label: 'Usuarios', icon: '👤' },
- { href: '/catalogo', label: 'Labor & Productos', icon: '🧰' },
  { href: '/admin/empresa', label: 'Empresa', icon: '🏢' },
 ];
 
