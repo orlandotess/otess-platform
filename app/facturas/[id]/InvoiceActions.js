@@ -24,6 +24,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   const [showInternalNotes, setShowInternalNotes] = useState(false);
   const [showCheckPhotos, setShowCheckPhotos] = useState(false);
   const [showRetencion, setShowRetencion] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const [jobNotes, setJobNotes] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [selectedNoteIds, setSelectedNoteIds] = useState(initialAttached || []);
@@ -272,48 +273,52 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
     );
   }
 
+  const moreItems = [
+    { key: 'number', label: '✏️ Editar # de factura', onClick: () => { setNewNumber(invoiceNumber); setShowEditNumber(true); } },
+    clientCompany && { key: 'billto', label: '👤 Facturar a', onClick: () => setShowEditBillTo(true) },
+    clientProperties.length > 0 && { key: 'property', label: '🏠 Propiedad', onClick: () => setShowEditProperty(true) },
+    { key: 'terms', label: '📋 Términos', onClick: () => setShowEditTerms(true) },
+    { key: 'notes', label: '📝 Notas internas', onClick: () => setShowInternalNotes(true) },
+    { key: 'checks', label: `📷 Fotos de cheques${checkPhotos.length > 0 ? ` (${checkPhotos.length})` : ''}`, onClick: openCheckPhotos },
+    jobId && { key: 'attach', label: `📎 Adjuntos${selectedNoteIds.length > 0 ? ` (${selectedNoteIds.length})` : ''}`, onClick: openAttachments },
+    selectedNoteIds.length > 0 && { key: 'clearattach', label: '🗑 Quitar adjuntos', onClick: clearAttachments, warn: true },
+    status === 'sent' && { key: 'cancel', label: '✕ Cancelar factura', onClick: () => updateStatus('cancelled'), warn: true },
+    status === 'paid' && { key: 'revert', label: '↩ Revertir a enviada', onClick: () => updateStatus('sent') },
+    { key: 'delete', label: '🗑 Eliminar factura', onClick: () => setShowDelete(true), warn: true },
+  ].filter(Boolean);
+
   return (
-    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', position: 'relative' }}>
       <button className="btn btn-ghost" onClick={handlePdf} disabled={generatingPdf}>
         {generatingPdf ? '⏳ Generando...' : '🖨️ PDF'}
       </button>
       <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 Email</button>
-      <button className="btn btn-ghost" onClick={() => { setNewNumber(invoiceNumber); setShowEditNumber(true); }}>✏️ # Factura</button>
-      {clientCompany && (
-        <button className="btn btn-ghost" onClick={() => setShowEditBillTo(true)}>👤 Facturar a</button>
-      )}
-      {clientProperties.length > 0 && (
-        <button className="btn btn-ghost" onClick={() => setShowEditProperty(true)}>🏠 Propiedad</button>
-      )}
-      <button className="btn btn-ghost" onClick={() => setShowEditTerms(true)}>📋 Términos</button>
-      <button className="btn btn-ghost" onClick={() => setShowInternalNotes(true)}>📝 Notas internas</button>
-      <button className="btn btn-ghost" onClick={openCheckPhotos}>📷 Fotos de cheques{checkPhotos.length > 0 ? ` (${checkPhotos.length})` : ''}</button>
       <button className={`btn ${retenciones.length > 0 ? 'btn-amber' : 'btn-ghost'}`} onClick={() => setShowRetencion(true)}>
         📋 {retenciones.length > 0 ? `Retención: ${fmtMoney(retenciones.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0))}` : 'Registrar retención'}
       </button>
-      {jobId && (
-        <button className="btn btn-ghost" onClick={openAttachments}>
-          📎 Adjuntos{selectedNoteIds.length > 0 ? ` (${selectedNoteIds.length})` : ''}
-        </button>
-      )}
-      {selectedNoteIds.length > 0 && (
-        <button className="btn btn-ghost" style={{ color: 'var(--warn)' }} onClick={clearAttachments}>🗑 Quitar adjuntos</button>
-      )}
       {status === 'draft' && <button className="btn btn-primary" onClick={() => setShowEmail(true)}>📤 Enviar</button>}
-      {status === 'sent' && (
-        <>
-          <button className="btn btn-amber" onClick={() => setShowPayment(true)}>💰 Pago</button>
-          <button className="btn btn-ghost" onClick={() => updateStatus('cancelled')}>Cancelar</button>
-        </>
-      )}
-      {status === 'paid' && (
-        <>
-          <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Pagada</span>
-          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => updateStatus('sent')}>Revertir a enviada</button>
-        </>
-      )}
+      {status === 'sent' && <button className="btn btn-amber" onClick={() => setShowPayment(true)}>💰 Pago</button>}
+      {status === 'paid' && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Pagada</span>}
       {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Enviado</span>}
-      <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
+
+      <button className="btn btn-ghost" onClick={() => setShowMore(v => !v)}>⋯ Más</button>
+      {showMore && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setShowMore(false)} />
+          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: '#fff', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.14)', minWidth: 220, zIndex: 1000, overflow: 'hidden' }}>
+            {moreItems.map((item, i) => (
+              <button
+                key={item.key}
+                className="dropdown-item"
+                onClick={() => { setShowMore(false); item.onClick(); }}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', background: 'none', border: 'none', borderBottom: i < moreItems.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13.5, fontWeight: 600, color: item.warn ? 'var(--warn)' : 'var(--text)', cursor: 'pointer' }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Attachments modal */}
       {showAttachments && (

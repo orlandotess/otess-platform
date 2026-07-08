@@ -285,6 +285,8 @@ body.sidebar-hidden .sidebar-show-btn { display: flex; }
 
 .btn-sm { padding: 7px 14px; font-size: 13px; }
 
+.dropdown-item:hover { background: var(--bg); }
+
 /* ── Table ── */
 .table-wrap {
   overflow-x: auto;

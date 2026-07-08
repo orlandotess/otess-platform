@@ -12,6 +12,13 @@ const statusBadge = {
   cancelled: { cls: 'badge-red',   label: 'Cancelada' },
 };
 
+function statusFor(inv, today) {
+  if (inv.status === 'sent' && inv.due_at && inv.due_at < today) {
+    return { cls: 'badge-red', label: 'Vencida' };
+  }
+  return statusBadge[inv.status] ?? statusBadge.draft;
+}
+
 function formatViewedAt(dateStr) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -23,6 +30,7 @@ function formatViewedAt(dateStr) {
 }
 
 export default async function FacturasPage() {
+  const today = new Date().toISOString().slice(0, 10);
   const [{ data: invoices }, { data: views }] = await Promise.all([
     supabase
       .from('invoices')
@@ -100,7 +108,7 @@ export default async function FacturasPage() {
                 </thead>
                 <tbody>
                   {invoices.map(inv => {
-                    const b = statusBadge[inv.status] ?? statusBadge.draft;
+                    const b = statusFor(inv, today);
                     const viewInfo = viewsByInvoice[inv.id];
                     return (
                       <tr key={inv.id}>

@@ -60,6 +60,8 @@ export default async function FacturaDetail({ params }) {
   const statusLabel = { draft: 'Borrador', sent: 'Enviada', paid: 'Pagada', cancelled: 'Cancelada' };
   const statusCls = { draft: 'badge-gray', sent: 'badge-blue', paid: 'badge-green', cancelled: 'badge-red' };
   const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
+  const today = new Date().toISOString().slice(0, 10);
+  const isOverdue = inv.status === 'sent' && inv.due_at && inv.due_at < today;
 
   return (
     <div className="admin-shell">
@@ -68,8 +70,8 @@ export default async function FacturaDetail({ params }) {
         <div className="page-header">
           <div>
             <div className="page-title">{inv.invoice_number}</div>
-            <span className={`badge ${statusCls[inv.status]}`} style={{ marginTop: 6, display: 'inline-block' }}>
-              {statusLabel[inv.status]}
+            <span className={`badge ${isOverdue ? 'badge-red' : statusCls[inv.status]}`} style={{ marginTop: 6, display: 'inline-block' }}>
+              {isOverdue ? 'Vencida' : statusLabel[inv.status]}
             </span>
           </div>
           <InvoiceActions
