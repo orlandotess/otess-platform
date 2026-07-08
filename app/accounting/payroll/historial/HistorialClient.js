@@ -6,7 +6,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
   const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState("");
   const [techFilter, setTechFilter] = useState("all");
-  const [sortDir, setSortDir] = useState("desc");
+  const [sortDir, setSortDir] = useState("asc");
   const [saving, setSaving] = useState({});
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
