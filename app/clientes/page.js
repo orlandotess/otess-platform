@@ -23,7 +23,10 @@ export default async function ClientesPage() {
         {!clients?.length ? (
           <div className="card">
             <div className="empty">
-              <p>No hay clientes aún. <Link href="/clientes/nuevo" style={{ color: 'var(--amber)' }}>Agregar el primero →</Link></p>
+              <div className="empty-glyph">👥</div>
+              <h3>No hay clientes aún</h3>
+              <p>Cuando agregues un cliente, aparecerá aquí.</p>
+              <Link href="/clientes/nuevo" className="btn btn-primary btn-sm">+ Agregar cliente</Link>
             </div>
           </div>
         ) : (

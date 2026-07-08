@@ -78,7 +78,10 @@ export default async function FacturasPage() {
         <div className="card">
           {!invoices?.length ? (
             <div className="empty">
-              <p>No hay facturas aún. <Link href="/facturas/nueva" style={{ color: 'var(--amber)' }}>Crear la primera →</Link></p>
+              <div className="empty-glyph">🧾</div>
+              <h3>No hay facturas aún</h3>
+              <p>Cuando factures a un cliente, aparecerá aquí.</p>
+              <Link href="/facturas/nueva" className="btn btn-primary btn-sm">+ Crear factura</Link>
             </div>
           ) : (
             <div className="table-wrap">

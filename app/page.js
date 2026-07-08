@@ -109,7 +109,10 @@ export default async function Home() {
           </div>
           {recentJobs.length === 0 ? (
             <div className="empty">
-              <p>No hay trabajos aún. <Link href="/trabajos/nuevo" style={{ color: 'var(--amber)' }}>Crea el primero →</Link></p>
+              <div className="empty-glyph">🔧</div>
+              <h3>No hay trabajos aún</h3>
+              <p>Cuando crees un trabajo para un cliente, aparecerá aquí.</p>
+              <Link href="/trabajos/nuevo" className="btn btn-primary btn-sm">+ Crear trabajo</Link>
             </div>
           ) : (
             <div className="table-wrap">

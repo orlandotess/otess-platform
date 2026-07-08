@@ -74,7 +74,10 @@ export default async function EstimadosPage() {
         <div className="card">
           {!estimates?.length ? (
             <div className="empty">
-              <p>No hay estimados aún. <Link href="/estimados/nueva" style={{ color: 'var(--amber)' }}>Crear el primero →</Link></p>
+              <div className="empty-glyph">🧮</div>
+              <h3>No hay estimados aún</h3>
+              <p>Cuando crees un estimado para un cliente, aparecerá aquí.</p>
+              <Link href="/estimados/nueva" className="btn btn-primary btn-sm">+ Crear estimado</Link>
             </div>
           ) : (
             <div className="table-wrap">
