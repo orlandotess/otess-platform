@@ -73,6 +73,7 @@ export default function FieldApp() {
   // Manual weekly timesheet (feeds payroll via time_entries)
   const [weekDayForms, setWeekDayForms] = useState({});
   const [savingDay, setSavingDay] = useState(null);
+  const [dayFormStatus, setDayFormStatus] = useState({}); // { [dayKey]: 'saved' | 'error' }
 
   // Inline edit for an individual clock entry (fix a mistaken clock in/out)
   const [editingEntryId, setEditingEntryId] = useState(null);
@@ -332,6 +333,7 @@ export default function FieldApp() {
     const form = weekDayForms[key];
     if (!form?.entryHour || !form?.exitHour) return;
     setSavingDay(key);
+    setDayFormStatus(prev => ({ ...prev, [key]: null }));
     const to24 = (hour, ampm) => { let h = parseInt(hour, 10) % 12; if (ampm === 'PM') h += 12; return h; };
     const clockedIn = new Date(dateObj);
     clockedIn.setHours(to24(form.entryHour, form.entryAmPm), parseInt(form.entryMinute, 10) || 0, 0, 0);
@@ -344,13 +346,22 @@ export default function FieldApp() {
       lunch_minutes: form.lunch ? 60 : 0,
       notes: form.notes.trim() || null,
     };
+    let saveError = null;
     if (form.id) {
-      await supabase.from('time_entries').update(payload).eq('id', form.id);
+      const { error } = await supabase.from('time_entries').update(payload).eq('id', form.id);
+      saveError = error;
     } else {
-      const { data } = await supabase.from('time_entries').insert([payload]).select().single();
+      const { data, error } = await supabase.from('time_entries').insert([payload]).select().single();
+      saveError = error;
       if (data) updateDayForm(key, { id: data.id });
     }
     setSavingDay(null);
+    if (saveError) {
+      setDayFormStatus(prev => ({ ...prev, [key]: 'error' }));
+      return;
+    }
+    setDayFormStatus(prev => ({ ...prev, [key]: 'saved' }));
+    setTimeout(() => setDayFormStatus(prev => (prev[key] === 'saved' ? { ...prev, [key]: null } : prev)), 3000);
     // Refresh the week summary card above so hours reflect the saved entry
     const weekStart = getPayrollWeekDays()[0];
     const { data: refreshed } = await supabase.from('time_entries').select('*').eq('technician_id', techId)
@@ -959,6 +970,16 @@ export default function FieldApp() {
                     <input value={form.notes} onChange={e => updateDayForm(key, { notes: e.target.value })} placeholder="Notes..."
                       style={{ flex: 1, padding: '10px 14px', border: '1.5px solid #dde1e7', borderRadius: 50, fontSize: 13, outline: 'none' }} />
                   </div>
+                  {dayFormStatus[key] === 'saved' && (
+                    <div style={{ marginTop: 10, background: '#f0fdf4', border: '1px solid #86efac', color: '#166534', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
+                      ✅ Guardado
+                    </div>
+                  )}
+                  {dayFormStatus[key] === 'error' && (
+                    <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
+                      ⚠️ No se pudo guardar. Verifica tu conexión e intenta de nuevo.
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1622,7 +1643,10 @@ export default function FieldApp() {
       {showJobClock && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setShowJobClock(false)}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 16 }}>⏱ Clock In a trabajo</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>⏱ Clock In a trabajo</div>
+              <button onClick={() => setShowJobClock(false)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+            </div>
             {allJobs.length === 0 ? <p style={{ color: '#888' }}>No hay trabajos activos.</p>
               : allJobs.map(j => (
                 <div key={j.id} onClick={() => handleClockIn(j.id)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
@@ -1638,7 +1662,10 @@ export default function FieldApp() {
       {showJobNote && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => { setShowJobNote(false); setFabSelectedJob(null); }}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 16 }}>📝 Agregar nota</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📝 Agregar nota</div>
+              <button onClick={() => { setShowJobNote(false); setFabSelectedJob(null); }} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+            </div>
             {!fabSelectedJob
               ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
               : <form onSubmit={saveFabNote}>
@@ -1657,7 +1684,10 @@ export default function FieldApp() {
       {showJobPhoto && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => { setShowJobPhoto(false); setFabSelectedJob(null); }}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 16 }}>📸 Agregar foto</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📸 Agregar foto</div>
+              <button onClick={() => { setShowJobPhoto(false); setFabSelectedJob(null); }} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+            </div>
             {photoSuccess ? <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#27ae60', fontWeight: 700 }}>{photoSuccess} ✅</div>
               : !fabSelectedJob
                 ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
@@ -1687,7 +1717,10 @@ export default function FieldApp() {
       {showJobExpense && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={closeExpenseModal}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 16 }}>💸 Agregar gasto</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>💸 Agregar gasto</div>
+              <button onClick={closeExpenseModal} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+            </div>
             {expenseSuccess ? (
               <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#27ae60', fontWeight: 700 }}>{expenseSuccess} ✅</div>
             ) : expenseJob === undefined ? (
