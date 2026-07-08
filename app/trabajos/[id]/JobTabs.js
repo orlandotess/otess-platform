@@ -594,6 +594,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setNotesList(prev => prev.filter(n => n.id !== noteId));
   }
 
+  async function toggleNotePin(noteId, pinned) {
+    setNotesList(prev => prev.map(n => n.id === noteId ? { ...n, is_pinned: !pinned } : n));
+    await supabase.from('job_notes').update({ is_pinned: !pinned }).eq('id', noteId);
+  }
+
   async function saveNoteEdit(noteId) {
     const text = editingNoteText.trim() || null;
     await supabase.from('job_notes').update({ note: text }).eq('id', noteId);
@@ -700,6 +705,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     }));
   })();
   const scheduleDaysTotalHours = scheduleDays.reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes), 0);
+
+  const sortedNotesList = [...notesList].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0));
 
   const completedCount = checklistItems.filter(i => i.completed && !i.__placeholder).length;
   const realCount = checklistItems.filter(i => !i.__placeholder).length;
@@ -1430,15 +1437,19 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             )}
           </div>
 
-          {notesList.length === 0 ? (
+          {sortedNotesList.length === 0 ? (
             <div className="empty"><p>No hay notas aún.</p></div>
-          ) : notesList.map(n => (
-            <div key={n.id} className="card" style={{ marginBottom: 12 }}>
+          ) : sortedNotesList.map(n => (
+            <div key={n.id} className="card" style={{ marginBottom: 12, ...(n.is_pinned ? { border: '1.5px solid var(--amber)', background: '#fffaf0' } : {}) }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: n.photo_url || n.note ? 10 : 0 }}>
-                <div style={{ fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
+                  {n.is_pinned && <span title="Pineada">📌</span>}
                   {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => toggleNotePin(n.id, n.is_pinned)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: n.is_pinned ? 'var(--amber)' : 'var(--muted)', fontSize: 15 }} title={n.is_pinned ? 'Despinear' : 'Pinear'}>
+                    📌
+                  </button>
                   {editingNoteId !== n.id && (
                     <button onClick={() => { setEditingNoteId(n.id); setEditingNoteText(n.note ?? ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 15 }}>✏️</button>
                   )}

@@ -67,7 +67,7 @@ async function resolveShortLink(url) {
   }
 }
 
-export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts, proposals, currentRole }) {
+export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts, proposals, internalNotes: initInternalNotes, currentRole }) {
   const canDeleteClient = currentRole === 'admin' || currentRole === 'secretaria';
   const router = useRouter();
   const [tab, setTab] = useState('info');
@@ -162,6 +162,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
     await supabase.from('client_addresses').delete().eq('client_id', client.id);
     await supabase.from('client_contacts').delete().eq('client_id', client.id);
     await supabase.from('client_properties').delete().eq('client_id', client.id);
+    await supabase.from('client_notes').delete().eq('client_id', client.id);
     await supabase.from('clients').delete().eq('id', client.id);
     window.location.replace('/clientes');
   }
@@ -213,6 +214,44 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
     setContacts(prev => prev.filter(c => c.id !== contactId));
   }
 
+  // Internal notes
+  const [internalNotes, setInternalNotes] = useState(initInternalNotes ?? []);
+  const [newInternalNote, setNewInternalNote] = useState('');
+  const [savingInternalNote, setSavingInternalNote] = useState(false);
+  const [editingInternalNoteId, setEditingInternalNoteId] = useState(null);
+  const [editingInternalNoteText, setEditingInternalNoteText] = useState('');
+
+  const sortedInternalNotes = [...internalNotes].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0));
+
+  async function addInternalNote(e) {
+    e.preventDefault();
+    if (!newInternalNote.trim()) return;
+    setSavingInternalNote(true);
+    const { data } = await supabase.from('client_notes').insert([{ client_id: client.id, note: newInternalNote.trim() }]).select().single();
+    if (data) setInternalNotes(prev => [data, ...prev]);
+    setNewInternalNote('');
+    setSavingInternalNote(false);
+  }
+
+  async function deleteInternalNote(noteId) {
+    await supabase.from('client_notes').delete().eq('id', noteId);
+    setInternalNotes(prev => prev.filter(n => n.id !== noteId));
+  }
+
+  async function saveInternalNoteEdit(noteId) {
+    const text = editingInternalNoteText.trim();
+    if (!text) return;
+    await supabase.from('client_notes').update({ note: text }).eq('id', noteId);
+    setInternalNotes(prev => prev.map(n => n.id === noteId ? { ...n, note: text } : n));
+    setEditingInternalNoteId(null);
+    setEditingInternalNoteText('');
+  }
+
+  async function toggleInternalNotePin(noteId, pinned) {
+    setInternalNotes(prev => prev.map(n => n.id === noteId ? { ...n, is_pinned: !pinned } : n));
+    await supabase.from('client_notes').update({ is_pinned: !pinned }).eq('id', noteId);
+  }
+
   const tabStyle = t => ({
     padding: '10px 20px',
     fontWeight: tab === t ? 700 : 500,
@@ -248,6 +287,10 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
         <button style={tabStyle('proposals')} onClick={() => setTab('proposals')}>
           📄 Propuestas
           {proposals.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{proposals.length}</span>}
+        </button>
+        <button style={tabStyle('internalNotes')} onClick={() => setTab('internalNotes')}>
+          📝 Notas internas
+          {internalNotes.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{internalNotes.length}</span>}
         </button>
       </div>
 
@@ -333,6 +376,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                 { label: 'Facturas', value: invoices.length },
                 { label: 'Total facturado', value: fmt(invoices.reduce((a, i) => a + Number(i.total ?? 0), 0)) },
                 { label: 'Propuestas', value: proposals.length },
+                { label: 'Notas internas', value: internalNotes.length },
               ].map(s => (
                 <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
                   <span style={{ color: 'var(--muted)' }}>{s.label}</span>
@@ -772,6 +816,59 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* INTERNAL NOTES TAB */}
+      {tab === 'internalNotes' && (
+        <div>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 12 }}>Nueva nota interna</p>
+            <form onSubmit={addInternalNote}>
+              <textarea
+                value={newInternalNote}
+                onChange={e => setNewInternalNote(e.target.value)}
+                placeholder="Escribe una nota interna sobre este cliente..."
+                rows={3}
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 10 }}
+              />
+              <button type="submit" className="btn btn-primary" disabled={savingInternalNote || !newInternalNote.trim()}>
+                {savingInternalNote ? 'Guardando...' : '💾 Guardar nota'}
+              </button>
+            </form>
+          </div>
+
+          {sortedInternalNotes.length === 0 ? (
+            <div className="card empty"><p>No hay notas internas para este cliente.</p></div>
+          ) : sortedInternalNotes.map(n => (
+            <div key={n.id} className="card" style={{ marginBottom: 12, ...(n.is_pinned ? { border: '1.5px solid var(--amber)', background: '#fffaf0' } : {}) }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
+                  {n.is_pinned && <span title="Pineada">📌</span>}
+                  {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => toggleInternalNotePin(n.id, n.is_pinned)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: n.is_pinned ? 'var(--amber)' : 'var(--muted)', fontSize: 15 }} title={n.is_pinned ? 'Despinear' : 'Pinear'}>
+                    📌
+                  </button>
+                  {editingInternalNoteId !== n.id && (
+                    <button onClick={() => { setEditingInternalNoteId(n.id); setEditingInternalNoteText(n.note ?? ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 15 }}>✏️</button>
+                  )}
+                  <button onClick={() => deleteInternalNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
+                </div>
+              </div>
+              {editingInternalNoteId === n.id ? (
+                <div>
+                  <textarea autoFocus value={editingInternalNoteText} onChange={e => setEditingInternalNoteText(e.target.value)} rows={3}
+                    style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 8 }} />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-primary" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => saveInternalNoteEdit(n.id)}>Guardar</button>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => { setEditingInternalNoteId(null); setEditingInternalNoteText(''); }}>Cancelar</button>
+                  </div>
+                </div>
+              ) : <p style={{ fontSize: 14, color: 'var(--text)', margin: 0, whiteSpace: 'pre-wrap' }}>{n.note}</p>}
+            </div>
+          ))}
         </div>
       )}
 
