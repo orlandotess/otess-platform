@@ -737,6 +737,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     }));
   })();
   const scheduleDaysTotalHours = scheduleDays.reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes), 0);
+  const primaryScheduleHours = hoursBetween(job.scheduled_start, job.scheduled_end);
+  const grandTotalHours = primaryScheduleHours + scheduleDaysTotalHours;
 
   const sortedNotesList = [...notesList].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0));
 
@@ -1034,27 +1036,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       <p style={{ color: 'var(--muted)', fontSize: 13, gridColumn: '1/-1' }}>Sin fecha programada.</p>
                     )}
                   </div>
-                  {job.scheduled_start && job.scheduled_end && (() => {
-                    const diff = new Date(job.scheduled_end) - new Date(job.scheduled_start);
-                    const hours = Math.floor(diff / 3600000);
-                    const mins = Math.floor((diff % 3600000) / 60000);
-                    const duration = hours > 0 && mins > 0 ? `${hours}h ${mins}min` : hours > 0 ? `${hours}h` : `${mins}min`;
-                    return (
-                      <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
-                        <span style={{ fontSize: 13 }}>⏱</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{duration} de trabajo</span>
-                      </div>
-                    );
-                  })()}
+                  {job.scheduled_start && job.scheduled_end && (
+                    <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                      <span style={{ fontSize: 13 }}>⏱</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(primaryScheduleHours)} de trabajo</span>
+                    </div>
+                  )}
                   {scheduleDays.length > 0 && (
                     <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
                         <span style={{ fontSize: 13 }}>📅</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{scheduleDayGroups.length} {scheduleDayGroups.length === 1 ? 'día asignado' : 'días asignados'}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{scheduleDayGroups.length} {scheduleDayGroups.length === 1 ? 'día adicional' : 'días adicionales'}</span>
                       </div>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
                         <span style={{ fontSize: 13 }}>⏱</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(scheduleDaysTotalHours)} en total</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(grandTotalHours)} en total</span>
                       </div>
                     </div>
                   )}
