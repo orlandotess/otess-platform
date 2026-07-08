@@ -79,14 +79,45 @@ function computeExpenses(start, end, expenses) {
   return filtered.reduce((a, e) => a + Number(e.amount ?? 0), 0);
 }
 
-function computePayroll(start, end, techs, ents) {
+// Payroll weeks run Wed–Tue (see app/accounting/payroll), which is how manual
+// entries in payroll_adjustments are keyed via their period_start.
+function getPayrollWeekStart(dateStr) {
+  const d = new Date(dateStr.slice(0, 10) + 'T00:00:00');
+  const daysSinceWed = (d.getDay() + 4) % 7;
+  d.setDate(d.getDate() - daysSinceWed);
+  return d.toISOString().slice(0, 10);
+}
+
+function computePayroll(start, end, techs, ents, adjustments) {
   const filtered = ents.filter(e => e.clocked_in_at >= start && e.clocked_in_at <= end);
+  const startDate = start.slice(0, 10);
+  const endDate = end.slice(0, 10);
   let total = 0;
   techs.forEach(tech => {
-    const hours = filtered.filter(e => e.technician_id === tech.id).reduce((a, e) => {
-      return a + (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
-    }, 0);
-    total += hours * Number(tech.hourly_rate ?? 0);
+    const rate = Number(tech.hourly_rate ?? 0);
+    const hoursByWeek = {};
+    filtered.filter(e => e.technician_id === tech.id).forEach(e => {
+      const wk = getPayrollWeekStart(e.clocked_in_at);
+      const hours = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
+      hoursByWeek[wk] = (hoursByWeek[wk] ?? 0) + hours;
+    });
+
+    // Manual payroll adjustments override the raw clocked hours for their
+    // specific pay week (used e.g. for backfilled or gross-pay-only entries
+    // that have no matching time_entries rows).
+    const techAdjs = adjustments.filter(a => a.technician_id === tech.id && a.period_start <= endDate && a.period_end >= startDate);
+    techAdjs.forEach(a => {
+      delete hoursByWeek[a.period_start];
+      if (a.gross_pay_override !== null && a.gross_pay_override !== undefined) {
+        total += Number(a.gross_pay_override);
+      } else {
+        const regular = Number(a.regular_hours_override ?? 0);
+        const overtime = Number(a.overtime_hours_override ?? 0);
+        total += regular * rate + overtime * rate * 1.5;
+      }
+    });
+
+    total += Object.values(hoursByWeek).reduce((a, h) => a + h, 0) * rate;
   });
   return total;
 }
@@ -239,11 +270,12 @@ export default async function AccountingDashboard({ searchParams }) {
   const entriesFetchStart = rangeStarts.reduce((a, b) => (a < b ? a : b));
   const entriesFetchEnd = rangeEnds.reduce((a, b) => (a > b ? a : b));
 
-  const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: allPayments }, { data: inboxNotifications }, { data: allExpenses }] = await Promise.all([
+  const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: payrollAdjustments }, { data: allPayments }, { data: inboxNotifications }, { data: allExpenses }] = await Promise.all([
     supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name)').order('issued_at', { ascending: false }),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount, quantity, unit_price, supplier_price'),
     supabase.from('technicians').select('id, hourly_rate'),
     supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at, lunch_minutes').not('clocked_out_at', 'is', null).gte('clocked_in_at', entriesFetchStart).lte('clocked_in_at', entriesFetchEnd),
+    supabase.from('payroll_adjustments').select('technician_id, period_start, period_end, regular_hours_override, overtime_hours_override, gross_pay_override').lte('period_start', entriesFetchEnd.slice(0, 10)).gte('period_end', entriesFetchStart.slice(0, 10)),
     supabase.from('payments').select('invoice_id, amount, paid_at'),
     supabase.from('inbox_notifications').select('*').order('created_at', { ascending: false }).limit(20),
     supabase.from('expenses').select('expense_date, amount, category, job_id'),
@@ -253,6 +285,7 @@ export default async function AccountingDashboard({ searchParams }) {
   const lines = lineItems ?? [];
   const techs = technicians ?? [];
   const entries = timeEntries ?? [];
+  const adjustments = payrollAdjustments ?? [];
   const payments = allPayments ?? [];
   const expenses = allExpenses ?? [];
 
@@ -285,7 +318,7 @@ export default async function AccountingDashboard({ searchParams }) {
       key: q.key,
       revenue: computeRevenue(qInvs, paymentsByInvoice),
       ivu: computeIVU(qIds, lines),
-      payroll: computePayroll(q.start + 'T00:00:00.000Z', q.end + 'T23:59:59.999Z', techs, entries),
+      payroll: computePayroll(q.start + 'T00:00:00.000Z', q.end + 'T23:59:59.999Z', techs, entries, adjustments),
       gastos: computeExpenses(q.start, q.end, expenses),
     };
   });
@@ -320,7 +353,7 @@ export default async function AccountingDashboard({ searchParams }) {
           label={<WeekPeriodSelector weekStart={selWeekStartStr} />}
           revenue={computeRevenue(weekInvs, paymentsByInvoice)}
           ivu={computeIVU(getIds(selWeekStartISO, selWeekEndISO), lines)}
-          payroll={computePayroll(selWeekStartISO, selWeekEndISO, techs, entries)}
+          payroll={computePayroll(selWeekStartISO, selWeekEndISO, techs, entries, adjustments)}
           margin={computeMargin(getIds(selWeekStartISO, selWeekEndISO), lines)}
           gastos={computeExpenses(selWeekStartISO, selWeekEndISO, expenses)}
           fmt={fmt}
@@ -330,7 +363,7 @@ export default async function AccountingDashboard({ searchParams }) {
           label={<MonthPeriodSelector year={selMonthYear} month={selMonth} />}
           revenue={computeRevenue(monthInvs, paymentsByInvoice)}
           ivu={computeIVU(getIds(monthStart, monthEnd), lines)}
-          payroll={computePayroll(monthStart, monthEnd, techs, entries)}
+          payroll={computePayroll(monthStart, monthEnd, techs, entries, adjustments)}
           margin={computeMargin(getIds(monthStart, monthEnd), lines)}
           gastos={computeExpenses(monthStart, monthEnd, expenses)}
           fmt={fmt}
@@ -340,7 +373,7 @@ export default async function AccountingDashboard({ searchParams }) {
           label={<YearPeriodSelector year={selYear} />}
           revenue={computeRevenue(yearInvs, paymentsByInvoice)}
           ivu={computeIVU(getIds(selYearStart, selYearEnd), lines)}
-          payroll={computePayroll(selYearStart, selYearEnd, techs, entries)}
+          payroll={computePayroll(selYearStart, selYearEnd, techs, entries, adjustments)}
           margin={computeMargin(getIds(selYearStart, selYearEnd), lines)}
           gastos={computeExpenses(selYearStart, selYearEnd, expenses)}
           fmt={fmt}
