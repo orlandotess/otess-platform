@@ -80,7 +80,7 @@ export default async function FacturaPublica({ params }) {
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const statusLabel = { draft: 'Borrador', sent: 'Enviada', paid: 'Pagada', cancelled: 'Cancelada' };
-  const statusColor = { draft: '#888', sent: '#2a4cb5', paid: '#27ae60', cancelled: '#e74c3c' };
+  const statusColor = { draft: '#5b6473', sent: '#2a4cb5', paid: '#1a7a4a', cancelled: '#b52a2a' };
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
@@ -174,7 +174,7 @@ export default async function FacturaPublica({ params }) {
                 {(totalPaid > 0 || totalRetained > 0) && (
                   <>
                     {totalPaid > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, color: '#27ae60' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, color: '#1a7a4a' }}>
                         <span>Pagado</span><span>-{fmt(totalPaid)}</span>
                       </div>
                     )}
@@ -183,7 +183,7 @@ export default async function FacturaPublica({ params }) {
                         <span>Retención aplicada</span><span>-{fmt(totalRetained)}</span>
                       </div>
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 15, fontWeight: 700, color: balance > 0 ? '#92600a' : '#27ae60' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 15, fontWeight: 700, color: balance > 0 ? '#92600a' : '#1a7a4a' }}>
                       <span>Balance</span><span>{fmt(balance)}</span>
                     </div>
                   </>

@@ -66,7 +66,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', fontFamily: '-apple-system,sans-serif', padding: 20 }}>
         <div style={{ background: '#fff', borderRadius: 12, padding: 40, maxWidth: 420, textAlign: 'center', border: '1px solid #eee' }}>
-          <div style={{ fontSize: 32, marginBottom: 12, color: '#27ae60' }}>✓</div>
+          <div style={{ fontSize: 32, marginBottom: 12, color: '#1a7a4a' }}>✓</div>
           <div style={{ fontSize: 19, fontWeight: 700, color: NAVY, marginBottom: 8 }}>Propuesta aprobada</div>
           <p style={{ fontSize: 14, color: '#888' }}>Gracias — nos pondremos en contacto para coordinar los próximos pasos.</p>
         </div>
@@ -197,7 +197,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                 style={{ width: '100%', padding: '12px 14px', border: '1px solid #ddd', borderRadius: 8, fontSize: 16, fontFamily: 'cursive', marginTop: 6 }} />
             </div>
           )}
-          {error && <p style={{ color: '#c0392b', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+          {error && <p style={{ color: '#b52a2a', fontSize: 13, marginBottom: 10 }}>{error}</p>}
           <button onClick={handleApprove} disabled={!canApprove || approving}
             style={{ width: '100%', padding: 15, background: canApprove ? NAVY : '#ddd', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: canApprove ? 'pointer' : 'default' }}>
             {approving ? 'Procesando...' : 'Aprobar propuesta'}

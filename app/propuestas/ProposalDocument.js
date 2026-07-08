@@ -131,7 +131,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                         <td style={{ textAlign: 'right', verticalAlign: 'top', paddingTop: 14 }}>
                           <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(itemTotal(it))}</div>
                           {it.children.length > 0 && <div style={{ fontSize: 10.5, color: '#999' }}>Combined Price</div>}
-                          {it.discount_amount > 0 && <div style={{ fontSize: 11, color: '#27ae60', fontWeight: 600 }}>{fmt(it.discount_amount)} Discount</div>}
+                          {it.discount_amount > 0 && <div style={{ fontSize: 11, color: '#1a7a4a', fontWeight: 600 }}>{fmt(it.discount_amount)} Discount</div>}
                         </td>
                       </tr>
                       {it.children.map((child, ci) => (
@@ -165,7 +165,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
         <div style={{ display: 'flex', gap: 40 }}>
           <div style={{ flex: 1 }}>
             {fb.totalDiscount > 0 && (
-              <div style={{ background: '#eafaf1', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: '#1a7a3d', lineHeight: 1.6 }}>
+              <div style={{ background: '#e7f3ee', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: '#1a7a4a', lineHeight: 1.6 }}>
                 You received <strong>{fmt(fb.totalDiscount)}</strong> in line item discounts on this proposal.
               </div>
             )}
