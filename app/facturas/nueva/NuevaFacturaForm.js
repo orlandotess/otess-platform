@@ -12,6 +12,10 @@ const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar sop
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
+const TERMS_TEMPLATES = [
+  { key: 'standard', label: 'Garantía estándar', text: DEFAULT_TERMS },
+];
+
 export default function NuevaFactura() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -21,7 +25,7 @@ export default function NuevaFactura() {
   const [jobs, setJobs] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
   const [form, setForm] = useState({
-    client_id: '', job_id: '', notes: '', bill_to: 'person', terms: DEFAULT_TERMS,
+    client_id: '', job_id: '', notes: '', work_description: '', bill_to: 'person', terms: DEFAULT_TERMS,
     issued_at: new Date().toISOString().split('T')[0],
     due_at: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
@@ -31,7 +35,7 @@ export default function NuevaFactura() {
 
   useEffect(() => {
     supabase.from('clients').select('id, name, company, client_type').order('name').then(({ data }) => setClients(data ?? []));
-    supabase.from('jobs').select('id, title, client_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
+    supabase.from('jobs').select('id, title, description, client_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
 
@@ -39,7 +43,7 @@ export default function NuevaFactura() {
     if (jobIdParam && jobs.length) {
       const job = jobs.find(j => j.id === jobIdParam);
       if (job) {
-        setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id, bill_to: job.bill_to ?? 'person' }));
+        setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id, bill_to: job.bill_to ?? 'person', work_description: job.description ?? '' }));
         if (job.job_line_items?.length) {
           Promise.all(job.job_line_items.map(async li => {
             let photoPreview = null;
@@ -132,6 +136,7 @@ export default function NuevaFactura() {
       client_id: form.client_id,
       job_id: form.job_id || null,
       notes: form.notes || null,
+      work_description: form.work_description || null,
       terms: form.terms || null,
       issued_at: form.issued_at,
       due_at: form.due_at,
@@ -203,7 +208,11 @@ export default function NuevaFactura() {
                 </div>
                 <div className="form-group">
                   <label>Trabajo (opcional)</label>
-                  <select value={form.job_id} onChange={e => set('job_id', e.target.value)}>
+                  <select value={form.job_id} onChange={e => {
+                    const jid = e.target.value;
+                    const job = jobs.find(j => j.id === jid);
+                    setForm(f => ({ ...f, job_id: jid, work_description: job?.description ?? '' }));
+                  }}>
                     <option value="">— Sin trabajo asociado —</option>
                     {jobs.filter(j => !form.client_id || j.client_id === form.client_id).map(j => (
                       <option key={j.id} value={j.id}>{j.title}</option>
@@ -239,11 +248,26 @@ export default function NuevaFactura() {
                 </div>
               </div>
               <div className="form-group">
+                <label>Descripción del trabajo (visible para el cliente)</label>
+                <textarea value={form.work_description} onChange={e => set('work_description', e.target.value)} placeholder="Detalle de lo realizado en la propiedad..." rows={4} />
+              </div>
+              <div className="form-group">
                 <label>Notas / Términos de pago</label>
                 <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Términos de pago, notas para el cliente..." />
               </div>
               <div className="form-group">
                 <label>Términos del proyecto</label>
+                <select
+                  value=""
+                  onChange={e => {
+                    const tpl = TERMS_TEMPLATES.find(t => t.key === e.target.value);
+                    if (tpl) set('terms', tpl.text);
+                  }}
+                  style={{ marginBottom: 8 }}
+                >
+                  <option value="">— Elegir plantilla —</option>
+                  {TERMS_TEMPLATES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
                 <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={6} style={{ fontSize: 13, lineHeight: 1.6 }} />
               </div>
             </div>

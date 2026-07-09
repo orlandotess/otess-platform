@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import PayPalButton from './PayPalButton';
 
 export default async function FacturaPublica({ params }) {
   const { id } = params;
@@ -130,6 +131,13 @@ export default async function FacturaPublica({ params }) {
               </div>
             )}
 
+            {inv.work_description && (
+              <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 24, border: '1px solid #f0f0f0' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Trabajo realizado</div>
+                <p style={{ color: '#555', fontSize: 13.5, lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{inv.work_description}</p>
+              </div>
+            )}
+
             {/* Line items */}
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
               <thead>
@@ -198,16 +206,13 @@ export default async function FacturaPublica({ params }) {
               </div>
             </div>
 
+            {balance > 0.01 && inv.status !== 'cancelled' && (
+              <PayPalButton invoiceId={id} balance={balance} />
+            )}
+
             {inv.notes && (
               <div style={{ marginTop: 24, padding: '14px 18px', background: '#fafafa', borderRadius: 8, fontSize: 13, color: '#999', border: '1px solid #f0f0f0' }}>
                 <strong style={{ color: '#16223d' }}>Notas:</strong> {inv.notes}
-              </div>
-            )}
-
-            {inv.terms && (
-              <div style={{ marginTop: 16, padding: '14px 18px', background: '#fafafa', borderRadius: 8, fontSize: 12, color: '#999', lineHeight: 1.7, border: '1px solid #f0f0f0' }}>
-                <strong style={{ color: '#16223d', display: 'block', marginBottom: 8, fontSize: 13 }}>Términos del Proyecto</strong>
-                {inv.terms.split('\n').map((line, i) => line.trim() ? <p key={i} style={{ margin: '0 0 8px' }}>{line}</p> : null)}
               </div>
             )}
           </div>
@@ -243,6 +248,15 @@ export default async function FacturaPublica({ params }) {
                 {n.note && <p style={{ fontSize: 14, color: '#666', margin: 0 }}>{n.note}</p>}
               </div>
             ))}
+          </div>
+        )}
+
+        {inv.terms && (
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #eee', padding: '28px 32px', marginBottom: 20 }}>
+            <strong style={{ color: '#16223d', display: 'block', marginBottom: 10, fontSize: 15 }}>Términos del Proyecto</strong>
+            <div style={{ fontSize: 12.5, color: '#999', lineHeight: 1.7 }}>
+              {inv.terms.split('\n').map((line, i) => line.trim() ? <p key={i} style={{ margin: '0 0 8px' }}>{line}</p> : null)}
+            </div>
           </div>
         )}
 

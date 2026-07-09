@@ -11,6 +11,10 @@ const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar sop
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
+const TERMS_TEMPLATES = [
+  { key: 'standard', label: 'Garantía estándar', text: DEFAULT_TERMS },
+];
+
 export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [], internalNotes: initialInternalNotes = '', internalAttachments: initialInternalAttachments = [], clientId = null, subtotalLabor = 0, existingRetenciones = [], issuedAt = null }) {
   const router = useRouter();
   const [showPayment, setShowPayment] = useState(false);
@@ -377,17 +381,25 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Términos del Proyecto</h2>
             <form onSubmit={saveTerms}>
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12 }}>Plantilla de términos</label>
+                <select
+                  value=""
+                  onChange={e => {
+                    const tpl = TERMS_TEMPLATES.find(t => t.key === e.target.value);
+                    if (tpl) setTerms(tpl.text);
+                  }}
+                >
+                  <option value="">— Elegir plantilla —</option>
+                  {TERMS_TEMPLATES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+              </div>
               <div className="form-group" style={{ marginBottom: 20 }}>
                 <textarea value={terms} onChange={e => setTerms(e.target.value)} rows={10} style={{ fontSize: 13, lineHeight: 1.7, width: '100%' }} />
               </div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
-                <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setTerms(DEFAULT_TERMS)}>
-                  Restaurar predeterminado
-                </button>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center' }}>Guardar</button>
-                  <button type="button" className="btn btn-ghost" onClick={() => setShowEditTerms(false)}>Cancelar</button>
-                </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditTerms(false)}>Cancelar</button>
               </div>
             </form>
           </div>

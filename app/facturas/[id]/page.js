@@ -228,13 +228,6 @@ export default async function FacturaDetail({ params }) {
               <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {inv.notes}
             </div>
           )}
-
-          {inv.terms && (
-            <div style={{ marginTop: 16, padding: '14px 18px', background: '#f8f9fb', borderRadius: 10, fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
-              <strong style={{ color: 'var(--navy)', display: 'block', marginBottom: 8, fontSize: 13 }}>Términos del Proyecto</strong>
-              {inv.terms.split('\n').map((line, i) => line.trim() ? <p key={i} style={{ margin: '0 0 8px' }}>{line}</p> : null)}
-            </div>
-          )}
         </div>
 
         <div className="card">
@@ -267,6 +260,15 @@ export default async function FacturaDetail({ params }) {
             </table>
           )}
         </div>
+
+        {inv.terms && (
+          <div className="card" style={{ marginTop: 20 }}>
+            <strong style={{ color: 'var(--navy)', display: 'block', marginBottom: 10, fontSize: 13 }}>Términos del Proyecto</strong>
+            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+              {inv.terms.split('\n').map((line, i) => line.trim() ? <p key={i} style={{ margin: '0 0 8px' }}>{line}</p> : null)}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
