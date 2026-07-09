@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
-import PropuestaForm from '../PropuestaForm';
+import ChangeOrderForm from '../ChangeOrderForm';
 
-export default function NuevaPropuestaPage() {
+export default function NuevaOrdenCambioPage() {
   return (
     <Suspense fallback={<div style={{ padding: 40 }}>Cargando...</div>}>
-      <PropuestaForm />
+      <ChangeOrderForm />
     </Suspense>
   );
 }

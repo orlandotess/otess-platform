@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Sidebar from '../../Sidebar';
-import LineItemRow from '../../LineItemRow';
+import Sidebar from '../Sidebar';
+import LineItemRow from '../LineItemRow';
 
 function emptyItem(parentKey = null) {
   return {
@@ -19,6 +19,7 @@ function emptyItem(parentKey = null) {
     discount: '',
     photoFile: null,
     photoPreview: null,
+    existingPhotoPath: null,
   };
 }
 function emptyArea(name = 'Área 1') {
@@ -34,21 +35,85 @@ function emptyOption(name = 'Propuesta') {
   };
 }
 
-export default function NuevaPropuestaForm() {
+// Rebuilds the local {areas: [{name, items}]} builder shape from the flat
+// proposal_line_items rows an option was loaded with — same parent_item_id
+// grouping ProposalDocument.js's groupByArea() uses for display, so edit
+// mode reconstructs exactly what's on screen.
+function itemsToAreas(items) {
+  const topLevel = (items ?? []).filter(it => !it.parent_item_id).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const areas = [];
+  topLevel.forEach(parent => {
+    const name = parent.area || 'General';
+    let area = areas.find(a => a.name === name);
+    if (!area) { area = { key: Math.random().toString(36).slice(2), name, items: [] }; areas.push(area); }
+    const parentKey = Math.random().toString(36).slice(2);
+    area.items.push({
+      key: parentKey,
+      parentKey: null,
+      item_type: parent.item_type,
+      description: parent.description,
+      quantity: parent.quantity,
+      msrp: parent.msrp ?? '',
+      unit_price: parent.unit_price ?? '',
+      supplier_price: parent.supplier_price ?? '',
+      exempt: !!parent.exempt_reason,
+      discount: parent.discount_amount ?? '',
+      photoFile: null,
+      photoPreview: parent.photo_signed_url ?? null,
+      existingPhotoPath: parent.photo_url ?? null,
+    });
+    const children = (items ?? []).filter(c => c.parent_item_id === parent.id).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    children.forEach(child => {
+      area.items.push({
+        key: Math.random().toString(36).slice(2),
+        parentKey,
+        item_type: child.item_type,
+        description: child.description,
+        quantity: child.quantity,
+        msrp: '',
+        unit_price: '',
+        supplier_price: '',
+        exempt: false,
+        discount: '',
+        photoFile: null,
+        photoPreview: child.photo_signed_url ?? null,
+        existingPhotoPath: child.photo_url ?? null,
+      });
+    });
+  });
+  return areas.length ? areas : [emptyArea()];
+}
+
+export default function PropuestaForm({ initialData = null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clientIdParam = searchParams.get('client');
+  const isEdit = !!initialData;
+
   const [clients, setClients] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
-  const [selectedClient, setSelectedClient] = useState(null);
-  const [title, setTitle] = useState('');
-  const [preparedBy, setPreparedBy] = useState('');
-  const [introNote, setIntroNote] = useState('');
-  const [requiresSignature, setRequiresSignature] = useState(false);
-  const [taxClientType, setTaxClientType] = useState('final');
-  const [paymentSchedule, setPaymentSchedule] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(initialData ? {
+    id: initialData.proposal.client_id,
+    name: initialData.proposal.clients?.name,
+    company: initialData.proposal.clients?.company,
+    client_type: initialData.proposal.clients?.client_type,
+  } : null);
+  const [title, setTitle] = useState(initialData?.proposal.title ?? '');
+  const [preparedBy, setPreparedBy] = useState(initialData?.proposal.prepared_by ?? '');
+  const [introNote, setIntroNote] = useState(initialData?.proposal.intro_note ?? '');
+  const [requiresSignature, setRequiresSignature] = useState(initialData?.proposal.requires_signature ?? false);
+  const [taxClientType, setTaxClientType] = useState(initialData?.proposal.tax_client_type ?? 'final');
+  const [paymentSchedule, setPaymentSchedule] = useState(
+    (initialData?.payments ?? []).map(p => ({
+      key: Math.random().toString(36).slice(2),
+      label: p.label,
+      basis: p.basis,
+      percent: p.percent,
+      due_trigger: p.due_trigger ?? '',
+    }))
+  );
 
   function addPayment() {
     setPaymentSchedule(prev => [...prev, { key: Math.random().toString(36).slice(2), label: `Pago ${prev.length + 1}`, basis: 'parts', percent: '', due_trigger: '' }]);
@@ -59,27 +124,39 @@ export default function NuevaPropuestaForm() {
   function removePayment(key) {
     setPaymentSchedule(prev => prev.filter(p => p.key !== key));
   }
-  const [multiOption, setMultiOption] = useState(false);
-  const [options, setOptions] = useState([emptyOption('Propuesta')]);
+  const [multiOption, setMultiOption] = useState((initialData?.options?.length ?? 0) > 1);
+  const [options, setOptions] = useState(() => {
+    if (!initialData?.options?.length) return [emptyOption('Propuesta')];
+    return initialData.options.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map(opt => ({
+      key: Math.random().toString(36).slice(2),
+      name: opt.name,
+      description: opt.description ?? '',
+      is_recommended: opt.is_recommended,
+      areas: itemsToAreas(opt.items),
+    }));
+  });
   const [coverPhoto, setCoverPhoto] = useState(null);
-  const [coverPreview, setCoverPreview] = useState(null);
-  const [terms, setTerms] = useState('Esta propuesta es válida por 30 días a partir de la fecha de envío. Los precios incluyen materiales y labor según lo descrito. Cualquier trabajo adicional fuera del alcance será cotizado por separado.');
-  const [validUntil, setValidUntil] = useState('');
+  const [coverPreview, setCoverPreview] = useState(initialData?.proposal.cover_photo_signed_url ?? null);
+  const [existingCoverPath, setExistingCoverPath] = useState(initialData?.proposal.cover_photo_url ?? null);
+  const [terms, setTerms] = useState(initialData?.proposal.terms ?? 'Esta propuesta es válida por 30 días a partir de la fecha de envío. Los precios incluyen materiales y labor según lo descrito. Cualquier trabajo adicional fuera del alcance será cotizado por separado.');
+  const [validUntil, setValidUntil] = useState(initialData?.proposal.valid_until ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     supabase.from('clients').select('id, name, client_type').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) return;
-      const { data: profile } = await supabase.from('profiles').select('name').eq('id', session.user.id).single();
-      if (profile?.name) setPreparedBy(profile.name);
-    });
+    if (!isEdit) {
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
+        if (!session) return;
+        const { data: profile } = await supabase.from('profiles').select('name').eq('id', session.user.id).single();
+        if (profile?.name) setPreparedBy(profile.name);
+      });
+    }
   }, []);
 
   useEffect(() => {
-    if (clientIdParam && clients.length) {
+    if (!isEdit && clientIdParam && clients.length) {
       const match = clients.find(c => c.id === clientIdParam);
       if (match) {
         setSelectedClient(match);
@@ -158,8 +235,11 @@ export default function NuevaPropuestaForm() {
   }
   function handleItemPhoto(optKey, areaKey, itemKey, file) {
     if (!file) return;
-    updateItem(optKey, areaKey, itemKey, 'photoFile', file);
-    updateItem(optKey, areaKey, itemKey, 'photoPreview', URL.createObjectURL(file));
+    setOptions(prev => prev.map(o => o.key === optKey
+      ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.map(it => it.key === itemKey ? {
+            ...it, photoFile: file, photoPreview: URL.createObjectURL(file), existingPhotoPath: null,
+          } : it) } : a) }
+      : o));
   }
 
   function itemLineTotal(it) {
@@ -175,10 +255,11 @@ export default function NuevaPropuestaForm() {
     if (!file) return;
     setCoverPhoto(file);
     setCoverPreview(URL.createObjectURL(file));
+    setExistingCoverPath(null);
   }
 
   async function uploadItemPhoto(it, optionId, sortOrder) {
-    if (!it.photoFile) return null;
+    if (!it.photoFile) return it.existingPhotoPath ?? null;
     const ext = it.photoFile.name.split('.').pop();
     const path = `proposals/${optionId}/${Date.now()}-${sortOrder}.${ext}`;
     const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, it.photoFile);
@@ -189,35 +270,69 @@ export default function NuevaPropuestaForm() {
     if (!selectedClient || !title.trim()) { setError('Cliente y título son requeridos'); return; }
     setSaving(true); setError('');
 
-    const { data: last } = await supabase.from('proposals').select('proposal_number').order('created_at', { ascending: false }).limit(1).single();
-    let nextNum = 1001;
-    if (last?.proposal_number) {
-      const n = parseInt(last.proposal_number.replace('PROP-', ''));
-      if (!isNaN(n)) nextNum = n + 1;
+    let proposal;
+    if (isEdit) {
+      const { data: current } = await supabase.from('proposals').select('status').eq('id', initialData.proposal.id).single();
+      if (!current || !['borrador', 'enviada', 'vista'].includes(current.status)) {
+        setError('Esta propuesta ya no se puede editar (fue aprobada o rechazada).');
+        setSaving(false);
+        return;
+      }
     }
 
-    let coverPath = null;
+    let coverPath = existingCoverPath;
     if (coverPhoto) {
       const ext = coverPhoto.name.split('.').pop();
       coverPath = `proposals/covers/${Date.now()}.${ext}`;
       await supabase.storage.from('Job-photos').upload(coverPath, coverPhoto);
     }
 
-    const { data: proposal, error: err } = await supabase.from('proposals').insert([{
-      proposal_number: `PROP-${nextNum}`,
-      client_id: selectedClient.id,
-      title: title.trim(),
-      prepared_by: preparedBy.trim() || null,
-      intro_note: introNote.trim() || null,
-      requires_signature: requiresSignature,
-      status: 'borrador',
-      tax_client_type: taxClientType,
-      cover_photo_url: coverPath,
-      terms: terms.trim() || null,
-      valid_until: validUntil || null,
-    }]).select().single();
+    if (isEdit) {
+      const { data: updated, error: err } = await supabase.from('proposals').update({
+        client_id: selectedClient.id,
+        title: title.trim(),
+        prepared_by: preparedBy.trim() || null,
+        intro_note: introNote.trim() || null,
+        requires_signature: requiresSignature,
+        tax_client_type: taxClientType,
+        cover_photo_url: coverPath,
+        terms: terms.trim() || null,
+        valid_until: validUntil || null,
+      }).eq('id', initialData.proposal.id).select().single();
+      if (err) { setError(err.message); setSaving(false); return; }
+      proposal = updated;
 
-    if (err) { setError(err.message); setSaving(false); return; }
+      const { data: existingOptions } = await supabase.from('proposal_options').select('id').eq('proposal_id', proposal.id);
+      const optionIds = (existingOptions ?? []).map(o => o.id);
+      if (optionIds.length) {
+        await supabase.from('proposal_line_items').delete().in('option_id', optionIds);
+        await supabase.from('proposal_options').delete().eq('proposal_id', proposal.id);
+      }
+      await supabase.from('proposal_payments').delete().eq('proposal_id', proposal.id);
+    } else {
+      const { data: last } = await supabase.from('proposals').select('proposal_number').order('created_at', { ascending: false }).limit(1).single();
+      let nextNum = 1001;
+      if (last?.proposal_number) {
+        const n = parseInt(last.proposal_number.replace('PROP-', ''));
+        if (!isNaN(n)) nextNum = n + 1;
+      }
+
+      const { data: created, error: err } = await supabase.from('proposals').insert([{
+        proposal_number: `PROP-${nextNum}`,
+        client_id: selectedClient.id,
+        title: title.trim(),
+        prepared_by: preparedBy.trim() || null,
+        intro_note: introNote.trim() || null,
+        requires_signature: requiresSignature,
+        status: 'borrador',
+        tax_client_type: taxClientType,
+        cover_photo_url: coverPath,
+        terms: terms.trim() || null,
+        valid_until: validUntil || null,
+      }]).select().single();
+      if (err) { setError(err.message); setSaving(false); return; }
+      proposal = created;
+    }
 
     for (let i = 0; i < options.length; i++) {
       const opt = options[i];
@@ -299,7 +414,7 @@ export default function NuevaPropuestaForm() {
     <div className="admin-shell">
       <Sidebar />
       <main className="main-content">
-        <div className="page-header"><div className="page-title">Nueva propuesta</div></div>
+        <div className="page-header"><div className="page-title">{isEdit ? 'Editar propuesta' : 'Nueva propuesta'}</div></div>
 
         {error && <p style={{ color: 'var(--warn)', fontSize: 14, marginBottom: 12 }}>{error}</p>}
 
@@ -521,7 +636,7 @@ export default function NuevaPropuestaForm() {
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button type="button" className="btn btn-primary" disabled={saving} onClick={handleSave} style={{ flex: 1, justifyContent: 'center' }}>
-              {saving ? 'Guardando...' : 'Guardar propuesta'}
+              {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Guardar propuesta'}
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => router.back()}>Cancelar</button>
           </div>

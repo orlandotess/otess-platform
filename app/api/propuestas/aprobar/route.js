@@ -12,12 +12,15 @@ export async function POST(request) {
 
   const { data: proposal } = await supabase
     .from('proposals')
-    .select('id, proposal_number, title, status, requires_signature, clients(name)')
+    .select('id, proposal_number, title, status, requires_signature, valid_until, clients(name)')
     .eq('public_token', token)
     .single();
 
   if (!proposal) return Response.json({ error: 'Propuesta no encontrada' }, { status: 404 });
   if (proposal.status === 'aprobada') return Response.json({ error: 'Esta propuesta ya fue aprobada' }, { status: 400 });
+  if (proposal.valid_until && new Date(proposal.valid_until + 'T23:59:59') < new Date()) {
+    return Response.json({ error: 'Esta propuesta ya expiró' }, { status: 400 });
+  }
 
   if (proposal.requires_signature && !signed_name?.trim()) {
     return Response.json({ error: 'Falta la firma' }, { status: 400 });

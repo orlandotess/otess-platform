@@ -19,6 +19,19 @@ export default async function PropuestaPublicPage({ params }) {
     );
   }
 
+  const isExpired = proposal.valid_until && proposal.status !== 'aprobada' && new Date(proposal.valid_until + 'T23:59:59') < new Date();
+  if (isExpired) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '-apple-system,sans-serif', background: '#fafafa', padding: 20 }}>
+        <div style={{ background: '#fff', borderRadius: 12, padding: 40, maxWidth: 420, textAlign: 'center', border: '1px solid #eee' }}>
+          <div style={{ fontSize: 32, marginBottom: 12, color: '#999' }}>⏳</div>
+          <div style={{ fontSize: 19, fontWeight: 700, color: '#16223d', marginBottom: 8 }}>Esta propuesta expiró</div>
+          <p style={{ fontSize: 14, color: '#888' }}>Era válida hasta el {new Date(proposal.valid_until + 'T00:00:00').toLocaleDateString('es-PR', { dateStyle: 'long' })}. Contáctanos si deseas una propuesta actualizada.</p>
+        </div>
+      </div>
+    );
+  }
+
   const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
   const { data: payments } = await supabase.from('proposal_payments').select('*').eq('proposal_id', proposal.id).order('sort_order');
   const { data: companyInfo } = await supabase.from('company_settings').select('*').limit(1).single();

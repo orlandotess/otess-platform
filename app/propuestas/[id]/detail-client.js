@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import ProposalDocument, { financialBreakdown } from '../ProposalDocument';
 
@@ -83,6 +84,9 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
           <span className="badge" style={{ color: STATUS_COLORS[status] ?? '#888' }}>
             {STATUS_LABELS[status] ?? status}
           </span>
+          {['borrador', 'enviada', 'vista'].includes(status) && (
+            <Link href={`/propuestas/${proposal.id}/editar`} className="btn btn-ghost">✏️ Editar</Link>
+          )}
           {status === 'borrador' && (
             <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
               {sending ? 'Enviando...' : 'Enviar propuesta'}
