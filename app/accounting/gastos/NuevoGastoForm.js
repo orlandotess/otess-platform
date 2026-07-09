@@ -8,6 +8,9 @@ const expenseCategories = [
   { value: 'herramientas', label: 'Herramientas' },
   { value: 'subcontratista', label: 'Subcontratista' },
   { value: 'oficina', label: 'Oficina' },
+  { value: 'parking', label: 'Parking' },
+  { value: 'equipos', label: 'Equipos' },
+  { value: 'meals', label: 'Meals' },
   { value: 'otro', label: 'Otro' },
 ];
 

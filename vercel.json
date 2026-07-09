@@ -7,6 +7,10 @@
     {
       "path": "/api/invoice-reminders/run",
       "schedule": "15 12 * * *"
+    },
+    {
+      "path": "/api/recurring-expenses/run",
+      "schedule": "0 13 * * *"
     }
   ]
 }

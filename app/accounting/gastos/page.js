@@ -12,6 +12,9 @@ const CATEGORY_LABELS = {
   herramientas: "Herramientas",
   subcontratista: "Subcontratista",
   oficina: "Oficina",
+  parking: "Parking",
+  equipos: "Equipos",
+  meals: "Meals",
   otro: "Otro",
 };
 
@@ -88,6 +91,7 @@ export default async function GastosPage({ searchParams }) {
             <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>Materiales, gasolina, herramientas y otros — {periodLabel}</p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
+            <Link href="/accounting/gastos/recurrentes" className="btn btn-ghost">🔁 Gastos recurrentes</Link>
             <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
           </div>
         </div>
