@@ -3,19 +3,12 @@ export const revalidate = 0;
 import { supabaseServer as supabase } from '../../lib/supabase';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
-
-const statusBadge = {
-  estimate:    { cls: 'badge-gray',  label: 'Estimado' },
-  scheduled:   { cls: 'badge-blue',  label: 'Programado' },
-  in_progress: { cls: 'badge-amber', label: 'En progreso' },
-  completed:   { cls: 'badge-green', label: 'Completado' },
-  cancelled:   { cls: 'badge-red',   label: 'Cancelado' },
-};
+import TrabajosTableClient from './TrabajosTableClient';
 
 export default async function TrabajosPage() {
   const { data: jobs } = await supabase
     .from('jobs')
-    .select('id, title, status, scheduled_start, clients(name)')
+    .select('id, title, status, scheduled_start, property_name, street, city, state, zip, clients(name)')
     .order('created_at', { ascending: false });
 
   return (
@@ -26,46 +19,18 @@ export default async function TrabajosPage() {
           <div className="page-title">Trabajos</div>
           <Link href="/trabajos/nuevo" className="btn btn-primary">+ Nuevo trabajo</Link>
         </div>
-        <div className="card">
-          {!jobs?.length ? (
+        {!jobs?.length ? (
+          <div className="card">
             <div className="empty">
               <div className="empty-glyph">🔧</div>
               <h3>No hay trabajos aún</h3>
               <p>Cuando crees un trabajo para un cliente, aparecerá aquí.</p>
               <Link href="/trabajos/nuevo" className="btn btn-primary btn-sm">+ Crear trabajo</Link>
             </div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Trabajo</th>
-                    <th>Cliente</th>
-                    <th>Estado</th>
-                    <th>Fecha programada</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {jobs.map(j => {
-                    const b = statusBadge[j.status] ?? statusBadge.estimate;
-                    return (
-                      <tr key={j.id}>
-                        <td style={{ fontWeight: 600 }}>{j.title}</td>
-                        <td style={{ color: 'var(--muted)' }}>{j.clients?.name ?? '—'}</td>
-                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                          {j.scheduled_start ? new Date(j.scheduled_start).toLocaleDateString('es-PR') : '—'}
-                        </td>
-                        <td><Link href={`/trabajos/${j.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <TrabajosTableClient jobs={jobs} />
+        )}
       </main>
     </div>
   );

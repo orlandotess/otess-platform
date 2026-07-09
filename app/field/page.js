@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import PhotoAnnotator from '../PhotoAnnotator';
-import { buildMapsLinks } from '../../lib/mapsLinks';
+import { buildMapsLinks, pickMapsLink } from '../../lib/mapsLinks';
 import { normalizeName } from '../../lib/normalizeName';
 import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
 
@@ -42,6 +42,7 @@ function blankExpenseForm() {
   return { category: 'materiales', description: '', vendor: '', amount: '', expense_date: new Date().toISOString().slice(0, 10) };
 }
 
+
 // Extra non-consecutive work days (job_schedule_days) can carry their own technician
 // and date, independent of the job's main scheduled_start/technician_id assignment.
 async function fetchScheduleDayJobs(techId) {
@@ -58,6 +59,7 @@ export default function FieldApp() {
   const [tab, setTab] = useState('home');
   const [jobs, setJobs] = useState([]);
   const [jobFilter, setJobFilter] = useState('today');
+  const [jobSearch, setJobSearch] = useState('');
   const [clockedIn, setClockedIn] = useState(false);
   const [activeEntry, setActiveEntry] = useState(null);
   const [timeEntries, setTimeEntries] = useState([]);
@@ -713,16 +715,33 @@ export default function FieldApp() {
       <FieldIcon name={icon} />{label}
     </button>
   );
-  const JobRow = ({ j, onClick }) => (
-    <div onClick={onClick} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>{j.title}</div>
-        <div style={{ fontSize: 13, color: '#888', marginTop: 2 }}>{j.clients?.name}</div>
-        {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>📅 {new Date(j.scheduled_start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>}
+  const JobRow = ({ j, onClick }) => {
+    const location = [j.property_name, j.city].filter(Boolean).join(' — ');
+    const hasAddress = j.street || j.city;
+    return (
+      <div onClick={onClick} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{j.title}</div>
+          <div style={{ fontSize: 13, color: '#888', marginTop: 2 }}>{j.clients?.name}</div>
+          {location && (
+            hasAddress ? (
+              <a
+                href={pickMapsLink(j.street, j.city, j.state, j.zip)}
+                target="_blank" rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                style={{ display: 'block', fontSize: 12, color: ORANGE, marginTop: 3, fontWeight: 600, textDecoration: 'underline' }}>
+                📍 {location}
+              </a>
+            ) : (
+              <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>📍 {location}</div>
+            )
+          )}
+          {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>📅 {new Date(j.scheduled_start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>}
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 10px', borderRadius: 20, marginLeft: 10, whiteSpace: 'nowrap' }}>{SL[j.status]}</span>
       </div>
-      <span style={{ fontSize: 11, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 10px', borderRadius: 20, marginLeft: 10, whiteSpace: 'nowrap' }}>{SL[j.status]}</span>
-    </div>
-  );
+    );
+  };
 
   const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const totalDetailExpenses = detailExpenses.reduce((a, e) => a + Number(e.amount ?? 0), 0);
@@ -797,7 +816,7 @@ export default function FieldApp() {
               <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 14 }}>Jobs</div>
               <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: 14 }}>
                 <span>🔍</span>
-                <input placeholder="Search jobs or customer..." style={{ border: 'none', background: 'none', fontSize: 15, outline: 'none', width: '100%' }} />
+                <input value={jobSearch} onChange={e => setJobSearch(e.target.value)} placeholder="Search jobs, customer or location..." style={{ border: 'none', background: 'none', fontSize: 15, outline: 'none', width: '100%' }} />
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {['today', 'upcoming', 'done', 'all'].map(f => (
@@ -808,10 +827,20 @@ export default function FieldApp() {
               </div>
             </div>
             <div style={card}>
-              {loading ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Loading...</div>
-                : jobs.length === 0 ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>No jobs here.</div>
-                  : jobs.map((j, i) => <JobRow key={j._scheduleDayId ? `day-${j._scheduleDayId}` : `${j.id}-${i}`} j={j} onClick={() => openJobDetail(j)} />)
-              }
+              {(() => {
+                const term = jobSearch.trim().toLowerCase();
+                const visibleJobs = term
+                  ? jobs.filter(j =>
+                      (j.title ?? '').toLowerCase().includes(term) ||
+                      (j.clients?.name ?? '').toLowerCase().includes(term) ||
+                      (j.property_name ?? '').toLowerCase().includes(term) ||
+                      (j.street ?? '').toLowerCase().includes(term) ||
+                      (j.city ?? '').toLowerCase().includes(term))
+                  : jobs;
+                return loading ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Loading...</div>
+                  : visibleJobs.length === 0 ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>No jobs here.</div>
+                    : visibleJobs.map((j, i) => <JobRow key={j._scheduleDayId ? `day-${j._scheduleDayId}` : `${j.id}-${i}`} j={j} onClick={() => openJobDetail(j)} />);
+              })()}
             </div>
           </div>
         )}
@@ -862,8 +891,11 @@ export default function FieldApp() {
             </div>
             {selectedDay && selectedDay.entries.length > 0 && (
               <div style={{ ...card, marginTop: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#16223d' }}>
-                  {selectedDay.date.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' })}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: '#16223d' }}>
+                    {selectedDay.date.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </div>
+                  <button onClick={() => setSelectedDay(null)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#555', cursor: 'pointer' }}>✕</button>
                 </div>
                 {selectedDay.entries.map((e, i) => {
                   const inTime = new Date(e.clocked_in_at);
