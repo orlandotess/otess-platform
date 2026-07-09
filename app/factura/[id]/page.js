@@ -79,8 +79,12 @@ export default async function FacturaPublica({ params }) {
   const billToName = inv.bill_to === 'company' && inv.clients?.company ? inv.clients.company : inv.clients?.name;
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  const today = new Date().toISOString().slice(0, 10);
+  const isOverdue = inv.status === 'sent' && inv.due_at && inv.due_at < today;
   const statusLabel = { draft: 'Borrador', sent: 'Enviada', paid: 'Pagada', cancelled: 'Cancelada' };
   const statusColor = { draft: '#5b6473', sent: '#2a4cb5', paid: '#1a7a4a', cancelled: '#b52a2a' };
+  const displayStatus = isOverdue ? 'Vencida' : statusLabel[inv.status];
+  const displayColor = isOverdue ? '#b52a2a' : statusColor[inv.status];
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
@@ -100,8 +104,11 @@ export default async function FacturaPublica({ params }) {
             <div style={{ textAlign: 'right' }}>
               <div style={{ color: '#16223d', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em' }}>FACTURA</div>
               <div style={{ color: '#999', fontSize: 15, fontWeight: 600, fontFamily: 'monospace', marginTop: 2 }}>{inv.invoice_number}</div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: displayColor, background: displayColor + '18', padding: '3px 10px', borderRadius: 20, marginTop: 6 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: displayColor }} />{displayStatus}
+              </div>
               <div style={{ color: '#999', fontSize: 12, marginTop: 8 }}>Fecha: <strong style={{ color: '#555' }}>{inv.issued_at}</strong></div>
-              {inv.due_at && <div style={{ color: '#999', fontSize: 12 }}>Vence: <strong style={{ color: '#555' }}>{inv.due_at}</strong></div>}
+              {inv.due_at && <div style={{ color: '#999', fontSize: 12 }}>Vence: <strong style={{ color: isOverdue ? '#b52a2a' : '#555' }}>{inv.due_at}</strong></div>}
             </div>
           </div>
 
