@@ -100,6 +100,7 @@ export default function PropuestaForm({ initialData = null }) {
     company: initialData.proposal.clients?.company,
     client_type: initialData.proposal.clients?.client_type,
   } : null);
+  const [proposalNumber, setProposalNumber] = useState(initialData?.proposal.proposal_number ?? '');
   const [title, setTitle] = useState(initialData?.proposal.title ?? '');
   const [preparedBy, setPreparedBy] = useState(initialData?.proposal.prepared_by ?? '');
   const [introNote, setIntroNote] = useState(initialData?.proposal.intro_note ?? '');
@@ -139,7 +140,7 @@ export default function PropuestaForm({ initialData = null }) {
   const [coverPreview, setCoverPreview] = useState(initialData?.proposal.cover_photo_signed_url ?? null);
   const [existingCoverPath, setExistingCoverPath] = useState(initialData?.proposal.cover_photo_url ?? null);
   const [terms, setTerms] = useState(initialData?.proposal.terms ?? 'Esta propuesta es válida por 30 días a partir de la fecha de envío. Los precios incluyen materiales y labor según lo descrito. Cualquier trabajo adicional fuera del alcance será cotizado por separado.');
-  const [validUntil, setValidUntil] = useState(initialData?.proposal.valid_until ?? '');
+  const [validUntil, setValidUntil] = useState(initialData?.proposal.valid_until ?? new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -268,6 +269,7 @@ export default function PropuestaForm({ initialData = null }) {
 
   async function handleSave() {
     if (!selectedClient || !title.trim()) { setError('Cliente y título son requeridos'); return; }
+    if (isEdit && !proposalNumber.trim()) { setError('El número de propuesta es requerido'); return; }
     setSaving(true); setError('');
 
     let proposal;
@@ -289,6 +291,7 @@ export default function PropuestaForm({ initialData = null }) {
 
     if (isEdit) {
       const { data: updated, error: err } = await supabase.from('proposals').update({
+        proposal_number: proposalNumber.trim(),
         client_id: selectedClient.id,
         title: title.trim(),
         prepared_by: preparedBy.trim() || null,
@@ -450,6 +453,13 @@ export default function PropuestaForm({ initialData = null }) {
                 </div>
               )}
             </div>
+
+            {isEdit && (
+              <div className="form-group">
+                <label>Número de propuesta *</label>
+                <input value={proposalNumber} onChange={e => setProposalNumber(e.target.value)} placeholder="PROP-1001" style={{ maxWidth: 200 }} />
+              </div>
+            )}
 
             <div className="form-group">
               <label>Título de la propuesta *</label>

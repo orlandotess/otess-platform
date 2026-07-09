@@ -14,6 +14,8 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   const [copied, setCopied] = useState(false);
   const [status, setStatus] = useState(proposal.status);
   const [generatingPdf, setGeneratingPdf] = useState(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function handlePdf(optId) {
     setGeneratingPdf(optId);
@@ -71,6 +73,24 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function deleteProposal() {
+    setDeleting(true);
+    const { data: opts } = await supabase.from('proposal_options').select('id').eq('proposal_id', proposal.id);
+    const optionIds = (opts ?? []).map(o => o.id);
+    if (optionIds.length) {
+      await supabase.from('proposal_line_items').delete().in('option_id', optionIds);
+      await supabase.from('proposal_options').delete().eq('proposal_id', proposal.id);
+    }
+    await supabase.from('proposal_payments').delete().eq('proposal_id', proposal.id);
+    const { error } = await supabase.from('proposals').delete().eq('id', proposal.id);
+    if (error) {
+      setDeleting(false);
+      alert('No se pudo eliminar la propuesta: ' + error.message);
+      return;
+    }
+    window.location.href = '/propuestas';
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -97,8 +117,25 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
               {sending ? 'Enviando...' : '↻ Reenviar propuesta'}
             </button>
           )}
+          <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
         </div>
       </div>
+
+      {showDelete && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar propuesta?</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-ghost" onClick={deleteProposal} disabled={deleting}
+                style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>
+                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
+              </button>
+              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {status !== 'borrador' && (
         <div className="card" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
