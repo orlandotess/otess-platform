@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
-import PayPalButton from './PayPalButton';
 
 export default async function FacturaPublica({ params }) {
   const { id } = params;
@@ -205,10 +204,6 @@ export default async function FacturaPublica({ params }) {
                 )}
               </div>
             </div>
-
-            {balance > 0.01 && inv.status !== 'cancelled' && (
-              <PayPalButton invoiceId={id} balance={balance} />
-            )}
 
             {inv.notes && (
               <div style={{ marginTop: 24, padding: '14px 18px', background: '#fafafa', borderRadius: 8, fontSize: 13, color: '#999', border: '1px solid #f0f0f0' }}>
