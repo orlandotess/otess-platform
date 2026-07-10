@@ -821,7 +821,7 @@ export default function FieldApp() {
   const jobDaysSet = new Set(calendarJobs.filter(j => j.scheduled_start).map(j => new Date(j.scheduled_start).toDateString()));
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: BG, fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: BG, fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto', paddingTop: 'env(safe-area-inset-top,0px)' }}>
       <div
         ref={scrollRef}
         onTouchStart={handlePullStart}
