@@ -83,6 +83,42 @@ export default function FieldApp() {
   const [allJobs, setAllJobs] = useState([]);
   const fileRef = useRef();
 
+  // Pull-to-refresh — the app shell is position:fixed (no native page scroll), so
+  // Safari's native swipe-to-refresh never fires here even installed to homescreen.
+  const [pullY, setPullY] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const scrollRef = useRef(null);
+  const pullStartY = useRef(0);
+  const pulling = useRef(false);
+  const PULL_THRESHOLD = 70;
+
+  function handlePullStart(e) {
+    if (refreshing || !scrollRef.current || scrollRef.current.scrollTop > 0) { pulling.current = false; return; }
+    pullStartY.current = e.touches[0].clientY;
+    pulling.current = true;
+  }
+  function handlePullMove(e) {
+    if (!pulling.current || refreshing) return;
+    const delta = e.touches[0].clientY - pullStartY.current;
+    if (delta > 0 && scrollRef.current && scrollRef.current.scrollTop <= 0) {
+      setPullY(Math.min(delta * 0.5, 90));
+    } else {
+      pulling.current = false;
+      setPullY(0);
+    }
+  }
+  function handlePullEnd() {
+    if (!pulling.current) return;
+    pulling.current = false;
+    if (pullY > PULL_THRESHOLD) {
+      setRefreshing(true);
+      setPullY(PULL_THRESHOLD);
+      window.location.reload();
+    } else {
+      setPullY(0);
+    }
+  }
+
   // General/job expense (FAB) — job optional, blank job = gasto general
   const [showJobExpense, setShowJobExpense] = useState(false);
   const [expenseJob, setExpenseJob] = useState(undefined); // undefined = choosing target, null = general, job = job-tied
@@ -784,7 +820,21 @@ export default function FieldApp() {
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: BG, fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto' }}>
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 80 }}>
+      <div
+        ref={scrollRef}
+        onTouchStart={handlePullStart}
+        onTouchMove={handlePullMove}
+        onTouchEnd={handlePullEnd}
+        style={{ flex: 1, overflowY: 'auto', paddingBottom: 80 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: pullY, overflow: 'hidden', transition: pulling.current ? 'none' : 'height 0.2s' }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+            style={{ transform: refreshing ? 'none' : `rotate(${Math.min(pullY / PULL_THRESHOLD, 1) * 180}deg)`, animation: refreshing ? 'crew-ptr-spin 0.7s linear infinite' : 'none' }}>
+            <path d="M4 12a8 8 0 0 1 14.5-4.65M20 12a8 8 0 0 1-14.5 4.65" />
+            <path d="M4 4v4h4M20 20v-4h-4" />
+          </svg>
+        </div>
+        <style>{`@keyframes crew-ptr-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
         {tab === 'home' && (
           <div>
