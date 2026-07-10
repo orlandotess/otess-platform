@@ -1730,30 +1730,24 @@ export default function FieldApp() {
         </div>
       )}
 
-      {/* Top-right dropdown menu — houses Clientes, Actualizar and Salir so they stay clear of
-          the bottom tab bar. The + FAB moved back to its original bottom-right spot since
-          removing Clientes from the tab bar means it no longer sits directly above a nav icon. */}
-      <button aria-label="Menú" style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 16px)', right: 16, width: 40, height: 40, background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #dde1e7', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.12)', zIndex: 149, fontSize: 18, color: '#333' }}
+      {/* Dropdown menu — replaces the standalone + FAB in the same bottom-right spot, houses
+          Nuevo, Clientes, Actualizar and Salir so nothing floats loose near the tab bar. */}
+      <button aria-label="Menú" style={{ position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, background: showMenu ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 22, color: '#fff' }}
         onClick={() => setShowMenu(v => !v)}>
         {showMenu ? '✕' : '☰'}
       </button>
 
       {showMenu && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 148 }} onClick={() => setShowMenu(false)} />
-          <div style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 62px)', right: 16, zIndex: 149, background: '#fff', borderRadius: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', overflow: 'hidden', minWidth: 190 }}>
-            <button style={menuItem} onClick={() => { setShowMenu(false); setRefreshing(true); window.location.reload(); }}>🔄 Actualizar</button>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowMenu(false)} />
+          <div style={{ position: 'fixed', bottom: 140, right: 20, zIndex: 99, background: '#fff', borderRadius: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', overflow: 'hidden', minWidth: 190 }}>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setShowFab(true); }}>➕ Nuevo</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setTab('clientes'); }}>👥 Clientes</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setRefreshing(true); window.location.reload(); }}>🔄 Actualizar</button>
             <button style={{ ...menuItem, borderBottom: 'none', color: '#b52a2a' }} onClick={() => { setShowMenu(false); handleLogout(); }}>🚪 Salir</button>
           </div>
         </>
       )}
-
-      {/* FAB */}
-      <button style={{ position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, background: showFab ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 24, color: '#fff' }}
-        onClick={() => setShowFab(!showFab)}>
-        {showFab ? '✕' : '+'}
-      </button>
 
       {showFab && tab !== 'clientes' && (
         <>

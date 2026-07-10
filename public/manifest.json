@@ -1,0 +1,15 @@
+{
+  "name": "OTESS Platform",
+  "short_name": "OTESS",
+  "start_url": "/crew",
+  "display": "standalone",
+  "background_color": "#EAEEF2",
+  "theme_color": "#E05C2A",
+  "icons": [
+    {
+      "src": "/otess-logo.png",
+      "sizes": "968x270",
+      "type": "image/png"
+    }
+  ]
+}

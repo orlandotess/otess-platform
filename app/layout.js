@@ -3,6 +3,7 @@ import './globals.css';
 export const metadata = {
   title: 'OTESS Platform',
   description: 'OT Electrical and Security Solutions — Plataforma interna',
+  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
