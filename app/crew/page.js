@@ -18,6 +18,9 @@ const ICON_PATHS = {
   calendar: <><rect x="4" y="5" width="16" height="15" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></>,
   projects: <><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></>,
   clientes: <><circle cx="9" cy="8" r="3.2"/><path d="M3 20 a 6 6 0 0 1 12 0"/><circle cx="17.5" cy="8.5" r="2.3"/><path d="M15.5 13.7 a 5.2 5.2 0 0 1 5.5 5.3"/></>,
+  note: <><path d="M6 3.5h8l4 4V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M14 3.5V8h4"/><line x1="8" y1="12.5" x2="15" y2="12.5"/><line x1="8" y1="16.5" x2="13" y2="16.5"/></>,
+  camera: <><path d="M4 8h3l2-2h6l2 2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="14" r="3.3"/></>,
+  cash: <><rect x="3" y="6.5" width="18" height="11" rx="2"/><circle cx="12" cy="12" r="2.4"/><line x1="6.5" y1="9.5" x2="6.5" y2="9.5"/><line x1="17.5" y1="14.5" x2="17.5" y2="14.5"/></>,
 };
 function FieldIcon({ name }) {
   return (
@@ -40,6 +43,9 @@ const EXPENSE_CATEGORIES = [
 ];
 function blankExpenseForm() {
   return { category: 'materiales', description: '', vendor: '', amount: '', expense_date: new Date().toISOString().slice(0, 10) };
+}
+function blankClientForm() {
+  return { name: '', client_type: 'final', email: '', phone: '', company: '' };
 }
 
 
@@ -185,6 +191,13 @@ export default function FieldApp() {
   const [clientDetailProperties, setClientDetailProperties] = useState([]);
   const [clientDetailContacts, setClientDetailContacts] = useState([]);
   const [loadingClientDetail, setLoadingClientDetail] = useState(false);
+
+  // New client (FAB, Clientes tab)
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientForm, setNewClientForm] = useState(blankClientForm());
+  const [newClientAddr, setNewClientAddr] = useState({ line1: '', city: '', zip: '' });
+  const [savingNewClient, setSavingNewClient] = useState(false);
+  const [newClientError, setNewClientError] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -738,6 +751,33 @@ export default function FieldApp() {
     setLoadingClientDetail(false);
   }
 
+  function closeNewClientModal() {
+    setShowNewClient(false);
+    setNewClientForm(blankClientForm());
+    setNewClientAddr({ line1: '', city: '', zip: '' });
+    setNewClientError('');
+  }
+
+  async function saveNewClient(e) {
+    e.preventDefault();
+    if (!newClientForm.name.trim()) { setNewClientError('El nombre es requerido'); return; }
+    setSavingNewClient(true);
+    setNewClientError('');
+    const { data: client, error: err } = await supabase.from('clients').insert([newClientForm]).select().single();
+    if (err) { setNewClientError('No se pudo guardar. Intenta de nuevo.'); setSavingNewClient(false); return; }
+    if (newClientAddr.line1.trim()) {
+      await supabase.from('client_properties').insert([{
+        client_id: client.id, street: newClientAddr.line1.trim(), city: newClientAddr.city.trim(), state: 'PR', zip: newClientAddr.zip.trim(), is_primary: true,
+      }]);
+    }
+    setSavingNewClient(false);
+    setShowFab(false);
+    closeNewClientModal();
+    setClientSearch('');
+    setClientResults(prev => [client, ...prev]);
+    openClientDetail(client);
+  }
+
   const fmtE = s => String(Math.floor(s / 3600)).padStart(2, '0') + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
   const fmtH = es => (es.reduce((a, e) => a + (e.clocked_out_at ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60 : 0), 0)).toFixed(1) + 'h';
   // Job the technician is currently clocked into, used to skip the "select job" step in the FAB
@@ -753,7 +793,7 @@ export default function FieldApp() {
   const card = { margin: '0 14px 12px', background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' };
   const navBtn = a => ({ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '10px 0 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 600, color: a ? ORANGE : '#aaa' });
   const ftab = a => ({ padding: '8px 16px', borderRadius: 50, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: a ? 'none' : '1.5px solid #dde1e7', background: a ? '#1a1a1a' : '#fff', color: a ? '#fff' : '#333' });
-  const fmi = c => ({ background: c || ORANGE, color: '#fff', border: 'none', borderRadius: 50, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' });
+  const fmi = c => ({ background: c || ORANGE, color: '#fff', border: 'none', borderRadius: 50, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 8 });
   const menuItem = { display: 'block', width: '100%', textAlign: 'left', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid #eee', fontSize: 14, fontWeight: 600, color: '#333', cursor: 'pointer' };
   const NavI = ({ tab: t, icon, label }) => (
     <button style={navBtn(tab === t)} onClick={() => { setTab(t); setShowFab(false); }}>
@@ -1741,7 +1781,7 @@ export default function FieldApp() {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowMenu(false)} />
           <div style={{ position: 'fixed', bottom: 156, right: 20, zIndex: 99, background: '#fff', borderRadius: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', overflow: 'hidden', minWidth: 190 }}>
-            <button style={menuItem} onClick={() => { setShowMenu(false); setShowFab(true); }}>➕ Nuevo</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); if (tab === 'clientes') { setShowNewClient(true); } else { setShowFab(true); } }}>➕ Nuevo</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setTab('clientes'); }}>👥 Clientes</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setRefreshing(true); window.location.reload(); }}>🔄 Actualizar</button>
             <button style={{ ...menuItem, borderBottom: 'none', color: '#b52a2a' }} onClick={() => { setShowMenu(false); handleLogout(); }}>🚪 Salir</button>
@@ -1753,12 +1793,59 @@ export default function FieldApp() {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 97 }} onClick={() => setShowFab(false)} />
           <div style={{ position: 'fixed', bottom: 140, right: 20, zIndex: 98, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-            <button style={fmi('#2a4cb5')} onClick={() => { setFabSelectedJob(activeJob); setShowJobNote(true); setShowFab(false); }}>📝 Agregar nota</button>
-            <button style={fmi('#1a7a4a')} onClick={() => { setFabSelectedJob(activeJob); setShowJobPhoto(true); setShowFab(false); }}>📸 Agregar foto</button>
-            <button style={fmi('#7a4cb5')} onClick={() => { setExpenseJob(activeJob ?? undefined); setShowJobExpense(true); setShowFab(false); }}>💸 Agregar gasto</button>
-            <button style={fmi(ORANGE)} onClick={() => { setShowJobClock(true); setShowFab(false); }}>⏱ Clock In a trabajo</button>
+            <button style={fmi('#2a4cb5')} onClick={() => { setFabSelectedJob(activeJob); setShowJobNote(true); setShowFab(false); }}><FieldIcon name="note" />Agregar nota</button>
+            <button style={fmi('#1a7a4a')} onClick={() => { setFabSelectedJob(activeJob); setShowJobPhoto(true); setShowFab(false); }}><FieldIcon name="camera" />Agregar foto</button>
+            <button style={fmi('#7a4cb5')} onClick={() => { setExpenseJob(activeJob ?? undefined); setShowJobExpense(true); setShowFab(false); }}><FieldIcon name="cash" />Agregar gasto</button>
+            <button style={fmi(ORANGE)} onClick={() => { setShowJobClock(true); setShowFab(false); }}><FieldIcon name="time" />Clock In a trabajo</button>
           </div>
         </>
+      )}
+
+      {showNewClient && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={closeNewClientModal}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>👤 Nuevo cliente</div>
+              <button onClick={closeNewClientModal} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+            </div>
+            <form onSubmit={saveNewClient}>
+              {newClientError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '8px 10px', fontSize: 12, marginBottom: 12 }}>⚠️ {newClientError}</div>
+              )}
+              <div style={{ marginBottom: 8 }}>
+                <input value={newClientForm.name} onChange={e => setNewClientForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre *"
+                  style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <input value={newClientForm.phone} onChange={e => setNewClientForm(f => ({ ...f, phone: e.target.value }))} placeholder="Teléfono"
+                  style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+                <input type="email" value={newClientForm.email} onChange={e => setNewClientForm(f => ({ ...f, email: e.target.value }))} placeholder="Email"
+                  style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <input value={newClientForm.company} onChange={e => setNewClientForm(f => ({ ...f, company: e.target.value }))} placeholder="Empresa (opcional)"
+                  style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+              </div>
+              <select value={newClientForm.client_type} onChange={e => setNewClientForm(f => ({ ...f, client_type: e.target.value }))}
+                style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', marginBottom: 8 }}>
+                <option value="final">Consumidor final</option>
+                <option value="b2b">Comerciante registrado B2B</option>
+              </select>
+              <input value={newClientAddr.line1} onChange={e => setNewClientAddr(a => ({ ...a, line1: e.target.value }))} placeholder="Dirección (opcional)"
+                style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', marginBottom: 8 }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                <input value={newClientAddr.city} onChange={e => setNewClientAddr(a => ({ ...a, city: e.target.value }))} placeholder="Ciudad"
+                  style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+                <input value={newClientAddr.zip} onChange={e => setNewClientAddr(a => ({ ...a, zip: e.target.value }))} placeholder="Código postal"
+                  style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="submit" disabled={savingNewClient} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>{savingNewClient ? 'Guardando...' : 'Guardar cliente'}</button>
+                <button type="button" onClick={closeNewClientModal} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {showJobClock && (
