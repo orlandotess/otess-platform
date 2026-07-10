@@ -12,6 +12,7 @@ const operationsLinks = [
  { href: '/estimados', label: 'Estimados', icon: 'calculator' },
  { href: '/field',      label: 'Field App',  icon: 'phone' },
  { href: '/catalogo', label: 'Labor & Productos', icon: 'toolbox' },
+ { href: '/planos',   label: 'Planos',   icon: 'map' },
 ];
 
 const accountingLinks = [
@@ -67,6 +68,7 @@ const ICON_PATHS = {
   compass: <><circle cx="12" cy="12" r="9"/><path d="M15 9 l-2 6 l-6 2 l2 -6 z"/></>,
   user: <><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20 a 7.5 7.5 0 0 1 15 0"/></>,
   building: <><rect x="4" y="3" width="16" height="18" rx="1"/><rect x="7" y="6" width="3" height="3"/><rect x="14" y="6" width="3" height="3"/><rect x="7" y="11" width="3" height="3"/><rect x="14" y="11" width="3" height="3"/><rect x="9.5" y="16" width="5" height="5"/></>,
+  map: <><path d="M9 4 L3 6.5 v14 L9 18 l6 2.5 L21 18 V4 l-6 2.5 z"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6.5" x2="15" y2="20.5"/></>,
 };
 
 function NavIcon({ name }) {

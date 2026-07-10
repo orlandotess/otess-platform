@@ -13,7 +13,7 @@ function isPublic(pathname) {
 }
 
 // Rutas permitidas para el rol "tecnico" (todo lo demás redirige a /field)
-const TECNICO_ALLOWED = ['/field', '/trabajos', '/clientes'];
+const TECNICO_ALLOWED = ['/field', '/trabajos', '/clientes', '/planos'];
 
 // Rutas bloqueadas para el rol "vendedor" (redirige a /)
 const VENDEDOR_BLOCKED = ['/accounting', '/admin/usuarios'];
