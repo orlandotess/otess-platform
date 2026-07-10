@@ -10,7 +10,7 @@ const operationsLinks = [
  { href: '/calendario', label: 'Calendario', icon: 'calendar' },
  { href: '/propuestas', label: 'Propuestas', icon: 'fileText' },
  { href: '/estimados', label: 'Estimados', icon: 'calculator' },
- { href: '/field',      label: 'Field App',  icon: 'phone' },
+ { href: '/crew',       label: 'Crew App',   icon: 'phone' },
  { href: '/catalogo', label: 'Labor & Productos', icon: 'toolbox' },
  { href: '/planos',   label: 'Planos',   icon: 'map' },
 ];

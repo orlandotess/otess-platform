@@ -71,7 +71,7 @@ export default async function Home() {
               Bienvenido a OTESS Platform
             </p>
           </div>
-          <Link href="/field" className="btn btn-orange">📱 Abrir Field App</Link>
+          <Link href="/crew" className="btn btn-orange">📱 Abrir Crew App</Link>
         </div>
 
         <div className="stats-grid">

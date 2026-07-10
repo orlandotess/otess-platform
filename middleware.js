@@ -12,8 +12,8 @@ function isPublic(pathname) {
   return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));
 }
 
-// Rutas permitidas para el rol "tecnico" (todo lo demás redirige a /field)
-const TECNICO_ALLOWED = ['/field', '/trabajos', '/clientes', '/planos'];
+// Rutas permitidas para el rol "tecnico" (todo lo demás redirige a /crew)
+const TECNICO_ALLOWED = ['/crew', '/trabajos', '/clientes', '/planos'];
 
 // Rutas bloqueadas para el rol "vendedor" (redirige a /)
 const VENDEDOR_BLOCKED = ['/accounting', '/admin/usuarios'];
@@ -73,7 +73,7 @@ export async function middleware(request) {
     const allowed = TECNICO_ALLOWED.some(p => pathname === p || pathname.startsWith(p + '/'));
     if (!allowed) {
       const url = request.nextUrl.clone();
-      url.pathname = '/field';
+      url.pathname = '/crew';
       return NextResponse.redirect(url);
     }
   } else if (role === 'vendedor') {
