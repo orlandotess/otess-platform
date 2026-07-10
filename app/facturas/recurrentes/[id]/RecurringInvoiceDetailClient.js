@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../../../lib/supabase';
+import LineItemRow from '../../../LineItemRow';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 const STATUS_BADGE = { draft: { cls: 'badge-gray', label: 'Borrador' }, sent: { cls: 'badge-blue', label: 'Enviada' }, paid: { cls: 'badge-green', label: 'Pagada' }, cancelled: { cls: 'badge-red', label: 'Cancelada' } };
@@ -128,10 +129,6 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
               <label>Notas / Términos de pago</label>
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)} />
             </div>
-            <div className="form-group">
-              <label>Términos del proyecto</label>
-              <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={4} style={{ fontSize: 13, lineHeight: 1.6 }} />
-            </div>
           </div>
 
           <div className="card">
@@ -155,7 +152,7 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
                 <input type="number" min="0" value={form.due_days} onChange={e => set('due_days', e.target.value)} />
               </div>
             </div>
-            <div style={{ background: '#f8f9fb', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)' }}>
+            <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)' }}>
               Se repetirá cada {form.frequency === 'weekly' ? 'semana, el mismo día de la semana' : form.frequency === 'monthly' ? 'mes, el mismo día del mes' : form.frequency === 'quarterly' ? '3 meses, el mismo día del mes' : 'año, en la misma fecha'} elegida arriba.
             </div>
           </div>
@@ -165,28 +162,24 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de factura</p>
               <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 70px 100px 80px 32px', gap: 6, marginBottom: 8 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Tipo</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Descripción</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cant.</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Precio</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Exento</div>
-              <div></div>
-            </div>
             {items.map(item => (
-              <div key={item.key} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 70px 100px 80px 32px', gap: 6, marginBottom: 8, alignItems: 'center' }}>
-                <select value={item.type} onChange={e => setItem(item.key, 'type', e.target.value)} style={{ fontSize: 13 }}>
-                  <option value="labor">Labor</option>
-                  <option value="product">Producto</option>
-                </select>
-                <input value={item.description} onChange={e => setItem(item.key, 'description', e.target.value)} placeholder="Descripción..." style={{ fontSize: 13 }} />
-                <input type="number" value={item.quantity} onChange={e => setItem(item.key, 'quantity', e.target.value)} min="0" step="0.01" style={{ fontSize: 13 }} />
-                <input type="number" value={item.unit_price} onChange={e => setItem(item.key, 'unit_price', e.target.value)} placeholder="0.00" min="0" step="0.01" style={{ fontSize: 13 }} />
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <input type="checkbox" checked={item.exempt} onChange={e => setItem(item.key, 'exempt', e.target.checked)} style={{ width: 16, height: 16 }} />
-                </div>
-                <button type="button" onClick={() => removeItem(item.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>×</button>
-              </div>
+              <LineItemRow
+                key={item.key}
+                type={item.type}
+                onTypeChange={v => setItem(item.key, 'type', v)}
+                description={item.description}
+                onDescriptionChange={v => setItem(item.key, 'description', v)}
+                quantity={item.quantity}
+                onQuantityChange={v => setItem(item.key, 'quantity', v)}
+                unitPrice={item.unit_price}
+                onUnitPriceChange={v => setItem(item.key, 'unit_price', v)}
+                exempt={item.exempt}
+                onExemptChange={v => setItem(item.key, 'exempt', v)}
+                fmt={fmt}
+                actions={
+                  <button type="button" onClick={() => removeItem(item.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
+                }
+              />
             ))}
           </div>
 
@@ -215,13 +208,20 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
               </div>
             )}
           </div>
+
+          <div className="card">
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Términos del proyecto</p>
+            <div className="form-group">
+              <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={4} style={{ fontSize: 13, lineHeight: 1.6 }} />
+            </div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
             <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
             {clientType === 'b2b' && (
-              <div style={{ background: '#e8eeff', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#2a4cb5', fontWeight: 600 }}>
+              <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
                 Cliente B2B — Labor al 4%
               </div>
             )}

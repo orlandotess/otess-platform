@@ -26,6 +26,9 @@ export default function LineItemRow({
   const subtotal = (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
   const matchedCatalogItem = catalogItemId ? catalogOptions.find(c => c.id === catalogItemId) : null;
   const stockHint = type === 'product' && matchedCatalogItem?.stock_quantity != null ? matchedCatalogItem.stock_quantity : null;
+  const hasMsrp = !!onMsrpChange;
+  const hasSupplierPrice = !!onSupplierPriceChange;
+  const hasPhoto = !!onPhotoSelect || !!photoUrl;
 
   if (isAccessory) {
     return (
@@ -69,18 +72,20 @@ export default function LineItemRow({
 
   return (
     <div style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start', background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 10, position: 'relative' }}>
-      <label style={{ cursor: viewMode ? 'default' : 'pointer', flexShrink: 0 }}>
-        {photoUrl ? (
-          <img src={photoUrl} style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 8, background: '#f4f6f9' }} />
-        ) : !viewMode ? (
-          <div style={{ width: 56, height: 56, borderRadius: 8, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: 'var(--muted)' }}>
-            {uploadingPhoto ? '...' : '📷'}
-          </div>
-        ) : null}
-        {!viewMode && (
-          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => onPhotoSelect?.(e.target.files?.[0])} />
-        )}
-      </label>
+      {hasPhoto && (
+        <label style={{ cursor: viewMode ? 'default' : 'pointer', flexShrink: 0 }}>
+          {photoUrl ? (
+            <img src={photoUrl} style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 8, background: '#f4f6f9' }} />
+          ) : !viewMode ? (
+            <div style={{ width: 56, height: 56, borderRadius: 8, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: 'var(--muted)' }}>
+              {uploadingPhoto ? '...' : '📷'}
+            </div>
+          ) : null}
+          {!viewMode && (
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => onPhotoSelect?.(e.target.files?.[0])} />
+          )}
+        </label>
+      )}
 
       <div style={{ flex: 1, minWidth: 0 }}>
         {viewMode ? (
@@ -111,15 +116,23 @@ export default function LineItemRow({
       <div style={{ textAlign: 'right', flexShrink: 0, width: 100 }}>
         {viewMode ? (
           <>
-            <div style={{ fontSize: 11, color: 'var(--muted)', textDecoration: msrp != null ? 'line-through' : 'none' }}>{msrp != null ? fmt(msrp) : '—'}</div>
+            {hasMsrp && (
+              <div style={{ fontSize: 11, color: 'var(--muted)', textDecoration: msrp != null ? 'line-through' : 'none' }}>{msrp != null ? fmt(msrp) : '—'}</div>
+            )}
             <div style={{ fontSize: 13, fontWeight: 700 }}>{fmt(unitPrice)}</div>
-            <div style={{ fontSize: 11, color: '#b52a2a' }}>{supplierPrice != null ? fmt(supplierPrice) : '—'}</div>
+            {hasSupplierPrice && (
+              <div style={{ fontSize: 11, color: '#b52a2a' }}>{supplierPrice != null ? fmt(supplierPrice) : '—'}</div>
+            )}
           </>
         ) : (
           <>
-            <input type="number" value={msrp} onChange={e => onMsrpChange(e.target.value)} placeholder="MSRP" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--muted)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="MSRP (referencia, solo interno)" />
+            {hasMsrp && (
+              <input type="number" value={msrp} onChange={e => onMsrpChange(e.target.value)} placeholder="MSRP" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--muted)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="MSRP (referencia, solo interno)" />
+            )}
             <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder="Precio venta" style={{ fontSize: 13, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="Precio de venta al cliente" />
-            <input type="number" value={supplierPrice} onChange={e => onSupplierPriceChange(e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: '#b52a2a', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
+            {hasSupplierPrice && (
+              <input type="number" value={supplierPrice} onChange={e => onSupplierPriceChange(e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: '#b52a2a', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
+            )}
           </>
         )}
       </div>

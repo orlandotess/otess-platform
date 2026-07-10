@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Sidebar from '../../../Sidebar';
+import LineItemRow from '../../../LineItemRow';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
@@ -83,7 +84,7 @@ export default function NuevaFacturaRecurrenteForm() {
   }
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-facturas">
       <Sidebar />
       <main className="main-content">
         <div className="page-header"><div className="page-title">Nueva factura recurrente</div></div>
@@ -127,10 +128,6 @@ export default function NuevaFacturaRecurrenteForm() {
                 <label>Notas / Términos de pago</label>
                 <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Términos de pago, notas para el cliente..." />
               </div>
-              <div className="form-group">
-                <label>Términos del proyecto</label>
-                <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={4} style={{ fontSize: 13, lineHeight: 1.6 }} />
-              </div>
             </div>
 
             <div className="card">
@@ -154,7 +151,7 @@ export default function NuevaFacturaRecurrenteForm() {
                 <label>Días para vencer</label>
                 <input type="number" min="0" value={form.due_days} onChange={e => set('due_days', e.target.value)} />
               </div>
-              <div style={{ background: '#f8f9fb', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)' }}>
+              <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)' }}>
                 Se generará y enviará automáticamente al cliente cada vez que llegue esta fecha, y luego se repetirá según la frecuencia elegida (mismo día {form.frequency === 'weekly' ? 'de la semana' : 'del mes'}).
               </div>
             </div>
@@ -165,30 +162,32 @@ export default function NuevaFacturaRecurrenteForm() {
                 <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 70px 100px 80px 32px', gap: 6, marginBottom: 8 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Tipo</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Descripción</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cant.</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Precio</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Exento</div>
-                <div></div>
-              </div>
-
               {items.map((item, idx) => (
-                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 70px 100px 80px 32px', gap: 6, marginBottom: 8, alignItems: 'center' }}>
-                  <select value={item.type} onChange={e => setItem(idx, 'type', e.target.value)} style={{ fontSize: 13 }}>
-                    <option value="labor">Labor</option>
-                    <option value="product">Producto</option>
-                  </select>
-                  <input value={item.description} onChange={e => setItem(idx, 'description', e.target.value)} placeholder="Descripción..." style={{ fontSize: 13 }} />
-                  <input type="number" value={item.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)} min="0" step="0.01" style={{ fontSize: 13 }} />
-                  <input type="number" value={item.unit_price} onChange={e => setItem(idx, 'unit_price', e.target.value)} placeholder="0.00" min="0" step="0.01" style={{ fontSize: 13 }} />
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <input type="checkbox" checked={item.exempt} onChange={e => setItem(idx, 'exempt', e.target.checked)} style={{ width: 16, height: 16 }} />
-                  </div>
-                  <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>×</button>
-                </div>
+                <LineItemRow
+                  key={idx}
+                  type={item.type}
+                  onTypeChange={v => setItem(idx, 'type', v)}
+                  description={item.description}
+                  onDescriptionChange={v => setItem(idx, 'description', v)}
+                  quantity={item.quantity}
+                  onQuantityChange={v => setItem(idx, 'quantity', v)}
+                  unitPrice={item.unit_price}
+                  onUnitPriceChange={v => setItem(idx, 'unit_price', v)}
+                  exempt={item.exempt}
+                  onExemptChange={v => setItem(idx, 'exempt', v)}
+                  fmt={fmt}
+                  actions={
+                    <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
+                  }
+                />
               ))}
+            </div>
+
+            <div className="card">
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Términos del proyecto</p>
+              <div className="form-group">
+                <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={4} style={{ fontSize: 13, lineHeight: 1.6 }} />
+              </div>
             </div>
           </div>
 
@@ -196,7 +195,7 @@ export default function NuevaFacturaRecurrenteForm() {
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
               {clientType === 'b2b' && (
-                <div style={{ background: '#e8eeff', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#2a4cb5', fontWeight: 600 }}>
+                <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
                   Cliente B2B — Labor al 4%
                 </div>
               )}
