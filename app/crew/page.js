@@ -1732,7 +1732,7 @@ export default function FieldApp() {
 
       {/* Dropdown menu — replaces the standalone + FAB in the same bottom-right spot, houses
           Nuevo, Clientes, Actualizar and Salir so nothing floats loose near the tab bar. */}
-      <button aria-label="Menú" style={{ position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, background: showMenu ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 22, color: '#fff' }}
+      <button aria-label="Menú" style={{ position: 'fixed', bottom: 96, right: 20, width: 52, height: 52, background: showMenu ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 22, color: '#fff' }}
         onClick={() => setShowMenu(v => !v)}>
         {showMenu ? '✕' : '☰'}
       </button>
@@ -1740,7 +1740,7 @@ export default function FieldApp() {
       {showMenu && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowMenu(false)} />
-          <div style={{ position: 'fixed', bottom: 140, right: 20, zIndex: 99, background: '#fff', borderRadius: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', overflow: 'hidden', minWidth: 190 }}>
+          <div style={{ position: 'fixed', bottom: 156, right: 20, zIndex: 99, background: '#fff', borderRadius: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', overflow: 'hidden', minWidth: 190 }}>
             <button style={menuItem} onClick={() => { setShowMenu(false); setShowFab(true); }}>➕ Nuevo</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setTab('clientes'); }}>👥 Clientes</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setRefreshing(true); window.location.reload(); }}>🔄 Actualizar</button>
