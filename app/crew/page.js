@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { buildMapsLinks, pickMapsLink } from '../../lib/mapsLinks';
 import { normalizeName } from '../../lib/normalizeName';
 import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
+import { shareImageForMarkup, canShareFiles } from '../../lib/shareForMarkup';
 
 const ORANGE = '#E05C2A';
 const AMBER = '#e0972c';
@@ -171,6 +172,19 @@ export default function FieldApp() {
   const [savingExpenseEdit, setSavingExpenseEdit] = useState(false);
   const fileRef4 = useRef();
   const [lightbox, setLightbox] = useState(null); // { urls: [], index: 0 }
+  const [sharingPhoto, setSharingPhoto] = useState(false);
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => { setCanShare(canShareFiles()); }, []);
+
+  async function handleShareForMarkup(url) {
+    setSharingPhoto(true);
+    try {
+      await shareImageForMarkup(url);
+    } catch (err) {
+      if (err?.name !== 'AbortError') console.error('Share error:', err);
+    }
+    setSharingPhoto(false);
+  }
   const fileRef2 = useRef();
 
   // Calendar state
@@ -1683,6 +1697,13 @@ export default function FieldApp() {
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, cursor: 'zoom-out' }}>
           <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', zIndex: 3 }}>×</button>
+
+          {canShare && (
+            <button onClick={e => { e.stopPropagation(); handleShareForMarkup(lightbox.urls[lightbox.index]); }} disabled={sharingPhoto}
+              style={{ position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 20, padding: '10px 18px', cursor: 'pointer', zIndex: 3 }}>
+              {sharingPhoto ? '⏳ Abriendo...' : '✏️ Marcar'}
+            </button>
+          )}
 
           {lightbox.urls.length > 1 && (
             <div style={{ position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)', color: '#fff', fontSize: 14, fontWeight: 600, background: 'rgba(255,255,255,0.15)', padding: '4px 14px', borderRadius: 20 }}>
