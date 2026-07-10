@@ -4,6 +4,7 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import JobTabs from './JobTabs';
+import { normalizeName } from '../../../lib/normalizeName';
 
 const statusBadge = {
   estimate:    { cls: 'badge-gray',  label: 'Estimado' },
@@ -95,6 +96,10 @@ export default async function TrabajoDetail({ params }) {
     (expenses ?? []).map(async (exp) => ({ ...exp, receipt_signed_url: await signPath(exp.receipt_url) }))
   );
 
+  // OTESS is the office/admin account — only gets administrative jobs, never
+  // shows up as an assignable field technician.
+  const assignableTechnicians = (technicians ?? []).filter(t => normalizeName(t.name) !== 'otess');
+
   const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
   const clientType = job.clients?.client_type ?? 'final';
 
@@ -131,7 +136,7 @@ export default async function TrabajoDetail({ params }) {
         <JobTabs
           job={job}
           items={itemsWithSignedUrls}
-          technicians={technicians ?? []}
+          technicians={assignableTechnicians}
           notes={notesWithSignedUrls}
           checklist={checklist ?? []}
           templates={templates ?? []}
