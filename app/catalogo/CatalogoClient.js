@@ -176,7 +176,7 @@ export default function CatalogoClient({ items: initial }) {
       <div style={{ position: "relative", marginBottom: 20 }}>
         <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}>🔍</span>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Buscar en ${TYPE_META[tab].label}...`}
-          style={{ width: "100%", padding: "14px 16px 14px 42px", border: "1.5px solid var(--border)", borderRadius: 12, fontSize: 15, background: "#fff" }} />
+          style={{ width: "100%", padding: "14px 16px 14px 42px", border: "1.5px solid var(--border)", borderRadius: 12, fontSize: 15, background: "var(--surface)" }} />
       </div>
 
       {/* Category cards */}
@@ -184,7 +184,7 @@ export default function CatalogoClient({ items: initial }) {
         {Object.entries(TYPE_META).map(([key, meta]) => (
           <div key={key} onClick={() => setTab(key)}
             style={{
-              background: "#fff", borderRadius: 14, padding: "20px 16px", cursor: "pointer", textAlign: "center",
+              background: "var(--surface)", borderRadius: 14, padding: "20px 16px", cursor: "pointer", textAlign: "center",
               border: tab === key ? `2.5px solid ${meta.color}` : "2.5px solid transparent",
               boxShadow: tab === key ? `0 4px 16px ${meta.color}33` : "0 1px 4px rgba(0,0,0,0.06)",
             }}>
@@ -205,7 +205,7 @@ export default function CatalogoClient({ items: initial }) {
           {showMenu && (
             <>
               <div style={{ position: "fixed", inset: 0, zIndex: 10 }} onClick={() => setShowMenu(false)} />
-              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "#fff", border: "1.5px solid var(--border)", borderRadius: 10, boxShadow: "0 4px 20px rgba(0,0,0,0.12)", zIndex: 11, minWidth: 180, overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: 10, boxShadow: "0 4px 20px rgba(0,0,0,0.12)", zIndex: 11, minWidth: 180, overflow: "hidden" }}>
                 <button onClick={exportCSV} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>⬇ Exportar CSV</button>
                 <button onClick={() => { fileRef.current?.click(); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>⬆ Importar CSV</button>
               </div>
@@ -218,13 +218,13 @@ export default function CatalogoClient({ items: initial }) {
 
       {/* Add form */}
       {adding && (
-        <div style={{ background: "#fff", border: "1.5px dashed var(--amber)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div style={{ background: "var(--surface)", border: "1.5px dashed var(--amber)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
           <div style={{ display: "flex", gap: 12 }}>
             <label style={{ cursor: "pointer", flexShrink: 0 }}>
               {newPhotoPreview ? (
                 <img src={newPhotoPreview} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }} />
               ) : (
-                <div style={{ width: 64, height: 64, borderRadius: 8, background: "#f4f6f9", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "var(--muted)" }}>📷</div>
+                <div style={{ width: 64, height: 64, borderRadius: 8, background: "var(--surface-2)", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "var(--muted)" }}>📷</div>
               )}
               <input ref={newPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
                 const f = e.target.files?.[0];
@@ -236,7 +236,7 @@ export default function CatalogoClient({ items: initial }) {
               <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
               <input type="number" value={newItem.msrp} onChange={e => setNewItem(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)" }} />
               <input type="number" value={newItem.price} onChange={e => setNewItem(f => ({ ...f, price: e.target.value }))} placeholder="Precio venta" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
-              <input type="number" value={newItem.supplier_price} onChange={e => setNewItem(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "#b52a2a" }} />
+              <input type="number" value={newItem.supplier_price} onChange={e => setNewItem(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--warn)" }} />
               <input list="vendor-options" value={newItem.vendor} onChange={e => setNewItem(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
               {dataType === "product" && (
                 <input type="number" value={newItem.stock_quantity} onChange={e => setNewItem(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--navy)" }} title="Cantidad en inventario" />
@@ -259,14 +259,14 @@ export default function CatalogoClient({ items: initial }) {
             const margin = item.price > 0 && item.supplier_price != null
               ? Math.round(((item.price - item.supplier_price) / item.price) * 100) : null;
             return (
-              <div key={item.id} style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div key={item.id} style={{ background: "var(--surface)", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", gap: 8 }}>
                 {editingId === item.id ? (
                   <>
                     <label style={{ cursor: "pointer", alignSelf: "center" }}>
                       {editPhotoPreview ? (
-                        <img src={editPhotoPreview} style={{ width: 80, height: 80, objectFit: "contain", borderRadius: 8, background: "#f4f6f9" }} />
+                        <img src={editPhotoPreview} style={{ width: 80, height: 80, objectFit: "contain", borderRadius: 8, background: "var(--surface-2)" }} />
                       ) : (
-                        <div style={{ width: 80, height: 80, borderRadius: 8, background: "#f4f6f9", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "var(--muted)" }}>📷</div>
+                        <div style={{ width: 80, height: 80, borderRadius: 8, background: "var(--surface-2)", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "var(--muted)" }}>📷</div>
                       )}
                       <input ref={editPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
                         const f = e.target.files?.[0];
@@ -277,7 +277,7 @@ export default function CatalogoClient({ items: initial }) {
                     <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
                     <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)" }} />
                     <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
-                    <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "#b52a2a" }} />
+                    <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)" }} />
                     <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} />
                     {item.type === "product" && (
                       <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)" }} title="Cantidad en inventario" />
@@ -289,7 +289,7 @@ export default function CatalogoClient({ items: initial }) {
                   </>
                 ) : (
                   <>
-                    <div style={{ width: "100%", height: 110, borderRadius: 8, background: "#f4f6f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, overflow: "hidden" }}>
+                    <div style={{ width: "100%", height: 110, borderRadius: 8, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, overflow: "hidden" }}>
                       {item.photo_url && signedUrls[item.photo_url] ? (
                         <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                       ) : "📦"}
@@ -300,14 +300,14 @@ export default function CatalogoClient({ items: initial }) {
                       {item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
                       <div style={{ fontWeight: 800, fontSize: 18, color: "var(--navy)" }}>{fmt(item.price)}</div>
                       {item.supplier_price != null && (
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#b52a2a" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--warn)" }}>
                           <span>Costo: {fmt(item.supplier_price)}</span>
-                          {margin != null && <span style={{ color: margin >= 0 ? "#0e8f7a" : "#b52a2a", fontWeight: 700 }}>{margin}%</span>}
+                          {margin != null && <span style={{ color: margin >= 0 ? "#0e8f7a" : "var(--warn)", fontWeight: 700 }}>{margin}%</span>}
                         </div>
                       )}
                       {item.vendor && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>🏪 {item.vendor}</div>}
                       {item.type === "product" && item.stock_quantity != null && (
-                        <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "#b52a2a" : "var(--navy)", fontWeight: 700, marginTop: 2 }}>📦 Stock: {item.stock_quantity}</div>
+                        <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700, marginTop: 2 }}>📦 Stock: {item.stock_quantity}</div>
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
@@ -321,16 +321,16 @@ export default function CatalogoClient({ items: initial }) {
           })}
         </div>
       ) : (
-        <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+        <div style={{ background: "var(--surface)", borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
           {filtered.map((item, idx) => (
             <div key={item.id} style={{ padding: "14px 18px", borderBottom: idx < filtered.length - 1 ? "1px solid var(--border)" : "none" }}>
               {editingId === item.id ? (
                 <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                   <label style={{ cursor: "pointer", flexShrink: 0 }}>
                     {editPhotoPreview ? (
-                      <img src={editPhotoPreview} style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 8, background: "#f4f6f9" }} />
+                      <img src={editPhotoPreview} style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 8, background: "var(--surface-2)" }} />
                     ) : (
-                      <div style={{ width: 56, height: 56, borderRadius: 8, background: "#f4f6f9", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "var(--muted)" }}>📷</div>
+                      <div style={{ width: 56, height: 56, borderRadius: 8, background: "var(--surface-2)", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "var(--muted)" }}>📷</div>
                     )}
                     <input ref={editPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
                       const f = e.target.files?.[0];
@@ -350,7 +350,7 @@ export default function CatalogoClient({ items: initial }) {
                   <div style={{ textAlign: "right", flexShrink: 0, width: 100 }}>
                     <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)", textAlign: "right", width: "100%", marginBottom: 3 }} />
                     <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: "right", width: "100%", marginBottom: 3 }} />
-                    <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "#b52a2a", textAlign: "right", width: "100%" }} />
+                    <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)", textAlign: "right", width: "100%" }} />
                     <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} />
                     {item.type === "product" && (
                       <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)", textAlign: "right", width: "100%", marginTop: 3 }} title="Cantidad en inventario" />
@@ -359,7 +359,7 @@ export default function CatalogoClient({ items: initial }) {
                 </div>
               ) : (
                 <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                  <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 8, background: "#f4f6f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, overflow: "hidden" }}>
+                  <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 8, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, overflow: "hidden" }}>
                     {item.photo_url && signedUrls[item.photo_url] ? (
                       <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                     ) : (
@@ -371,13 +371,13 @@ export default function CatalogoClient({ items: initial }) {
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{item.description}</div>
                     {item.vendor && <div style={{ fontSize: 11, color: "var(--muted)" }}>🏪 {item.vendor}</div>}
                     {item.type === "product" && item.stock_quantity != null && (
-                      <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "#b52a2a" : "var(--navy)", fontWeight: 700 }}>📦 Stock: {item.stock_quantity}</div>
+                      <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700 }}>📦 Stock: {item.stock_quantity}</div>
                     )}
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0, width: 110 }}>
                     {item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
                     <div style={{ fontWeight: 800, fontSize: 16, color: "var(--navy)" }}>{fmt(item.price)}</div>
-                    {item.supplier_price != null && <div style={{ fontSize: 11, color: "#b52a2a" }}>Costo: {fmt(item.supplier_price)}</div>}
+                    {item.supplier_price != null && <div style={{ fontSize: 11, color: "var(--warn)" }}>Costo: {fmt(item.supplier_price)}</div>}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                     <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 12px" }}>✏️ Editar</button>
