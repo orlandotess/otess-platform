@@ -8,7 +8,7 @@ import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
-import { shareImageForMarkup, canShareFiles } from '../../../lib/shareForMarkup';
+import { shareImageForMarkup, canShareFiles, hasSeenMarkupHint, markMarkupHintSeen } from '../../../lib/shareForMarkup';
 
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
@@ -450,9 +450,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [lightbox, setLightbox] = useState(null);
   const [sharingPhoto, setSharingPhoto] = useState(false);
   const [canShare, setCanShare] = useState(false);
+  const [markupHintUrl, setMarkupHintUrl] = useState(null);
   useEffect(() => { setCanShare(canShareFiles()); }, []);
 
-  async function handleShareForMarkup(url) {
+  function handleShareForMarkup(url) {
+    if (!hasSeenMarkupHint()) { setMarkupHintUrl(url); return; }
+    doShareForMarkup(url);
+  }
+
+  async function doShareForMarkup(url) {
     setSharingPhoto(true);
     try {
       await shareImageForMarkup(url);
@@ -460,6 +466,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       if (err?.name !== 'AbortError') console.error('Share error:', err);
     }
     setSharingPhoto(false);
+  }
+
+  function confirmMarkupHint() {
+    markMarkupHintSeen();
+    const url = markupHintUrl;
+    setMarkupHintUrl(null);
+    doShareForMarkup(url);
   }
 
   // Checklist state
@@ -1770,6 +1783,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <div style={{ fontSize: 22, fontWeight: 900, color: profitability.gananciaNeta >= 0 ? 'var(--ok)' : 'var(--warn)' }}>
                 {fmt(profitability.gananciaNeta)} {profitability.margenPct != null ? `(${profitability.margenPct.toFixed(0)}%)` : ''}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {markupHintUrl && (
+        <div onClick={() => setMarkupHintUrl(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 24, width: 340, maxWidth: '90vw' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 10, color: 'var(--navy)' }}>✏️ Marcar foto</h3>
+            <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 16 }}>
+              Se abrirá el panel de compartir de iOS. Si no ves <strong>"Markup"</strong> en la fila de arriba, toca <strong>"Ver más"</strong> → <strong>"Editar acciones"</strong> y agrégalo a favoritos — solo hay que hacerlo una vez.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-primary" onClick={confirmMarkupHint} style={{ flex: 1, justifyContent: 'center' }}>Entendido, continuar</button>
+              <button className="btn btn-ghost" onClick={() => setMarkupHintUrl(null)}>Cancelar</button>
             </div>
           </div>
         </div>

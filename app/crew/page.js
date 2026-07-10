@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { buildMapsLinks, pickMapsLink } from '../../lib/mapsLinks';
 import { normalizeName } from '../../lib/normalizeName';
 import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
-import { shareImageForMarkup, canShareFiles } from '../../lib/shareForMarkup';
+import { shareImageForMarkup, canShareFiles, hasSeenMarkupHint, markMarkupHintSeen } from '../../lib/shareForMarkup';
 
 const ORANGE = '#E05C2A';
 const AMBER = '#e0972c';
@@ -140,6 +140,7 @@ export default function FieldApp() {
   const [weekDayForms, setWeekDayForms] = useState({});
   const [savingDay, setSavingDay] = useState(null);
   const [dayFormStatus, setDayFormStatus] = useState({}); // { [dayKey]: 'saved' | 'error' }
+  const [weekStartKey, setWeekStartKey] = useState('');
 
   // Inline edit for an individual clock entry (fix a mistaken clock in/out)
   const [editingEntryId, setEditingEntryId] = useState(null);
@@ -174,9 +175,15 @@ export default function FieldApp() {
   const [lightbox, setLightbox] = useState(null); // { urls: [], index: 0 }
   const [sharingPhoto, setSharingPhoto] = useState(false);
   const [canShare, setCanShare] = useState(false);
+  const [markupHintUrl, setMarkupHintUrl] = useState(null);
   useEffect(() => { setCanShare(canShareFiles()); }, []);
 
-  async function handleShareForMarkup(url) {
+  function handleShareForMarkup(url) {
+    if (!hasSeenMarkupHint()) { setMarkupHintUrl(url); return; }
+    doShareForMarkup(url);
+  }
+
+  async function doShareForMarkup(url) {
     setSharingPhoto(true);
     try {
       await shareImageForMarkup(url);
@@ -184,6 +191,13 @@ export default function FieldApp() {
       if (err?.name !== 'AbortError') console.error('Share error:', err);
     }
     setSharingPhoto(false);
+  }
+
+  function confirmMarkupHint() {
+    markMarkupHintSeen();
+    const url = markupHintUrl;
+    setMarkupHintUrl(null);
+    doShareForMarkup(url);
   }
   const fileRef2 = useRef();
 
@@ -263,7 +277,7 @@ export default function FieldApp() {
     supabase.from('time_entries').select('*').eq('technician_id', techId)
       .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false })
       .then(({ data }) => setTimeEntries(data ?? []));
-  }, [techId, clockedIn]);
+  }, [techId, clockedIn, weekStartKey]);
 
   // Load this technician's assigned jobs for the calendar
   useEffect(() => {
@@ -411,7 +425,27 @@ export default function FieldApp() {
     setWeekDayForms(forms);
   }
 
-  useEffect(() => { if (techId && tab === 'time') loadWeekDayForms(); }, [techId, tab]);
+  useEffect(() => { if (techId && tab === 'time') loadWeekDayForms(); }, [techId, tab, weekStartKey]);
+
+  // Detect the Wed payroll-week rollover while the app stays open (installed PWA left
+  // running across midnight) so stale hours from the prior week get cleared instead of
+  // lingering until the user manually reloads.
+  useEffect(() => {
+    function syncWeekStart() {
+      const key = dayKey(getPayrollWeekDays()[0]);
+      setWeekStartKey(prev => {
+        if (prev && prev !== key) {
+          setWeekDayForms({});
+          setSelectedDay(null);
+        }
+        return key;
+      });
+    }
+    syncWeekStart();
+    const interval = setInterval(syncWeekStart, 60000);
+    document.addEventListener('visibilitychange', syncWeekStart);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', syncWeekStart); };
+  }, []);
 
   function updateDayForm(key, patch) {
     setWeekDayForms(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
@@ -1689,6 +1723,21 @@ export default function FieldApp() {
                 }
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {markupHintUrl && (
+        <div onClick={() => setMarkupHintUrl(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 600 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 24, width: 340, maxWidth: '90vw' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 10 }}>✏️ Marcar foto</h3>
+            <p style={{ fontSize: 13, color: '#666', lineHeight: 1.6, marginBottom: 16 }}>
+              Se abrirá el panel de compartir de iOS. Si no ves <strong>"Markup"</strong> en la fila de arriba, toca <strong>"Ver más"</strong> → <strong>"Editar acciones"</strong> y agrégalo a favoritos — solo hay que hacerlo una vez.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={confirmMarkupHint} style={{ flex: 1, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 0', fontWeight: 700, cursor: 'pointer' }}>Entendido, continuar</button>
+              <button onClick={() => setMarkupHintUrl(null)} style={{ background: '#f0f0f0', border: 'none', borderRadius: 10, padding: '10px 16px', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+            </div>
           </div>
         </div>
       )}
