@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import PhotoAnnotator from '../PhotoAnnotator';
 import { buildMapsLinks, pickMapsLink } from '../../lib/mapsLinks';
 import { normalizeName } from '../../lib/normalizeName';
 import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
@@ -172,8 +171,6 @@ export default function FieldApp() {
   const [savingExpenseEdit, setSavingExpenseEdit] = useState(false);
   const fileRef4 = useRef();
   const [lightbox, setLightbox] = useState(null); // { urls: [], index: 0 }
-  const [annotatingIdx, setAnnotatingIdx] = useState(null);
-  const [annotatingExisting, setAnnotatingExisting] = useState(null); // { noteId, url, path, isGallery, galleryIdx }
   const fileRef2 = useRef();
 
   // Calendar state
@@ -673,34 +670,6 @@ export default function FieldApp() {
     if (!error) setDetailNotes(prev => prev.map(n => n.id === noteId ? { ...n, note: text } : n));
     setEditingDetailNoteId(null);
     setEditingDetailNoteText('');
-  }
-
-  function handleAnnotateSave(blob) {
-    if (annotatingIdx === null) return;
-    const file = new File([blob], detailPhotos[annotatingIdx].name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
-    const newUrl = URL.createObjectURL(blob);
-    setDetailPhotos(prev => prev.map((f, i) => i === annotatingIdx ? file : f));
-    setDetailPhotoPreviews(prev => prev.map((u, i) => i === annotatingIdx ? newUrl : u));
-    setAnnotatingIdx(null);
-  }
-
-  async function handleAnnotateExistingSave(blob) {
-    if (!annotatingExisting) return;
-    const { noteId, path } = annotatingExisting;
-    const { error } = await supabase.storage.from('Job-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
-    if (!error) {
-      const signedUrl = await getSignedUrl(path);
-      setDetailNotes(prev => prev.map(n => {
-        if (n.id !== noteId) return n;
-        if (annotatingExisting.isGallery) {
-          const newUrls = [...n.photo_urls];
-          newUrls[annotatingExisting.galleryIdx] = signedUrl;
-          return { ...n, photo_urls: newUrls, photo_url: newUrls[0] };
-        }
-        return { ...n, photo_url: signedUrl };
-      }));
-    }
-    setAnnotatingExisting(null);
   }
 
   async function toggleCheckItem(item) {
@@ -1512,11 +1481,7 @@ export default function FieldApp() {
                             {detailPhotos[idx]?.type?.startsWith('video') ? (
                               <video src={preview} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                             ) : (
-                              <img src={preview} onClick={() => setAnnotatingIdx(idx)} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }} />
-                            )}
-                            {!detailPhotos[idx]?.type?.startsWith('video') && !savingDetailNote && (
-                              <button type="button" onClick={() => setAnnotatingIdx(idx)}
-                                style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
+                              <img src={preview} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8 }} />
                             )}
                             {savingDetailNote && (
                               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', borderRadius: '0 0 8px 8px', padding: '3px 6px' }}>
@@ -1714,41 +1679,10 @@ export default function FieldApp() {
         </div>
       )}
 
-      {annotatingIdx !== null && detailPhotoPreviews[annotatingIdx] && (
-        <PhotoAnnotator
-          imageUrl={detailPhotoPreviews[annotatingIdx]}
-          onSave={handleAnnotateSave}
-          onCancel={() => setAnnotatingIdx(null)}
-        />
-      )}
-
-      {annotatingExisting && (
-        <PhotoAnnotator
-          imageUrl={annotatingExisting.url}
-          onSave={handleAnnotateExistingSave}
-          onCancel={() => setAnnotatingExisting(null)}
-        />
-      )}
-
       {/* Lightbox with carousel */}
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, cursor: 'zoom-out' }}>
           <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', zIndex: 3 }}>×</button>
-          {lightbox.noteId && (
-            <button onClick={e => {
-              e.stopPropagation();
-              const note = detailNotes.find(n => n.id === lightbox.noteId);
-              const isGallery = note.raw_photo_urls && note.raw_photo_urls.length > 1;
-              setAnnotatingExisting({
-                noteId: lightbox.noteId,
-                url: lightbox.urls[lightbox.index],
-                path: isGallery ? note.raw_photo_urls[lightbox.index] : note.raw_photo_url,
-                isGallery,
-                galleryIdx: lightbox.index,
-              });
-            }}
-              style={{ position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 20, padding: '10px 18px', cursor: 'pointer', zIndex: 3 }}>✏️ Editar</button>
-          )}
 
           {lightbox.urls.length > 1 && (
             <div style={{ position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)', color: '#fff', fontSize: 14, fontWeight: 600, background: 'rgba(255,255,255,0.15)', padding: '4px 14px', borderRadius: 20 }}>
