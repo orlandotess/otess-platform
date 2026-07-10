@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
+import { openPdfPreview } from '../../../lib/openPdfPreview';
 
 export default function ChangeOrderActions({ orderId, status, clientEmail, orderNumber, publicToken }) {
   const router = useRouter();
@@ -22,16 +23,7 @@ export default function ChangeOrderActions({ orderId, status, clientEmail, order
   async function handlePdf() {
     setGeneratingPdf(true);
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const element = document.getElementById('change-order-doc');
-      const opt = {
-        margin: 0.5,
-        filename: `${orderNumber}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-      };
-      await html2pdf().set(opt).from(element).save();
+      await openPdfPreview('change-order-doc', `${orderNumber}.pdf`);
     } catch (err) {
       console.error('PDF error:', err);
     }

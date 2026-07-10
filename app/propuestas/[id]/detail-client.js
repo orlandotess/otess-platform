@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import ProposalDocument, { financialBreakdown } from '../ProposalDocument';
+import { openPdfPreview } from '../../../lib/openPdfPreview';
 
 const STATUS_COLORS = { borrador: '#5b6473', enviada: '#2a4cb5', vista: '#e0972c', aprobada: '#1a7a4a', rechazada: '#b52a2a' };
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', aprobada: 'Aprobada', rechazada: 'Rechazada' };
@@ -20,17 +21,10 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   async function handlePdf(optId) {
     setGeneratingPdf(optId);
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const element = document.getElementById(`proposal-doc-${optId}`);
-      const opt = {
+      await openPdfPreview(`proposal-doc-${optId}`, `${proposal.proposal_number}.pdf`, {
         margin: 0,
-        filename: `${proposal.proposal_number}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
         pagebreak: { mode: 'css' },
-      };
-      await html2pdf().set(opt).from(element).save();
+      });
     } catch (err) {
       console.error('PDF error:', err);
     }

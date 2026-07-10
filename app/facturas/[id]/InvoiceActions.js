@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import NuevaRetencionForm from '../../accounting/retenciones/NuevaRetencionForm';
+import { openPdfPreview } from '../../../lib/openPdfPreview';
 
 const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
 const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -54,16 +55,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   async function handlePdf() {
     setGeneratingPdf(true);
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const element = document.getElementById('invoice-doc');
-      const opt = {
-        margin: 0.5,
-        filename: `${invoiceNumber}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-      };
-      await html2pdf().set(opt).from(element).save();
+      await openPdfPreview('invoice-doc', `${invoiceNumber}.pdf`);
     } catch (err) {
       console.error('PDF error:', err);
     }

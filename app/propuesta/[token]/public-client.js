@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import ProposalDocument, { financialBreakdown } from '../../propuestas/ProposalDocument';
+import { openPdfPreview } from '../../../lib/openPdfPreview';
 
 const NAVY = '#16223d';
 const AMBER = '#e0972c';
@@ -24,17 +25,10 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
   async function handlePdf() {
     setGeneratingPdf(true);
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const element = document.getElementById('proposal-doc-public');
-      const opt = {
+      await openPdfPreview('proposal-doc-public', `${proposal.proposal_number}.pdf`, {
         margin: 0,
-        filename: `${proposal.proposal_number}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
         pagebreak: { mode: 'css' },
-      };
-      await html2pdf().set(opt).from(element).save();
+      });
     } catch (err) {
       console.error('PDF error:', err);
     }
@@ -179,7 +173,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
                 <button onClick={handlePdf} disabled={generatingPdf}
                   style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', color: NAVY }}>
-                  {generatingPdf ? '⏳ Generando...' : '🖨️ Descargar PDF'}
+                  {generatingPdf ? '⏳ Generando...' : '🖨️ Ver PDF'}
                 </button>
               </div>
               <div id="proposal-doc-public" style={{ background: '#fff', borderRadius: 10, overflow: 'hidden', border: '1px solid #eee' }}>

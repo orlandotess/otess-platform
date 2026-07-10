@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { exportPurchaseListCSV } from '../../purchaseListCsv';
+import { openPdfPreview } from '../../../lib/openPdfPreview';
 
 const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
 
@@ -29,16 +30,7 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
   async function handlePdf() {
     setGeneratingPdf(true);
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const element = document.getElementById('estimate-doc');
-      const opt = {
-        margin: 0.5,
-        filename: `${estimateNumber}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-      };
-      await html2pdf().set(opt).from(element).save();
+      await openPdfPreview('estimate-doc', `${estimateNumber}.pdf`);
     } catch (err) {
       console.error('PDF error:', err);
     }
