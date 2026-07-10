@@ -282,6 +282,11 @@ export default function FieldApp() {
     setDetailChecklist(checklist ?? []);
   }
 
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    window.location.replace('/login');
+  }
+
   async function handleClockIn(jobId) {
     if (!techId) return;
     const { data } = await supabase.from('time_entries')
@@ -781,7 +786,8 @@ export default function FieldApp() {
 
         {tab === 'home' && (
           <div>
-            <div style={{ padding: '20px 20px 8px', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ padding: '20px 20px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button onClick={handleLogout} aria-label="Cerrar sesión" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#888', padding: 0 }}>🚪 Salir</button>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{DAYS[now.getDay()].toUpperCase()}, {MON[now.getMonth()]} {now.getDate()}</span>
             </div>
             <div style={{ padding: '0 20px 20px' }}><div style={{ fontSize: 27, fontWeight: 700 }}>{greeting}, {techName}</div></div>
@@ -891,11 +897,8 @@ export default function FieldApp() {
             </div>
             {selectedDay && selectedDay.entries.length > 0 && (
               <div style={{ ...card, marginTop: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: '#16223d' }}>
-                    {selectedDay.date.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' })}
-                  </div>
-                  <button onClick={() => setSelectedDay(null)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#555', cursor: 'pointer' }}>✕</button>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#16223d' }}>
+                  {selectedDay.date.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </div>
                 {selectedDay.entries.map((e, i) => {
                   const inTime = new Date(e.clocked_in_at);
