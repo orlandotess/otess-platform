@@ -69,6 +69,7 @@ export default function FieldApp() {
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [showFab, setShowFab] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
   const [showJobClock, setShowJobClock] = useState(false);
   const [showJobNote, setShowJobNote] = useState(false);
@@ -753,6 +754,7 @@ export default function FieldApp() {
   const navBtn = a => ({ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '10px 0 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 600, color: a ? ORANGE : '#aaa' });
   const ftab = a => ({ padding: '8px 16px', borderRadius: 50, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: a ? 'none' : '1.5px solid #dde1e7', background: a ? '#1a1a1a' : '#fff', color: a ? '#fff' : '#333' });
   const fmi = c => ({ background: c || ORANGE, color: '#fff', border: 'none', borderRadius: 50, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' });
+  const menuItem = { display: 'block', width: '100%', textAlign: 'left', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid #eee', fontSize: 14, fontWeight: 600, color: '#333', cursor: 'pointer' };
   const NavI = ({ tab: t, icon, label }) => (
     <button style={navBtn(tab === t)} onClick={() => { setTab(t); setShowFab(false); }}>
       <FieldIcon name={icon} />{label}
@@ -838,8 +840,7 @@ export default function FieldApp() {
 
         {tab === 'home' && (
           <div>
-            <div style={{ padding: '20px 20px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button onClick={handleLogout} aria-label="Cerrar sesión" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#888', padding: 0 }}>🚪 Salir</button>
+            <div style={{ padding: '20px 20px 8px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{DAYS[now.getDay()].toUpperCase()}, {MON[now.getMonth()]} {now.getDate()}</span>
             </div>
             <div style={{ padding: '0 20px 20px' }}><div style={{ fontSize: 27, fontWeight: 700 }}>{greeting}, {techName}</div></div>
@@ -1729,11 +1730,23 @@ export default function FieldApp() {
         </div>
       )}
 
-      {/* FAB */}
-      {tab !== 'clientes' && (
-        <button style={{ position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, background: showFab ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 24, color: '#fff' }} onClick={() => setShowFab(!showFab)}>
-          {showFab ? '✕' : '+'}
-        </button>
+      {/* Top-right dropdown menu — houses Nuevo (+), Clientes, Actualizar and Salir so they stay
+          clear of the bottom tab bar instead of floating right above/on top of it. */}
+      <button aria-label="Menú" style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 16px)', right: 16, width: 40, height: 40, background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #dde1e7', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.12)', zIndex: 149, fontSize: 18, color: '#333' }}
+        onClick={() => setShowMenu(v => !v)}>
+        {showMenu ? '✕' : '☰'}
+      </button>
+
+      {showMenu && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 148 }} onClick={() => setShowMenu(false)} />
+          <div style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 62px)', right: 16, zIndex: 149, background: '#fff', borderRadius: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', overflow: 'hidden', minWidth: 190 }}>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setRefreshing(true); window.location.reload(); }}>🔄 Actualizar</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setTab('clientes'); }}>👥 Clientes</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setShowFab(true); }}>➕ Nuevo</button>
+            <button style={{ ...menuItem, borderBottom: 'none', color: '#b52a2a' }} onClick={() => { setShowMenu(false); handleLogout(); }}>🚪 Salir</button>
+          </div>
+        </>
       )}
 
       {showFab && tab !== 'clientes' && (
@@ -1897,7 +1910,6 @@ export default function FieldApp() {
         <NavI tab="time" icon="time" label="Time" />
         <NavI tab="calendar" icon="calendar" label="Calendar" />
         <NavI tab="projects" icon="projects" label="Projects" />
-        <NavI tab="clientes" icon="clientes" label="Clientes" />
       </nav>
     </div>
   );
