@@ -443,7 +443,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   const isToday = cell.date === today;
                   return (
                     <div key={idx} style={{ minHeight: 100, height: 100, padding: '6px 8px', borderRadius: 8,
-                      background: isToday ? '#f0f4ff' : '#fff',
+                      background: isToday ? '#f0f4ff' : 'var(--surface)',
                       border: isToday ? '2px solid var(--navy)' : '1px solid var(--border)',
                       opacity: cell.current ? 1 : 0.4,
                       boxSizing: 'border-box', overflow: 'hidden', position: 'relative', cursor: cell.current ? 'pointer' : 'default' }}
@@ -453,7 +453,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={`v${v.id}`} onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: '#fff', border: `2px solid ${techColors[v.technician_id] ?? '#888'}`, color: techColors[v.technician_id] ?? '#888' }}>
+                            background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)' }}>
                           👁 {v.requests?.title ?? 'Visita'}
                         </div>
                       ))}
@@ -461,7 +461,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={j.id} onClick={(e) => { e.stopPropagation(); setSelectedJob(j); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: techColors[j.technician_id] ?? '#888', color: '#fff' }}>
+                            background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff' }}>
                           {j.title}
                         </div>
                       ))}
@@ -469,7 +469,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); setSelectedEvent(e); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: '#fff', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)' }}>
+                            background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)' }}>
                           {ENTRY_TYPE_ICONS.event} {e.title}
                         </div>
                       ))}
@@ -477,7 +477,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); setSelectedTask(t); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', textDecoration: t.completed ? 'line-through' : 'none',
-                            background: '#fff', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)' }}>
+                            background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)' }}>
                           {ENTRY_TYPE_ICONS[t.task_type]} {t.title}
                         </div>
                       ))}
@@ -540,7 +540,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           onClick={() => setScheduleModal({ dateStr, time: `${String(hour).padStart(2,'0')}:00` })}>
                           {hourVisits.map(v => (
                             <div key={`v${v.id}`} onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
-                              style={{ background: '#fff', border: `2px solid ${techColors[v.technician_id] ?? '#888'}`, color: techColors[v.technician_id] ?? '#888',
+                              style={{ background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)',
                                 borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden' }}>
                               👁 {v.requests?.title ?? 'Visita'}
                               <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(v.scheduled_at)}</div>
@@ -552,7 +552,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             const duration = Math.max((end - start) / 3600000, 0.5);
                             return (
                               <div key={j.id} onClick={(e) => { e.stopPropagation(); setSelectedJob(j); }}
-                                style={{ background: techColors[j.technician_id] ?? '#888', color: '#fff', borderRadius: 4, padding: '2px 6px',
+                                style={{ background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff', borderRadius: 4, padding: '2px 6px',
                                   fontSize: 11, fontWeight: 600, cursor: 'pointer', height: `${Math.min(duration * 64, 60)}px`, overflow: 'hidden' }}>
                                 {j.title}
                                 <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(j.scheduled_start)}</div>
@@ -561,7 +561,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           })}
                           {hourEvents.map(e => (
                             <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); setSelectedEvent(e); }}
-                              style={{ background: '#fff', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)',
+                              style={{ background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)',
                                 borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden' }}>
                               {ENTRY_TYPE_ICONS.event} {e.title}
                               <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(e.start_at)}</div>
@@ -569,7 +569,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           ))}
                           {hourTasks.map(t => (
                             <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); setSelectedTask(t); }}
-                              style={{ background: '#fff', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)',
+                              style={{ background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)',
                                 textDecoration: t.completed ? 'line-through' : 'none',
                                 borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden' }}>
                               {ENTRY_TYPE_ICONS[t.task_type]} {t.title}
@@ -627,7 +627,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       {selectedJob && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={() => { setSelectedJob(null); setReschedulingJob(false); }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{selectedJob.title}</div>
@@ -689,7 +689,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       {selectedVisit && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={() => setSelectedVisit(null)}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{selectedVisit.requests?.title ?? 'Visita'}</div>
@@ -721,7 +721,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       {selectedEvent && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={() => setSelectedEvent(null)}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{ENTRY_TYPE_ICONS.event} {selectedEvent.title}</div>
@@ -743,7 +743,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 </div>
               ))}
             </div>
-            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: '#b52a2a' }}
+            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: 'var(--warn)' }}
               onClick={() => deleteEvent(selectedEvent.id)}>
               Eliminar evento
             </button>
@@ -755,7 +755,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       {selectedTask && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={() => setSelectedTask(null)}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', textDecoration: selectedTask.completed ? 'line-through' : 'none' }}>
@@ -802,7 +802,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => toggleTaskCompleted(selectedTask)}>
                 {selectedTask.completed ? 'Marcar pendiente' : 'Marcar completada'}
               </button>
-              <button className="btn btn-ghost" style={{ color: '#b52a2a' }} onClick={() => deleteTask(selectedTask.id)}>
+              <button className="btn btn-ghost" style={{ color: 'var(--warn)' }} onClick={() => deleteTask(selectedTask.id)}>
                 Eliminar
               </button>
             </div>
@@ -869,7 +869,7 @@ function ScheduleModal({ data, pendingRequests, technicians, saving, onClose, on
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
       onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>Agendar visita</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
@@ -938,7 +938,7 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
       onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📌 Nuevo evento</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
@@ -969,7 +969,7 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
               {technicians.map(t => {
                 const checked = technicianIds.includes(t.id);
                 return (
-                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : '#fff', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
                     <input type="checkbox" checked={checked} onChange={() => toggleTechnician(t.id)} style={{ margin: 0 }} />
                     {t.name}
                   </label>
@@ -1024,7 +1024,7 @@ function TaskModal({ data, technicians, clients, saving, onClose, onSubmit }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
       onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 420, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>Nueva tarea</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
@@ -1131,7 +1131,7 @@ function SyncModal({ technicians, onClose }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
       onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 480, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 480, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>🔄 Sincronizar con Apple Calendar</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
@@ -1199,7 +1199,7 @@ function ChecklistItemRow({ item, onToggle, onUploadFiles, onRemoveAttachment, o
                     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
                 )}
                 <button type="button" onClick={() => onRemoveAttachment(i)}
-                  style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: '#b52a2a', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 11, lineHeight: 1 }}>
+                  style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--warn)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 11, lineHeight: 1 }}>
                   ×
                 </button>
               </div>
@@ -1288,7 +1288,7 @@ function AddToJobModal({ clientId, clientName, onClose, onConfirm }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}
       onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>Añadir a trabajo</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
