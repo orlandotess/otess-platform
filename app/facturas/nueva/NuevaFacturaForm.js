@@ -191,7 +191,7 @@ export default function NuevaFactura() {
   }
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-facturas">
       <Sidebar />
       <main className="main-content">
         <div className="page-header"><div className="page-title">Nueva factura</div></div>
@@ -255,21 +255,6 @@ export default function NuevaFactura() {
                 <label>Notas / Términos de pago</label>
                 <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Términos de pago, notas para el cliente..." />
               </div>
-              <div className="form-group">
-                <label>Términos del proyecto</label>
-                <select
-                  value=""
-                  onChange={e => {
-                    const tpl = TERMS_TEMPLATES.find(t => t.key === e.target.value);
-                    if (tpl) set('terms', tpl.text);
-                  }}
-                  style={{ marginBottom: 8 }}
-                >
-                  <option value="">— Elegir plantilla —</option>
-                  {TERMS_TEMPLATES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-                </select>
-                <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={6} style={{ fontSize: 13, lineHeight: 1.6 }} />
-              </div>
             </div>
 
             <div className="card">
@@ -307,13 +292,31 @@ export default function NuevaFactura() {
                 />
               ))}
             </div>
+
+            <div className="card">
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Términos del proyecto</p>
+              <div className="form-group">
+                <select
+                  value=""
+                  onChange={e => {
+                    const tpl = TERMS_TEMPLATES.find(t => t.key === e.target.value);
+                    if (tpl) set('terms', tpl.text);
+                  }}
+                  style={{ marginBottom: 8 }}
+                >
+                  <option value="">— Elegir plantilla —</option>
+                  {TERMS_TEMPLATES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+                <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={6} style={{ fontSize: 13, lineHeight: 1.6 }} />
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
               {clientType === 'b2b' && (
-                <div style={{ background: '#e8eeff', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#2a4cb5', fontWeight: 600 }}>
+                <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
                   Cliente B2B — Labor al 4%
                 </div>
               )}

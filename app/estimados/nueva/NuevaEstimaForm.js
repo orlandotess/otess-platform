@@ -169,7 +169,7 @@ export default function NuevaEstimaForm() {
   }
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-estimados">
       <Sidebar />
       <main className="main-content">
         <div className="page-header"><div className="page-title">Nuevo estimado</div></div>
@@ -225,10 +225,6 @@ export default function NuevaEstimaForm() {
                 <label>Notas para el cliente</label>
                 <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Notas, condiciones de pago, etc..." />
               </div>
-              <div className="form-group">
-                <label>Términos del proyecto</label>
-                <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={6} style={{ fontSize: 13, lineHeight: 1.6 }} />
-              </div>
             </div>
 
             <div className="card">
@@ -275,13 +271,20 @@ export default function NuevaEstimaForm() {
                 />
               ))}
             </div>
+
+            <div className="card">
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Términos del proyecto</p>
+              <div className="form-group">
+                <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={6} style={{ fontSize: 13, lineHeight: 1.6 }} />
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
               {clientType === 'b2b' && (
-                <div style={{ background: '#e8eeff', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#2a4cb5', fontWeight: 600 }}>
+                <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
                   Cliente B2B — Labor al 4%
                 </div>
               )}
