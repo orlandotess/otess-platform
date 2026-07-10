@@ -703,6 +703,8 @@ export default function FieldApp() {
 
   const fmtE = s => String(Math.floor(s / 3600)).padStart(2, '0') + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
   const fmtH = es => (es.reduce((a, e) => a + (e.clocked_out_at ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60 : 0), 0)).toFixed(1) + 'h';
+  // Job the technician is currently clocked into, used to skip the "select job" step in the FAB
+  const activeJob = clockedIn && activeEntry?.job_id ? allJobs.find(j => j.id === activeEntry.job_id) ?? null : null;
   const now = new Date();
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -1688,9 +1690,9 @@ export default function FieldApp() {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 97 }} onClick={() => setShowFab(false)} />
           <div style={{ position: 'fixed', bottom: 140, right: 20, zIndex: 98, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-            <button style={fmi('#2a4cb5')} onClick={() => { setShowJobNote(true); setShowFab(false); }}>📝 Agregar nota</button>
-            <button style={fmi('#1a7a4a')} onClick={() => { setShowJobPhoto(true); setShowFab(false); }}>📸 Agregar foto</button>
-            <button style={fmi('#7a4cb5')} onClick={() => { setShowJobExpense(true); setShowFab(false); }}>💸 Agregar gasto</button>
+            <button style={fmi('#2a4cb5')} onClick={() => { setFabSelectedJob(activeJob); setShowJobNote(true); setShowFab(false); }}>📝 Agregar nota</button>
+            <button style={fmi('#1a7a4a')} onClick={() => { setFabSelectedJob(activeJob); setShowJobPhoto(true); setShowFab(false); }}>📸 Agregar foto</button>
+            <button style={fmi('#7a4cb5')} onClick={() => { setExpenseJob(activeJob ?? undefined); setShowJobExpense(true); setShowFab(false); }}>💸 Agregar gasto</button>
             <button style={fmi(ORANGE)} onClick={() => { setShowJobClock(true); setShowFab(false); }}>⏱ Clock In a trabajo</button>
           </div>
         </>
@@ -1725,7 +1727,10 @@ export default function FieldApp() {
             {!fabSelectedJob
               ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
               : <form onSubmit={saveFabNote}>
-                <div style={{ fontWeight: 600, marginBottom: 12, color: ORANGE }}>{fabSelectedJob.title}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 600, color: ORANGE }}>{fabSelectedJob.title}</div>
+                  <button type="button" onClick={() => setFabSelectedJob(null)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>Cambiar</button>
+                </div>
                 <textarea value={fabNoteText} onChange={e => setFabNoteText(e.target.value)} placeholder="Escribe tu nota..." style={{ width: '100%', minHeight: 100, padding: 12, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none' }} />
                 <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                   <button type="submit" disabled={savingFabNote} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>{savingFabNote ? 'Guardando...' : 'Guardar'}</button>
@@ -1748,7 +1753,10 @@ export default function FieldApp() {
               : !fabSelectedJob
                 ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
                 : <div>
-                  <div style={{ fontWeight: 600, marginBottom: 16, color: ORANGE }}>{fabSelectedJob.title}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div style={{ fontWeight: 600, color: ORANGE }}>{fabSelectedJob.title}</div>
+                    <button type="button" onClick={() => setFabSelectedJob(null)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>Cambiar</button>
+                  </div>
                   {photoError && (
                     <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '8px 10px', fontSize: 12, marginBottom: 12 }}>
                       ⚠️ {photoError}
@@ -1796,7 +1804,10 @@ export default function FieldApp() {
               </>
             ) : (
               <form onSubmit={saveExpense}>
-                <div style={{ fontWeight: 600, marginBottom: 12, color: ORANGE }}>{expenseJob ? expenseJob.title : 'Gasto general'}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 600, color: ORANGE }}>{expenseJob ? expenseJob.title : 'Gasto general'}</div>
+                  <button type="button" onClick={() => setExpenseJob(undefined)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>Cambiar</button>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                   <select value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}
                     style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }}>
