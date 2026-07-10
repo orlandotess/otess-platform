@@ -1793,7 +1793,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 24, width: 340, maxWidth: '90vw' }}>
             <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 10, color: 'var(--navy)' }}>✏️ Marcar foto</h3>
             <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 16 }}>
-              Se abrirá el panel de compartir de iOS. Si no ves <strong>"Markup"</strong> en la fila de arriba, toca <strong>"Ver más"</strong> → <strong>"Editar acciones"</strong> y agrégalo a favoritos — solo hay que hacerlo una vez.
+              Se abrirá el panel de compartir. Toca <strong>"Save Image"</strong> para guardarla, luego ábrela en la app <strong>Fotos</strong>, toca <strong>Editar</strong> y usa el ícono de Markup (la pluma) para marcarla.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-primary" onClick={confirmMarkupHint} style={{ flex: 1, justifyContent: 'center' }}>Entendido, continuar</button>
