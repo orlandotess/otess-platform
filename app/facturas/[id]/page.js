@@ -64,7 +64,7 @@ export default async function FacturaDetail({ params }) {
   const isOverdue = inv.status === 'sent' && inv.due_at && inv.due_at < today;
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-facturas">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
@@ -114,7 +114,7 @@ export default async function FacturaDetail({ params }) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: property ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 28 }}>
-            <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '16px 20px' }}>
+            <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '16px 20px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Facturar a</div>
               <div style={{ fontWeight: 700, fontSize: 16 }}>{billToName}</div>
               {inv.bill_to !== 'company' && inv.clients?.company && (
@@ -133,7 +133,7 @@ export default async function FacturaDetail({ params }) {
             </div>
 
             {property && (
-              <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '16px 20px' }}>
+              <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '16px 20px' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Propiedad del servicio</div>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>{property.name}</div>
                 {property.street && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>{property.street}</div>}
@@ -169,7 +169,7 @@ export default async function FacturaDetail({ params }) {
                     )}
                     ${Number(item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     {item.supplier_price != null && (
-                      <div style={{ fontSize: 10, color: '#b52a2a' }}>Costo: ${Number(item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${Number(item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                     )}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
@@ -224,7 +224,7 @@ export default async function FacturaDetail({ params }) {
           </div>
 
           {inv.notes && (
-            <div style={{ marginTop: 24, padding: '14px 18px', background: '#f8f9fb', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
+            <div style={{ marginTop: 24, padding: '14px 18px', background: 'var(--surface-2)', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
               <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {inv.notes}
             </div>
           )}

@@ -24,6 +24,22 @@
   --badge-blue-bg:  #e8eef8;
   --badge-gray-bg:  #eceef2;
   --badge-red-bg:   #fbeae3;
+
+  /* ── Design system v1 tokens (proposal) — additive, not yet wired into components ── */
+  --rust: #c1501f;
+  --navy-tint: #eef1f7;
+  --amber-tint: #fdf1de;
+  --ok-tint: #e7f3ee;
+  --info-tint: #e8f0f6;
+  --danger-tint: #fbeae3;
+  --neutral-tint: #eceef2;
+  --ink: #1b2230;
+  --ink-soft: #5b6473;
+  --ink-faint: #9aa0ab;
+  --line: #e1e4ea;
+  --line-strong: #cdd2dc;
+  --radius-lg: 16px;
+  --shadow-pop: 0 12px 32px rgba(22,34,61,0.16);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -469,6 +485,37 @@ textarea { resize: vertical; min-height: 80px; }
 
 body.sidebar-hidden .main-content {
   padding-top: 68px;
+}
+
+/* ── Design system v1 ── now the default look for every .admin-shell page.
+   (Previously scoped to a growing .ds-* allowlist while this rolled out
+   module by module — Facturas, Estimados, Trabajos, Clientes, Propuestas —
+   now applied app-wide. The old .ds-* classes are harmless leftovers.) */
+.admin-shell .card,
+.admin-shell .stat-card,
+.admin-shell .doc-card {
+  border-radius: var(--radius-lg);
+  border-color: var(--line);
+}
+
+.admin-shell .badge {
+  border-radius: 999px;
+}
+.admin-shell .badge-gray  { background: var(--neutral-tint); color: var(--ink-soft); }
+.admin-shell .badge-blue  { background: var(--info-tint); color: var(--info); }
+.admin-shell .badge-green { background: var(--ok-tint); color: var(--ok); }
+.admin-shell .badge-red   { background: var(--danger-tint); color: var(--warn); }
+.admin-shell .badge-amber { background: var(--amber-tint); color: #9c6a1a; }
+
+.admin-shell table thead th {
+  color: var(--ink-faint);
+}
+.admin-shell td,
+.admin-shell th {
+  border-color: var(--line);
+}
+.admin-shell .btn-ghost {
+  border-color: var(--line-strong);
 }
 
 @media (max-width: 640px) {

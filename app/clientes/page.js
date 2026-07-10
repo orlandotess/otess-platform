@@ -13,7 +13,7 @@ export default async function ClientesPage() {
     .order('name');
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-clientes">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">

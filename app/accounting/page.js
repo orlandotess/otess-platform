@@ -145,11 +145,11 @@ function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt }
         </div>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Nómina</div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: '#e05c2a' }}>{fmt(payroll)}</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--orange)' }}>{fmt(payroll)}</div>
         </div>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Gastos</div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: '#b52a2a' }}>{fmt(gastos)}</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--warn)' }}>{fmt(gastos)}</div>
         </div>
       </div>
 
@@ -206,7 +206,7 @@ function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt }
             </div>
             <div>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Costo suplidor</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#b52a2a' }}>{fmt(margin.cost)}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--warn)' }}>{fmt(margin.cost)}</div>
             </div>
             <div>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Margen</div>
@@ -216,7 +216,7 @@ function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt }
         </div>
       )}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: netEst >= 0 ? 'var(--ok)' : 'var(--warn)', background: netEst >= 0 ? '#e6f4ee' : '#fdecea', padding: '6px 14px', borderRadius: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: netEst >= 0 ? 'var(--ok)' : 'var(--warn)', background: netEst >= 0 ? 'var(--ok-tint)' : 'var(--danger-tint)', padding: '6px 14px', borderRadius: 8 }}>
           Ganancia neta estimada: {fmt(netEst)}
         </div>
       </div>

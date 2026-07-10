@@ -6,7 +6,7 @@ import { supabase } from '../../../lib/supabase';
 import ProposalDocument, { financialBreakdown } from '../ProposalDocument';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 
-const STATUS_COLORS = { borrador: '#5b6473', enviada: '#2a4cb5', vista: '#e0972c', aprobada: '#1a7a4a', rechazada: '#b52a2a' };
+const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', aprobada: 'badge-green', rechazada: 'badge-red' };
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', aprobada: 'Aprobada', rechazada: 'Rechazada' };
 
 export default function PropuestaDetailClient({ proposal, options, taxRules, payments, companyInfo, primaryAddress }) {
@@ -95,7 +95,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
           </div>
         </div>
         <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-          <span className="badge" style={{ color: STATUS_COLORS[status] ?? '#888' }}>
+          <span className={`badge ${STATUS_BADGE[status] ?? 'badge-gray'}`}>
             {STATUS_LABELS[status] ?? status}
           </span>
           {['borrador', 'enviada', 'vista'].includes(status) && (
@@ -117,12 +117,12 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
 
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar propuesta?</h2>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteProposal} disabled={deleting}
-                style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>
+                style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
                 {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
               </button>
               <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
@@ -155,7 +155,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
       )}
 
       {proposal.status === 'aprobada' && (
-        <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid #1a7a4a', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#1a7a4a' }}>
+        <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid var(--ok)', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: 'var(--ok)' }}>
           {proposal.approved_option_id && (
             <div>Opción elegida: <strong>{options.find(o => o.id === proposal.approved_option_id)?.name ?? '—'}</strong></div>
           )}
@@ -165,7 +165,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
             </div>
           )}
           {proposal.approved_at && (
-            <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>
+            <div style={{ marginTop: 4, fontSize: 12, color: 'var(--ink-faint)' }}>
               Aprobada el {new Date(proposal.approved_at).toLocaleString('es-PR')}
             </div>
           )}
@@ -179,7 +179,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
               <div>
                 <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{opt.name}</span>
                 {opt.is_recommended && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--amber)' }}>RECOMENDADA</span>}
-                {proposal.approved_option_id === opt.id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#1a7a4a' }}>ELEGIDA POR CLIENTE</span>}
+                {proposal.approved_option_id === opt.id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--ok)' }}>ELEGIDA POR CLIENTE</span>}
                 <span style={{ marginLeft: 12, fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{fmt(optionTotal(opt))}</span>
               </div>
               <button className="btn btn-ghost" onClick={() => handlePdf(opt.id)} disabled={generatingPdf === opt.id}>

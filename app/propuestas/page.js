@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabaseServer as supabase } from '../../lib/supabase';
 import Sidebar from '../Sidebar';
 
-const STATUS_COLORS = { borrador: '#5b6473', enviada: '#2a4cb5', vista: '#e0972c', aprobada: '#1a7a4a', rechazada: '#b52a2a' };
+const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', aprobada: 'badge-green', rechazada: 'badge-red' };
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', aprobada: 'Aprobada', rechazada: 'Rechazada' };
 
 export default async function PropuestasPage() {
@@ -23,7 +23,7 @@ export default async function PropuestasPage() {
   });
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-propuestas">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
@@ -54,7 +54,7 @@ export default async function PropuestasPage() {
                     </div>
                   )}
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: STATUS_COLORS[p.status] ?? '#888', background: (STATUS_COLORS[p.status] ?? '#888') + '18', padding: '4px 12px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+                <span className={`badge ${STATUS_BADGE[p.status] ?? 'badge-gray'}`}>
                   {STATUS_LABELS[p.status] ?? p.status}
                 </span>
               </Link>

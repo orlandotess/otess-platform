@@ -29,7 +29,7 @@ export default async function ClienteDetailPage({ params }) {
   ]);
 
   if (!client) return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-clientes">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
@@ -41,7 +41,7 @@ export default async function ClienteDetailPage({ params }) {
   );
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-clientes">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">

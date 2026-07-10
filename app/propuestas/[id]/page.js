@@ -21,7 +21,7 @@ export default async function PropuestaDetailPage({ params }) {
 
   if (!proposal) {
     return (
-      <div className="admin-shell">
+      <div className="admin-shell ds-propuestas">
         <Sidebar />
         <main className="main-content">
           <p>Propuesta no encontrada.</p>
@@ -45,7 +45,7 @@ export default async function PropuestaDetailPage({ params }) {
   );
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-propuestas">
       <Sidebar />
       <main className="main-content">
         <PropuestaDetailClient proposal={proposal} options={options} taxRules={taxRules ?? []} payments={payments ?? []} companyInfo={companyInfo ?? null} primaryAddress={primaryAddress} />

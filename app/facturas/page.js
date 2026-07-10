@@ -57,7 +57,7 @@ export default async function FacturasPage() {
   const totalPaid = invoices?.filter(i => i.status === 'paid').reduce((a, i) => a + i.total, 0) ?? 0;
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-facturas">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
@@ -122,7 +122,7 @@ export default async function FacturasPage() {
                           {viewInfo ? (
                             <span
                               title={`Última vista: ${formatViewedAt(viewInfo.lastViewedAt)}`}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--navy)', fontWeight: 600, background: '#eef1f8', padding: '3px 8px', borderRadius: 12 }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--navy)', fontWeight: 600, background: 'var(--navy-tint)', padding: '3px 8px', borderRadius: 12 }}
                             >
                               👁️ {viewInfo.count} · {formatViewedAt(viewInfo.lastViewedAt)}
                             </span>

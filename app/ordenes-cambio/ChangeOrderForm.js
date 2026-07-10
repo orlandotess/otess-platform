@@ -186,7 +186,7 @@ export default function ChangeOrderForm({ initialData = null }) {
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
               {job ? (
-                <div style={{ padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: '#f8f9fb', marginBottom: 16 }}>
+                <div style={{ padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)', marginBottom: 16 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>Trabajo</div>
                   <div style={{ fontWeight: 600 }}>{job.title}</div>
                   <div style={{ fontSize: 13, color: 'var(--muted)' }}>{job.client_name}</div>

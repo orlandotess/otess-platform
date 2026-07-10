@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { isoToLocalInput, localInputToIso } from '../../lib/datetimeLocal';
+import ClientCombobox from '../facturas/nueva/ClientCombobox';
 
 const TECH_COLORS = [
   '#16223d', '#e0972c', '#27ae60', '#2a4cb5', '#e05c2a',
@@ -11,8 +12,8 @@ const TECH_COLORS = [
 ];
 
 const STATUS_COLORS = {
-  estimate: '#5b6473', scheduled: '#2a4cb5', in_progress: '#e0972c',
-  completed: '#1a7a4a', cancelled: '#ccc',
+  estimate: 'var(--ink-soft)', scheduled: 'var(--info)', in_progress: 'var(--amber)',
+  completed: 'var(--ok)', cancelled: 'var(--ink-faint)',
 };
 
 const STATUS_LABELS = {
@@ -93,8 +94,11 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     [visits, selectedTech]
   );
 
+  const eventMatchesTech = (event, techId) =>
+    event.technician_id === techId || (event.calendar_event_technicians ?? []).some(et => et.technician_id === techId);
+
   const filteredEvents = useMemo(() =>
-    selectedTech === 'all' ? calendarEvents : calendarEvents.filter(e => e.technician_id === selectedTech),
+    selectedTech === 'all' ? calendarEvents : calendarEvents.filter(e => eventMatchesTech(e, selectedTech)),
     [calendarEvents, selectedTech]
   );
 
@@ -191,18 +195,24 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     }
   }
 
-  async function handleCreateEvent({ title, dateStr, startTime, endTime, technicianId, clientId, notes }) {
+  async function handleCreateEvent({ title, dateStr, startTime, endTime, technicianIds, clientId, notes }) {
     setSaving(true);
     try {
-      const { error } = await supabase.from('calendar_events').insert({
+      const { data: event, error } = await supabase.from('calendar_events').insert({
         title,
         notes: notes || null,
         start_at: new Date(`${dateStr}T${startTime}:00`).toISOString(),
         end_at: new Date(`${dateStr}T${endTime}:00`).toISOString(),
-        technician_id: technicianId || null,
+        technician_id: technicianIds[0] ?? null,
         client_id: clientId || null,
-      });
+      }).select().single();
       if (error) { alert(error.message); return; }
+      if (technicianIds.length > 1) {
+        const { error: techError } = await supabase.from('calendar_event_technicians').insert(
+          technicianIds.slice(1).map(techId => ({ event_id: event.id, technician_id: techId }))
+        );
+        if (techError) { alert(techError.message); return; }
+      }
       setEventModal(null);
       router.refresh();
     } finally {
@@ -721,7 +731,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             </div>
             <div style={{ display: 'grid', gap: 0, marginBottom: 20 }}>
               {[
-                ['Técnico', selectedEvent.technicians?.name ?? '— Sin asignar —'],
+                ['Técnicos', [selectedEvent.technicians?.name, ...(selectedEvent.calendar_event_technicians ?? []).map(et => et.technicians?.name)]
+                  .filter(Boolean).join(', ') || '— Sin asignar —'],
                 ['Inicio', new Date(selectedEvent.start_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
                 ['Fin', new Date(selectedEvent.end_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
                 ['Notas', selectedEvent.notes || '—'],
@@ -914,11 +925,15 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
   const [dateStr, setDateStr] = useState(data.dateStr ?? new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState(data.time ?? '09:00');
   const [endTime, setEndTime] = useState(data.time ?? '10:00');
-  const [technicianId, setTechnicianId] = useState('');
+  const [technicianIds, setTechnicianIds] = useState([]);
   const [clientId, setClientId] = useState('');
   const [notes, setNotes] = useState('');
 
   const canSubmit = title.trim() && dateStr && startTime && endTime;
+
+  function toggleTechnician(techId) {
+    setTechnicianIds(ids => ids.includes(techId) ? ids.filter(id => id !== techId) : [...ids, techId]);
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
@@ -949,22 +964,23 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Técnico (opcional)</label>
-            <select value={technicianId} onChange={e => setTechnicianId(e.target.value)} className="input" style={{ width: '100%' }}>
-              <option value="">— Sin asignar —</option>
-              {technicians.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Técnicos (opcional, puedes escoger más de uno)</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+              {technicians.map(t => {
+                const checked = technicianIds.includes(t.id);
+                return (
+                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : '#fff', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleTechnician(t.id)} style={{ margin: 0 }} />
+                    {t.name}
+                  </label>
+                );
+              })}
+              {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
+            </div>
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Cliente (opcional)</label>
-            <select value={clientId} onChange={e => setClientId(e.target.value)} className="input" style={{ width: '100%' }}>
-              <option value="">— Ninguno —</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <ClientCombobox clients={clients} value={clientId} onChange={setClientId} />
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Notas</label>
@@ -974,7 +990,7 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
 
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!canSubmit || saving}
-          onClick={() => onSubmit({ title: title.trim(), dateStr, startTime, endTime, technicianId, clientId, notes })}>
+          onClick={() => onSubmit({ title: title.trim(), dateStr, startTime, endTime, technicianIds, clientId, notes })}>
           {saving ? 'Guardando...' : 'Crear evento'}
         </button>
       </div>
@@ -1048,12 +1064,7 @@ function TaskModal({ data, technicians, clients, saving, onClose, onSubmit }) {
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Cliente (opcional)</label>
-            <select value={clientId} onChange={e => setClientId(e.target.value)} className="input" style={{ width: '100%' }}>
-              <option value="">— Ninguno —</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <ClientCombobox clients={clients} value={clientId} onChange={setClientId} />
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Notas</label>

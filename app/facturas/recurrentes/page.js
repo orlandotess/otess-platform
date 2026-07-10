@@ -18,7 +18,7 @@ export default async function FacturasRecurrentesPage() {
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-facturas">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
@@ -50,7 +50,7 @@ export default async function FacturasRecurrentesPage() {
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <span className="badge" style={{ color: r.active ? '#1a7a4a' : '#888' }}>{r.active ? 'Activa' : 'Pausada'}</span>
+                    <span className="badge" style={{ color: r.active ? 'var(--ok)' : 'var(--ink-faint)' }}>{r.active ? 'Activa' : 'Pausada'}</span>
                     <RecurringInvoiceActions id={r.id} active={r.active} />
                   </div>
                 </Link>

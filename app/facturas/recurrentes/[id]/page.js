@@ -14,7 +14,7 @@ export default async function FacturaRecurrenteDetailPage({ params }) {
 
   if (!recurring) {
     return (
-      <div className="admin-shell">
+      <div className="admin-shell ds-facturas">
         <Sidebar />
         <main className="main-content">
           <p>Factura recurrente no encontrada.</p>
@@ -24,7 +24,7 @@ export default async function FacturaRecurrenteDetailPage({ params }) {
   }
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-facturas">
       <Sidebar />
       <main className="main-content">
         <RecurringInvoiceDetailClient recurring={recurring} clients={clients ?? []} history={history ?? []} />

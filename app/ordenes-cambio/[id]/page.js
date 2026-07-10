@@ -77,7 +77,7 @@ export default async function OrdenCambioDetail({ params }) {
             </div>
           </div>
 
-          <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '16px 20px', marginBottom: 20 }}>
+          <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '16px 20px', marginBottom: 20 }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Preparado para</div>
             <div style={{ fontWeight: 700, fontSize: 16 }}>{billToName}</div>
             {order.bill_to !== 'company' && order.clients?.company && <div style={{ color: 'var(--muted)', fontSize: 14 }}>{order.clients.company}</div>}
@@ -137,14 +137,14 @@ export default async function OrdenCambioDetail({ params }) {
           </div>
 
           {order.status === 'aprobada' && (
-            <div style={{ marginTop: 20, padding: '14px 18px', background: '#e7f3ee', borderRadius: 10, fontSize: 13, color: '#1a7a4a' }}>
+            <div style={{ marginTop: 20, padding: '14px 18px', background: 'var(--ok-tint)', borderRadius: 10, fontSize: 13, color: 'var(--ok)' }}>
               Aprobada el {new Date(order.approved_at).toLocaleString('es-PR')}
               {order.signed_name && <div style={{ marginTop: 4 }}>Firmada por <strong>{order.signed_name}</strong></div>}
             </div>
           )}
 
           {order.terms && (
-            <div style={{ marginTop: 16, padding: '14px 18px', background: '#f8f9fb', borderRadius: 10, fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+            <div style={{ marginTop: 16, padding: '14px 18px', background: 'var(--surface-2)', borderRadius: 10, fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
               <strong style={{ color: 'var(--navy)', display: 'block', marginBottom: 8, fontSize: 13 }}>Términos</strong>
               {order.terms.split('\n').map((line, i) => line.trim() ? <p key={i} style={{ margin: '0 0 8px' }}>{line}</p> : null)}
             </div>

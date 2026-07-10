@@ -414,7 +414,7 @@ export default function PropuestaForm({ initialData = null }) {
   }
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-propuestas">
       <Sidebar />
       <main className="main-content">
         <div className="page-header"><div className="page-title">{isEdit ? 'Editar propuesta' : 'Nueva propuesta'}</div></div>
@@ -429,7 +429,7 @@ export default function PropuestaForm({ initialData = null }) {
             <div className="form-group" style={{ position: 'relative' }}>
               <label>Cliente *</label>
               {selectedClient ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: '#f8f9fb' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
                   <span style={{ flex: 1, fontWeight: 600 }}>{selectedClient.name}</span>
                   <button type="button" onClick={() => setSelectedClient(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700 }}>Cambiar</button>
                 </div>
@@ -440,7 +440,7 @@ export default function PropuestaForm({ initialData = null }) {
                   {showClientDropdown && (
                     <>
                       <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowClientDropdown(false)} />
-                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 220, overflowY: 'auto' }}>
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 220, overflowY: 'auto' }}>
                         {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(c => (
                           <div key={c.id} onClick={() => { setSelectedClient(c); setTaxClientType(c.client_type === 'b2b' ? 'b2b' : 'final'); setClientSearch(''); setShowClientDropdown(false); }}
                             style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
@@ -539,7 +539,7 @@ export default function PropuestaForm({ initialData = null }) {
 
               {/* Áreas */}
               {opt.areas.map((area, areaIndex) => (
-                <div key={area.key} style={{ background: '#f8f9fb', border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                <div key={area.key} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <input value={area.name} onChange={e => updateAreaName(opt.key, area.key, e.target.value)}
                       style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0 }} />

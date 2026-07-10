@@ -12,7 +12,7 @@ export default async function TrabajosPage() {
     .order('created_at', { ascending: false });
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-trabajos">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">

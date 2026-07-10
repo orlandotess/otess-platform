@@ -758,7 +758,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
 
   return (
     <div>
-      <div style={{ display: 'flex', borderBottom: '1.5px solid var(--border)', marginBottom: 20, background: '#fff', borderRadius: '12px 12px 0 0', padding: '0 8px' }}>
+      <div style={{ display: 'flex', borderBottom: '1.5px solid var(--border)', marginBottom: 20, background: 'var(--surface)', borderRadius: '12px 12px 0 0', padding: '0 8px' }}>
         <button style={tabStyle('info')} onClick={() => setTab('info')}>📋 Info</button>
         <button style={tabStyle('notes')} onClick={() => setTab('notes')}>
           📸 Notas & Fotos {notesList.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{notesList.length}</span>}
@@ -768,7 +768,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
         </button>
         <button style={tabStyle('rentabilidad')} onClick={() => setTab('rentabilidad')}>
           💰 Rentabilidad {profitability.margenPct != null && profitability.margenPct < MARGIN_ALERT_THRESHOLD && (
-            <span style={{ background: '#fdecea', color: '#b52a2a', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>⚠</span>
+            <span style={{ background: 'var(--danger-tint)', color: 'var(--warn)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>⚠</span>
           )}
         </button>
       </div>
@@ -978,7 +978,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </div>
               </div>
               {editingDetails && (
-                <div style={{ marginBottom: 12, padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                <div style={{ marginBottom: 12, padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8 }}>
                   <div className="form-group" style={{ marginBottom: 10 }}>
                     <label>Título del trabajo</label>
                     <input value={titleForm} onChange={e => setTitleForm(e.target.value)} placeholder="Título del trabajo" />
@@ -994,7 +994,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </div>
               )}
               {editingNumber && (
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8 }}>
                   <input value={jobNumber} onChange={e => setJobNumber(e.target.value)} placeholder="JOB-1001" style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'monospace' }} />
                   <button className="btn btn-primary" style={{ fontSize: 12, padding: '6px 12px' }} onClick={saveJobNumber} disabled={savingNumber}>{savingNumber ? '...' : '💾'}</button>
                   <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditingNumber(false)}>✕</button>
@@ -1060,7 +1060,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </div>
               )}
               {job.notes && (
-                <div style={{ marginTop: 12, padding: '12px 14px', background: '#f8f9fb', borderRadius: 8, fontSize: 13, color: 'var(--muted)' }}>
+                <div style={{ marginTop: 12, padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8, fontSize: 13, color: 'var(--muted)' }}>
                   <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {job.notes}
                 </div>
               )}
@@ -1091,7 +1091,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {group.entries.map(d => (
                           editingDayId === d.id ? (
-                            <div key={d.id} style={{ padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                            <div key={d.id} style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8 }}>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
                                 <div className="form-group">
                                   <label>Inicio</label>
@@ -1126,7 +1126,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                               </div>
                             </div>
                           ) : (
-                            <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f8f9fb', borderRadius: 8 }}>
+                            <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--surface-2)', borderRadius: 8 }}>
                               <div>
                                 <div style={{ fontSize: 13, fontWeight: 600 }} suppressHydrationWarning>
                                   {new Date(d.scheduled_start).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}
@@ -1156,7 +1156,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               )}
 
               {addingDay && (
-                <div style={{ padding: '12px 14px', background: '#f8f9fb', borderRadius: 8 }}>
+                <div style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
                     <div className="form-group">
                       <label>Inicio</label>
@@ -1326,7 +1326,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                   {assignedTechs.map(at => (
-                    <div key={at.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8f9fb', borderRadius: 8 }}>
+                    <div key={at.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 8 }}>
                       <span style={{ fontWeight: 600, fontSize: 14 }}>{at.technicians?.name}</span>
                       <button onClick={() => removeTechnician(at.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warn)', fontSize: 14 }}>✕</button>
                     </div>
@@ -1347,7 +1347,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             </div>
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Resumen IVU</p>
-              {clientType === 'b2b' && <div style={{ background: '#e8eeff', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#2a4cb5', fontWeight: 600 }}>Cliente B2B — Labor al 4%</div>}
+              {clientType === 'b2b' && <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>Cliente B2B — Labor al 4%</div>}
               {[
                 { label: 'Subtotal productos', value: liveTotals.subProd },
                 { label: 'IVU productos (11.5%)', value: liveTotals.taxProd },
@@ -1436,7 +1436,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             </div>
 
             {addingExpense && (
-              <div style={{ padding: '12px 14px', background: '#f8f9fb', borderRadius: 8, marginBottom: expensesList.length > 0 ? 14 : 0 }}>
+              <div style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8, marginBottom: expensesList.length > 0 ? 14 : 0 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div className="form-group">
                     <label>Categoría</label>
@@ -1484,7 +1484,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             ) : expensesList.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {expensesList.map(e => (
-                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f8f9fb', borderRadius: 8 }}>
+                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--surface-2)', borderRadius: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       {e.receipt_signed_url && (
                         <img src={e.receipt_signed_url} alt="recibo" onClick={() => setLightbox({ urls: [e.receipt_signed_url], index: 0, noteId: null })} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, cursor: 'zoom-in' }} />
@@ -1531,7 +1531,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
                     const isPdf = /\.pdf(\?|$)/i.test(url);
                     if (isPdf) return (
-                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 130, background: '#f8f9fb', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)' }}>
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 130, background: 'var(--surface-2)', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)' }}>
                         <span style={{ fontSize: 32 }}>📄</span>
                         <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Ver PDF</span>
                       </a>
@@ -1548,7 +1548,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(n.photo_url);
                 const isPdf = /\.pdf(\?|$)/i.test(n.photo_url);
                 if (isPdf) return (
-                  <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: '#f8f9fb', borderRadius: 10, textDecoration: 'none', border: '1.5px solid var(--border)', marginBottom: n.note ? 10 : 0 }}>
+                  <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: 'var(--surface-2)', borderRadius: 10, textDecoration: 'none', border: '1.5px solid var(--border)', marginBottom: n.note ? 10 : 0 }}>
                     <span style={{ fontSize: 28 }}>📄</span>
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)' }}>Ver documento PDF</span>
                   </a>
@@ -1628,7 +1628,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                         {templateMenuOpen === t.id && (
                           <>
                             <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setTemplateMenuOpen(null)} />
-                            <div style={{ position: 'absolute', right: 0, top: 28, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
+                            <div style={{ position: 'absolute', right: 0, top: 28, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
                               <button onClick={() => { applyTemplate(t); setShowTemplates(false); setTemplateMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✅ Aplicar</button>
                               <button onClick={() => { setShowTemplates(false); setTemplateMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✕ Cancelar</button>
                             </div>
@@ -1661,7 +1661,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     {groupMenuOpen === groupKey && (
                       <>
                         <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setGroupMenuOpen(null)} />
-                        <div style={{ position: 'absolute', right: 0, top: 28, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', right: 0, top: 28, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
                           <button onClick={() => renameGroup(groupName ?? 'General')} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
                           {groupName && <button onClick={() => deleteGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar grupo</button>}
                         </div>
@@ -1716,7 +1716,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       {tab === 'rentabilidad' && (
         <div style={{ maxWidth: 760 }}>
           {profitability.margenPct != null && profitability.margenPct < MARGIN_ALERT_THRESHOLD && (
-            <div style={{ background: '#fdecea', color: '#b52a2a', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
+            <div style={{ background: 'var(--danger-tint)', color: 'var(--warn)', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
               ⚠ Margen bajo ({profitability.margenPct.toFixed(0)}%) — por debajo del {MARGIN_ALERT_THRESHOLD}% recomendado.
             </div>
           )}
@@ -1747,15 +1747,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Materiales</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#b52a2a' }}>{fmt(profitability.materialesCosto)}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--warn)' }}>{fmt(profitability.materialesCosto)}</div>
               </div>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Mano de obra ({formatHours(profitability.totalHoras)})</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#b52a2a' }}>{fmt(profitability.manoDeObraCosto)}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--warn)' }}>{fmt(profitability.manoDeObraCosto)}</div>
               </div>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Gastos</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#b52a2a' }}>{fmt(profitability.gastos)}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--warn)' }}>{fmt(profitability.gastos)}</div>
               </div>
             </div>
           </div>
@@ -1789,7 +1789,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
           <div className="card" style={{ background: 'var(--bg)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>Ganancia neta (sobre lo cobrado)</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: profitability.gananciaNeta >= 0 ? 'var(--ok)' : '#b52a2a' }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: profitability.gananciaNeta >= 0 ? 'var(--ok)' : 'var(--warn)' }}>
                 {fmt(profitability.gananciaNeta)} {profitability.margenPct != null ? `(${profitability.margenPct.toFixed(0)}%)` : ''}
               </div>
             </div>
@@ -1855,12 +1855,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
 
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar trabajo?</h2>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteJob} disabled={deleting}
-                style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>
+                style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
                 {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
               </button>
               <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>

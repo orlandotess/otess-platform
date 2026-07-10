@@ -48,7 +48,7 @@ export default async function EstimadosPage() {
   const totalSent = estimates?.filter(e => e.status === 'sent').reduce((a, e) => a + Number(e.total ?? 0), 0) ?? 0;
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-estimados">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
@@ -110,7 +110,7 @@ export default async function EstimadosPage() {
                           {viewInfo ? (
                             <span
                               title={`Última vista: ${formatViewedAt(viewInfo.lastViewedAt)}`}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--navy)', fontWeight: 600, background: '#eef1f8', padding: '3px 8px', borderRadius: 12 }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--navy)', fontWeight: 600, background: 'var(--navy-tint)', padding: '3px 8px', borderRadius: 12 }}
                             >
                               👁️ {viewInfo.count} · {formatViewedAt(viewInfo.lastViewedAt)}
                             </span>

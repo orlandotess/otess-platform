@@ -128,22 +128,22 @@ export default async function RentabilidadPage() {
           </div>
           <div className="stat-card">
             <div className="stat-label">Costos totales</div>
-            <div className="stat-value" style={{ color: '#b52a2a' }}>{fmt(totals.costos)}</div>
+            <div className="stat-value" style={{ color: 'var(--warn)' }}>{fmt(totals.costos)}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Ganancia neta</div>
-            <div className="stat-value" style={{ color: totals.ganancia >= 0 ? 'var(--ok)' : '#b52a2a' }}>
+            <div className="stat-value" style={{ color: totals.ganancia >= 0 ? 'var(--ok)' : 'var(--warn)' }}>
               {fmt(totals.ganancia)} {totalMargenPct != null ? `(${totalMargenPct.toFixed(0)}%)` : ''}
             </div>
           </div>
         </div>
 
         {lowMarginJobs.length > 0 && (
-          <div className="card" style={{ marginBottom: 20, background: '#fdecea', border: '1px solid #f3b3ac' }}>
-            <div style={{ fontWeight: 700, color: '#b52a2a', fontSize: 14, marginBottom: 4 }}>
+          <div className="card" style={{ marginBottom: 20, background: 'var(--danger-tint)', border: '1px solid #f3b3ac' }}>
+            <div style={{ fontWeight: 700, color: 'var(--warn)', fontSize: 14, marginBottom: 4 }}>
               ⚠ {lowMarginJobs.length} trabajo{lowMarginJobs.length > 1 ? 's' : ''} con margen por debajo de {MARGIN_ALERT_THRESHOLD}%
             </div>
-            <div style={{ fontSize: 13, color: '#b52a2a' }}>
+            <div style={{ fontSize: 13, color: 'var(--warn)' }}>
               {lowMarginJobs.slice(0, 5).map(s => s.job.title).join(', ')}{lowMarginJobs.length > 5 ? '…' : ''}
             </div>
           </div>
@@ -170,7 +170,7 @@ export default async function RentabilidadPage() {
                 {billedJobs.map(s => {
                   const low = s.margenPct != null && s.margenPct < MARGIN_ALERT_THRESHOLD;
                   return (
-                    <tr key={s.job.id} style={{ borderTop: '1px solid var(--border)', background: low ? '#fdecea' : 'transparent' }}>
+                    <tr key={s.job.id} style={{ borderTop: '1px solid var(--border)', background: low ? 'var(--danger-tint)' : 'transparent' }}>
                       <td style={{ padding: '8px 0' }}>
                         <Link href={`/trabajos/${s.job.id}`} style={{ color: 'var(--navy)', fontWeight: 700, textDecoration: 'none' }}>{s.job.title}</Link>
                         {s.job.job_number && <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 6 }}>{s.job.job_number}</span>}
@@ -181,8 +181,8 @@ export default async function RentabilidadPage() {
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.materialesCosto)}</td>
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.manoDeObraCosto)}</td>
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.gastos)}</td>
-                      <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: s.gananciaNeta >= 0 ? 'var(--ok)' : '#b52a2a' }}>{fmt(s.gananciaNeta)}</td>
-                      <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: low ? '#b52a2a' : 'var(--navy)' }}>
+                      <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: s.gananciaNeta >= 0 ? 'var(--ok)' : 'var(--warn)' }}>{fmt(s.gananciaNeta)}</td>
+                      <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: low ? 'var(--warn)' : 'var(--navy)' }}>
                         {s.margenPct != null ? `${s.margenPct.toFixed(0)}%` : '—'}
                       </td>
                     </tr>
@@ -216,7 +216,7 @@ export default async function RentabilidadPage() {
                   <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmtH(t.hours)}</td>
                   <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(t.pay)}</td>
                   <td style={{ padding: '8px 0', textAlign: 'right' }}>{t.jobCount}</td>
-                  <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: t.avgMargin != null && t.avgMargin < MARGIN_ALERT_THRESHOLD ? '#b52a2a' : 'var(--navy)' }}>
+                  <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: t.avgMargin != null && t.avgMargin < MARGIN_ALERT_THRESHOLD ? 'var(--warn)' : 'var(--navy)' }}>
                     {t.avgMargin != null ? `${t.avgMargin.toFixed(0)}%` : '—'}
                   </td>
                 </tr>

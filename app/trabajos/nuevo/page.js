@@ -211,7 +211,7 @@ export default function NuevoTrabajo() {
   }
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-trabajos">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
@@ -220,7 +220,7 @@ export default function NuevoTrabajo() {
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>Solicitud rápida</span>
             <button type="button" onClick={() => setQuickMode(q => !q)}
               style={{ width: 44, height: 24, borderRadius: 20, border: 'none', cursor: 'pointer', position: 'relative', background: quickMode ? 'var(--amber)' : '#dde1e7', transition: 'background 0.2s' }}>
-              <span style={{ position: 'absolute', top: 2, left: quickMode ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+              <span style={{ position: 'absolute', top: 2, left: quickMode ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--surface)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
             </button>
           </div>
         </div>
@@ -251,7 +251,7 @@ export default function NuevoTrabajo() {
               <div className="form-group" style={{ position: 'relative' }}>
                 <label>Cliente *</label>
                 {selectedClient ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: '#f8f9fb' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
                     <span style={{ flex: 1, fontWeight: 600 }}>{selectedClient.name}{selectedClient.client_type === 'b2b' ? ' (B2B)' : ''}</span>
                     <button type="button" onClick={() => { set('client_id', ''); set('bill_to', 'person'); setClientSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700 }}>Cambiar</button>
                   </div>
@@ -281,13 +281,13 @@ export default function NuevoTrabajo() {
                     {showClientDropdown && (
                       <>
                         <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowClientDropdown(false)} />
-                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 240, overflowY: 'auto' }}>
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 240, overflowY: 'auto' }}>
                           {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 ? (
                             <div style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13 }}>No se encontraron clientes.</div>
                           ) : clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(c => (
                             <div key={c.id} onClick={() => { set('client_id', c.id); set('bill_to', 'person'); setClientSearch(''); setShowClientDropdown(false); }}
                               style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 500, borderBottom: '1px solid var(--border)' }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#f8f9fb'}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                               {c.name}{c.client_type === 'b2b' ? ' (B2B)' : ''}
                             </div>
@@ -504,7 +504,7 @@ export default function NuevoTrabajo() {
               <div className="card">
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
                 {clientType === 'b2b' && (
-                  <div style={{ background: '#e8eeff', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#2a4cb5', fontWeight: 600 }}>
+                  <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
                     Cliente B2B — Labor al 4%
                   </div>
                 )}

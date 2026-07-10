@@ -32,7 +32,7 @@ export default async function EstimaDetail({ params }) {
   const statusCls = { draft: 'badge-gray', sent: 'badge-blue', cancelled: 'badge-red' };
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-estimados">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
@@ -75,7 +75,7 @@ export default async function EstimaDetail({ params }) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: property ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 28 }}>
-            <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '16px 20px' }}>
+            <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '16px 20px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Preparado para</div>
               <div style={{ fontWeight: 700, fontSize: 16 }}>{billToName}</div>
               {est.bill_to !== 'company' && est.clients?.company && (
@@ -94,7 +94,7 @@ export default async function EstimaDetail({ params }) {
             </div>
 
             {property && (
-              <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '16px 20px' }}>
+              <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '16px 20px' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Propiedad del servicio</div>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>{property.name}</div>
                 {property.street && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>{property.street}</div>}
@@ -133,7 +133,7 @@ export default async function EstimaDetail({ params }) {
                     )}
                     ${Number(item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     {item.supplier_price != null && (
-                      <div style={{ fontSize: 10, color: '#b52a2a' }}>Costo: ${Number(item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${Number(item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                     )}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
@@ -166,13 +166,13 @@ export default async function EstimaDetail({ params }) {
           </div>
 
           {est.notes && (
-            <div style={{ marginTop: 24, padding: '14px 18px', background: '#f8f9fb', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
+            <div style={{ marginTop: 24, padding: '14px 18px', background: 'var(--surface-2)', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
               <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {est.notes}
             </div>
           )}
 
           {est.terms && (
-            <div style={{ marginTop: 16, padding: '14px 18px', background: '#f8f9fb', borderRadius: 10, fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+            <div style={{ marginTop: 16, padding: '14px 18px', background: 'var(--surface-2)', borderRadius: 10, fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
               <strong style={{ color: 'var(--navy)', display: 'block', marginBottom: 8, fontSize: 13 }}>Términos del Proyecto</strong>
               {est.terms.split('\n').map((line, i) => line.trim() ? <p key={i} style={{ margin: '0 0 8px' }}>{line}</p> : null)}
             </div>

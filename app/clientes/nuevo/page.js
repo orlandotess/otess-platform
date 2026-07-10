@@ -33,7 +33,7 @@ export default function NuevoCliente() {
   }
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell ds-clientes">
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
