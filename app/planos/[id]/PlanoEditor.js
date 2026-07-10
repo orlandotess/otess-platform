@@ -9,9 +9,14 @@ import { exportEquipmentListCSV } from '../../planoEquipmentCsv';
 const FALLBACK_W = 1600;
 const FALLBACK_H = 1200;
 
+const URL_REFRESH_INTERVAL = 45 * 60 * 1000; // signed URLs expire at 1h; refresh well before that
+
 export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, customIcons, currentRole }) {
   const router = useRouter();
   const wrapRef = useRef(null);
+  const dragOriginRef = useRef(null);
+  const labelOriginRef = useRef(null);
+  const customIconsRef = useRef(customIcons);
 
   const W = plan.image_width || FALLBACK_W;
   const H = plan.image_height || FALLBACK_H;
@@ -21,6 +26,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [markers, setMarkers] = useState(initialMarkers);
   const [cables, setCables] = useState(initialCables);
   const [customIconsState, setCustomIconsState] = useState(customIcons);
+  const [imageUrlState, setImageUrlState] = useState(imageUrl);
   const [mode, setMode] = useState('select'); // 'select' | { type: 'place', equipmentKey, customIconId } | { type: 'cable' } | { type: 'scale' }
   const [selectedMarkerId, setSelectedMarkerId] = useState(null);
   const [selectedCableId, setSelectedCableId] = useState(null);
@@ -55,6 +61,25 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  useEffect(() => { customIconsRef.current = customIconsState; }, [customIconsState]);
+
+  // Signed URLs (plan image + custom icons) expire after 1h. On a long
+  // editing session that outlives the TTL, refresh them in the background
+  // so the canvas doesn't silently go blank mid-session.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const { data: imgSigned } = await supabase.storage.from('floor-plans').createSignedUrl(plan.rendered_image_path, 3600);
+      if (imgSigned?.signedUrl) setImageUrlState(imgSigned.signedUrl);
+
+      const refreshed = await Promise.all(customIconsRef.current.map(async ic => {
+        const { data } = await supabase.storage.from('floor-plan-icons').createSignedUrl(ic.image_path, 3600);
+        return data?.signedUrl ? { ...ic, url: data.signedUrl } : ic;
+      }));
+      setCustomIconsState(refreshed);
+    }, URL_REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [plan.rendered_image_path]);
 
   function dist(p1, p2) {
     return Math.hypot((p2.x - p1.x) * W, (p2.y - p1.y) * H);
@@ -168,7 +193,10 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
   function handleMarkerPointerDown(e, marker) {
     e.stopPropagation();
-    if (mode === 'select') setDraggingId(marker.id);
+    if (mode === 'select') {
+      dragOriginRef.current = { id: marker.id, pos_x: marker.pos_x, pos_y: marker.pos_y };
+      setDraggingId(marker.id);
+    }
   }
 
   function handleWrapPointerMove(e) {
@@ -185,33 +213,56 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   async function handleWrapPointerUp() {
     if (draggingId) {
       const m = markers.find(m => m.id === draggingId);
+      const origin = dragOriginRef.current;
       setDraggingId(null);
+      dragOriginRef.current = null;
       if (m && !String(m.id).startsWith('temp-')) {
-        await supabase.from('floor_plan_markers').update({ pos_x: m.pos_x, pos_y: m.pos_y }).eq('id', m.id);
+        const { error } = await supabase.from('floor_plan_markers').update({ pos_x: m.pos_x, pos_y: m.pos_y }).eq('id', m.id);
+        if (error && origin) {
+          setMarkers(prev => prev.map(mk => mk.id === origin.id ? { ...mk, pos_x: origin.pos_x, pos_y: origin.pos_y } : mk));
+          alert('No se pudo guardar la nueva posición, se revirtió: ' + error.message);
+        }
       }
     }
   }
 
   async function deleteMarker(id) {
     if (!confirm('¿Eliminar este equipo del plano? También se eliminarán sus cables.')) return;
+    const removedMarker = markers.find(m => m.id === id);
+    const removedCables = cables.filter(c => c.from_marker_id === id || c.to_marker_id === id);
     setMarkers(prev => prev.filter(m => m.id !== id));
     setCables(prev => prev.filter(c => c.from_marker_id !== id && c.to_marker_id !== id));
     setSelectedMarkerId(null);
-    await supabase.from('floor_plan_markers').delete().eq('id', id);
+    const { error } = await supabase.from('floor_plan_markers').delete().eq('id', id);
+    if (error) {
+      if (removedMarker) setMarkers(prev => [...prev, removedMarker]);
+      if (removedCables.length) setCables(prev => [...prev, ...removedCables]);
+      alert('No se pudo eliminar el equipo, se restauró: ' + error.message);
+    }
   }
 
-  async function updateMarkerLabel(id, label) {
+  function updateMarkerLabel(id, label) {
     setMarkers(prev => prev.map(m => m.id === id ? { ...m, label } : m));
   }
   async function commitMarkerLabel(id, label) {
-    await supabase.from('floor_plan_markers').update({ label: label || null }).eq('id', id);
+    const original = labelOriginRef.current;
+    const { error } = await supabase.from('floor_plan_markers').update({ label: label || null }).eq('id', id);
+    if (error) {
+      setMarkers(prev => prev.map(m => m.id === id ? { ...m, label: original ?? null } : m));
+      alert('No se pudo guardar la etiqueta, se revirtió: ' + error.message);
+    }
   }
 
   async function deleteCable(id) {
     if (!confirm('¿Eliminar este cable?')) return;
+    const removedCable = cables.find(c => c.id === id);
     setCables(prev => prev.filter(c => c.id !== id));
     setSelectedCableId(null);
-    await supabase.from('floor_plan_cables').delete().eq('id', id);
+    const { error } = await supabase.from('floor_plan_cables').delete().eq('id', id);
+    if (error) {
+      if (removedCable) setCables(prev => [...prev, removedCable]);
+      alert('No se pudo eliminar el cable, se restauró: ' + error.message);
+    }
   }
 
   async function handleIconUpload(e) {
@@ -403,7 +454,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           }}
         >
           <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" style={{ display: 'block' }}>
-            {imageUrl && <image href={imageUrl} x="0" y="0" width={W} height={H} preserveAspectRatio="xMidYMid meet" />}
+            {imageUrlState && <image href={imageUrlState} x="0" y="0" width={W} height={H} preserveAspectRatio="xMidYMid meet" />}
 
             {cables.map(c => {
               const pts = cablePoints(c);
@@ -497,6 +548,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               </div>
               <input
                 value={selectedMarker.label || ''}
+                onFocus={() => { labelOriginRef.current = selectedMarker.label || ''; }}
                 onChange={e => updateMarkerLabel(selectedMarker.id, e.target.value)}
                 onBlur={e => commitMarkerLabel(selectedMarker.id, e.target.value)}
                 placeholder="Etiqueta (ej: Cam 3 - Entrada)"

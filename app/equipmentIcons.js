@@ -81,6 +81,16 @@ export const EQUIPMENT_TYPES = [
       <circle cx="12" cy="10" r="2.4" />
     </>,
   },
+  {
+    key: 'speaker',
+    label: 'Bocina',
+    color: '#0891b2',
+    icon: <>
+      <path d="M11 5 L6 9 H2 v6 h4 l5 4 z" />
+      <path d="M15.5 8.5 a5 5 0 0 1 0 7" />
+      <path d="M19 5 a10 10 0 0 1 0 14" />
+    </>,
+  },
 ];
 
 export function getEquipmentType(key) {
