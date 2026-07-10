@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../../../lib/supabase';
 import LineItemRow from '../../../LineItemRow';
+import ClientCombobox from '../../nueva/ClientCombobox';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 const STATUS_BADGE = { draft: { cls: 'badge-gray', label: 'Borrador' }, sent: { cls: 'badge-blue', label: 'Enviada' }, paid: { cls: 'badge-green', label: 'Pagada' }, cancelled: { cls: 'badge-red', label: 'Cancelada' } };
@@ -101,9 +102,7 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
             <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
             <div className="form-group">
               <label>Cliente *</label>
-              <select value={form.client_id} onChange={e => { set('client_id', e.target.value); set('bill_to', 'person'); }}>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.client_type === 'b2b' ? ' (B2B)' : ''}</option>)}
-              </select>
+              <ClientCombobox clients={clients} value={form.client_id} onChange={v => { set('client_id', v); set('bill_to', 'person'); }} />
             </div>
             {hasCompany && (
               <div className="form-group" style={{ marginTop: 4 }}>

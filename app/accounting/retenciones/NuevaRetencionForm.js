@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { computeRetentionForInvoice } from '../../../lib/retenciones';
 import SearchBox from '../../SearchBox';
+import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -116,10 +117,7 @@ export default function NuevaRetencionForm({
           {clientIdLocked ? (
             <input value={clientNameLocked} disabled />
           ) : (
-            <select value={clientId} onChange={e => { setClientId(e.target.value); clearInvoice(); }}>
-              <option value="">— Sin cliente —</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <ClientCombobox clients={clients} value={clientId} onChange={v => { setClientId(v); clearInvoice(); }} />
           )}
         </div>
 

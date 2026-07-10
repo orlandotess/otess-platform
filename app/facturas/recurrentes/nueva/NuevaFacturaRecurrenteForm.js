@@ -4,6 +4,7 @@ import { supabase } from '../../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Sidebar from '../../../Sidebar';
 import LineItemRow from '../../../LineItemRow';
+import ClientCombobox from '../../nueva/ClientCombobox';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
@@ -96,10 +97,7 @@ export default function NuevaFacturaRecurrenteForm() {
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
               <div className="form-group">
                 <label>Cliente *</label>
-                <select value={form.client_id} onChange={e => { set('client_id', e.target.value); set('bill_to', 'person'); }}>
-                  <option value="">— Seleccionar —</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.client_type === 'b2b' ? ' (B2B)' : ''}</option>)}
-                </select>
+                <ClientCombobox clients={clients} value={form.client_id} onChange={v => { set('client_id', v); set('bill_to', 'person'); }} />
               </div>
 
               {hasCompany && (

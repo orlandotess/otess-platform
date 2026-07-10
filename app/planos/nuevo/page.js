@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabase';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 import { rasterizePdfFirstPage } from '../../../lib/pdfRasterize';
 import Sidebar from '../../Sidebar';
+import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 
 export default function NuevoPlano() {
   const router = useRouter();
@@ -110,10 +111,7 @@ export default function NuevoPlano() {
 
           <div className="form-group">
             <label>Cliente (opcional)</label>
-            <select value={clientId} onChange={e => setClientId(e.target.value)}>
-              <option value="">— Sin asignar —</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <ClientCombobox clients={clients} value={clientId} onChange={setClientId} />
           </div>
 
           {jobs.length > 0 && (

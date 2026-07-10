@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabase';
 import Link from 'next/link';
 import SearchBox from '../../SearchBox';
 import NuevaRetencionForm from './NuevaRetencionForm';
+import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 
 export default function RetencionesClient({ retenciones: initial, clients, year }) {
   const [rets, setRets] = useState(initial);
@@ -118,10 +119,9 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
                       <tr key={r.id}>
                         <td><input type="date" value={editData.fecha} onChange={e => setEditData(d => ({ ...d, fecha: e.target.value }))} style={{ width: 130, fontSize: 12 }} /></td>
                         <td>
-                          <select value={editData.client_id} onChange={e => setEditData(d => ({ ...d, client_id: e.target.value }))} style={{ fontSize: 12 }}>
-                            <option value="">— Sin cliente —</option>
-                            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
+                          <div style={{ width: 170 }}>
+                            <ClientCombobox clients={clients} value={editData.client_id} onChange={v => setEditData(d => ({ ...d, client_id: v }))} />
+                          </div>
                         </td>
                         <td><input type="number" value={editData.monto_facturado} onChange={e => setEditData(d => ({ ...d, monto_facturado: e.target.value }))} style={{ width: 90, fontSize: 12, textAlign: 'right' }} /></td>
                         <td><input type="number" value={editData.monto_exento} onChange={e => setEditData(d => ({ ...d, monto_exento: e.target.value }))} style={{ width: 80, fontSize: 12, textAlign: 'right' }} /></td>

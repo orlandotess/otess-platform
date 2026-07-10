@@ -30,7 +30,7 @@ export async function GET(req) {
     supabase.from('visits')
       .select('id, technician_id, scheduled_at, duration_minutes, status, requests(title, clients(name))'),
     supabase.from('calendar_events')
-      .select('id, title, notes, start_at, end_at, technician_id, clients(name)'),
+      .select('id, title, notes, start_at, end_at, technician_id, clients(name), calendar_event_technicians(technician_id)'),
     supabase.from('tasks')
       .select('id, task_type, title, notes, due_at, technician_id, clients(name)'),
   ]);
@@ -74,7 +74,7 @@ export async function GET(req) {
   }
 
   for (const e of calendarEvents ?? []) {
-    if (technicianId && e.technician_id !== technicianId) continue;
+    if (!matchesTech(e.technician_id, e.calendar_event_technicians)) continue;
     icsEvents.push({
       uid: `event-${e.id}@otesspr.com`,
       title: e.title,

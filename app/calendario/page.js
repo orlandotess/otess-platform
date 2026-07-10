@@ -52,7 +52,7 @@ export default async function CalendarioPage({ searchParams }) {
 
   const { data: calendarEvents } = await supabase
     .from('calendar_events')
-    .select('id, title, notes, start_at, end_at, client_id, technician_id, clients(name), technicians(name)')
+    .select('id, title, notes, start_at, end_at, client_id, technician_id, clients(name), technicians(name), calendar_event_technicians(technician_id, technicians(name))')
     .order('start_at');
 
   const { data: tasksRaw } = await supabase
