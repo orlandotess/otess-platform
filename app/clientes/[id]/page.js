@@ -18,7 +18,7 @@ export default async function ClienteDetailPage({ params }) {
     currentRole = myProfile?.role ?? 'tecnico';
   }
 
-  const [{ data: client }, { data: jobs }, { data: invoices }, { data: properties }, { data: contacts }, { data: proposals }, { data: internalNotes }] = await Promise.all([
+  const [{ data: client }, { data: jobs }, { data: invoices }, { data: properties }, { data: contacts }, { data: proposals }, { data: internalNotes }, { data: serviceTickets }] = await Promise.all([
     supabase.from('clients').select('*').eq('id', id).single(),
     supabase.from('jobs').select('id, title, status, scheduled_start, property_id, contact_id').eq('client_id', id).order('scheduled_start', { ascending: false }),
     supabase.from('invoices').select('id, invoice_number, total, status, created_at').eq('client_id', id).order('created_at', { ascending: false }),
@@ -26,6 +26,7 @@ export default async function ClienteDetailPage({ params }) {
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('proposals').select('id, proposal_number, title, status, created_at, valid_until, proposal_options(id, name, proposal_line_items(quantity, unit_price))').eq('client_id', id).order('created_at', { ascending: false }),
     supabase.from('client_notes').select('*').eq('client_id', id).order('created_at', { ascending: false }),
+    supabase.from('service_tickets').select('id, subject, status, source, created_at').eq('client_id', id).order('created_at', { ascending: false }),
   ]);
 
   if (!client) return (
@@ -66,6 +67,7 @@ export default async function ClienteDetailPage({ params }) {
           contacts={contacts ?? []}
           proposals={proposals ?? []}
           internalNotes={internalNotes ?? []}
+          serviceTickets={serviceTickets ?? []}
           currentRole={currentRole}
         />
       </main>

@@ -25,6 +25,11 @@ const statusProp = {
   aprobada: { cls: 'badge-green', label: 'Aprobada' },
   rechazada: { cls: 'badge-red', label: 'Rechazada' }
 };
+const statusTicket = {
+  abierto: { cls: 'badge-red', label: 'Abierto' },
+  en_progreso: { cls: 'badge-blue', label: 'En progreso' },
+  cerrado: { cls: 'badge-gray', label: 'Cerrado' },
+};
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function extractCoordsFromInput(text) {
@@ -67,7 +72,7 @@ async function resolveShortLink(url) {
   }
 }
 
-export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts, proposals, internalNotes: initInternalNotes, currentRole }) {
+export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts, proposals, internalNotes: initInternalNotes, serviceTickets = [], currentRole }) {
   const canDeleteClient = currentRole === 'admin' || currentRole === 'secretaria';
   const router = useRouter();
   const [tab, setTab] = useState('info');
@@ -287,6 +292,10 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
         <button style={tabStyle('proposals')} onClick={() => setTab('proposals')}>
           📄 Propuestas
           {proposals.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{proposals.length}</span>}
+        </button>
+        <button style={tabStyle('tickets')} onClick={() => setTab('tickets')}>
+          🎫 Boletos
+          {serviceTickets.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{serviceTickets.length}</span>}
         </button>
         <button style={tabStyle('internalNotes')} onClick={() => setTab('internalNotes')}>
           📝 Notas internas
@@ -809,6 +818,44 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                         <td style={{ fontWeight: 700 }}>{fmt(total)}</td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(p.created_at).toLocaleDateString('es-PR')}</td>
                         <td><Link href={`/propuestas/${p.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TICKETS TAB */}
+      {tab === 'tickets' && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Boletos de servicio</h2>
+            <Link href={`/boletos/nuevo?client=${client.id}`} className="btn btn-primary">+ Abrir boleto</Link>
+          </div>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 16 }}>
+            Si el cliente escribe un correo describiendo un problema a <strong>support@tickets.otesspr.com</strong>, se crea un boleto automáticamente y el equipo recibe una notificación.
+          </p>
+          {serviceTickets.length === 0 ? (
+            <div className="empty"><p>No hay boletos para este cliente.</p></div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Problema</th><th>Origen</th><th>Estado</th><th>Fecha</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {serviceTickets.map(t => {
+                    const b = statusTicket[t.status] ?? statusTicket.abierto;
+                    return (
+                      <tr key={t.id}>
+                        <td style={{ fontWeight: 600 }}>{t.subject}</td>
+                        <td style={{ fontSize: 12, color: 'var(--muted)' }}>{t.source === 'email' ? '📧 Email' : '👤 Manual'}</td>
+                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(t.created_at).toLocaleDateString('es-PR')}</td>
+                        <td><Link href={`/boletos/${t.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
                   })}

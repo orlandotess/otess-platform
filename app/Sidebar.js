@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 const operationsLinks = [
  { href: '/clientes',   label: 'Clientes',   icon: 'users' },
  { href: '/trabajos',   label: 'Trabajos',   icon: 'bolt' },
+ { href: '/boletos',    label: 'Boletos',    icon: 'ticket' },
  { href: '/calendario', label: 'Calendario', icon: 'calendar' },
  { href: '/propuestas', label: 'Propuestas', icon: 'fileText' },
  { href: '/estimados', label: 'Estimados', icon: 'calculator' },
@@ -69,6 +70,7 @@ const ICON_PATHS = {
   user: <><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20 a 7.5 7.5 0 0 1 15 0"/></>,
   building: <><rect x="4" y="3" width="16" height="18" rx="1"/><rect x="7" y="6" width="3" height="3"/><rect x="14" y="6" width="3" height="3"/><rect x="7" y="11" width="3" height="3"/><rect x="14" y="11" width="3" height="3"/><rect x="9.5" y="16" width="5" height="5"/></>,
   map: <><path d="M9 4 L3 6.5 v14 L9 18 l6 2.5 L21 18 V4 l-6 2.5 z"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6.5" x2="15" y2="20.5"/></>,
+  ticket: <><path d="M3 8 a2 2 0 0 1 2 -2 h14 a2 2 0 0 1 2 2 v2.5 a2 2 0 0 0 0 3 V16 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 v-2.5 a2 2 0 0 0 0 -3 z"/><line x1="14" y1="7" x2="14" y2="17" strokeDasharray="2.5 2.5"/></>,
 };
 
 function NavIcon({ name }) {
