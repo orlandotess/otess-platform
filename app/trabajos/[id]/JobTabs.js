@@ -412,6 +412,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [editingReportId, setEditingReportId] = useState(null);
   const [reportTitle, setReportTitle] = useState('');
   const [reportNoteIds, setReportNoteIds] = useState([]);
+  const [reportVisitDate, setReportVisitDate] = useState('');
+  const [reportPersonnel, setReportPersonnel] = useState('');
+  const [reportSummary, setReportSummary] = useState('');
+  const [reportObservations, setReportObservations] = useState('');
+  const [reportRecommendations, setReportRecommendations] = useState('');
+  const [reportPreparedBy, setReportPreparedBy] = useState('');
   const [savingReport, setSavingReport] = useState(false);
   const [emailingReportId, setEmailingReportId] = useState(null);
   const [reportEmailTo, setReportEmailTo] = useState('');
@@ -667,6 +673,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setEditingReportId(null);
     setReportTitle('');
     setReportNoteIds([]);
+    setReportVisitDate(new Date().toISOString().slice(0, 10));
+    setReportPersonnel(assignedTechs.map(at => at.technicians?.name).filter(Boolean).join(', '));
+    setReportSummary('');
+    setReportObservations('');
+    setReportRecommendations('');
+    setReportPreparedBy('');
     setShowReportModal(true);
   }
 
@@ -674,6 +686,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setEditingReportId(report.id);
     setReportTitle(report.title);
     setReportNoteIds(report.note_ids ?? []);
+    setReportVisitDate(report.visit_date ?? '');
+    setReportPersonnel(report.personnel ?? '');
+    setReportSummary(report.summary ?? '');
+    setReportObservations(report.observations ?? '');
+    setReportRecommendations(report.recommendations ?? '');
+    setReportPreparedBy(report.prepared_by ?? '');
     setShowReportModal(true);
   }
 
@@ -684,14 +702,24 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   async function saveReport() {
     if (!reportTitle.trim()) return;
     setSavingReport(true);
+    const fields = {
+      title: reportTitle.trim(),
+      note_ids: reportNoteIds,
+      visit_date: reportVisitDate || null,
+      personnel: reportPersonnel.trim() || null,
+      summary: reportSummary.trim() || null,
+      observations: reportObservations.trim() || null,
+      recommendations: reportRecommendations.trim() || null,
+      prepared_by: reportPreparedBy.trim() || null,
+    };
     if (editingReportId) {
       const { data } = await supabase.from('job_reports')
-        .update({ title: reportTitle.trim(), note_ids: reportNoteIds, updated_at: new Date().toISOString() })
+        .update({ ...fields, updated_at: new Date().toISOString() })
         .eq('id', editingReportId).select().single();
       if (data) setReportsList(prev => prev.map(r => r.id === editingReportId ? data : r));
     } else {
       const { data } = await supabase.from('job_reports')
-        .insert([{ job_id: job.id, title: reportTitle.trim(), note_ids: reportNoteIds }])
+        .insert([{ job_id: job.id, ...fields }])
         .select().single();
       if (data) setReportsList(prev => [data, ...prev]);
     }
@@ -2016,6 +2044,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <label>Título</label>
               <input value={reportTitle} onChange={e => setReportTitle(e.target.value)} placeholder="Ej: Avance de instalación — semana 1" autoFocus />
             </div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>Fecha de visita</label>
+                <input type="date" value={reportVisitDate} onChange={e => setReportVisitDate(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ flex: 2 }}>
+                <label>Personal presente</label>
+                <input value={reportPersonnel} onChange={e => setReportPersonnel(e.target.value)} placeholder="Nombres separados por coma" />
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label>Resumen de actividades</label>
+              <textarea value={reportSummary} onChange={e => setReportSummary(e.target.value)} rows={4} placeholder="Describe lo que se hizo en la visita..."
+                style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
+            </div>
             <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--navy)', marginBottom: 8 }}>Selecciona las notas/fotos a incluir</p>
             {notesList.length === 0 ? (
               <p style={{ color: 'var(--muted)', fontSize: 13 }}>Este trabajo no tiene notas todavía.</p>
@@ -2062,6 +2105,20 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </div>
               ));
             })()}
+            <div className="form-group" style={{ marginTop: 16, marginBottom: 16 }}>
+              <label>Observaciones</label>
+              <textarea value={reportObservations} onChange={e => setReportObservations(e.target.value)} rows={3} placeholder="Una observación por línea..."
+                style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label>Recomendaciones</label>
+              <textarea value={reportRecommendations} onChange={e => setReportRecommendations(e.target.value)} rows={3} placeholder="Una recomendación por línea..."
+                style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label>Preparado por (opcional)</label>
+              <input value={reportPreparedBy} onChange={e => setReportPreparedBy(e.target.value)} placeholder="Nombre para la firma" />
+            </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button className="btn btn-primary" disabled={savingReport || !reportTitle.trim()} onClick={saveReport} style={{ flex: 1, justifyContent: 'center' }}>
                 {savingReport ? 'Guardando...' : '💾 Guardar reporte'}

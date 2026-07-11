@@ -3,6 +3,19 @@ export const dynamic = 'force-dynamic';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import ReporteActions from './ReporteActions';
 
+function lines(text) {
+  return (text ?? '').split('\n').map(l => l.trim()).filter(Boolean);
+}
+
+function Section({ title, children }) {
+  return (
+    <div style={{ marginBottom: 28, paddingTop: 20, borderTop: '1px solid #eee' }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: '#16223d', marginBottom: 14 }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
 export default async function ReportePublico({ params }) {
   const { id } = params;
 
@@ -35,16 +48,22 @@ export default async function ReportePublico({ params }) {
     }));
   }
 
-  const groups = {};
-  [...notes]
-    .sort((a, b) => (a.phase_number ?? Infinity) - (b.phase_number ?? Infinity) || new Date(a.created_at) - new Date(b.created_at))
-    .forEach(n => {
-      const key = n.phase_number != null ? `Fase ${n.phase_number}` : 'General';
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(n);
-    });
+  const sortedNotes = [...notes].sort((a, b) => (a.phase_number ?? Infinity) - (b.phase_number ?? Infinity) || new Date(a.created_at) - new Date(b.created_at));
+
+  const phaseGroups = {};
+  sortedNotes.filter(n => n.title || n.note).forEach(n => {
+    const key = n.phase_number != null ? `Fase ${n.phase_number}` : 'General';
+    if (!phaseGroups[key]) phaseGroups[key] = [];
+    phaseGroups[key].push(n);
+  });
+
+  const photos = sortedNotes.flatMap(n => n.signedUrls.map(url => ({
+    url,
+    caption: n.title || (n.note ? n.note.slice(0, 80) : null),
+  })));
 
   const client = report.jobs?.clients;
+  const fmtDate = d => d ? new Date(`${d}T00:00:00`).toLocaleDateString('es-PR', { year: 'numeric', month: 'long', day: 'numeric' }) : null;
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
@@ -65,64 +84,111 @@ export default async function ReportePublico({ params }) {
                 <div style={{ color: '#999', fontSize: 12 }}>(787) 513-8352 · info@otesspr.com</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ color: '#16223d', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em' }}>REPORTE DE TRABAJO</div>
+                <div style={{ color: '#16223d', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em' }}>REPORTE DE STATUS</div>
                 {report.jobs?.job_number && <div style={{ color: '#999', fontSize: 15, fontWeight: 600, fontFamily: 'monospace', marginTop: 2 }}>{report.jobs.job_number}</div>}
-                <div style={{ color: '#999', fontSize: 12, marginTop: 8 }} suppressHydrationWarning>
-                  Fecha: <strong style={{ color: '#555' }}>{new Date(report.created_at).toLocaleDateString('es-PR', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
-                </div>
               </div>
             </div>
 
             <div style={{ padding: '28px 32px' }}>
-              <div style={{ marginBottom: 24 }}>
+              <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.08em' }}>Reporte</div>
                 <div style={{ fontWeight: 700, fontSize: 20, color: '#16223d' }}>{report.title}</div>
                 {report.jobs?.title && <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>{report.jobs.title}</div>}
               </div>
 
+              {(report.visit_date || report.personnel) && (
+                <div style={{ fontSize: 13, color: '#555', marginBottom: 20, lineHeight: 1.8 }}>
+                  {report.visit_date && <div>Fecha de visita: <strong style={{ color: '#16223d' }}>{fmtDate(report.visit_date)}</strong></div>}
+                  {report.personnel && <div>Personal presente: <strong style={{ color: '#16223d' }}>{report.personnel}</strong></div>}
+                </div>
+              )}
+
               {client && (
-                <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 24, border: '1px solid #f0f0f0' }}>
+                <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 20, border: '1px solid #f0f0f0' }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Cliente</div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{client.name}</div>
                   {client.company && <div style={{ color: '#999', fontSize: 13 }}>{client.company}</div>}
                 </div>
               )}
 
-              {Object.keys(groups).length === 0 ? (
-                <p style={{ color: '#999', fontSize: 14 }}>Este reporte no tiene notas seleccionadas.</p>
-              ) : Object.entries(groups).map(([label, notesInGroup]) => (
-                <div key={label} style={{ marginBottom: 28 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', background: '#16223d', display: 'inline-block', padding: '4px 12px', borderRadius: 20, marginBottom: 14 }}>{label}</div>
-                  {notesInGroup.map(n => (
-                    <div key={n.id} style={{ marginBottom: 20 }}>
-                      {n.title && <div style={{ fontWeight: 700, fontSize: 14.5, color: '#16223d', marginBottom: 6 }}>{n.title}</div>}
-                      {n.signedUrls.length > 0 && (
-                        <div style={{ display: 'grid', gridTemplateColumns: n.signedUrls.length === 1 ? '1fr' : n.signedUrls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 10, marginBottom: n.note ? 10 : 0 }}>
-                          {n.signedUrls.map((url, idx) => {
-                            const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
-                            const isPdf = /\.pdf(\?|$)/i.test(url);
-                            if (isPdf) return (
-                              <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 160, background: '#fafafa', borderRadius: 8, textDecoration: 'none', border: '1px solid #eee' }}>
-                                <span style={{ fontSize: 32 }}>📄</span>
-                                <span style={{ fontSize: 12, color: '#999', fontWeight: 600, marginTop: 6 }}>Ver PDF</span>
-                              </a>
-                            );
-                            if (isVideo) return (
-                              <video key={idx} src={url} controls style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
-                            );
-                            return (
-                              <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
-                                <img src={url} alt={n.title || 'Foto del trabajo'} style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 8 }} />
-                              </a>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {n.note && <p style={{ fontSize: 14, color: '#666', margin: 0 }}>{n.note}</p>}
+              {report.summary && (
+                <Section title="Resumen de Actividades">
+                  {lines(report.summary).map((p, i) => (
+                    <p key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, margin: '0 0 10px' }}>{p}</p>
+                  ))}
+                </Section>
+              )}
+
+              {Object.keys(phaseGroups).length > 0 && (
+                <Section title="Detalle por Fase">
+                  {Object.entries(phaseGroups).map(([label, notesInGroup]) => (
+                    <div key={label} style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', background: '#16223d', display: 'inline-block', padding: '4px 12px', borderRadius: 20, marginBottom: 10 }}>{label}</div>
+                      <ul style={{ margin: 0, paddingLeft: 20 }}>
+                        {notesInGroup.map(n => (
+                          <li key={n.id} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, marginBottom: 4 }}>
+                            {n.title && <strong style={{ color: '#16223d' }}>{n.title}{n.note ? ': ' : ''}</strong>}
+                            {n.note}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   ))}
-                </div>
-              ))}
+                </Section>
+              )}
+
+              {report.observations && (
+                <Section title="Observaciones">
+                  <ul style={{ margin: 0, paddingLeft: 20 }}>
+                    {lines(report.observations).map((o, i) => (
+                      <li key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, marginBottom: 6 }}>{o}</li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
+
+              {report.recommendations && (
+                <Section title="Recomendaciones">
+                  <ol style={{ margin: 0, paddingLeft: 20 }}>
+                    {lines(report.recommendations).map((r, i) => (
+                      <li key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, marginBottom: 6 }}>{r}</li>
+                    ))}
+                  </ol>
+                </Section>
+              )}
+
+              {photos.length > 0 && (
+                <Section title="Evidencia Fotográfica">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    {photos.map((p, idx) => {
+                      const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(p.url);
+                      const isPdf = /\.pdf(\?|$)/i.test(p.url);
+                      return (
+                        <div key={idx}>
+                          {isPdf ? (
+                            <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 180, background: '#fafafa', borderRadius: 8, textDecoration: 'none', border: '1px solid #eee' }}>
+                              <span style={{ fontSize: 32 }}>📄</span>
+                              <span style={{ fontSize: 12, color: '#999', fontWeight: 600, marginTop: 6 }}>Ver PDF</span>
+                            </a>
+                          ) : isVideo ? (
+                            <video src={p.url} controls style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
+                          ) : (
+                            <a href={p.url} target="_blank" rel="noopener noreferrer">
+                              <img src={p.url} alt={p.caption || 'Foto del trabajo'} style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' }} />
+                            </a>
+                          )}
+                          {p.caption && <div style={{ fontSize: 12.5, color: '#888', marginTop: 6, textAlign: 'center' }}>{p.caption}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Section>
+              )}
+
+              <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid #eee' }}>
+                {report.prepared_by && <div style={{ fontWeight: 700, fontSize: 14, color: '#16223d' }}>{report.prepared_by}</div>}
+                <div style={{ color: '#999', fontSize: 13 }}>OTESS · OT Electrical & Security Solutions</div>
+              </div>
             </div>
           </div>
         </div>
