@@ -14,7 +14,7 @@ const statusBadge = {
 export default async function BoletosPage() {
   const { data: tickets } = await supabase
     .from('service_tickets')
-    .select('id, subject, status, source, contact_email, created_at, clients(name, company)')
+    .select('id, subject, status, source, contact_email, created_at, clients(name, company), technicians(name)')
     .order('created_at', { ascending: false });
 
   const abiertos = tickets?.filter(t => t.status === 'abierto').length ?? 0;
@@ -65,6 +65,7 @@ export default async function BoletosPage() {
                     <th>Cliente</th>
                     <th>Problema</th>
                     <th>Origen</th>
+                    <th>Técnico</th>
                     <th>Estado</th>
                     <th>Fecha</th>
                     <th></th>
@@ -86,6 +87,7 @@ export default async function BoletosPage() {
                             {t.source === 'email' ? '📧 Email' : '👤 Manual'}
                           </span>
                         </td>
+                        <td style={{ fontSize: 13, color: t.technicians ? 'var(--text)' : 'var(--muted)' }}>{t.technicians?.name ?? '— Sin asignar —'}</td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(t.created_at).toLocaleDateString('es-PR')}</td>
                         <td><Link href={`/boletos/${t.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
