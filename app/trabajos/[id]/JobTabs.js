@@ -32,7 +32,7 @@ const expenseCategories = [
   { value: 'otro', label: 'Otro' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
@@ -392,15 +392,30 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   // Notes state
   const [notesList, setNotesList] = useState(notes);
   const [noteText, setNoteText] = useState('');
+  const [noteTitle, setNoteTitle] = useState('');
+  const [notePhase, setNotePhase] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [noteError, setNoteError] = useState('');
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteText, setEditingNoteText] = useState('');
+  const [editingNoteTitle, setEditingNoteTitle] = useState('');
+  const [editingNotePhase, setEditingNotePhase] = useState('');
   const fileRef = useRef();
   const [pendingPhotos, setPendingPhotos] = useState([]);
   const [pendingPhotoPreviews, setPendingPhotoPreviews] = useState([]);
+
+  // Reports state — client-facing selections of notes/photos grouped by phase
+  const [reportsList, setReportsList] = useState(initialReports);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [editingReportId, setEditingReportId] = useState(null);
+  const [reportTitle, setReportTitle] = useState('');
+  const [reportNoteIds, setReportNoteIds] = useState([]);
+  const [savingReport, setSavingReport] = useState(false);
+  const [emailingReportId, setEmailingReportId] = useState(null);
+  const [reportEmailTo, setReportEmailTo] = useState('');
+  const [sendingReport, setSendingReport] = useState(false);
 
   // Expenses state — job-tied costs (material dañado, viaje extra, permisos, etc.)
   // that aren't already captured as a job_line_item / invoice line.
@@ -572,6 +587,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     const { data: newNote } = await supabase.from('job_notes').insert([{
       job_id: job.id,
       note: noteText.trim() || null,
+      title: noteTitle.trim() || null,
+      phase_number: notePhase !== '' ? parseInt(notePhase, 10) : null,
       photo_url: uploadedPaths[0] ?? null,
       photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
     }]).select().single();
@@ -592,7 +609,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     if (failedNames.length > 0) {
       setNoteError(`No se pudo subir: ${failedNames.join(', ')}. La nota se guardó, intenta subir el archivo de nuevo.`);
     }
-    setNoteText(''); setPendingPhotos([]); setPendingPhotoPreviews([]); setUploadProgress({}); setSavingNote(false);
+    setNoteText(''); setNoteTitle(''); setNotePhase(''); setPendingPhotos([]); setPendingPhotoPreviews([]); setUploadProgress({}); setSavingNote(false);
   }
 
   function handleAnnotateSave(blob) {
@@ -636,10 +653,79 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
 
   async function saveNoteEdit(noteId) {
     const text = editingNoteText.trim() || null;
-    await supabase.from('job_notes').update({ note: text }).eq('id', noteId);
-    setNotesList(prev => prev.map(n => n.id === noteId ? { ...n, note: text } : n));
+    const title = editingNoteTitle.trim() || null;
+    const phase_number = editingNotePhase !== '' ? parseInt(editingNotePhase, 10) : null;
+    await supabase.from('job_notes').update({ note: text, title, phase_number }).eq('id', noteId);
+    setNotesList(prev => prev.map(n => n.id === noteId ? { ...n, note: text, title, phase_number } : n));
     setEditingNoteId(null);
     setEditingNoteText('');
+    setEditingNoteTitle('');
+    setEditingNotePhase('');
+  }
+
+  function openNewReport() {
+    setEditingReportId(null);
+    setReportTitle('');
+    setReportNoteIds([]);
+    setShowReportModal(true);
+  }
+
+  function openEditReport(report) {
+    setEditingReportId(report.id);
+    setReportTitle(report.title);
+    setReportNoteIds(report.note_ids ?? []);
+    setShowReportModal(true);
+  }
+
+  function toggleReportNoteSelection(noteId) {
+    setReportNoteIds(prev => prev.includes(noteId) ? prev.filter(id => id !== noteId) : [...prev, noteId]);
+  }
+
+  async function saveReport() {
+    if (!reportTitle.trim()) return;
+    setSavingReport(true);
+    if (editingReportId) {
+      const { data } = await supabase.from('job_reports')
+        .update({ title: reportTitle.trim(), note_ids: reportNoteIds, updated_at: new Date().toISOString() })
+        .eq('id', editingReportId).select().single();
+      if (data) setReportsList(prev => prev.map(r => r.id === editingReportId ? data : r));
+    } else {
+      const { data } = await supabase.from('job_reports')
+        .insert([{ job_id: job.id, title: reportTitle.trim(), note_ids: reportNoteIds }])
+        .select().single();
+      if (data) setReportsList(prev => [data, ...prev]);
+    }
+    setSavingReport(false);
+    setShowReportModal(false);
+  }
+
+  async function deleteReport(reportId) {
+    if (!confirm('¿Eliminar este reporte? Las notas no se borran, solo el reporte.')) return;
+    await supabase.from('job_reports').delete().eq('id', reportId);
+    setReportsList(prev => prev.filter(r => r.id !== reportId));
+  }
+
+  function openReportEmail(report) {
+    setEmailingReportId(report.id);
+    setReportEmailTo(report.sent_to || job.clients?.email || '');
+  }
+
+  async function sendReportEmail(e) {
+    e.preventDefault();
+    setSendingReport(true);
+    const res = await fetch('/api/send-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reportId: emailingReportId, toEmail: reportEmailTo }),
+    });
+    const data = await res.json();
+    setSendingReport(false);
+    if (data.success) {
+      setReportsList(prev => prev.map(r => r.id === emailingReportId ? { ...r, sent_at: new Date().toISOString(), sent_to: reportEmailTo } : r));
+      setEmailingReportId(null);
+    } else {
+      alert('Error: ' + data.error);
+    }
   }
 
   async function toggleItem(itemId, completed) {
@@ -765,6 +851,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
         </button>
         <button style={tabStyle('checklist')} onClick={() => setTab('checklist')}>
           ✅ Checklist {realCount > 0 && <span style={{ background: progress === 100 ? '#e6f4ee' : 'var(--bg)', color: progress === 100 ? '#1a7a4a' : 'var(--muted)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{completedCount}/{realCount}</span>}
+        </button>
+        <button style={tabStyle('reports')} onClick={() => setTab('reports')}>
+          📄 Reportes {reportsList.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{reportsList.length}</span>}
         </button>
         <button style={tabStyle('rentabilidad')} onClick={() => setTab('rentabilidad')}>
           💰 Rentabilidad {profitability.margenPct != null && profitability.margenPct < MARGIN_ALERT_THRESHOLD && (
@@ -1375,6 +1464,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
           <div className="card" style={{ marginBottom: 20 }}>
             <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Agregar nota o foto</p>
             <form onSubmit={saveNote}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                <input value={noteTitle} onChange={e => setNoteTitle(e.target.value)} placeholder="Título (opcional)"
+                  style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontWeight: 600, outline: 'none' }} />
+                <input type="number" value={notePhase} onChange={e => setNotePhase(e.target.value)} placeholder="Fase #"
+                  style={{ width: 100, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, outline: 'none' }} />
+              </div>
               <div className="form-group" style={{ marginBottom: 12 }}>
                 <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Escribe una nota..." rows={3}
                   style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
@@ -1513,6 +1608,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: n.photo_url || n.note ? 10 : 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
                   {n.is_pinned && <span title="Pineada">📌</span>}
+                  {n.phase_number != null && <span style={{ background: 'var(--navy)', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>Fase {n.phase_number}</span>}
                   {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -1520,7 +1616,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     📌
                   </button>
                   {editingNoteId !== n.id && (
-                    <button onClick={() => { setEditingNoteId(n.id); setEditingNoteText(n.note ?? ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 15 }}>✏️</button>
+                    <button onClick={() => { setEditingNoteId(n.id); setEditingNoteText(n.note ?? ''); setEditingNoteTitle(n.title ?? ''); setEditingNotePhase(n.phase_number != null ? String(n.phase_number) : ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 15 }}>✏️</button>
                   )}
                   <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
                 </div>
@@ -1562,14 +1658,56 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               })()}
               {editingNoteId === n.id ? (
                 <div>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input value={editingNoteTitle} onChange={e => setEditingNoteTitle(e.target.value)} placeholder="Título (opcional)"
+                      style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontWeight: 600, outline: 'none' }} />
+                    <input type="number" value={editingNotePhase} onChange={e => setEditingNotePhase(e.target.value)} placeholder="Fase #"
+                      style={{ width: 90, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, outline: 'none' }} />
+                  </div>
                   <textarea autoFocus value={editingNoteText} onChange={e => setEditingNoteText(e.target.value)} rows={3}
                     style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 8 }} />
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button className="btn btn-primary" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => saveNoteEdit(n.id)}>Guardar</button>
-                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => { setEditingNoteId(null); setEditingNoteText(''); }}>Cancelar</button>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => { setEditingNoteId(null); setEditingNoteText(''); setEditingNoteTitle(''); setEditingNotePhase(''); }}>Cancelar</button>
                   </div>
                 </div>
-              ) : n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0 }}>{n.note}</p>}
+              ) : (
+                <>
+                  {n.title && <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', margin: '0 0 4px' }}>{n.title}</p>}
+                  {n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0 }}>{n.note}</p>}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── REPORTS TAB ─── */}
+      {tab === 'reports' && (
+        <div style={{ maxWidth: 700 }}>
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Reportes para el cliente</p>
+              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={openNewReport}>+ Nuevo reporte</button>
+            </div>
+            <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>Agrupa notas y fotos por fase para compartir el avance del trabajo — descarga en PDF o envía por email.</p>
+          </div>
+
+          {reportsList.length === 0 ? (
+            <div className="empty"><p>No hay reportes aún.</p></div>
+          ) : reportsList.map(r => (
+            <div key={r.id} className="card" style={{ marginBottom: 12 }}>
+              <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', margin: '0 0 4px' }}>{r.title}</p>
+              <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
+                {(r.note_ids ?? []).length} nota{(r.note_ids ?? []).length === 1 ? '' : 's'} ·{' '}
+                {r.sent_at ? `Enviado a ${r.sent_to} el ${new Date(r.sent_at).toLocaleDateString('es-PR')}` : 'No enviado'}
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                <a className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} href={`/reporte/${r.id}`} target="_blank" rel="noopener noreferrer">👁 Ver</a>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => openEditReport(r)}>✏️ Editar</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => openReportEmail(r)}>📧 Enviar</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px', color: 'var(--warn)' }} onClick={() => deleteReport(r.id)}>🗑 Eliminar</button>
+              </div>
             </div>
           ))}
         </div>
@@ -1866,6 +2004,73 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               </button>
               <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showReportModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 480, maxHeight: '85vh', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>{editingReportId ? 'Editar reporte' : 'Nuevo reporte'}</h2>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label>Título</label>
+              <input value={reportTitle} onChange={e => setReportTitle(e.target.value)} placeholder="Ej: Avance de instalación — semana 1" autoFocus />
+            </div>
+            <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--navy)', marginBottom: 8 }}>Selecciona las notas/fotos a incluir</p>
+            {notesList.length === 0 ? (
+              <p style={{ color: 'var(--muted)', fontSize: 13 }}>Este trabajo no tiene notas todavía.</p>
+            ) : (() => {
+              const groups = {};
+              [...notesList]
+                .sort((a, b) => (a.phase_number ?? Infinity) - (b.phase_number ?? Infinity) || new Date(b.created_at) - new Date(a.created_at))
+                .forEach(n => {
+                  const key = n.phase_number != null ? `Fase ${n.phase_number}` : 'Sin fase';
+                  if (!groups[key]) groups[key] = [];
+                  groups[key].push(n);
+                });
+              return Object.entries(groups).map(([label, notesInGroup]) => (
+                <div key={label} style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
+                  {notesInGroup.map(n => (
+                    <label key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', cursor: 'pointer', textTransform: 'none' }}>
+                      <input type="checkbox" checked={reportNoteIds.includes(n.id)} onChange={() => toggleReportNoteSelection(n.id)} style={{ marginTop: 3 }} />
+                      <span style={{ fontSize: 13 }}>
+                        {n.title && <strong>{n.title}</strong>}
+                        {n.title && (n.note || n.photo_url) ? ' — ' : ''}
+                        {n.note && <span style={{ color: 'var(--muted)' }}>{n.note.slice(0, 60)}{n.note.length > 60 ? '…' : ''}</span>}
+                        {(n.photo_urls?.length || n.photo_url) && <span style={{ color: 'var(--muted)' }}> 📷</span>}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              ));
+            })()}
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button className="btn btn-primary" disabled={savingReport || !reportTitle.trim()} onClick={saveReport} style={{ flex: 1, justifyContent: 'center' }}>
+                {savingReport ? 'Guardando...' : '💾 Guardar reporte'}
+              </button>
+              <button className="btn btn-ghost" onClick={() => setShowReportModal(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {emailingReportId && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>Enviar reporte por email</h2>
+            <form onSubmit={sendReportEmail}>
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label>Email del cliente</label>
+                <input type="email" required value={reportEmailTo} onChange={e => setReportEmailTo(e.target.value)} autoFocus />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="submit" className="btn btn-primary" disabled={sendingReport} style={{ flex: 1, justifyContent: 'center' }}>
+                  {sendingReport ? 'Enviando...' : '📤 Enviar'}
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setEmailingReportId(null)}>Cancelar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
