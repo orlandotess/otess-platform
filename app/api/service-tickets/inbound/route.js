@@ -56,7 +56,16 @@ export async function POST(request) {
 
   const { name: contactName, email: senderEmail } = parseSender(event.data.from);
 
-  const { data: full } = await resend.emails.receiving.get(email_id);
+  // Nunca debe impedir que el boleto quede registrado — si esto falla (ej. la API key
+  // no tiene permiso de lectura), seguimos solo con el asunto en vez del cuerpo completo.
+  let full = null;
+  try {
+    const { data, error: receivingError } = await resend.emails.receiving.get(email_id);
+    if (receivingError) throw new Error(receivingError.message ?? JSON.stringify(receivingError));
+    full = data;
+  } catch (err) {
+    console.error('Error obteniendo el cuerpo del correo:', err.message ?? err);
+  }
   const description = full?.text?.trim() || stripHtml(full?.html) || null;
 
   let clientId = null;
