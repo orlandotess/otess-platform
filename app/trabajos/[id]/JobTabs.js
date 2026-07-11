@@ -421,6 +421,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [savingReport, setSavingReport] = useState(false);
   const [emailingReportId, setEmailingReportId] = useState(null);
   const [reportEmailTo, setReportEmailTo] = useState('');
+  const [reportEmailCc, setReportEmailCc] = useState([]);
+  const [reportEmailCcExtra, setReportEmailCcExtra] = useState('');
   const [sendingReport, setSendingReport] = useState(false);
 
   // Expenses state — job-tied costs (material dañado, viaje extra, permisos, etc.)
@@ -736,20 +738,28 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   function openReportEmail(report) {
     setEmailingReportId(report.id);
     setReportEmailTo(report.sent_to || job.clients?.email || '');
+    setReportEmailCc(report.sent_cc ?? []);
+    setReportEmailCcExtra('');
+  }
+
+  function toggleReportCcContact(email) {
+    setReportEmailCc(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
   }
 
   async function sendReportEmail(e) {
     e.preventDefault();
     setSendingReport(true);
+    const extraCc = reportEmailCcExtra.split(',').map(s => s.trim()).filter(Boolean);
+    const cc = [...new Set([...reportEmailCc, ...extraCc])];
     const res = await fetch('/api/send-report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reportId: emailingReportId, toEmail: reportEmailTo }),
+      body: JSON.stringify({ reportId: emailingReportId, toEmail: reportEmailTo, cc }),
     });
     const data = await res.json();
     setSendingReport(false);
     if (data.success) {
-      setReportsList(prev => prev.map(r => r.id === emailingReportId ? { ...r, sent_at: new Date().toISOString(), sent_to: reportEmailTo } : r));
+      setReportsList(prev => prev.map(r => r.id === emailingReportId ? { ...r, sent_at: new Date().toISOString(), sent_to: reportEmailTo, sent_cc: cc.length ? cc : null } : r));
       setEmailingReportId(null);
     } else {
       alert('Error: ' + data.error);
@@ -2131,13 +2141,34 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
 
       {emailingReportId && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, maxHeight: '85vh', overflowY: 'auto' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>Enviar reporte por email</h2>
             <form onSubmit={sendReportEmail}>
               <div className="form-group" style={{ marginBottom: 16 }}>
                 <label>Email del cliente</label>
                 <input type="email" required value={reportEmailTo} onChange={e => setReportEmailTo(e.target.value)} autoFocus />
               </div>
+
+              {clientContacts.filter(c => c.email).length > 0 && (
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <label>Copiar a (CC)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1.5px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+                    {clientContacts.filter(c => c.email).map(c => (
+                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={reportEmailCc.includes(c.email)} onChange={() => toggleReportCcContact(c.email)} />
+                        <span style={{ fontWeight: 600 }}>{c.name}</span>
+                        <span style={{ color: 'var(--muted)' }}>{c.email}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label>Otros correos en copia (opcional)</label>
+                <input value={reportEmailCcExtra} onChange={e => setReportEmailCcExtra(e.target.value)} placeholder="correo1@ejemplo.com, correo2@ejemplo.com" />
+              </div>
+
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sendingReport} style={{ flex: 1, justifyContent: 'center' }}>
                   {sendingReport ? 'Enviando...' : '📤 Enviar'}

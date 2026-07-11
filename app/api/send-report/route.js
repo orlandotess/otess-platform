@@ -11,7 +11,8 @@ export async function POST(request) {
       return Response.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const { reportId, toEmail } = await request.json();
+    const { reportId, toEmail, cc } = await request.json();
+    const ccList = Array.isArray(cc) ? cc.filter(Boolean) : [];
     const { data: report } = await supabase
       .from('job_reports')
       .select('*, jobs(title, clients(name))')
@@ -61,11 +62,12 @@ export async function POST(request) {
     const { error } = await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: toEmail,
+      ...(ccList.length ? { cc: ccList } : {}),
       subject: `Reporte de trabajo — ${report.title}`,
       html,
     });
     if (error) return Response.json({ error: error.message }, { status: 500 });
-    await supabase.from('job_reports').update({ sent_at: new Date().toISOString(), sent_to: toEmail }).eq('id', reportId);
+    await supabase.from('job_reports').update({ sent_at: new Date().toISOString(), sent_to: toEmail, sent_cc: ccList.length ? ccList : null }).eq('id', reportId);
     return Response.json({ success: true });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
