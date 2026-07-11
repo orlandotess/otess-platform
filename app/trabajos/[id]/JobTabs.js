@@ -2031,17 +2031,34 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               return Object.entries(groups).map(([label, notesInGroup]) => (
                 <div key={label} style={{ marginBottom: 14 }}>
                   <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
-                  {notesInGroup.map(n => (
-                    <label key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', cursor: 'pointer', textTransform: 'none' }}>
-                      <input type="checkbox" checked={reportNoteIds.includes(n.id)} onChange={() => toggleReportNoteSelection(n.id)} style={{ marginTop: 3 }} />
-                      <span style={{ fontSize: 13 }}>
-                        {n.title && <strong>{n.title}</strong>}
-                        {n.title && (n.note || n.photo_url) ? ' — ' : ''}
-                        {n.note && <span style={{ color: 'var(--muted)' }}>{n.note.slice(0, 60)}{n.note.length > 60 ? '…' : ''}</span>}
-                        {(n.photo_urls?.length || n.photo_url) && <span style={{ color: 'var(--muted)' }}> 📷</span>}
-                      </span>
-                    </label>
-                  ))}
+                  {notesInGroup.map(n => {
+                    const thumbUrls = n.photo_urls && n.photo_urls.length > 0 ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
+                    const isVideo = url => /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                    const isPdf = url => /\.pdf(\?|$)/i.test(url);
+                    return (
+                      <label key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', cursor: 'pointer', textTransform: 'none' }}>
+                        <input type="checkbox" checked={reportNoteIds.includes(n.id)} onChange={() => toggleReportNoteSelection(n.id)} style={{ marginTop: 3 }} />
+                        {thumbUrls.length > 0 && (
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            {thumbUrls.slice(0, 3).map((url, idx) => (
+                              isPdf(url) ? (
+                                <div key={idx} style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📄</div>
+                              ) : isVideo(url) ? (
+                                <video key={idx} src={url} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, background: '#000' }} />
+                              ) : (
+                                <img key={idx} src={url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                              )
+                            ))}
+                          </div>
+                        )}
+                        <span style={{ fontSize: 13 }}>
+                          {n.title && <strong>{n.title}</strong>}
+                          {n.title && n.note ? ' — ' : ''}
+                          {n.note && <span style={{ color: 'var(--muted)' }}>{n.note.slice(0, 60)}{n.note.length > 60 ? '…' : ''}</span>}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               ));
             })()}
