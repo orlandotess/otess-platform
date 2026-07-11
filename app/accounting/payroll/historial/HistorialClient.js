@@ -1,6 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { supabase } from "../../../../lib/supabase";
+
+const DAY_LABELS = ["Mié", "Jue", "Vie", "Sáb", "Dom", "Lun", "Mar"];
 
 export default function HistorialClient({ rows: initialRows, technicians }) {
   const [rows, setRows] = useState(initialRows);
@@ -8,12 +10,24 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
   const [techFilter, setTechFilter] = useState("all");
   const [sortDir, setSortDir] = useState("asc");
   const [saving, setSaving] = useState({});
+  const [expandedId, setExpandedId] = useState(null);
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtDate = d => {
     const [y, m, day] = d.split("-");
     return new Date(y, m - 1, day).toLocaleDateString("es-PR", { month: "long", day: "numeric", year: "numeric" });
   };
+
+  function weekDayHours(row) {
+    const [y, m, d] = row.weekStart.split("-").map(Number);
+    const start = new Date(y, m - 1, d);
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(start);
+      day.setDate(start.getDate() + i);
+      const key = day.toISOString().slice(0, 10);
+      return { label: DAY_LABELS[i], date: day.getDate(), hours: row.byDay?.[key] ?? 0 };
+    });
+  }
 
   const sortedRows = [...rows].sort((a, b) => sortDir === "desc" ? new Date(b.payDate) - new Date(a.payDate) : new Date(a.payDate) - new Date(b.payDate));
 
@@ -104,11 +118,13 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
                   <th style={{ textAlign: "right" }}>Pagado</th>
                   <th>Mes</th>
                   <th></th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(r => (
-                  <tr key={r.id} style={{ opacity: r.paid ? 1 : 0.85 }}>
+                  <Fragment key={r.id}>
+                  <tr style={{ opacity: r.paid ? 1 : 0.85 }}>
                     <td>
                       <input type="checkbox" checked={r.paid} disabled={saving[r.id]} onChange={() => togglePaid(r)} style={{ width: 18, height: 18, cursor: "pointer" }} />
                     </td>
@@ -120,9 +136,38 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
                     <td style={{ textAlign: "right", fontWeight: 700, color: "var(--ok)" }}>{fmt(r.net)}</td>
                     <td style={{ color: "var(--amber)", fontWeight: 600, fontSize: 13 }}>{r.monthLabel}</td>
                     <td>
+                      <button onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                        className={`btn ${expandedId === r.id ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 12, padding: "6px 12px" }}>
+                        {expandedId === r.id ? "Ocultar" : "Ver"}
+                      </button>
+                    </td>
+                    <td>
                       <button onClick={() => deletePayrollRow(r)} disabled={saving[r.id]} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 14 }}>🗑</button>
                     </td>
                   </tr>
+                  {expandedId === r.id && (
+                    <tr>
+                      <td colSpan={10} style={{ background: "#f8f9fb", padding: "14px 18px" }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 10, textTransform: "uppercase" }}>
+                          Horas de la semana — {fmtDate(r.weekStart)} al {fmtDate(r.weekEnd)}
+                        </div>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          {weekDayHours(r).map(d => (
+                            <div key={d.label + d.date} style={{
+                              display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 14px",
+                              borderRadius: 10, background: d.hours > 0 ? "#fff" : "transparent", border: "1.5px solid var(--border)", minWidth: 64,
+                            }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>{d.label} {d.date}</div>
+                              <div style={{ fontSize: 15, fontWeight: 700, color: d.hours > 0 ? "var(--navy)" : "#ccc" }}>
+                                {d.hours > 0 ? d.hours.toFixed(1) + "h" : "—"}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
               <tfoot>
@@ -132,6 +177,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
                   <td style={{ textAlign: "right", fontWeight: 900, color: "var(--navy)", paddingTop: 12 }}>{fmt(totGross)}</td>
                   <td style={{ textAlign: "right", fontWeight: 700, color: "var(--warn)", paddingTop: 12 }}>{fmt(totRet)}</td>
                   <td style={{ textAlign: "right", fontWeight: 900, color: "var(--ok)", paddingTop: 12 }}>{fmt(totNet)}</td>
+                  <td></td>
                   <td></td>
                   <td></td>
                 </tr>

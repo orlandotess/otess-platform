@@ -102,6 +102,7 @@ export default async function PayrollHistorial() {
         retention,
         net,
         paid: adj?.paid ?? false,
+        byDay,
       });
     });
   });

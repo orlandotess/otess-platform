@@ -1092,16 +1092,24 @@ export default function FieldApp() {
               const dayLabel = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
               const dateLabel = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               const saving = savingDay === key;
+              const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+              const isFutureDay = dateObj > todayStart;
               return (
                 <div key={key} style={card}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFutureDay ? 0 : 14 }}>
                     <div><span style={{ fontWeight: 700, fontSize: 16 }}>{dayLabel}</span> <span style={{ color: '#888', fontSize: 13 }}>{dateLabel}</span></div>
-                    <button onClick={() => saveDayForm(dateObj)} disabled={saving || !form.entryHour || !form.exitHour}
-                      style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!form.entryHour || !form.exitHour) ? 0.5 : 1 }}>
-                      {saving ? '...' : '💾'}
-                    </button>
+                    {!isFutureDay && (
+                      <button onClick={() => saveDayForm(dateObj)} disabled={saving || !form.entryHour || !form.exitHour}
+                        style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!form.entryHour || !form.exitHour) ? 0.5 : 1 }}>
+                        {saving ? '...' : '💾'}
+                      </button>
+                    )}
                   </div>
 
+                  {isFutureDay ? (
+                    <div style={{ padding: '8px 0 2px', color: '#aaa', fontSize: 13 }}>Disponible cuando llegue este día</div>
+                  ) : (
+                  <>
                   {[['ENTRY', 'entry'], ['EXIT', 'exit']].map(([label, prefix]) => (
                     <div key={prefix} style={{ marginBottom: 14 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.06em', marginBottom: 6 }}>{label}</div>
@@ -1145,6 +1153,8 @@ export default function FieldApp() {
                     <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
                       ⚠️ No se pudo guardar. Verifica tu conexión e intenta de nuevo.
                     </div>
+                  )}
+                  </>
                   )}
                 </div>
               );
