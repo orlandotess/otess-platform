@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import { isoToLocalInput, localInputToIso } from '../../lib/datetimeLocal';
+import { pickMapsLink } from '../../lib/mapsLinks';
 import ClientCombobox from '../facturas/nueva/ClientCombobox';
 
 const TECH_COLORS = [
@@ -195,12 +196,13 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     }
   }
 
-  async function handleCreateEvent({ title, dateStr, startTime, endTime, technicianIds, clientId, notes }) {
+  async function handleCreateEvent({ title, dateStr, startTime, endTime, technicianIds, clientId, notes, address }) {
     setSaving(true);
     try {
       const { data: event, error } = await supabase.from('calendar_events').insert({
         title,
         notes: notes || null,
+        address: address || null,
         start_at: new Date(`${dateStr}T${startTime}:00`).toISOString(),
         end_at: new Date(`${dateStr}T${endTime}:00`).toISOString(),
         technician_id: technicianIds[0] ?? null,
@@ -295,13 +297,19 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   }
 
   async function deleteEvent(id) {
-    await supabase.from('calendar_events').delete().eq('id', id);
+    // .select() lets us tell a real failure apart from RLS silently matching zero rows,
+    // which supabase-js reports as success with no error otherwise.
+    const { data, error } = await supabase.from('calendar_events').delete().eq('id', id).select();
+    if (error) { alert('Error al eliminar el evento: ' + error.message); return; }
+    if (!data?.length) { alert('No se pudo eliminar el evento (sin permiso o ya fue eliminado). Refrescando...'); router.refresh(); return; }
     setSelectedEvent(null);
     router.refresh();
   }
 
   async function deleteTask(id) {
-    await supabase.from('tasks').delete().eq('id', id);
+    const { data, error } = await supabase.from('tasks').delete().eq('id', id).select();
+    if (error) { alert('Error al eliminar la tarea: ' + error.message); return; }
+    if (!data?.length) { alert('No se pudo eliminar la tarea (sin permiso o ya fue eliminada). Refrescando...'); router.refresh(); return; }
     setSelectedTask(null);
     router.refresh();
   }
@@ -735,6 +743,11 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   .filter(Boolean).join(', ') || '— Sin asignar —'],
                 ['Inicio', new Date(selectedEvent.start_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
                 ['Fin', new Date(selectedEvent.end_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
+                ...(selectedEvent.address ? [['Dirección', (
+                  <a href={pickMapsLink(selectedEvent.address)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--amber)', fontWeight: 600 }}>
+                    📍 {selectedEvent.address}
+                  </a>
+                )]] : []),
                 ['Notas', selectedEvent.notes || '—'],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 12 }}>
@@ -928,6 +941,7 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
   const [technicianIds, setTechnicianIds] = useState([]);
   const [clientId, setClientId] = useState('');
   const [notes, setNotes] = useState('');
+  const [address, setAddress] = useState('');
 
   const canSubmit = title.trim() && dateStr && startTime && endTime;
 
@@ -983,6 +997,10 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
             <ClientCombobox clients={clients} value={clientId} onChange={setClientId} />
           </div>
           <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Dirección (opcional)</label>
+            <input value={address} onChange={e => setAddress(e.target.value)} className="input" style={{ width: '100%' }} placeholder="Ej. 123 Calle Sol, San Juan, PR" />
+          </div>
+          <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Notas</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} className="input" style={{ width: '100%', minHeight: 60 }} />
           </div>
@@ -990,7 +1008,7 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
 
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!canSubmit || saving}
-          onClick={() => onSubmit({ title: title.trim(), dateStr, startTime, endTime, technicianIds, clientId, notes })}>
+          onClick={() => onSubmit({ title: title.trim(), dateStr, startTime, endTime, technicianIds, clientId, notes, address: address.trim() })}>
           {saving ? 'Guardando...' : 'Crear evento'}
         </button>
       </div>
