@@ -12,7 +12,7 @@ export default async function Cliente360Page() {
     supabase.from('invoices').select('id, client_id, invoice_number, issued_at, status, total, subtotal_labor, tax_labor, subtotal_products, tax_products, clients(name, client_type)').order('issued_at', { ascending: false }),
     supabase.from('payments').select('invoice_id, amount'),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount'),
-    supabase.from('retenciones').select('client_id, retencion_aplicada'),
+    supabase.from('retenciones').select('client_id, invoice_id, retencion_aplicada'),
   ]);
 
   const invs = invoices ?? [];
@@ -35,9 +35,10 @@ export default async function Cliente360Page() {
   });
 
   const retenidoByClient = {};
+  const retenidoByInvoice = {};
   (retenciones ?? []).forEach(r => {
-    if (!r.client_id) return;
-    retenidoByClient[r.client_id] = (retenidoByClient[r.client_id] ?? 0) + Number(r.retencion_aplicada ?? 0);
+    if (r.client_id) retenidoByClient[r.client_id] = (retenidoByClient[r.client_id] ?? 0) + Number(r.retencion_aplicada ?? 0);
+    if (r.invoice_id) retenidoByInvoice[r.invoice_id] = (retenidoByInvoice[r.invoice_id] ?? 0) + Number(r.retencion_aplicada ?? 0);
   });
 
   const clientTotals = (clients ?? []).map(c => {
@@ -46,6 +47,17 @@ export default async function Cliente360Page() {
     const cobrado = clientInvoices.reduce((a, i) => a + (paymentsByInvoice[i.id] ?? 0), 0);
     const ivuLabor = clientInvoices.reduce((a, i) => a + Number(i.tax_labor ?? 0), 0);
     const ivuProducto = clientInvoices.reduce((a, i) => a + Number(i.tax_products ?? 0), 0);
+
+    // Only paid invoices settle for real, so the expected-net check is scoped to
+    // those - unpaid/draft invoices would otherwise look like a false mismatch
+    // (billed and retained, but nothing collected yet).
+    const paidInvoices = clientInvoices.filter(i => i.status === 'paid');
+    const facturadoPagado = paidInvoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
+    const retenidoPagado = paidInvoices.reduce((a, i) => a + (retenidoByInvoice[i.id] ?? 0), 0);
+    const netoEsperado = facturadoPagado - retenidoPagado;
+    const varianza = cobrado - netoEsperado;
+    const hasVarianza = paidInvoices.length > 0 && Math.abs(varianza) > 0.01;
+
     return {
       id: c.id,
       name: c.name,
@@ -56,6 +68,9 @@ export default async function Cliente360Page() {
       ivuLabor,
       ivuProducto,
       retenido: retenidoByClient[c.id] ?? 0,
+      netoEsperado,
+      varianza,
+      hasVarianza,
     };
   }).filter(c => c.count > 0 || c.retenido > 0);
 

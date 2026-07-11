@@ -55,6 +55,7 @@ export default function Cliente360Client({ clientTotals, invoices, ivuByInvoice 
                   <th style={{ textAlign: 'right' }}>Facturas</th>
                   <th style={{ textAlign: 'right' }}>Facturado</th>
                   <th style={{ textAlign: 'right' }}>Cobrado</th>
+                  <th style={{ textAlign: 'right' }}>Neto esperado</th>
                   <th style={{ textAlign: 'right' }}>IVU Labor</th>
                   <th style={{ textAlign: 'right' }}>IVU Producto</th>
                   <th style={{ textAlign: 'right' }}>Retenido</th>
@@ -67,7 +68,13 @@ export default function Cliente360Client({ clientTotals, invoices, ivuByInvoice 
                     <td style={{ fontWeight: 700 }}>{c.name}{c.company ? <span style={{ color: 'var(--muted)', fontWeight: 400 }}> — {c.company}</span> : ''}</td>
                     <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{c.count}</td>
                     <td style={{ textAlign: 'right' }}>{fmt(c.facturado)}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--ok)' }}>{fmt(c.cobrado)}</td>
+                    <td
+                      style={{ textAlign: 'right', fontWeight: c.hasVarianza ? 700 : 400, color: c.hasVarianza ? 'var(--warn)' : 'var(--ok)' }}
+                      title={c.hasVarianza ? `Difiere del neto esperado por ${fmt(Math.abs(c.varianza))}` : undefined}
+                    >
+                      {c.hasVarianza && '⚠️ '}{fmt(c.cobrado)}
+                    </td>
+                    <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(c.netoEsperado)}</td>
                     <td style={{ textAlign: 'right' }}>{fmt(c.ivuLabor)}</td>
                     <td style={{ textAlign: 'right' }}>{fmt(c.ivuProducto)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--amber)' }}>{fmt(c.retenido)}</td>
@@ -85,6 +92,18 @@ export default function Cliente360Client({ clientTotals, invoices, ivuByInvoice 
           <div style={{ marginBottom: 16 }}>
             <Link href={`/clientes/${selected.id}`} className="btn btn-ghost">👤 Ver perfil de {selected.name} →</Link>
           </div>
+
+          {selected.hasVarianza && (
+            <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--warn)', background: '#fff8f0' }}>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)', marginBottom: 6 }}>⚠️ El cobrado no cuadra con el neto esperado</p>
+              <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+                Neto esperado (facturado pagado − retenido de esas facturas): <strong>{fmt(selected.netoEsperado)}</strong>
+                {' · '}Cobrado: <strong>{fmt(selected.cobrado)}</strong>
+                {' · '}Diferencia: <strong style={{ color: 'var(--warn)' }}>{fmt(Math.abs(selected.varianza))}</strong>
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>Pide el comprobante 480.6B al cliente para confirmar la retención real antes de dar el pago por bueno.</p>
+            </div>
+          )}
 
           <IVUInvoiceTableClient invoices={clientInvoices} ivuByInvoice={ivuByInvoice} periodLabel={selected.name} />
 
