@@ -71,6 +71,15 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
     ? rets.filter(r => (r.clients?.name ?? '').toLowerCase().includes(query) || (r.numero_comprobante ?? '').toLowerCase().includes(query))
     : rets;
 
+  const totals = visibleRets.reduce((acc, r) => ({
+    facturado: acc.facturado + Number(r.monto_facturado ?? 0),
+    exento: acc.exento + Number(r.monto_exento ?? 0),
+    base: acc.base + Number(r.base_retencion ?? 0),
+    calculado: acc.calculado + Number(r.retencion_calculada ?? 0),
+    aplicado: acc.aplicado + Number(r.retencion_aplicada ?? 0),
+    diferencia: acc.diferencia + Number(r.diferencia ?? 0),
+  }), { facturado: 0, exento: 0, base: 0, calculado: 0, aplicado: 0, diferencia: 0 });
+
   return (
     <div>
       {/* Add button */}
@@ -176,6 +185,21 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr style={{ borderTop: '2px solid var(--border)' }}>
+                  <td colSpan={2} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTAL {query ? '(visibles)' : ''}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.facturado)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.exento)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.base)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.calculado)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.aplicado)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12, color: Math.abs(totals.diferencia) > 0.01 ? 'var(--warn)' : 'var(--ok)' }}>{fmt(Math.abs(totals.diferencia))}</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}

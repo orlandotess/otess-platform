@@ -25,6 +25,13 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
     ? clientTotals.filter(c => c.name.toLowerCase().includes(query))
     : clientTotals;
 
+  const totals = visible.reduce((acc, c) => ({
+    count: acc.count + Number(c.count ?? 0),
+    facturado: acc.facturado + Number(c.totalFacturado ?? 0),
+    calculado: acc.calculado + Number(c.totalCalculado ?? 0),
+    retenido: acc.retenido + Number(c.totalRetenido ?? 0),
+  }), { count: 0, facturado: 0, calculado: 0, retenido: 0 });
+
   // The detail panel renders below the client list, so scroll it into view —
   // otherwise selecting a client can look like the click did nothing.
   useEffect(() => {
@@ -143,6 +150,17 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr style={{ borderTop: '2px solid var(--border)' }}>
+                  <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTAL {query ? '(visibles)' : ''}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12, color: 'var(--muted)' }}>{totals.count}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.facturado)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.calculado)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.retenido)}</td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
