@@ -6,6 +6,7 @@ import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import TicketActions from './TicketActions';
 import TechnicianAssign from './TechnicianAssign';
+import TicketReports from './TicketReports';
 import { formatDuration } from '../../../lib/formatDuration';
 
 const statusLabel = { abierto: 'Abierto', en_progreso: 'En progreso', cerrado: 'Cerrado' };
@@ -23,6 +24,13 @@ export default async function BoletoDetailPage({ params }) {
   ]);
 
   if (!ticket) return <div style={{ padding: 40 }}>Boleto no encontrado</div>;
+
+  const [{ data: reports }, { data: clientContacts }] = await Promise.all([
+    supabase.from('ticket_reports').select('*').eq('ticket_id', id).order('created_at', { ascending: false }),
+    ticket.client_id
+      ? supabase.from('client_contacts').select('id, name, email').eq('client_id', ticket.client_id)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const elapsed = ticket.status === 'cerrado'
     ? formatDuration(ticket.created_at, ticket.resolved_at ?? ticket.updated_at)
@@ -95,6 +103,10 @@ export default async function BoletoDetailPage({ params }) {
             <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Técnico asignado</h2>
             <TechnicianAssign ticketId={id} technicians={technicians ?? []} technicianId={ticket.technician_id} />
           </div>
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <TicketReports ticketId={id} clientContacts={clientContacts ?? []} reports={reports ?? []} />
         </div>
       </main>
     </div>

@@ -6,7 +6,7 @@ const supabaseUrl = 'https://zisidorwdhrttmdppnbj.supabase.co';
 const supabaseAnonKey = 'sb_publishable_wL7A9THCYwVcyu3t6uk-3Q_Vt09bJzn';
 
 // Rutas públicas que no requieren sesión ni chequeo de rol
-const PUBLIC_PATHS = ['/login', '/factura', '/estimado', '/propuesta', '/orden-cambio', '/reporte', '/favicon.ico', '/otess-logo.png', '/api/send-invoice', '/api/send-estimate', '/api/send-report', '/api/recurring-invoices', '/api/recurring-expenses', '/api/invoice-reminders', '/api/calendar/feed', '/api/propuestas/aprobar', '/api/ordenes-cambio/aprobar', '/api/paypal/create-order', '/api/paypal/capture-order', '/api/service-tickets/inbound'];
+const PUBLIC_PATHS = ['/login', '/factura', '/estimado', '/propuesta', '/orden-cambio', '/reporte', '/reporte-boleto', '/favicon.ico', '/otess-logo.png', '/api/send-invoice', '/api/send-estimate', '/api/send-report', '/api/send-ticket-report', '/api/recurring-invoices', '/api/recurring-expenses', '/api/invoice-reminders', '/api/calendar/feed', '/api/propuestas/aprobar', '/api/ordenes-cambio/aprobar', '/api/paypal/create-order', '/api/paypal/capture-order', '/api/service-tickets/inbound'];
 
 function isPublic(pathname) {
   return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));
