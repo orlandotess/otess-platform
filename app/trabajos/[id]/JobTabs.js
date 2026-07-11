@@ -2,13 +2,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import PhotoAnnotator from '../../PhotoAnnotator';
 import LineItemRow from '../../LineItemRow';
 import CableCalculator from '../../CableCalculator';
 import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
-import { shareImageForMarkup, canShareFiles, hasSeenMarkupHint, markMarkupHintSeen } from '../../../lib/shareForMarkup';
 
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
@@ -448,32 +448,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
 
   // Lightbox state — { urls: [], index: 0, noteId }
   const [lightbox, setLightbox] = useState(null);
-  const [sharingPhoto, setSharingPhoto] = useState(false);
-  const [canShare, setCanShare] = useState(false);
-  const [markupHintUrl, setMarkupHintUrl] = useState(null);
-  useEffect(() => { setCanShare(canShareFiles()); }, []);
-
-  function handleShareForMarkup(url) {
-    if (!hasSeenMarkupHint()) { setMarkupHintUrl(url); return; }
-    doShareForMarkup(url);
-  }
-
-  async function doShareForMarkup(url) {
-    setSharingPhoto(true);
-    try {
-      await shareImageForMarkup(url);
-    } catch (err) {
-      if (err?.name !== 'AbortError') console.error('Share error:', err);
-    }
-    setSharingPhoto(false);
-  }
-
-  function confirmMarkupHint() {
-    markMarkupHintSeen();
-    const url = markupHintUrl;
-    setMarkupHintUrl(null);
-    doShareForMarkup(url);
-  }
+  const [annotatingIdx, setAnnotatingIdx] = useState(null);
+  const [annotatingExisting, setAnnotatingExisting] = useState(null);
 
   // Checklist state
   const [checklistItems, setChecklistItems] = useState(checklist);
@@ -617,6 +593,35 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       setNoteError(`No se pudo subir: ${failedNames.join(', ')}. La nota se guardó, intenta subir el archivo de nuevo.`);
     }
     setNoteText(''); setPendingPhotos([]); setPendingPhotoPreviews([]); setUploadProgress({}); setSavingNote(false);
+  }
+
+  function handleAnnotateSave(blob) {
+    if (annotatingIdx === null) return;
+    const file = new File([blob], pendingPhotos[annotatingIdx].name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+    const newUrl = URL.createObjectURL(blob);
+    setPendingPhotos(prev => prev.map((f, i) => i === annotatingIdx ? file : f));
+    setPendingPhotoPreviews(prev => prev.map((u, i) => i === annotatingIdx ? newUrl : u));
+    setAnnotatingIdx(null);
+  }
+
+  async function handleAnnotateExistingSave(blob) {
+    if (!annotatingExisting) return;
+    const { noteId, path } = annotatingExisting;
+    const { error } = await supabase.storage.from('Job-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (!error) {
+      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600);
+      const signedUrl = data?.signedUrl ?? null;
+      setNotesList(prev => prev.map(n => {
+        if (n.id !== noteId) return n;
+        if (annotatingExisting.isGallery) {
+          const newUrls = [...n.photo_urls];
+          newUrls[annotatingExisting.galleryIdx] = signedUrl;
+          return { ...n, photo_urls: newUrls, photo_url: newUrls[0] };
+        }
+        return { ...n, photo_url: signedUrl };
+      }));
+    }
+    setAnnotatingExisting(null);
   }
 
   async function deleteNote(noteId) {
@@ -1381,7 +1386,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       {pendingPhotos[idx]?.type?.startsWith('video') ? (
                         <video src={preview} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10, background: '#000' }} />
                       ) : (
-                        <img src={preview} alt="preview" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10 }} />
+                        <>
+                          <img src={preview} alt="preview" onClick={() => setAnnotatingIdx(idx)} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10, cursor: 'pointer' }} />
+                          <button type="button" onClick={() => setAnnotatingIdx(idx)}
+                            style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
+                        </>
                       )}
                       {uploadingPhoto && (
                         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', borderRadius: '0 0 10px 10px', padding: '4px 6px' }}>
@@ -1788,19 +1797,20 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
         </div>
       )}
 
-      {markupHintUrl && (
-        <div onClick={() => setMarkupHintUrl(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 24, width: 340, maxWidth: '90vw' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 10, color: 'var(--navy)' }}>✏️ Marcar foto</h3>
-            <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 16 }}>
-              Se abrirá el panel de compartir. Toca <strong>"Save Image"</strong> para guardarla, luego ábrela en la app <strong>Fotos</strong>, toca <strong>Editar</strong> y usa el ícono de Markup (la pluma) para marcarla.
-            </p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-primary" onClick={confirmMarkupHint} style={{ flex: 1, justifyContent: 'center' }}>Entendido, continuar</button>
-              <button className="btn btn-ghost" onClick={() => setMarkupHintUrl(null)}>Cancelar</button>
-            </div>
-          </div>
-        </div>
+      {annotatingIdx !== null && pendingPhotoPreviews[annotatingIdx] && (
+        <PhotoAnnotator
+          imageUrl={pendingPhotoPreviews[annotatingIdx]}
+          onSave={handleAnnotateSave}
+          onCancel={() => setAnnotatingIdx(null)}
+        />
+      )}
+
+      {annotatingExisting && (
+        <PhotoAnnotator
+          imageUrl={annotatingExisting.url}
+          onSave={handleAnnotateExistingSave}
+          onCancel={() => setAnnotatingExisting(null)}
+        />
       )}
 
       {/* Lightbox with carousel */}
@@ -1808,11 +1818,20 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
         <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, cursor: 'zoom-out' }}>
           <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>×</button>
 
-          {canShare && (
-            <button onClick={e => { e.stopPropagation(); handleShareForMarkup(lightbox.urls[lightbox.index]); }} disabled={sharingPhoto}
-              style={{ position: 'absolute', top: 20, left: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 20, padding: '10px 18px', cursor: 'pointer', zIndex: 2 }}>
-              {sharingPhoto ? '⏳ Abriendo...' : '✏️ Marcar'}
-            </button>
+          {lightbox.noteId && (
+            <button onClick={e => {
+              e.stopPropagation();
+              const note = notesList.find(n => n.id === lightbox.noteId);
+              const isGallery = note.raw_photo_urls && note.raw_photo_urls.length > 1;
+              setAnnotatingExisting({
+                noteId: lightbox.noteId,
+                url: lightbox.urls[lightbox.index],
+                path: isGallery ? note.raw_photo_urls[lightbox.index] : note.raw_photo_url,
+                isGallery,
+                galleryIdx: lightbox.index,
+              });
+            }}
+              style={{ position: 'absolute', top: 20, left: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 20, padding: '10px 18px', cursor: 'pointer', zIndex: 2 }}>✏️ Editar</button>
           )}
 
           {lightbox.urls.length > 1 && (
