@@ -29,6 +29,28 @@ export default async function ClienteDetailPage({ params }) {
     supabase.from('service_tickets').select('id, subject, status, source, created_at').eq('client_id', id).order('created_at', { ascending: false }),
   ]);
 
+  const invoiceIds = (invoices ?? []).map(i => i.id);
+  const [{ data: payments }, { data: retenciones }] = await Promise.all([
+    invoiceIds.length ? supabase.from('payments').select('invoice_id, amount').in('invoice_id', invoiceIds) : Promise.resolve({ data: [] }),
+    supabase.from('retenciones').select('invoice_id, retencion_aplicada').eq('client_id', id),
+  ]);
+
+  const paymentsByInvoice = {};
+  (payments ?? []).forEach(p => { paymentsByInvoice[p.invoice_id] = (paymentsByInvoice[p.invoice_id] ?? 0) + Number(p.amount ?? 0); });
+  const retenidoByInvoice = {};
+  (retenciones ?? []).forEach(r => { if (r.invoice_id) retenidoByInvoice[r.invoice_id] = (retenidoByInvoice[r.invoice_id] ?? 0) + Number(r.retencion_aplicada ?? 0); });
+
+  // Same expected-net check as Cliente 360, scoped to this one client - only
+  // paid invoices settle for real, so unpaid/draft ones are excluded to avoid
+  // a false mismatch (billed and retained, but nothing collected yet).
+  const cobrado = (invoices ?? []).reduce((a, i) => a + (paymentsByInvoice[i.id] ?? 0), 0);
+  const paidInvoices = (invoices ?? []).filter(i => i.status === 'paid');
+  const facturadoPagado = paidInvoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const retenidoPagado = paidInvoices.reduce((a, i) => a + (retenidoByInvoice[i.id] ?? 0), 0);
+  const netoEsperado = facturadoPagado - retenidoPagado;
+  const varianza = cobrado - netoEsperado;
+  const hasVarianza = paidInvoices.length > 0 && Math.abs(varianza) > 0.01;
+
   if (!client) return (
     <div className="admin-shell ds-clientes">
       <Sidebar />
@@ -69,6 +91,7 @@ export default async function ClienteDetailPage({ params }) {
           internalNotes={internalNotes ?? []}
           serviceTickets={serviceTickets ?? []}
           currentRole={currentRole}
+          invoiceReconciliation={{ cobrado, netoEsperado, varianza, hasVarianza }}
         />
       </main>
     </div>

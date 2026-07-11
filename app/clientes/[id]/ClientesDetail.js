@@ -73,7 +73,7 @@ async function resolveShortLink(url) {
   }
 }
 
-export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts, proposals, internalNotes: initInternalNotes, serviceTickets = [], currentRole }) {
+export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts, proposals, internalNotes: initInternalNotes, serviceTickets = [], currentRole, invoiceReconciliation }) {
   const canDeleteClient = currentRole === 'admin' || currentRole === 'secretaria';
   const router = useRouter();
   const [tab, setTab] = useState('info');
@@ -767,6 +767,17 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
               <SearchBox value={invoiceSearch} onChange={setInvoiceSearch} placeholder="Buscar # factura o estado..." />
             )}
           </div>
+          {invoiceReconciliation?.hasVarianza && (
+            <div style={{ borderLeft: '4px solid var(--warn)', background: '#fff8f0', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)', marginBottom: 6 }}>⚠️ El cobrado no cuadra con el neto esperado</p>
+              <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+                Neto esperado (facturado pagado − retenido de esas facturas): <strong>{fmt(invoiceReconciliation.netoEsperado)}</strong>
+                {' · '}Cobrado: <strong>{fmt(invoiceReconciliation.cobrado)}</strong>
+                {' · '}Diferencia: <strong style={{ color: 'var(--warn)' }}>{fmt(Math.abs(invoiceReconciliation.varianza))}</strong>
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>Pide el comprobante 480.6B al cliente para confirmar la retención real antes de dar el pago por bueno.</p>
+            </div>
+          )}
           {invoices.length === 0 ? (
             <div className="empty"><p>No hay facturas para este cliente.</p></div>
           ) : (() => {
