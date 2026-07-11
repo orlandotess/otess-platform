@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
+import SearchBox from '../../SearchBox';
 
 const statusJob = {
   estimate: { cls: 'badge-gray', label: 'Estimado' },
@@ -80,6 +81,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
   const [contacts, setContacts] = useState(initContacts);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [invoiceSearch, setInvoiceSearch] = useState('');
 
   // Info tab edit
   const [editingInfo, setEditingInfo] = useState(false);
@@ -759,34 +761,58 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
       {/* INVOICES TAB */}
       {tab === 'invoices' && (
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Facturas</h2>
+            {invoices.length > 0 && (
+              <SearchBox value={invoiceSearch} onChange={setInvoiceSearch} placeholder="Buscar # factura o estado..." />
+            )}
           </div>
           {invoices.length === 0 ? (
             <div className="empty"><p>No hay facturas para este cliente.</p></div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Número</th><th>Estado</th><th>Total</th><th>Fecha</th><th></th></tr>
-                </thead>
-                <tbody>
-                  {invoices.map(inv => {
-                    const b = statusInv[inv.status] ?? statusInv.draft;
-                    return (
-                      <tr key={inv.id}>
-                        <td style={{ fontWeight: 600 }}>{inv.invoice_number ?? '—'}</td>
-                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
-                        <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(inv.created_at).toLocaleDateString('es-PR')}</td>
-                        <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          ) : (() => {
+            const query = invoiceSearch.trim().toLowerCase();
+            const visibleInvoices = query
+              ? invoices.filter(inv =>
+                  inv.invoice_number?.toLowerCase().includes(query) ||
+                  (statusInv[inv.status]?.label ?? '').toLowerCase().includes(query)
+                )
+              : invoices;
+            const invoicesTotal = visibleInvoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
+            return visibleInvoices.length === 0 ? (
+              <div className="empty"><p>Sin resultados para "{invoiceSearch}".</p></div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Número</th><th>Estado</th><th>Total</th><th>Fecha</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {visibleInvoices.map(inv => {
+                      const b = statusInv[inv.status] ?? statusInv.draft;
+                      return (
+                        <tr key={inv.id}>
+                          <td style={{ fontWeight: 600 }}>{inv.invoice_number ?? '—'}</td>
+                          <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                          <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
+                          <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(inv.created_at).toLocaleDateString('es-PR')}</td>
+                          <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid var(--border)' }}>
+                      <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTAL {query ? '(visibles)' : ''}</td>
+                      <td></td>
+                      <td style={{ fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(invoicesTotal)}</td>
+                      <td></td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            );
+          })()}
         </div>
       )}
 
