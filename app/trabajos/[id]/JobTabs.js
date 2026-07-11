@@ -738,8 +738,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   function openReportEmail(report) {
     setEmailingReportId(report.id);
     setReportEmailTo(report.sent_to || job.clients?.email || '');
-    setReportEmailCc(report.sent_cc ?? []);
-    setReportEmailCcExtra('');
+    const contactEmails = new Set(clientContacts.filter(c => c.email).map(c => c.email));
+    const savedCc = report.sent_cc ?? [];
+    setReportEmailCc(savedCc.filter(e => contactEmails.has(e)));
+    setReportEmailCcExtra(savedCc.filter(e => !contactEmails.has(e)).join(', '));
   }
 
   function toggleReportCcContact(email) {
