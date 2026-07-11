@@ -21,7 +21,12 @@ export default function TicketActions({ ticketId, status, clientId }) {
   }, [showAssign]);
 
   async function updateStatus(newStatus) {
-    await supabase.from('service_tickets').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', ticketId);
+    const now = new Date().toISOString();
+    await supabase.from('service_tickets').update({
+      status: newStatus,
+      updated_at: now,
+      resolved_at: newStatus === 'cerrado' ? now : null,
+    }).eq('id', ticketId);
     router.refresh();
   }
 

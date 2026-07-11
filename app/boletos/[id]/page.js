@@ -6,6 +6,7 @@ import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import TicketActions from './TicketActions';
 import TechnicianAssign from './TechnicianAssign';
+import { formatDuration } from '../../../lib/formatDuration';
 
 const statusLabel = { abierto: 'Abierto', en_progreso: 'En progreso', cerrado: 'Cerrado' };
 const statusCls = { abierto: 'badge-red', en_progreso: 'badge-blue', cerrado: 'badge-gray' };
@@ -23,6 +24,10 @@ export default async function BoletoDetailPage({ params }) {
 
   if (!ticket) return <div style={{ padding: 40 }}>Boleto no encontrado</div>;
 
+  const elapsed = ticket.status === 'cerrado'
+    ? formatDuration(ticket.created_at, ticket.resolved_at ?? ticket.updated_at)
+    : formatDuration(ticket.created_at, new Date().toISOString());
+
   return (
     <div className="admin-shell ds-boletos">
       <Sidebar />
@@ -33,6 +38,11 @@ export default async function BoletoDetailPage({ params }) {
             <span className={`badge ${statusCls[ticket.status]}`} style={{ marginTop: 6, display: 'inline-block' }}>
               {statusLabel[ticket.status]}
             </span>
+            {elapsed && (
+              <span style={{ marginLeft: 10, fontSize: 13, color: 'var(--muted)' }}>
+                {ticket.status === 'cerrado' ? `✅ Resuelto en ${elapsed}` : `⏱ ${elapsed} transcurridos`}
+              </span>
+            )}
           </div>
           <TicketActions ticketId={id} status={ticket.status} clientId={ticket.client_id} />
         </div>
