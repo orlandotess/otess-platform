@@ -95,10 +95,23 @@ export default function Sidebar() {
  });
  const [search, setSearch] = useState('');
  const [hidden, setHidden] = useState(false);
+ const [absenceCount, setAbsenceCount] = useState(0);
 
  useEffect(() => {
    setHidden(localStorage.getItem('sidebar-hidden') === '1');
  }, []);
+
+ // Ausencias del mes en curso, para el badge junto al link en "Administración".
+ useEffect(() => {
+   const now = new Date();
+   const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+   supabase.from('technician_absences').select('id', { count: 'exact', head: true })
+     .gte('date', start).lte('date', end)
+     .then(({ count }) => setAbsenceCount(count ?? 0));
+ }, []);
+
+ const badgeCounts = { '/admin/ausencias': absenceCount };
 
  useEffect(() => {
    document.body.classList.toggle('sidebar-hidden', hidden);
@@ -181,6 +194,9 @@ export default function Sidebar() {
              <Link key={l.href} href={l.href} className={isActive(l.href) ? 'active' : ''}>
                <NavIcon name={l.icon} />
                {l.label}
+               {badgeCounts[l.href] > 0 && (
+                 <span style={{ marginLeft: 'auto', background: 'var(--warn)', color: '#fff', borderRadius: 20, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>{badgeCounts[l.href]}</span>
+               )}
              </Link>
            ))
          )
@@ -213,6 +229,9 @@ export default function Sidebar() {
                      >
                        <NavIcon name={l.icon} />
                        {l.label}
+                       {badgeCounts[l.href] > 0 && (
+                         <span style={{ marginLeft: 'auto', background: 'var(--warn)', color: '#fff', borderRadius: 20, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>{badgeCounts[l.href]}</span>
+                       )}
                      </Link>
                    ))}
                  </div>
