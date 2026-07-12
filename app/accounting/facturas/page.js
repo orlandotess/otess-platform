@@ -11,6 +11,7 @@ const statusBadge = {
   sent:      { cls: 'badge-blue',  label: 'Enviada' },
   paid:      { cls: 'badge-green', label: 'Pagada' },
   cancelled: { cls: 'badge-red',   label: 'Cancelada' },
+  overdue:   { cls: 'badge-red',   label: 'Vencidas' },
 };
 
 function getWeekRange(offset = 0) {
@@ -53,13 +54,16 @@ export default async function AccountingFacturas({ searchParams }) {
     periodLabel = `Año ${year}`;
   }
 
+  const today = new Date().toISOString().slice(0, 10);
+
   let query = supabase.from('invoices')
     .select('id, invoice_number, status, bill_to, subtotal_products, tax_products, subtotal_labor, tax_labor, total, issued_at, due_at, clients(name, company, client_type)')
     .gte('issued_at', dateStart)
     .lte('issued_at', dateEnd)
     .order('issued_at', { ascending: false });
 
-  if (status !== 'all') query = query.eq('status', status);
+  if (status === 'overdue') query = query.eq('status', 'sent').lt('due_at', today);
+  else if (status !== 'all') query = query.eq('status', status);
 
   const { data: invoices } = await query;
   const invs = invoices ?? [];
@@ -68,6 +72,7 @@ export default async function AccountingFacturas({ searchParams }) {
   const totalFacturado = invs.reduce((a, i) => a + Number(i.total ?? 0), 0);
   const totalCobrado = invs.filter(i => i.status === 'paid').reduce((a, i) => a + Number(i.total ?? 0), 0);
   const totalPendiente = invs.filter(i => i.status === 'sent').reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const totalVencido = invs.filter(i => i.status === 'sent' && i.due_at && i.due_at < today).reduce((a, i) => a + Number(i.total ?? 0), 0);
   const totalIVU = invs.reduce((a, i) => a + Number(i.tax_products ?? 0) + Number(i.tax_labor ?? 0), 0);
 
   const years = [currentYear, currentYear - 1, currentYear - 2];
@@ -155,7 +160,7 @@ export default async function AccountingFacturas({ searchParams }) {
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Estado</label>
               <div style={{ display: 'flex', gap: 6 }}>
-                {['all', 'draft', 'sent', 'paid', 'cancelled'].map(s => (
+                {['all', 'draft', 'sent', 'overdue', 'paid', 'cancelled'].map(s => (
                   <Link key={s} href={`/accounting/facturas?view=${view}&year=${year}&month=${month ?? ''}&week=${weekOffset}&status=${s}`}
                     className={`btn ${s === status ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 12px', fontSize: 12 }}>
                     {s === 'all' ? 'Todas' : statusBadge[s]?.label}
@@ -167,7 +172,7 @@ export default async function AccountingFacturas({ searchParams }) {
         </div>
 
         {/* Stats */}
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: 20 }}>
           <div className="stat-card">
             <div className="stat-label">Facturado</div>
             <div className="stat-value">{fmt(totalFacturado)}</div>
@@ -179,6 +184,10 @@ export default async function AccountingFacturas({ searchParams }) {
           <div className="stat-card">
             <div className="stat-label">Pendiente</div>
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{fmt(totalPendiente)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Vencido</div>
+            <div className="stat-value" style={{ color: 'var(--warn)' }}>{fmt(totalVencido)}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">IVU Total</div>

@@ -13,6 +13,8 @@ const statusBadge = {
 export default function FacturasTableClient({ invs, totalFacturado }) {
   const [search, setSearch] = useState('');
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const today = new Date().toISOString().slice(0, 10);
+  const isOverdue = inv => inv.status === 'sent' && inv.due_at && inv.due_at < today;
 
   const query = search.trim().toLowerCase();
   const clientDisplay = inv => inv.bill_to === 'company' && inv.clients?.company ? inv.clients.company : inv.clients?.name ?? '—';
@@ -39,6 +41,7 @@ export default function FacturasTableClient({ invs, totalFacturado }) {
                 <th>Tipo</th>
                 <th>Estado</th>
                 <th>Fecha</th>
+                <th>Vence</th>
                 <th style={{ textAlign: 'right' }}>Subtotal</th>
                 <th style={{ textAlign: 'right' }}>IVU Prod</th>
                 <th style={{ textAlign: 'right' }}>IVU Labor</th>
@@ -48,7 +51,8 @@ export default function FacturasTableClient({ invs, totalFacturado }) {
             </thead>
             <tbody>
               {visible.map(inv => {
-                const b = statusBadge[inv.status] ?? statusBadge.draft;
+                const overdue = isOverdue(inv);
+                const b = overdue ? { cls: 'badge-red', label: 'Vencida' } : (statusBadge[inv.status] ?? statusBadge.draft);
                 const subtotal = Number(inv.subtotal_products ?? 0) + Number(inv.subtotal_labor ?? 0);
                 return (
                   <tr key={inv.id}>
@@ -57,6 +61,7 @@ export default function FacturasTableClient({ invs, totalFacturado }) {
                     <td><span className={`badge ${inv.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`}>{inv.clients?.client_type === 'b2b' ? 'B2B' : 'Final'}</span></td>
                     <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at ?? '—'}</td>
+                    <td style={{ color: overdue ? 'var(--warn)' : 'var(--muted)', fontSize: 13, fontWeight: overdue ? 700 : 400 }}>{inv.due_at ?? '—'}</td>
                     <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(subtotal)}</td>
                     <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(inv.tax_products)}</td>
                     <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(inv.tax_labor)}</td>
@@ -68,7 +73,7 @@ export default function FacturasTableClient({ invs, totalFacturado }) {
             </tbody>
             <tfoot>
               <tr style={{ borderTop: '2px solid var(--border)' }}>
-                <td colSpan={5} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTALES {query ? '(visibles)' : ''}</td>
+                <td colSpan={6} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTALES {query ? '(visibles)' : ''}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(visible.reduce((a, i) => a + Number(i.subtotal_products ?? 0) + Number(i.subtotal_labor ?? 0), 0))}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(visible.reduce((a, i) => a + Number(i.tax_products ?? 0), 0))}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(visible.reduce((a, i) => a + Number(i.tax_labor ?? 0), 0))}</td>

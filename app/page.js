@@ -14,7 +14,7 @@ async function getStats() {
     supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
     supabase.from('service_tickets').select('*', { count: 'exact', head: true }),
     supabase.from('service_tickets').select('*', { count: 'exact', head: true }).eq('status', 'en_progreso'),
-    supabase.from('invoices').select('id, total, status'),
+    supabase.from('invoices').select('id, total, status, due_at'),
     supabase.from('payments').select('invoice_id, amount'),
     supabase.from('expenses').select('amount'),
   ]);
@@ -31,6 +31,13 @@ async function getStats() {
     return a + Math.max(Number(i.total ?? 0) - collected, 0);
   }, 0);
 
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueInvoices = pendingInvoices.filter(i => i.due_at && i.due_at < today);
+  const overdueTotal = overdueInvoices.reduce((a, i) => {
+    const collected = collectedByInvoice[i.id] ?? 0;
+    return a + Math.max(Number(i.total ?? 0) - collected, 0);
+  }, 0);
+
   return {
     clients: clients.count ?? 0,
     jobs: jobs.count ?? 0,
@@ -40,6 +47,8 @@ async function getStats() {
     caja: totalCollected - totalExpenses,
     pendingTotal,
     pendingCount: pendingInvoices.length,
+    overdueTotal,
+    overdueCount: overdueInvoices.length,
   };
 }
 
@@ -97,7 +106,14 @@ export default async function Home() {
           <div className="stat-card">
             <div className="stat-label">Facturas pendientes</div>
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{fmt(stats.pendingTotal)}</div>
-            <div className="stat-sub"><Link href="/accounting/facturas" style={{ color: 'var(--amber)' }}>{stats.pendingCount} por cobrar →</Link></div>
+            <div className="stat-sub"><Link href="/accounting/facturas?status=sent" style={{ color: 'var(--amber)' }}>{stats.pendingCount} por cobrar →</Link></div>
+            {stats.overdueCount > 0 && (
+              <div className="stat-sub" style={{ color: 'var(--warn)' }}>
+                <Link href="/accounting/facturas?status=overdue" style={{ color: 'var(--warn)' }}>
+                  {stats.overdueCount} vencida{stats.overdueCount === 1 ? '' : 's'} ({fmt(stats.overdueTotal)}) →
+                </Link>
+              </div>
+            )}
           </div>
           <div className="stat-card">
             <div className="stat-label">Clientes</div>
