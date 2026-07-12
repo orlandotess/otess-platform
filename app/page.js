@@ -5,15 +5,15 @@ import { supabaseServer as supabase } from '../lib/supabase';
 import Sidebar from './Sidebar';
 import Link from 'next/link';
 import DashboardCalendarWidget from './DashboardCalendarWidget';
+import InboxWidget from './accounting/InboxWidget';
 
 async function getStats() {
-  const [clients, jobs, activeJobs, tickets, activeTickets, inboxTickets, { data: invoices }, { data: payments }, { data: expenses }] = await Promise.all([
+  const [clients, jobs, activeJobs, tickets, activeTickets, { data: invoices }, { data: payments }, { data: expenses }] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }),
     supabase.from('jobs').select('*', { count: 'exact', head: true }),
     supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
     supabase.from('service_tickets').select('*', { count: 'exact', head: true }),
     supabase.from('service_tickets').select('*', { count: 'exact', head: true }).eq('status', 'en_progreso'),
-    supabase.from('service_tickets').select('*', { count: 'exact', head: true }).eq('status', 'abierto'),
     supabase.from('invoices').select('id, total, status'),
     supabase.from('payments').select('invoice_id, amount'),
     supabase.from('expenses').select('amount'),
@@ -37,7 +37,6 @@ async function getStats() {
     activeJobs: activeJobs.count ?? 0,
     tickets: tickets.count ?? 0,
     activeTickets: activeTickets.count ?? 0,
-    inboxTickets: inboxTickets.count ?? 0,
     caja: totalCollected - totalExpenses,
     pendingTotal,
     pendingCount: pendingInvoices.length,
@@ -53,6 +52,15 @@ async function getRecentJobs() {
   return data ?? [];
 }
 
+async function getInboxNotifications() {
+  const { data } = await supabase
+    .from('inbox_notifications')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(20);
+  return data ?? [];
+}
+
 const statusBadge = {
   estimate:    { cls: 'badge-gray',  label: 'Estimado' },
   scheduled:   { cls: 'badge-blue',  label: 'Programado' },
@@ -64,7 +72,7 @@ const statusBadge = {
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default async function Home() {
-  const [stats, recentJobs] = await Promise.all([getStats(), getRecentJobs()]);
+  const [stats, recentJobs, inboxNotifications] = await Promise.all([getStats(), getRecentJobs(), getInboxNotifications()]);
 
   return (
     <div className="admin-shell">
@@ -116,12 +124,9 @@ export default async function Home() {
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{stats.activeTickets}</div>
             <div className="stat-sub"><Link href="/boletos" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
           </div>
-          <div className="stat-card">
-            <div className="stat-label">Bandeja de entrada</div>
-            <div className="stat-value" style={{ color: 'var(--warn)' }}>{stats.inboxTickets}</div>
-            <div className="stat-sub"><Link href="/boletos" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
-          </div>
         </div>
+
+        <InboxWidget notifications={inboxNotifications} />
 
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
