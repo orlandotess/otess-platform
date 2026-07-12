@@ -380,18 +380,26 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Resumen</p>
-              {[
-                { label: 'Propiedades', value: properties.length },
-                { label: 'Contactos', value: contacts.length },
-                { label: 'Trabajos', value: jobs.length },
-                { label: 'Facturas', value: invoices.length },
-                { label: 'Total facturado', value: fmt(invoices.reduce((a, i) => a + Number(i.total ?? 0), 0)) },
-                { label: 'Propuestas', value: proposals.length },
-                { label: 'Notas internas', value: internalNotes.length },
-              ].map(s => (
+              {(() => {
+                const totalFacturado = invoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
+                const totalRetenido = invoiceReconciliation?.totalRetenido ?? 0;
+                return [
+                  { label: 'Propiedades', value: properties.length },
+                  { label: 'Contactos', value: contacts.length },
+                  { label: 'Trabajos', value: jobs.length },
+                  { label: 'Facturas', value: invoices.length },
+                  { label: 'Total facturado', value: fmt(totalFacturado) },
+                  ...(totalRetenido > 0 ? [
+                    { label: 'Retenido', value: fmt(totalRetenido), color: 'var(--amber)' },
+                    { label: 'Total neto', value: fmt(totalFacturado - totalRetenido), color: 'var(--navy)' },
+                  ] : []),
+                  { label: 'Propuestas', value: proposals.length },
+                  { label: 'Notas internas', value: internalNotes.length },
+                ];
+              })().map(s => (
                 <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
                   <span style={{ color: 'var(--muted)' }}>{s.label}</span>
-                  <span style={{ fontWeight: 700 }}>{s.value}</span>
+                  <span style={{ fontWeight: 700, color: s.color }}>{s.value}</span>
                 </div>
               ))}
             </div>

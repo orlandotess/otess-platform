@@ -39,6 +39,7 @@ export default async function ClienteDetailPage({ params }) {
   (payments ?? []).forEach(p => { paymentsByInvoice[p.invoice_id] = (paymentsByInvoice[p.invoice_id] ?? 0) + Number(p.amount ?? 0); });
   const retenidoByInvoice = {};
   (retenciones ?? []).forEach(r => { if (r.invoice_id) retenidoByInvoice[r.invoice_id] = (retenidoByInvoice[r.invoice_id] ?? 0) + Number(r.retencion_aplicada ?? 0); });
+  const totalRetenido = (retenciones ?? []).reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0);
 
   // Same expected-net check as Cliente 360, scoped to this one client - only
   // paid invoices settle for real, so unpaid/draft ones are excluded to avoid
@@ -91,7 +92,7 @@ export default async function ClienteDetailPage({ params }) {
           internalNotes={internalNotes ?? []}
           serviceTickets={serviceTickets ?? []}
           currentRole={currentRole}
-          invoiceReconciliation={{ cobrado, netoEsperado, varianza, hasVarianza }}
+          invoiceReconciliation={{ cobrado, netoEsperado, varianza, hasVarianza, totalRetenido }}
         />
       </main>
     </div>
