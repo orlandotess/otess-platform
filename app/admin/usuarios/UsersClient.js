@@ -161,7 +161,7 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
   return (
     <div>
       {success && (
-        <div style={{ background: '#e6f4ee', color: '#1a7a4a', padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>
+        <div style={{ background: 'var(--ok-tint)', color: 'var(--ok)', padding: '12px 16px', borderRadius: 10, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>
           ✅ {success}
         </div>
       )}
@@ -267,10 +267,10 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
       {/* Create user modal */}
       {showInvite && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Crear usuario</h2>
             <form onSubmit={sendInvite}>
-              {error && <div style={{ background: '#fdecea', color: '#b52a2a', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{error}</div>}
+              {error && <div style={{ background: 'var(--danger-tint)', color: 'var(--warn)', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{error}</div>}
               <div className="form-group" style={{ marginBottom: 16 }}>
                 <label>Nombre completo</label>
                 <input value={invite.name} onChange={e => setInvite(i => ({ ...i, name: e.target.value }))} placeholder="Juan García" required />
@@ -303,10 +303,10 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
       {/* Edit user modal */}
       {editUser && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Editar usuario</h2>
             <form onSubmit={saveEdit}>
-              {editError && <div style={{ background: '#fdecea', color: '#b52a2a', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{editError}</div>}
+              {editError && <div style={{ background: 'var(--danger-tint)', color: 'var(--warn)', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{editError}</div>}
               <div className="form-group" style={{ marginBottom: 16 }}>
                 <label>Nombre completo</label>
                 <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} required />
@@ -329,11 +329,11 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
       {/* Change password modal */}
       {passwordUser && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>Cambiar contraseña</h2>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Usuario: <strong>{passwordUser.name}</strong></p>
             <form onSubmit={savePassword}>
-              {passwordError && <div style={{ background: '#fdecea', color: '#b52a2a', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{passwordError}</div>}
+              {passwordError && <div style={{ background: 'var(--danger-tint)', color: 'var(--warn)', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{passwordError}</div>}
               <div className="form-group" style={{ marginBottom: 24 }}>
                 <label>Nueva contraseña</label>
                 <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" required minLength={6} />

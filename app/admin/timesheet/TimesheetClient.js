@@ -259,10 +259,10 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               return (
                 <div key={dayIso} onClick={() => { if (hasHours) { setSelectedDay(isSelected ? null : dayIso); setSelectedTech(isSelected ? null : tech.id); } }}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 4px', borderRadius: 10, cursor: hasHours ? 'pointer' : 'default',
-                    background: isSelected ? 'var(--navy)' : isToday ? '#f0f4ff' : '#f8f9fb',
+                    background: isSelected ? 'var(--navy)' : isToday ? '#f0f4ff' : 'var(--surface-2)',
                     border: isToday ? '2px solid var(--navy)' : '2px solid transparent' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#fff' : isToday ? 'var(--navy)' : 'var(--muted)' }}>{DAYS[i]}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: isSelected ? '#fff' : isOvertime ? 'var(--warn)' : hasHours ? 'var(--navy)' : '#ccc' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: isSelected ? '#fff' : isOvertime ? 'var(--warn)' : hasHours ? 'var(--navy)' : 'var(--ink-faint)' }}>
                     {hasHours ? hours.toFixed(1) + 'h' : '—'}
                   </div>
                   <div style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--muted)' }}>{new Date(y, m-1, d).getDate()}</div>
@@ -273,7 +273,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
           </div>
 
           {selectedDay && selectedTech === tech.id && (
-            <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '14px 18px', marginBottom: 8 }}>
+            <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '14px 18px', marginBottom: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', marginBottom: 12 }}>
                 {(() => { const [y,m,d] = selectedDay.slice(0,10).split('-'); return new Date(y, m-1, d).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); })()}
               </div>
