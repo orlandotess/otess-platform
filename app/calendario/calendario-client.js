@@ -35,6 +35,7 @@ const ENTRY_TYPE_ICONS = { event: '📌', reminder: '🔔', checklist: '☑' };
 export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, pendingRequests, currentRole, initialView, initialYear, initialMonth, initialWeek }) {
   const router = useRouter();
   const canQuickReschedule = currentRole === 'admin';
+  const canScheduleVisit = currentRole === 'admin' || currentRole === 'secretaria';
   const [view, setView] = useState(initialView);
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
@@ -634,8 +635,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       background: isDragOver ? 'var(--amber-tint)' : isToday ? 'var(--info-tint)' : 'var(--surface)',
                       border: isDragOver ? '2px dashed var(--amber)' : isToday ? '2px solid var(--navy)' : '1px solid var(--border)',
                       opacity: cell.current ? 1 : 0.4,
-                      boxSizing: 'border-box', overflow: 'hidden', position: 'relative', cursor: cell.current ? 'pointer' : 'default' }}
-                      onClick={() => { if (cell.current) setScheduleModal({ dateStr: cell.date, time: '09:00' }); }}
+                      boxSizing: 'border-box', overflow: 'hidden', position: 'relative', cursor: cell.current && canScheduleVisit ? 'pointer' : 'default' }}
+                      onClick={() => { if (cell.current && canScheduleVisit) setScheduleModal({ dateStr: cell.date, time: '09:00' }); }}
                       onDragOver={(e) => { if (cell.current) { e.preventDefault(); setDragOverDate(cell.date); } }}
                       onDragLeave={() => { if (dragOverDate === cell.date) setDragOverDate(null); }}
                       onDrop={(e) => { if (cell.current) { e.preventDefault(); handleDayDrop(cell.date); } }}>
@@ -760,8 +761,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         return start.toISOString().slice(0, 10) === dateStr && start.getHours() === hour;
                       });
                       return (
-                        <div key={`${hour}-${di}`} style={{ borderTop: '1px solid var(--border)', borderLeft: '1px solid var(--border)', height: 64, padding: 2, cursor: 'pointer' }}
-                          onClick={() => setScheduleModal({ dateStr, time: `${String(hour).padStart(2,'0')}:00` })}>
+                        <div key={`${hour}-${di}`} style={{ borderTop: '1px solid var(--border)', borderLeft: '1px solid var(--border)', height: 64, padding: 2, cursor: canScheduleVisit ? 'pointer' : 'default' }}
+                          onClick={() => { if (canScheduleVisit) setScheduleModal({ dateStr, time: `${String(hour).padStart(2,'0')}:00` }); }}>
                           {hourVisits.map(v => (
                             <div key={`v${v.id}`} onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
                               style={{ background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)',
@@ -825,10 +826,12 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               <div key={r.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
                 <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--navy)' }}>{r.title}</div>
                 <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 }}>{r.clients?.name}</div>
-                <button className="btn btn-primary" style={{ width: '100%', fontSize: 11.5, padding: '5px 0' }}
-                  onClick={() => setScheduleModal({ requestId: r.id })}>
-                  Agendar visita
-                </button>
+                {canScheduleVisit && (
+                  <button className="btn btn-primary" style={{ width: '100%', fontSize: 11.5, padding: '5px 0' }}
+                    onClick={() => setScheduleModal({ requestId: r.id })}>
+                    Agendar visita
+                  </button>
+                )}
               </div>
             ))}
           </div>
