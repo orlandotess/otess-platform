@@ -20,8 +20,8 @@ export default async function ClienteDetailPage({ params }) {
 
   const [{ data: client }, { data: jobs }, { data: invoices }, { data: properties }, { data: contacts }, { data: proposals }, { data: internalNotes }, { data: serviceTickets }] = await Promise.all([
     supabase.from('clients').select('*').eq('id', id).single(),
-    supabase.from('jobs').select('id, title, status, scheduled_start, scheduled_end, property_id, contact_id, technician_id, technicians(id, name), job_technicians(technician_id, technicians(name))').eq('client_id', id).order('scheduled_start', { ascending: false }),
-    supabase.from('invoices').select('id, invoice_number, total, status, created_at, job_id').eq('client_id', id).order('created_at', { ascending: false }),
+    supabase.from('jobs').select('id, title, status, scheduled_start, property_id, contact_id, technician_id, technicians(id, name), job_technicians(technician_id, technicians(name))').eq('client_id', id).order('scheduled_start', { ascending: false }),
+    supabase.from('invoices').select('id, invoice_number, total, status, created_at').eq('client_id', id).order('created_at', { ascending: false }),
     supabase.from('client_properties').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('proposals').select('id, proposal_number, title, status, created_at, valid_until, proposal_options(id, name, proposal_line_items(quantity, unit_price))').eq('client_id', id).order('created_at', { ascending: false }),

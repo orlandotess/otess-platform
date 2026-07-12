@@ -82,7 +82,6 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState('');
-  const [workFilter, setWorkFilter] = useState('all');
 
   // Info tab edit
   const [editingInfo, setEditingInfo] = useState(false);
@@ -284,7 +283,6 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           👥 Contactos
           {contacts.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{contacts.length}</span>}
         </button>
-        <button style={tabStyle('workOverview')} onClick={() => setTab('workOverview')}>📋 Resumen de trabajo</button>
         <button style={tabStyle('schedule')} onClick={() => setTab('schedule')}>🗓️ Agenda del cliente</button>
         <button style={tabStyle('jobs')} onClick={() => setTab('jobs')}>
           🔧 Trabajos
@@ -738,109 +736,6 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
         </div>
       )}
 
-      {/* WORK OVERVIEW TAB */}
-      {tab === 'workOverview' && (() => {
-        const propertyName = propId => properties.find(p => p.id === propId)?.name ?? '—';
-        const jobById = Object.fromEntries(jobs.map(j => [j.id, j]));
-
-        const items = [
-          ...jobs.map(j => ({
-            key: `job-${j.id}`,
-            type: 'job',
-            icon: '🔧',
-            label: j.title,
-            property: propertyName(j.property_id),
-            date: j.scheduled_start,
-            status: statusJob[j.status] ?? statusJob.estimate,
-            amount: null,
-            href: `/trabajos/${j.id}`,
-          })),
-          ...proposals.map(p => {
-            const opt = (p.proposal_options ?? []).find(o => o.is_recommended) ?? (p.proposal_options ?? [])[0];
-            const total = (opt?.proposal_line_items ?? []).reduce((s, li) => s + Number(li.quantity ?? 0) * Number(li.unit_price ?? 0), 0);
-            return {
-              key: `prop-${p.id}`,
-              type: 'proposal',
-              icon: '📄',
-              label: `Propuesta ${p.proposal_number}`,
-              property: '—',
-              date: p.created_at,
-              status: statusProp[p.status] ?? statusProp.borrador,
-              amount: total,
-              href: `/propuestas/${p.id}`,
-            };
-          }),
-          ...invoices.map(i => ({
-            key: `inv-${i.id}`,
-            type: 'invoice',
-            icon: '🧾',
-            label: `Factura ${i.invoice_number ?? '—'}`,
-            property: propertyName(jobById[i.job_id]?.property_id),
-            date: i.created_at,
-            status: statusInv[i.status] ?? statusInv.draft,
-            amount: Number(i.total ?? 0),
-            href: `/facturas/${i.id}`,
-          })),
-        ].sort((a, b) => new Date(b.date ?? 0) - new Date(a.date ?? 0));
-
-        const visibleItems = workFilter === 'all' ? items : items.filter(it => it.type === workFilter);
-
-        const filterBtn = (key, label) => (
-          <button
-            onClick={() => setWorkFilter(key)}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 20,
-              border: '1.5px solid var(--border)',
-              background: workFilter === key ? 'var(--navy)' : 'var(--surface)',
-              color: workFilter === key ? '#fff' : 'var(--text)',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            {label}
-          </button>
-        );
-
-        return (
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Resumen de trabajo</h2>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {filterBtn('all', 'Todos')}
-                {filterBtn('job', '🔧 Trabajos')}
-                {filterBtn('proposal', '📄 Propuestas')}
-                {filterBtn('invoice', '🧾 Facturas')}
-              </div>
-            </div>
-            {visibleItems.length === 0 ? (
-              <div className="empty"><p>No hay elementos para mostrar.</p></div>
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr><th>Item</th><th>Propiedad</th><th>Fecha</th><th>Estado</th><th style={{ textAlign: 'right' }}>Monto</th><th></th></tr>
-                  </thead>
-                  <tbody>
-                    {visibleItems.map(it => (
-                      <tr key={it.key}>
-                        <td style={{ fontWeight: 600 }}>{it.icon} {it.label}</td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{it.property}</td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{it.date ? new Date(it.date).toLocaleDateString('es-PR') : '—'}</td>
-                        <td><span className={`badge ${it.status.cls}`}>{it.status.label}</span></td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{it.amount === null ? '—' : fmt(it.amount)}</td>
-                        <td><Link href={it.href} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
       {/* CLIENT SCHEDULE TAB */}
       {tab === 'schedule' && (() => {
         const jobById = Object.fromEntries(jobs.map(j => [j.id, j]));
@@ -969,7 +864,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             )}
           </div>
           {invoiceReconciliation?.hasVarianza && (
-            <div style={{ borderLeft: '4px solid var(--warn)', background: '#fff8f0', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
+            <div style={{ borderLeft: '4px solid var(--warn)', background: 'var(--danger-tint)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)', marginBottom: 6 }}>⚠️ El cobrado no cuadra con el neto esperado</p>
               <p style={{ fontSize: 13, color: 'var(--muted)' }}>
                 Neto esperado (facturado pagado − retenido de esas facturas): <strong>{fmt(invoiceReconciliation.netoEsperado)}</strong>
@@ -1209,7 +1104,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           {sortedInternalNotes.length === 0 ? (
             <div className="card empty"><p>No hay notas internas para este cliente.</p></div>
           ) : sortedInternalNotes.map(n => (
-            <div key={n.id} className="card" style={{ marginBottom: 12, ...(n.is_pinned ? { border: '1.5px solid var(--amber)', background: '#fffaf0' } : {}) }}>
+            <div key={n.id} className="card" style={{ marginBottom: 12, ...(n.is_pinned ? { border: '1.5px solid var(--amber)', background: 'var(--amber-tint)' } : {}) }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
                   {n.is_pinned && <span title="Pineada">📌</span>}
@@ -1246,9 +1141,9 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar cliente?</h2>
             {jobCount > 0 ? (
-              <div style={{ background: '#fef3cd', border: '1.5px solid #f59e0b', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>⚠️ Este cliente tiene {jobCount} trabajo{jobCount > 1 ? 's' : ''} existente{jobCount > 1 ? 's' : ''}.</p>
-                <p style={{ fontSize: 13, color: '#92400e' }}>Al eliminar el cliente se borrarán también todos sus trabajos, notas, fotos y checklists.</p>
+              <div style={{ background: 'var(--amber-tint)', border: '1.5px solid var(--amber)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--amber)', marginBottom: 4 }}>⚠️ Este cliente tiene {jobCount} trabajo{jobCount > 1 ? 's' : ''} existente{jobCount > 1 ? 's' : ''}.</p>
+                <p style={{ fontSize: 13, color: 'var(--amber)' }}>Al eliminar el cliente se borrarán también todos sus trabajos, notas, fotos y checklists.</p>
               </div>
             ) : (
               <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente.</p>
