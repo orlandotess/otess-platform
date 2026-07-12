@@ -594,7 +594,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={`a${a.id}`} onClick={(e) => { e.stopPropagation(); setSelectedAbsence(a); }}
                           style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: 'var(--danger-tint)', color: 'var(--warn)' }}>
+                            background: 'var(--danger-tint)', color: 'var(--warn)', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           🚫 {a.technicians?.name ?? 'Técnico'} ausente
                         </div>
                       ))}
@@ -602,7 +602,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={`v${v.id}`} onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)' }}>
+                            background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           👁 {v.requests?.title ?? 'Visita'}
                         </div>
                       ))}
@@ -610,7 +610,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={j.id} onClick={(e) => { e.stopPropagation(); openEntry('job', j); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff' }}>
+                            background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           {j.title}
                         </div>
                       ))}
@@ -618,7 +618,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('event', e); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)' }}>
+                            background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           {ENTRY_TYPE_ICONS.event} {e.title}
                         </div>
                       ))}
@@ -626,7 +626,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('task', t); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', textDecoration: t.completed ? 'line-through' : 'none',
-                            background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)' }}>
+                            background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           {ENTRY_TYPE_ICONS[t.task_type]} {t.title}
                         </div>
                       ))}
@@ -666,7 +666,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={a.id} onClick={() => setSelectedAbsence(a)}
                           style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: 'var(--danger-tint)', color: 'var(--warn)' }}>
+                            background: 'var(--danger-tint)', color: 'var(--warn)', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           🚫 {a.technicians?.name ?? 'Técnico'}
                         </div>
                       ))}
@@ -706,7 +706,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           {hourVisits.map(v => (
                             <div key={`v${v.id}`} onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
                               style={{ background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)',
-                                borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden' }}>
+                                borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
                               👁 {v.requests?.title ?? 'Visita'}
                               <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(v.scheduled_at)}</div>
                             </div>
@@ -718,7 +718,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             return (
                               <div key={j.id} onClick={(e) => { e.stopPropagation(); openEntry('job', j); }}
                                 style={{ background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff', borderRadius: 4, padding: '2px 6px',
-                                  fontSize: 11, fontWeight: 600, cursor: 'pointer', height: `${Math.min(duration * 64, 60)}px`, overflow: 'hidden' }}>
+                                  fontSize: 11, fontWeight: 600, cursor: 'pointer', height: `${Math.min(duration * 64, 60)}px`, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
                                 {j.title}
                                 <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(j.scheduled_start)}</div>
                               </div>
@@ -727,7 +727,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           {hourEvents.map(e => (
                             <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('event', e); }}
                               style={{ background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)',
-                                borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden' }}>
+                                borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
                               {ENTRY_TYPE_ICONS.event} {e.title}
                               <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(e.start_at)}</div>
                             </div>
@@ -736,7 +736,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('task', t); }}
                               style={{ background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)',
                                 textDecoration: t.completed ? 'line-through' : 'none',
-                                borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden' }}>
+                                borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
                               {ENTRY_TYPE_ICONS[t.task_type]} {t.title}
                               <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(t.due_at)}</div>
                             </div>
