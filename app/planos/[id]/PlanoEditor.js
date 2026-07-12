@@ -16,6 +16,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const wrapRef = useRef(null);
   const dragOriginRef = useRef(null);
   const labelOriginRef = useRef(null);
+  const modelOriginRef = useRef(null);
   const customIconsRef = useRef(customIcons);
 
   const W = plan.image_width || FALLBACK_W;
@@ -42,6 +43,9 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [scalePending, setScalePending] = useState(null); // { a, b } awaiting the feet input
   const [scaleFeetInput, setScaleFeetInput] = useState('');
   const [savingScale, setSavingScale] = useState(false);
+  const [photoUrls, setPhotoUrls] = useState({}); // markerId -> signed url
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   const canDeletePlan = currentRole === 'admin' || currentRole === 'secretaria';
 
@@ -63,6 +67,18 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }, []);
 
   useEffect(() => { customIconsRef.current = customIconsState; }, [customIconsState]);
+
+  // Marker photos are fetched on demand (only when a marker with a photo is
+  // selected) rather than signed up front for every marker on the plan.
+  useEffect(() => {
+    const marker = selectedMarkerId ? markers.find(m => m.id === selectedMarkerId) : null;
+    if (marker?.photo_path && !photoUrls[marker.id]) {
+      supabase.storage.from('floor-plan-icons').createSignedUrl(marker.photo_path, 3600).then(({ data }) => {
+        if (data?.signedUrl) setPhotoUrls(prev => ({ ...prev, [marker.id]: data.signedUrl }));
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMarkerId]);
 
   // Signed URLs (plan image + custom icons) expire after 1h. On a long
   // editing session that outlives the TTL, refresh them in the background
@@ -253,6 +269,48 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     }
   }
 
+  function updateMarkerModel(id, model) {
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, model } : m));
+  }
+  async function commitMarkerModel(id, model) {
+    const original = modelOriginRef.current;
+    const { error } = await supabase.from('floor_plan_markers').update({ model: model || null }).eq('id', id);
+    if (error) {
+      setMarkers(prev => prev.map(m => m.id === id ? { ...m, model: original ?? null } : m));
+      alert('No se pudo guardar el modelo, se revirtió: ' + error.message);
+    }
+  }
+
+  async function handleMarkerPhotoUpload(markerId, file) {
+    if (!file) return;
+    setUploadingPhoto(true);
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `marker-photos/${markerId}/${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from('floor-plan-icons').upload(path, file);
+    if (upErr) { alert('No se pudo subir la foto: ' + upErr.message); setUploadingPhoto(false); return; }
+    const { error: updErr } = await supabase.from('floor_plan_markers').update({ photo_path: path }).eq('id', markerId);
+    setUploadingPhoto(false);
+    if (updErr) { alert('No se pudo guardar la foto: ' + updErr.message); return; }
+    const { data: signed } = await supabase.storage.from('floor-plan-icons').createSignedUrl(path, 3600);
+    setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, photo_path: path } : m));
+    setPhotoUrls(prev => ({ ...prev, [markerId]: signed?.signedUrl ?? null }));
+  }
+
+  async function removeMarkerPhoto(markerId) {
+    if (!confirm('¿Quitar la foto de este equipo?')) return;
+    const marker = markerById(markerId);
+    const oldPath = marker?.photo_path;
+    setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, photo_path: null } : m));
+    setPhotoUrls(prev => { const next = { ...prev }; delete next[markerId]; return next; });
+    const { error } = await supabase.from('floor_plan_markers').update({ photo_path: null }).eq('id', markerId);
+    if (error) {
+      setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, photo_path: oldPath } : m));
+      alert('No se pudo quitar la foto: ' + error.message);
+      return;
+    }
+    if (oldPath) await supabase.storage.from('floor-plan-icons').remove([oldPath]);
+  }
+
   async function deleteCable(id) {
     if (!confirm('¿Eliminar este cable?')) return;
     const removedCable = cables.find(c => c.id === id);
@@ -358,7 +416,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             title={t.label}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: mode !== 'select' && mode.type === 'place' && mode.equipmentKey === t.key ? '#e8eeff' : undefined,
+              background: mode !== 'select' && mode.type === 'place' && mode.equipmentKey === t.key ? 'var(--info-tint)' : undefined,
               border: mode !== 'select' && mode.type === 'place' && mode.equipmentKey === t.key ? `1.5px solid ${t.color}` : undefined,
             }}
           >
@@ -373,7 +431,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             title={ic.name}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: mode !== 'select' && mode.type === 'place' && mode.customIconId === ic.id ? '#e8eeff' : undefined,
+              background: mode !== 'select' && mode.type === 'place' && mode.customIconId === ic.id ? 'var(--info-tint)' : undefined,
             }}
           >
             {ic.url && <img src={ic.url} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />} {ic.name}
@@ -537,10 +595,16 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             })}
           </svg>
 
-          {selectedMarker && (
+          {selectedMarker && (() => {
+            // Flip to the marker's other side / edge when it sits near the canvas
+            // boundary, so the panel doesn't get clipped by the wrap's overflow:hidden.
+            const flipX = selectedMarker.pos_x > 0.6;
+            const xOffset = flipX ? 'calc(-100% - 16px)' : '16px';
+            const yOffset = selectedMarker.pos_y < 0.25 ? '0%' : selectedMarker.pos_y > 0.75 ? '-100%' : '-50%';
+            return (
             <div style={{
               position: 'absolute', left: `${selectedMarker.pos_x * 100}%`, top: `${selectedMarker.pos_y * 100}%`,
-              transform: 'translate(16px, -50%)', background: 'var(--surface)', border: '1.5px solid var(--border)',
+              transform: `translate(${xOffset}, ${yOffset})`, background: 'var(--surface)', border: '1.5px solid var(--border)',
               borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5, width: 220,
             }} onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
@@ -554,6 +618,38 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 placeholder="Etiqueta (ej: Cam 3 - Entrada)"
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               />
+              <input
+                value={selectedMarker.model || ''}
+                onFocus={() => { modelOriginRef.current = selectedMarker.model || ''; }}
+                onChange={e => updateMarkerModel(selectedMarker.id, e.target.value)}
+                onBlur={e => commitMarkerModel(selectedMarker.id, e.target.value)}
+                placeholder="Modelo (ej: APC AR3100)"
+                style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
+              />
+              {photoUrls[selectedMarker.id] ? (
+                <div style={{ marginBottom: 8 }}>
+                  <img
+                    src={photoUrls[selectedMarker.id]}
+                    alt=""
+                    onClick={() => setLightboxUrl(photoUrls[selectedMarker.id])}
+                    style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 6, cursor: 'zoom-in', border: '1px solid var(--border)', display: 'block' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    <label className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 8px', flex: 1, textAlign: 'center', cursor: 'pointer' }}>
+                      Cambiar foto
+                      <input type="file" accept="image/*" hidden onChange={e => handleMarkerPhotoUpload(selectedMarker.id, e.target.files?.[0])} />
+                    </label>
+                    <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--warn)' }} onClick={() => removeMarkerPhoto(selectedMarker.id)}>
+                      Quitar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <label className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', display: 'block', textAlign: 'center', marginBottom: 8, cursor: 'pointer' }}>
+                  {uploadingPhoto ? 'Subiendo...' : '📷 Agregar foto'}
+                  <input type="file" accept="image/*" hidden disabled={uploadingPhoto} onChange={e => handleMarkerPhotoUpload(selectedMarker.id, e.target.files?.[0])} />
+                </label>
+              )}
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', flex: 1 }}
                   onClick={() => { setMode({ type: 'cable' }); setCableDraft({ fromMarkerId: selectedMarker.id, points: [] }); setSelectedMarkerId(null); }}>
@@ -564,7 +660,8 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 </button>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {selectedCable && (
             <div style={{ position: 'absolute', right: 10, bottom: 10, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5 }}>
@@ -577,6 +674,15 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             </div>
           )}
         </div>
+
+        {lightboxUrl && (
+          <div
+            onClick={() => setLightboxUrl(null)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, cursor: 'zoom-out' }}
+          >
+            <img src={lightboxUrl} alt="" style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: 8, boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }} />
+          </div>
+        )}
 
         {/* Summary panel */}
         <div className="card" style={{ flex: '0 0 260px', minWidth: 220 }}>

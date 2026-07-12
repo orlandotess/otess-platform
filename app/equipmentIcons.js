@@ -91,6 +91,21 @@ export const EQUIPMENT_TYPES = [
       <path d="M19 5 a10 10 0 0 1 0 14" />
     </>,
   },
+  {
+    key: 'rack',
+    label: 'Rack',
+    color: '#4b5563',
+    icon: <>
+      <rect x="4" y="2" width="16" height="20" rx="1.5" />
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="17" x2="20" y2="17" />
+      <circle cx="17.3" cy="4.5" r="0.75" fill="currentColor" stroke="none" />
+      <circle cx="17.3" cy="9.5" r="0.75" fill="currentColor" stroke="none" />
+      <circle cx="17.3" cy="14.5" r="0.75" fill="currentColor" stroke="none" />
+      <circle cx="17.3" cy="19.5" r="0.75" fill="currentColor" stroke="none" />
+    </>,
+  },
 ];
 
 export function getEquipmentType(key) {
