@@ -231,7 +231,7 @@ export default function CatalogoClient({ items: initial }) {
                 if (f) { setNewPhotoFile(f); setNewPhotoPreview(URL.createObjectURL(f)); }
               }} />
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: dataType === "product" ? "140px 1fr 90px 90px 90px 110px 80px" : "140px 1fr 90px 110px", gap: 8, alignItems: "center", flex: 1 }}>
+            <div style={{ display: "grid", gridTemplateColumns: dataType === "product" ? "140px 1fr 90px 90px 90px 110px 80px" : "140px 1fr 90px", gap: 8, alignItems: "center", flex: 1 }}>
               <input value={newItem.item_code} onChange={e => setNewItem(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "monospace" }} />
               <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
               {dataType === "product" && (
