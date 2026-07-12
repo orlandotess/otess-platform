@@ -73,7 +73,7 @@ async function resolveShortLink(url) {
   }
 }
 
-export default function ClientesDetail({ client, jobs, invoices, properties: initProps, contacts: initContacts, proposals, internalNotes: initInternalNotes, serviceTickets = [], currentRole, invoiceReconciliation }) {
+export default function ClientesDetail({ client, jobs, invoices, payments = [], retenciones = [], scheduleDays = [], calendarEvents = [], tasks = [], properties: initProps, contacts: initContacts, proposals, internalNotes: initInternalNotes, serviceTickets = [], currentRole, invoiceReconciliation }) {
   const canDeleteClient = currentRole === 'admin' || currentRole === 'secretaria';
   const router = useRouter();
   const [tab, setTab] = useState('info');
@@ -82,6 +82,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [workFilter, setWorkFilter] = useState('all');
 
   // Info tab edit
   const [editingInfo, setEditingInfo] = useState(false);
@@ -283,6 +284,8 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
           👥 Contactos
           {contacts.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{contacts.length}</span>}
         </button>
+        <button style={tabStyle('workOverview')} onClick={() => setTab('workOverview')}>📋 Resumen de trabajo</button>
+        <button style={tabStyle('schedule')} onClick={() => setTab('schedule')}>🗓️ Agenda del cliente</button>
         <button style={tabStyle('jobs')} onClick={() => setTab('jobs')}>
           🔧 Trabajos
           {jobs.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{jobs.length}</span>}
@@ -291,6 +294,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
           🧾 Facturas
           {invoices.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{invoices.length}</span>}
         </button>
+        <button style={tabStyle('billing')} onClick={() => setTab('billing')}>💰 Facturación</button>
         <button style={tabStyle('proposals')} onClick={() => setTab('proposals')}>
           📄 Propuestas
           {proposals.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{proposals.length}</span>}
@@ -734,6 +738,193 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
         </div>
       )}
 
+      {/* WORK OVERVIEW TAB */}
+      {tab === 'workOverview' && (() => {
+        const propertyName = propId => properties.find(p => p.id === propId)?.name ?? '—';
+        const jobById = Object.fromEntries(jobs.map(j => [j.id, j]));
+
+        const items = [
+          ...jobs.map(j => ({
+            key: `job-${j.id}`,
+            type: 'job',
+            icon: '🔧',
+            label: j.title,
+            property: propertyName(j.property_id),
+            date: j.scheduled_start,
+            status: statusJob[j.status] ?? statusJob.estimate,
+            amount: null,
+            href: `/trabajos/${j.id}`,
+          })),
+          ...proposals.map(p => {
+            const opt = (p.proposal_options ?? []).find(o => o.is_recommended) ?? (p.proposal_options ?? [])[0];
+            const total = (opt?.proposal_line_items ?? []).reduce((s, li) => s + Number(li.quantity ?? 0) * Number(li.unit_price ?? 0), 0);
+            return {
+              key: `prop-${p.id}`,
+              type: 'proposal',
+              icon: '📄',
+              label: `Propuesta ${p.proposal_number}`,
+              property: '—',
+              date: p.created_at,
+              status: statusProp[p.status] ?? statusProp.borrador,
+              amount: total,
+              href: `/propuestas/${p.id}`,
+            };
+          }),
+          ...invoices.map(i => ({
+            key: `inv-${i.id}`,
+            type: 'invoice',
+            icon: '🧾',
+            label: `Factura ${i.invoice_number ?? '—'}`,
+            property: propertyName(jobById[i.job_id]?.property_id),
+            date: i.created_at,
+            status: statusInv[i.status] ?? statusInv.draft,
+            amount: Number(i.total ?? 0),
+            href: `/facturas/${i.id}`,
+          })),
+        ].sort((a, b) => new Date(b.date ?? 0) - new Date(a.date ?? 0));
+
+        const visibleItems = workFilter === 'all' ? items : items.filter(it => it.type === workFilter);
+
+        const filterBtn = (key, label) => (
+          <button
+            onClick={() => setWorkFilter(key)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 20,
+              border: '1.5px solid var(--border)',
+              background: workFilter === key ? 'var(--navy)' : 'var(--surface)',
+              color: workFilter === key ? '#fff' : 'var(--text)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {label}
+          </button>
+        );
+
+        return (
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Resumen de trabajo</h2>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {filterBtn('all', 'Todos')}
+                {filterBtn('job', '🔧 Trabajos')}
+                {filterBtn('proposal', '📄 Propuestas')}
+                {filterBtn('invoice', '🧾 Facturas')}
+              </div>
+            </div>
+            {visibleItems.length === 0 ? (
+              <div className="empty"><p>No hay elementos para mostrar.</p></div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Item</th><th>Propiedad</th><th>Fecha</th><th>Estado</th><th style={{ textAlign: 'right' }}>Monto</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {visibleItems.map(it => (
+                      <tr key={it.key}>
+                        <td style={{ fontWeight: 600 }}>{it.icon} {it.label}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{it.property}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{it.date ? new Date(it.date).toLocaleDateString('es-PR') : '—'}</td>
+                        <td><span className={`badge ${it.status.cls}`}>{it.status.label}</span></td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{it.amount === null ? '—' : fmt(it.amount)}</td>
+                        <td><Link href={it.href} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* CLIENT SCHEDULE TAB */}
+      {tab === 'schedule' && (() => {
+        const jobById = Object.fromEntries(jobs.map(j => [j.id, j]));
+        const techNames = entities => {
+          const names = new Set();
+          entities.forEach(e => { if (e?.name) names.add(e.name); });
+          return names;
+        };
+
+        const items = [
+          ...jobs.filter(j => j.scheduled_start).map(j => {
+            const names = techNames([j.technicians, ...(j.job_technicians ?? []).map(jt => jt.technicians)]);
+            return {
+              key: `job-${j.id}`,
+              icon: '🚚',
+              label: `Visita para ${j.title}`,
+              date: j.scheduled_start,
+              techs: names.size ? [...names].join(', ') : '—',
+              href: `/trabajos/${j.id}`,
+            };
+          }),
+          ...scheduleDays.map(d => {
+            const job = jobById[d.job_id];
+            const names = techNames([d.technicians]);
+            return {
+              key: `day-${d.id}`,
+              icon: '🚚',
+              label: job ? `Visita para ${job.title}` : 'Visita',
+              date: d.scheduled_start,
+              techs: names.size ? [...names].join(', ') : '—',
+              href: job ? `/trabajos/${job.id}` : undefined,
+            };
+          }),
+          ...calendarEvents.map(e => {
+            const names = techNames([e.technicians, ...(e.calendar_event_technicians ?? []).map(t => t.technicians)]);
+            return {
+              key: `event-${e.id}`,
+              icon: '🗓️',
+              label: e.title,
+              date: e.start_at,
+              techs: names.size ? [...names].join(', ') : '—',
+              href: undefined,
+            };
+          }),
+          ...tasks.map(t => ({
+            key: `task-${t.id}`,
+            icon: t.completed ? '✅' : '🔔',
+            label: t.title,
+            date: t.due_at,
+            techs: t.technicians?.name ?? '—',
+            href: undefined,
+          })),
+        ].sort((a, b) => new Date(a.date ?? 0) - new Date(b.date ?? 0));
+
+        return (
+          <div className="card">
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Agenda del cliente</h2>
+            {items.length === 0 ? (
+              <div className="empty"><p>No hay visitas, eventos o recordatorios para este cliente.</p></div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Título</th><th>Fecha</th><th>Asignado</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {items.map(it => (
+                      <tr key={it.key}>
+                        <td style={{ fontWeight: 600 }}>{it.icon} {it.label}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>
+                          {it.date ? new Date(it.date).toLocaleString('es-PR', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{it.techs}</td>
+                        <td>{it.href && <Link href={it.href} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* JOBS TAB */}
       {tab === 'jobs' && (
         <div className="card">
@@ -836,6 +1027,89 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
           })()}
         </div>
       )}
+
+      {/* BILLING TAB */}
+      {tab === 'billing' && (() => {
+        const invoiceById = Object.fromEntries(invoices.map(i => [i.id, i]));
+
+        // Payments made on the same day are usually one batch applied across
+        // several invoices - group them so the ledger reads like a single line,
+        // matching how the client actually experiences the transaction.
+        const paymentGroups = {};
+        payments.forEach(p => {
+          const day = p.paid_at ? p.paid_at.slice(0, 10) : 'sin-fecha';
+          if (!paymentGroups[day]) paymentGroups[day] = { date: p.paid_at, amount: 0, invoiceNumbers: [] };
+          paymentGroups[day].amount += Number(p.amount ?? 0);
+          const num = invoiceById[p.invoice_id]?.invoice_number;
+          if (num && !paymentGroups[day].invoiceNumbers.includes(num)) paymentGroups[day].invoiceNumbers.push(num);
+        });
+
+        const ledger = [
+          ...invoices.map(i => ({
+            key: `inv-${i.id}`,
+            date: i.created_at,
+            item: `Factura ${i.invoice_number ?? '—'}`,
+            appliedTo: '—',
+            amount: Number(i.total ?? 0),
+            href: `/facturas/${i.id}`,
+          })),
+          ...Object.values(paymentGroups).map((g, idx) => ({
+            key: `pay-${idx}-${g.date}`,
+            date: g.date,
+            item: 'Pago',
+            appliedTo: g.invoiceNumbers.length ? `Factura ${g.invoiceNumbers.join(', ')}` : '—',
+            amount: -g.amount,
+          })),
+          ...retenciones.filter(r => Number(r.retencion_aplicada ?? 0) !== 0).map(r => ({
+            key: `ret-${r.id}`,
+            date: r.fecha,
+            item: 'Retención aplicada',
+            appliedTo: invoiceById[r.invoice_id]?.invoice_number ? `Factura ${invoiceById[r.invoice_id].invoice_number}` : '—',
+            amount: -Number(r.retencion_aplicada ?? 0),
+          })),
+        ].sort((a, b) => new Date(b.date ?? 0) - new Date(a.date ?? 0));
+
+        const balanceDeCuenta = invoiceReconciliation?.balanceDeCuenta ?? 0;
+
+        return (
+          <div className="card">
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Facturación</h2>
+            {ledger.length === 0 ? (
+              <div className="empty"><p>No hay movimientos de facturación para este cliente.</p></div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Item</th><th>Aplicado a</th><th>Fecha</th><th style={{ textAlign: 'right' }}>Monto</th></tr>
+                  </thead>
+                  <tbody>
+                    {ledger.map(row => (
+                      <tr key={row.key}>
+                        <td style={{ fontWeight: 600 }}>
+                          {row.href ? <Link href={row.href} style={{ color: 'inherit', textDecoration: 'none' }}>{row.item}</Link> : row.item}
+                        </td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{row.appliedTo}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{row.date ? new Date(row.date).toLocaleDateString('es-PR') : '—'}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: row.amount < 0 ? 'var(--ok)' : 'inherit' }}>
+                          {row.amount < 0 ? `-${fmt(Math.abs(row.amount))}` : fmt(row.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid var(--border)' }}>
+                      <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>Balance actual</td>
+                      <td></td>
+                      <td></td>
+                      <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: balanceDeCuenta > 0 ? 'var(--warn)' : 'var(--ok)', paddingTop: 12 }}>{fmt(balanceDeCuenta)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* PROPOSALS TAB */}
       {tab === 'proposals' && (

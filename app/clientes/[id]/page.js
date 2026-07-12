@@ -20,8 +20,8 @@ export default async function ClienteDetailPage({ params }) {
 
   const [{ data: client }, { data: jobs }, { data: invoices }, { data: properties }, { data: contacts }, { data: proposals }, { data: internalNotes }, { data: serviceTickets }] = await Promise.all([
     supabase.from('clients').select('*').eq('id', id).single(),
-    supabase.from('jobs').select('id, title, status, scheduled_start, property_id, contact_id').eq('client_id', id).order('scheduled_start', { ascending: false }),
-    supabase.from('invoices').select('id, invoice_number, total, status, created_at').eq('client_id', id).order('created_at', { ascending: false }),
+    supabase.from('jobs').select('id, title, status, scheduled_start, scheduled_end, property_id, contact_id, technician_id, technicians(id, name), job_technicians(technician_id, technicians(name))').eq('client_id', id).order('scheduled_start', { ascending: false }),
+    supabase.from('invoices').select('id, invoice_number, total, status, created_at, job_id').eq('client_id', id).order('created_at', { ascending: false }),
     supabase.from('client_properties').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('proposals').select('id, proposal_number, title, status, created_at, valid_until, proposal_options(id, name, proposal_line_items(quantity, unit_price))').eq('client_id', id).order('created_at', { ascending: false }),
@@ -30,9 +30,15 @@ export default async function ClienteDetailPage({ params }) {
   ]);
 
   const invoiceIds = (invoices ?? []).map(i => i.id);
-  const [{ data: payments }, { data: retenciones }] = await Promise.all([
-    invoiceIds.length ? supabase.from('payments').select('invoice_id, amount').in('invoice_id', invoiceIds) : Promise.resolve({ data: [] }),
-    supabase.from('retenciones').select('invoice_id, retencion_aplicada').eq('client_id', id),
+  const jobIds = (jobs ?? []).map(j => j.id);
+  const [{ data: payments }, { data: retenciones }, { data: scheduleDayRows }, { data: calendarEvents }, { data: tasks }] = await Promise.all([
+    invoiceIds.length ? supabase.from('payments').select('id, invoice_id, amount, paid_at').in('invoice_id', invoiceIds) : Promise.resolve({ data: [] }),
+    supabase.from('retenciones').select('id, invoice_id, retencion_aplicada, fecha').eq('client_id', id),
+    // Extra work days for jobs spanning multiple (possibly non-consecutive) days -
+    // each renders as its own schedule entry alongside the job's main date.
+    jobIds.length ? supabase.from('job_schedule_days').select('id, job_id, scheduled_start, scheduled_end, technician_id, technicians(name)').in('job_id', jobIds) : Promise.resolve({ data: [] }),
+    supabase.from('calendar_events').select('id, title, notes, address, start_at, end_at, technician_id, technicians(name), calendar_event_technicians(technician_id, technicians(name))').eq('client_id', id),
+    supabase.from('tasks').select('id, task_type, title, notes, due_at, technician_id, completed, technicians(name)').eq('client_id', id),
   ]);
 
   const paymentsByInvoice = {};
@@ -94,6 +100,11 @@ export default async function ClienteDetailPage({ params }) {
           client={client}
           jobs={jobs ?? []}
           invoices={invoices ?? []}
+          payments={payments ?? []}
+          retenciones={retenciones ?? []}
+          scheduleDays={scheduleDayRows ?? []}
+          calendarEvents={calendarEvents ?? []}
+          tasks={tasks ?? []}
           properties={properties ?? []}
           contacts={contacts ?? []}
           proposals={proposals ?? []}
