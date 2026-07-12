@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../lib/supabase';
+import { getCurrentRole } from '../../lib/supabase-server';
 import Sidebar from '../Sidebar';
 import CalendarioClient from './calendario-client';
 
@@ -11,6 +12,8 @@ export default async function CalendarioPage({ searchParams }) {
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
   const month = parseInt(searchParams?.month ?? new Date().getMonth());
   const week = parseInt(searchParams?.week ?? '0');
+
+  const currentRole = await getCurrentRole();
 
   // Fetch jobs with technician info (both the legacy single technician_id and the
   // job_technicians junction table, since jobs can be assigned solely via the latter).
@@ -108,6 +111,7 @@ export default async function CalendarioPage({ searchParams }) {
           absences={absences ?? []}
           clients={clients ?? []}
           pendingRequests={pendingRequests ?? []}
+          currentRole={currentRole}
           initialView={view}
           initialYear={year}
           initialMonth={month}

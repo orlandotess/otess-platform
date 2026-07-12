@@ -31,8 +31,9 @@ const DAYS_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
 const ENTRY_TYPE_ICONS = { event: '📌', reminder: '🔔', checklist: '☑' };
 
-export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, pendingRequests, initialView, initialYear, initialMonth, initialWeek }) {
+export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, pendingRequests, currentRole, initialView, initialYear, initialMonth, initialWeek }) {
   const router = useRouter();
+  const canQuickReschedule = currentRole === 'admin';
   const [view, setView] = useState(initialView);
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
@@ -107,6 +108,15 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   function viewQuickDetails() {
     const { type, item } = quickReschedule;
     setQuickReschedule(null);
+    if (type === 'job') setSelectedJob(item);
+    else if (type === 'event') setSelectedEvent(item);
+    else if (type === 'task') setSelectedTask(item);
+  }
+
+  // Admins can move a job/event/task's date straight from the calendar entry; everyone
+  // else keeps the old behavior of clicking through to the full detail modal.
+  function openEntry(type, item) {
+    if (canQuickReschedule) { setQuickReschedule({ type, item }); return; }
     if (type === 'job') setSelectedJob(item);
     else if (type === 'event') setSelectedEvent(item);
     else if (type === 'task') setSelectedTask(item);
@@ -597,7 +607,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         </div>
                       ))}
                       {dayJobs.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length, 0)).map(j => (
-                        <div key={j.id} onClick={(e) => { e.stopPropagation(); setQuickReschedule({ type: 'job', item: j }); }}
+                        <div key={j.id} onClick={(e) => { e.stopPropagation(); openEntry('job', j); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff' }}>
@@ -605,7 +615,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         </div>
                       ))}
                       {dayEvents.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length - dayJobs.length, 0)).map(e => (
-                        <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); setQuickReschedule({ type: 'event', item: e }); }}
+                        <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('event', e); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)' }}>
@@ -613,7 +623,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         </div>
                       ))}
                       {dayTasks.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(t => (
-                        <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); setQuickReschedule({ type: 'task', item: t }); }}
+                        <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('task', t); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', textDecoration: t.completed ? 'line-through' : 'none',
                             background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)' }}>
@@ -706,7 +716,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             const end = new Date(j.scheduled_end ?? j.scheduled_start);
                             const duration = Math.max((end - start) / 3600000, 0.5);
                             return (
-                              <div key={j.id} onClick={(e) => { e.stopPropagation(); setQuickReschedule({ type: 'job', item: j }); }}
+                              <div key={j.id} onClick={(e) => { e.stopPropagation(); openEntry('job', j); }}
                                 style={{ background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff', borderRadius: 4, padding: '2px 6px',
                                   fontSize: 11, fontWeight: 600, cursor: 'pointer', height: `${Math.min(duration * 64, 60)}px`, overflow: 'hidden' }}>
                                 {j.title}
@@ -715,7 +725,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             );
                           })}
                           {hourEvents.map(e => (
-                            <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); setQuickReschedule({ type: 'event', item: e }); }}
+                            <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('event', e); }}
                               style={{ background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)',
                                 borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden' }}>
                               {ENTRY_TYPE_ICONS.event} {e.title}
@@ -723,7 +733,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             </div>
                           ))}
                           {hourTasks.map(t => (
-                            <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); setQuickReschedule({ type: 'task', item: t }); }}
+                            <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('task', t); }}
                               style={{ background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)',
                                 textDecoration: t.completed ? 'line-through' : 'none',
                                 borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden' }}>
