@@ -184,6 +184,11 @@ export default function FieldApp() {
   const [editingDetailNoteId, setEditingDetailNoteId] = useState(null);
   const [editingDetailNoteText, setEditingDetailNoteText] = useState('');
   const [newCheckItem, setNewCheckItem] = useState('');
+  const [addingArea, setAddingArea] = useState(false);
+  const [newAreaName, setNewAreaName] = useState('');
+  const [addingItemArea, setAddingItemArea] = useState(null);
+  const [newAreaItemText, setNewAreaItemText] = useState({});
+  const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [detailExpenses, setDetailExpenses] = useState([]);
   const [showDetailExpenseForm, setShowDetailExpenseForm] = useState(false);
   const [detailExpenseForm, setDetailExpenseForm] = useState(blankExpenseForm());
@@ -204,6 +209,12 @@ export default function FieldApp() {
   const [calendarWeekOffset, setCalendarWeekOffset] = useState(0);
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(new Date());
   const [loadingCalendar, setLoadingCalendar] = useState(false);
+  // Non-job schedule items assigned to this technician — shown alongside jobs so "today's
+  // schedule" and the Calendar tab reflect everything, not just jobs.
+  const [techEvents, setTechEvents] = useState([]);
+  const [techTasks, setTechTasks] = useState([]);
+  const [techVisits, setTechVisits] = useState([]);
+  const [detailEntry, setDetailEntry] = useState(null); // { kind, raw } — simple read-only view for event/task/visit
 
   // Clientes state
   const [clientSearch, setClientSearch] = useState('');
@@ -267,6 +278,28 @@ export default function FieldApp() {
 
   useEffect(() => { if (techId) loadAllJobs(); }, [techId]);
 
+  // Events/tasks/visits assigned to this technician, mirroring the same dual-path pattern as
+  // jobs (a direct technician_id column, plus a junction table for calendar_events' multi-tech
+  // assignment) so the tech's schedule shows everything, not just jobs.
+  async function loadTechScheduleExtras() {
+    const [{ data: eventsDirect }, { data: eventsViaJunction }, { data: tasksData }, { data: visitsData }] = await Promise.all([
+      supabase.from('calendar_events').select('id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name)').eq('technician_id', techId),
+      supabase.from('calendar_event_technicians').select('calendar_events(id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name))').eq('technician_id', techId),
+      supabase.from('tasks').select('id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name)').eq('technician_id', techId),
+      supabase.from('visits').select('id, request_id, scheduled_at, duration_minutes, status, requests(title, clients(name))').eq('technician_id', techId),
+    ]);
+    const seen = new Set();
+    const events = [];
+    const addEvent = e => { if (e && !seen.has(e.id)) { seen.add(e.id); events.push(e); } };
+    (eventsDirect ?? []).forEach(addEvent);
+    (eventsViaJunction ?? []).forEach(row => addEvent(row.calendar_events));
+    setTechEvents(events);
+    setTechTasks(tasksData ?? []);
+    setTechVisits(visitsData ?? []);
+  }
+
+  useEffect(() => { if (techId) loadTechScheduleExtras(); }, [techId]);
+
   // Jobs are fetched once per mount/filter change with no realtime subscription, so an admin
   // rescheduling a job from /calendario wouldn't otherwise show up until a hard reload. Refetch
   // whenever the tech brings this tab/app back into focus to keep it reasonably current.
@@ -276,6 +309,7 @@ export default function FieldApp() {
       if (document.visibilityState !== 'visible') return;
       loadJobs();
       loadAllJobs();
+      loadTechScheduleExtras();
       if (tab === 'calendar') loadCalendarJobs();
     }
     document.addEventListener('visibilitychange', refreshOnFocus);
@@ -772,10 +806,59 @@ export default function FieldApp() {
     e.preventDefault();
     if (!newCheckItem.trim()) return;
     const { data } = await supabase.from('job_checklist_items').insert([{
-      job_id: detailJob.id, description: newCheckItem.trim(), sort_order: detailChecklist.length,
+      job_id: detailJob.id, description: newCheckItem.trim(), sort_order: detailChecklist.filter(i => !i.__placeholder).length,
     }]).select().single();
     if (data) setDetailChecklist(prev => [...prev, data]);
     setNewCheckItem('');
+  }
+
+  function addArea() {
+    if (!newAreaName.trim()) return;
+    setAddingArea(false);
+    setDetailChecklist(prev => [...prev, {
+      id: '__placeholder__' + Date.now(),
+      job_id: detailJob.id,
+      description: '',
+      group_name: newAreaName.trim(),
+      completed: false,
+      sort_order: prev.length,
+      __placeholder: true,
+    }]);
+    setNewAreaName('');
+  }
+
+  async function addItemToArea(groupName) {
+    const key = groupName ?? '__none__';
+    const text = newAreaItemText[key] ?? '';
+    if (!text.trim()) return;
+    const { data } = await supabase.from('job_checklist_items').insert([{
+      job_id: detailJob.id,
+      description: text.trim(),
+      sort_order: detailChecklist.filter(i => !i.__placeholder).length,
+      group_name: groupName || null,
+    }]).select().single();
+    if (data) setDetailChecklist(prev => [
+      ...prev.filter(i => !(i.__placeholder && i.group_name === groupName)),
+      data,
+    ]);
+    setNewAreaItemText(prev => ({ ...prev, [key]: '' }));
+    setAddingItemArea(null);
+  }
+
+  async function renameArea(oldName) {
+    const newName = prompt(`Renombrar área "${oldName}":`, oldName);
+    if (!newName || newName === oldName) return;
+    await supabase.from('job_checklist_items').update({ group_name: newName })
+      .eq('job_id', detailJob.id).eq('group_name', oldName);
+    setDetailChecklist(prev => prev.map(i => i.group_name === oldName ? { ...i, group_name: newName } : i));
+    setAreaMenuOpen(null);
+  }
+
+  async function deleteArea(groupName) {
+    if (!confirm(`¿Eliminar el área "${groupName}" y todos sus ítems?`)) return;
+    await supabase.from('job_checklist_items').delete().eq('job_id', detailJob.id).eq('group_name', groupName);
+    setDetailChecklist(prev => prev.filter(i => i.group_name !== groupName));
+    setAreaMenuOpen(null);
   }
 
   // Clientes search (shows full list by default, filters as you type)
@@ -889,8 +972,9 @@ export default function FieldApp() {
 
   const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const totalDetailExpenses = detailExpenses.reduce((a, e) => a + Number(e.amount ?? 0), 0);
-  const completedCount = detailChecklist.filter(i => i.completed).length;
-  const progress = detailChecklist.length > 0 ? Math.round((completedCount / detailChecklist.length) * 100) : 0;
+  const realChecklistCount = detailChecklist.filter(i => !i.__placeholder).length;
+  const completedCount = detailChecklist.filter(i => i.completed && !i.__placeholder).length;
+  const progress = realChecklistCount > 0 ? Math.round((completedCount / realChecklistCount) * 100) : 0;
 
   // Calendar helpers: build the week (Sun-Sat) for the current offset
   function getWeekDays(offset) {
@@ -913,11 +997,63 @@ export default function FieldApp() {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   }
 
-  const jobsForSelectedDay = calendarJobs
+  // Events/tasks/visits shown as if they were "just another job" in the calendar and today's
+  // schedule lists — same row shape, so JobRow/the calendar timeline render them without change.
+  // Tapping one opens a lightweight read-only detail (setDetailEntry) instead of the full job
+  // clock-in/photos/expenses flow, since those actions don't apply to a task or a visit.
+  const VISIT_STATUS_MAP = { agendada: 'scheduled', en_progreso: 'in_progress', completada: 'completed', cancelada: 'cancelled' };
+  function normalizeEntry(kind, raw) {
+    if (kind === 'event') {
+      return {
+        id: `event-${raw.id}`, title: `📌 ${raw.title}`, clients: raw.clients, property_name: raw.address ?? null,
+        street: null, city: null, state: null, zip: null,
+        scheduled_start: raw.start_at, status: 'scheduled', _kind: 'event', _raw: raw,
+      };
+    }
+    if (kind === 'task') {
+      const icon = raw.task_type === 'checklist' ? '☑' : '🔔';
+      return {
+        id: `task-${raw.id}`, title: `${icon} ${raw.title}`, clients: raw.clients, property_name: null,
+        street: null, city: null, state: null, zip: null,
+        scheduled_start: raw.due_at, status: raw.completed ? 'completed' : 'scheduled', _kind: 'task', _raw: raw,
+      };
+    }
+    // visit
+    return {
+      id: `visit-${raw.id}`, title: `👁 ${raw.requests?.title ?? 'Visita'}`, clients: raw.requests?.clients, property_name: null,
+      street: null, city: null, state: null, zip: null,
+      scheduled_start: raw.scheduled_at, status: VISIT_STATUS_MAP[raw.status] ?? 'scheduled', _kind: 'visit', _raw: raw,
+    };
+  }
+
+  const calendarEntries = [
+    ...calendarJobs,
+    ...techEvents.map(e => normalizeEntry('event', e)),
+    ...techTasks.map(t => normalizeEntry('task', t)),
+    ...techVisits.map(v => normalizeEntry('visit', v)),
+  ];
+
+  const jobsForSelectedDay = calendarEntries
     .filter(j => j.scheduled_start && sameDay(new Date(j.scheduled_start), calendarSelectedDate))
     .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
 
-  const jobDaysSet = new Set(calendarJobs.filter(j => j.scheduled_start).map(j => new Date(j.scheduled_start).toDateString()));
+  const jobDaysSet = new Set(calendarEntries.filter(j => j.scheduled_start).map(j => new Date(j.scheduled_start).toDateString()));
+
+  function openEntry(entry) {
+    if (entry._kind) setDetailEntry(entry);
+    else openJobDetail(entry);
+  }
+
+  // "Today's schedule" on Home mixes in today's events/tasks/visits alongside jobs, same idea
+  // as the Calendar tab above.
+  const todayBounds = (() => { const s = new Date(); s.setHours(0, 0, 0, 0); const e = new Date(s); e.setDate(e.getDate() + 1); return [s, e]; })();
+  const isToday = iso => { if (!iso) return false; const d = new Date(iso); return d >= todayBounds[0] && d < todayBounds[1]; };
+  const todayEntries = [
+    ...jobs,
+    ...techEvents.filter(e => isToday(e.start_at)).map(e => normalizeEntry('event', e)),
+    ...techTasks.filter(t => isToday(t.due_at)).map(t => normalizeEntry('task', t)),
+    ...techVisits.filter(v => isToday(v.scheduled_at)).map(v => normalizeEntry('visit', v)),
+  ].sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: BG, fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto', paddingTop: 'env(safe-area-inset-top,0px)' }}>
@@ -960,9 +1096,9 @@ export default function FieldApp() {
               <span style={{ fontSize: 14, fontWeight: 600, color: ORANGE, cursor: 'pointer' }} onClick={() => setTab('jobs')}>View all</span>
             </div>
             <div style={card}>
-              {jobs.length === 0
+              {todayEntries.length === 0
                 ? <div style={{ textAlign: 'center', padding: '24px 0', color: '#888' }}>No jobs scheduled today.</div>
-                : jobs.slice(0, 3).map(j => <JobRow key={j.id} j={j} onClick={() => openJobDetail(j)} />)
+                : todayEntries.slice(0, 3).map(j => <JobRow key={j.id} j={j} onClick={() => openEntry(j)} />)
               }
             </div>
           </div>
@@ -1253,7 +1389,7 @@ export default function FieldApp() {
                 </div>
               ) : (
                 jobsForSelectedDay.map((j, i) => (
-                  <div key={j._scheduleDayId ? `day-${j._scheduleDayId}` : `${j.id}-${i}`} onClick={() => openJobDetail(j)} style={{ display: 'flex', gap: 12, paddingBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, marginBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, borderBottom: i < jobsForSelectedDay.length - 1 ? '1px solid #eee' : 'none', cursor: 'pointer' }}>
+                  <div key={j._scheduleDayId ? `day-${j._scheduleDayId}` : `${j.id}-${i}`} onClick={() => openEntry(j)} style={{ display: 'flex', gap: 12, paddingBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, marginBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, borderBottom: i < jobsForSelectedDay.length - 1 ? '1px solid #eee' : 'none', cursor: 'pointer' }}>
                     <div style={{ width: 62, flexShrink: 0, fontSize: 13, fontWeight: 700, color: ORANGE }}>
                       {new Date(j.scheduled_start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                     </div>
@@ -1429,7 +1565,7 @@ export default function FieldApp() {
           </div>
 
           <div style={{ background: '#fff', display: 'flex', borderBottom: '1px solid #dde1e7', flexShrink: 0 }}>
-            {[['info', '📋 Info'], ['checklist', `✅ (${completedCount}/${detailChecklist.length})`], ['notes', `📸 (${detailNotes.length})`], ['gastos', `💸 ${detailExpenses.length > 0 ? fmtMoney(totalDetailExpenses) : ''}`]].map(([t, label]) => (
+            {[['info', '📋 Info'], ['checklist', `✅ (${completedCount}/${realChecklistCount})`], ['notes', `📸 (${detailNotes.length})`], ['gastos', `💸 ${detailExpenses.length > 0 ? fmtMoney(totalDetailExpenses) : ''}`]].map(([t, label]) => (
               <button key={t} onClick={() => setDetailTab(t)} style={{ flex: 1, padding: '12px 8px', background: 'none', border: 'none', borderBottom: detailTab === t ? '2px solid ' + ORANGE : '2px solid transparent', fontWeight: detailTab === t ? 700 : 500, color: detailTab === t ? ORANGE : '#888', cursor: 'pointer', fontSize: 13 }}>
                 {label}
               </button>
@@ -1528,7 +1664,7 @@ export default function FieldApp() {
             {/* CHECKLIST TAB */}
             {detailTab === 'checklist' && (
               <div>
-                {detailChecklist.length > 0 && (
+                {realChecklistCount > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                       <span style={{ fontWeight: 700, fontSize: 14 }}>Progreso</span>
@@ -1537,12 +1673,26 @@ export default function FieldApp() {
                     <div style={{ background: '#eee', borderRadius: 50, height: 8 }}>
                       <div style={{ background: progress === 100 ? '#1a7a4a' : ORANGE, borderRadius: 50, height: 8, width: progress + '%', transition: 'width 0.3s' }} />
                     </div>
-                    <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{completedCount} de {detailChecklist.length} completados</div>
+                    <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{completedCount} de {realChecklistCount} completados</div>
                   </div>
                 )}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <button onClick={() => setAddingArea(true)} style={{ flex: 1, background: '#fff', color: ORANGE, border: `1.5px solid ${ORANGE}`, borderRadius: 10, padding: '10px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>+ Nueva área</button>
+                </div>
+
+                {addingArea && (
+                  <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', gap: 8 }}>
+                    <input autoFocus value={newAreaName} onChange={e => setNewAreaName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addArea()}
+                      placeholder="Nombre del área (ej: Área 1)..." style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+                    <button onClick={addArea} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>Crear</button>
+                    <button onClick={() => { setAddingArea(false); setNewAreaName(''); }} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer', color: '#888' }}>×</button>
+                  </div>
+                )}
+
                 <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   <form onSubmit={addCheckItem} style={{ display: 'flex', gap: 8 }}>
-                    <input value={newCheckItem} onChange={e => setNewCheckItem(e.target.value)} placeholder="Agregar ítem..." style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+                    <input value={newCheckItem} onChange={e => setNewCheckItem(e.target.value)} placeholder="Agregar ítem (sin área)..." style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
                     <button type="submit" style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>+</button>
                   </form>
                 </div>
@@ -1555,14 +1705,32 @@ export default function FieldApp() {
                       if (!groupedMap[g]) groupedMap[g] = [];
                       groupedMap[g].push(i);
                     });
-                    return Object.entries(groupedMap).map(([groupKey, items]) => (
+                    return Object.entries(groupedMap).map(([groupKey, items]) => {
+                      const groupName = groupKey === '__none__' ? null : groupKey;
+                      const realItems = items.filter(i => !i.__placeholder);
+                      return (
                       <div key={groupKey} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                        {groupKey !== '__none__' && (
-                          <div style={{ fontWeight: 700, fontSize: 13, color: ORANGE, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
-                            📁 {groupKey}
+                        {groupName && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: ORANGE, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              📁 {groupName}
+                            </div>
+                            <div style={{ position: 'relative' }}>
+                              <button onClick={() => setAreaMenuOpen(areaMenuOpen === groupKey ? null : groupKey)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
+                              {areaMenuOpen === groupKey && (
+                                <>
+                                  <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setAreaMenuOpen(null)} />
+                                  <div style={{ position: 'absolute', right: 0, top: 28, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #eee', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
+                                    <button onClick={() => renameArea(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
+                                    <button onClick={() => deleteArea(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 Eliminar área</button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
                         )}
-                        {items.map(item => (
+                        {realItems.map(item => (
                           <div key={item.id} onClick={() => toggleCheckItem(item)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
                             <div style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #dde1e7', background: item.completed ? '#1a7a4a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                               {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
@@ -1577,8 +1745,27 @@ export default function FieldApp() {
                             </div>
                           </div>
                         ))}
+                        {groupName && (
+                          addingItemArea === groupKey ? (
+                            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                              <input autoFocus value={newAreaItemText[groupKey] ?? ''}
+                                onChange={e => setNewAreaItemText(prev => ({ ...prev, [groupKey]: e.target.value }))}
+                                onKeyDown={e => e.key === 'Enter' && addItemToArea(groupName)}
+                                placeholder="Descripción del ítem..."
+                                style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+                              <button onClick={() => addItemToArea(groupName)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>+</button>
+                              <button onClick={() => setAddingItemArea(null)} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer', color: '#888' }}>×</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setAddingItemArea(groupKey)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 13, fontWeight: 600, padding: '4px 0' }}>
+                              + Nuevo ítem
+                            </button>
+                          )
+                        )}
                       </div>
-                    ));
+                      );
+                    });
                   })()
                 }
               </div>
@@ -1795,6 +1982,40 @@ export default function FieldApp() {
                   ))
                 }
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Lightweight read-only detail for a non-job schedule entry (event/task/visit) — no
+          clock-in/photos/expenses, since those actions are job-specific. */}
+      {detailEntry && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 1000 }} onClick={() => setDetailEntry(null)}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px calc(24px + env(safe-area-inset-bottom,0px))', width: '100%', maxWidth: 430, margin: '0 auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>{detailEntry.title}</div>
+              <button onClick={() => setDetailEntry(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#888', cursor: 'pointer' }}>×</button>
+            </div>
+            {detailEntry.clients?.name && <div style={{ fontSize: 14, color: '#555', marginBottom: 6 }}>{detailEntry.clients.name}</div>}
+            {detailEntry.scheduled_start && (
+              <div style={{ fontSize: 14, color: '#555', marginBottom: 6 }}>
+                🕐 {new Date(detailEntry.scheduled_start).toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              </div>
+            )}
+            {detailEntry._kind === 'event' && detailEntry._raw.address && (
+              <a href={pickMapsLink(detailEntry._raw.address)} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 13, color: ORANGE, marginBottom: 6, fontWeight: 600 }}>📍 {detailEntry._raw.address}</a>
+            )}
+            {detailEntry._raw.notes && <div style={{ fontSize: 13, color: '#888', marginTop: 8, whiteSpace: 'pre-wrap' }}>{detailEntry._raw.notes}</div>}
+            {detailEntry._kind === 'task' && (
+              <button
+                onClick={async () => {
+                  await supabase.from('tasks').update({ completed: !detailEntry._raw.completed }).eq('id', detailEntry._raw.id);
+                  setDetailEntry(null);
+                  loadTechScheduleExtras();
+                }}
+                style={{ marginTop: 16, width: '100%', background: detailEntry._raw.completed ? '#eee' : ORANGE, color: detailEntry._raw.completed ? '#333' : '#fff', border: 'none', borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                {detailEntry._raw.completed ? 'Mark as pending' : 'Mark as done'}
+              </button>
             )}
           </div>
         </div>
