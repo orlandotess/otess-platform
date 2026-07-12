@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { fallbackLineItems } from '../../../lib/ivu';
 
 export default async function FacturaPublica({ params }) {
   const { id } = params;
@@ -77,6 +78,7 @@ export default async function FacturaPublica({ params }) {
     ? clientProperties.find(p => p.id === inv.property_id) ?? null
     : inv.jobs?.client_properties ?? null;
   const billToName = inv.bill_to === 'company' && inv.clients?.company ? inv.clients.company : inv.clients?.name;
+  const displayItems = items?.length ? items : fallbackLineItems(inv);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const today = new Date().toISOString().slice(0, 10);
@@ -150,7 +152,7 @@ export default async function FacturaPublica({ params }) {
                 </tr>
               </thead>
               <tbody>
-                {items?.map(item => (
+                {displayItems.map(item => (
                   <tr key={item.id}>
                     <td style={{ padding: '12px 12px 12px 0', fontWeight: 500, fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{item.description}</td>
                     <td style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #f4f4f4' }}>

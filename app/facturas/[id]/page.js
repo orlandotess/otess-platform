@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { fallbackLineItems } from '../../../lib/ivu';
 import Sidebar from '../../Sidebar';
 import InvoiceActions from './InvoiceActions';
 
@@ -57,6 +58,8 @@ export default async function FacturaDetail({ params }) {
     ? inv.clients.company
     : inv.clients?.name;
 
+  const displayItems = items?.length ? items : fallbackLineItems(inv);
+  const isFallbackItems = !items?.length && displayItems.length > 0;
   const statusLabel = { draft: 'Borrador', sent: 'Enviada', paid: 'Pagada', cancelled: 'Cancelada' };
   const statusCls = { draft: 'badge-gray', sent: 'badge-blue', paid: 'badge-green', cancelled: 'badge-red' };
   const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
@@ -154,7 +157,7 @@ export default async function FacturaDetail({ params }) {
               </tr>
             </thead>
             <tbody>
-              {items?.map(item => (
+              {displayItems.map(item => (
                 <tr key={item.id}>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>{item.description}</td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>
@@ -180,6 +183,11 @@ export default async function FacturaDetail({ params }) {
               ))}
             </tbody>
           </table>
+          {isFallbackItems && (
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: -14, marginBottom: 24 }}>
+              ⚠️ Líneas detalladas no disponibles para esta factura — se muestra un resumen por labor/producto.
+            </p>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <div style={{ width: 320 }}>

@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { getCurrentRole } from '../../../lib/supabase-server';
+import { fallbackLineItems } from '../../../lib/ivu';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -23,7 +24,8 @@ export async function POST(request) {
     if (!inv) return Response.json({ error: 'No encontrada' }, { status: 404 });
     const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     const publicUrl = `https://app.otesspr.com/factura/${invoiceId}`;
-    const rows = items?.map(i => `
+    const displayItems = items?.length ? items : fallbackLineItems(inv);
+    const rows = displayItems.map(i => `
       <tr>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px">${i.description}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${i.type === 'labor' ? 'Labor' : 'Producto'}</td>

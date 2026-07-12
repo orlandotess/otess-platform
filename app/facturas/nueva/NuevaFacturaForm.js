@@ -176,7 +176,12 @@ export default function NuevaFactura() {
       });
     }
 
-    await supabase.from('invoice_line_items').insert(lineItems);
+    const { error: liErr } = await supabase.from('invoice_line_items').insert(lineItems);
+    if (liErr) {
+      setError(`La factura ${invoiceNumber} se creó pero no se pudieron guardar sus líneas: ${liErr.message}. Ábrela y agrégalas manualmente.`);
+      setSaving(false);
+      return;
+    }
 
     for (const li of lineItems.filter(li => li.type === 'product' && li.catalog_item_id)) {
       await supabase.rpc('adjust_catalog_stock', {

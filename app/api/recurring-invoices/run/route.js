@@ -102,7 +102,10 @@ export async function GET(request) {
       }]).select().single();
       if (invErr) throw new Error(invErr.message);
 
-      await supabase.from('invoice_line_items').insert(lineItems.map(li => ({ ...li, invoice_id: invoice.id })));
+      const { error: liErr } = await supabase.from('invoice_line_items').insert(lineItems.map(li => ({ ...li, invoice_id: invoice.id })));
+      if (liErr) {
+        failures.push({ recurringId: r.id, clientName: client.name, reason: `${invoiceNumber} se creó pero sus líneas no se guardaron (${liErr.message}) — ábrela y agrégalas manualmente` });
+      }
 
       // The invoice now exists either way — advance the schedule so we never generate a duplicate
       // for this cycle, even if the email send below ends up failing.

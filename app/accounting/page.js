@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../lib/supabase';
+import { computeInvoiceIVU } from '../../lib/ivu';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
 
@@ -45,16 +46,17 @@ function computeRevenue(invs, paymentsByInvoice) {
   };
 }
 
-function computeIVU(invIds, lines) {
-  const relevant = lines.filter(l => invIds.has(l.invoice_id));
+// Sourced from each invoice's own columns (see lib/ivu.js) rather than
+// invoice_line_items, which isn't reliably populated for every invoice and
+// was silently under-reporting IVU (and inflating "ganancia neta estimada")
+// for any invoice missing them.
+function computeIVU(invs) {
   let ivuProducts = 0, ivuLaborFinal = 0, ivuLaborB2B = 0;
-  relevant.forEach(l => {
-    const tax = Number(l.tax_amount ?? 0);
-    if (l.type === 'product') ivuProducts += tax;
-    else if (l.type === 'labor') {
-      if (Number(l.tax_rate ?? 0) <= 0.04) ivuLaborB2B += tax;
-      else ivuLaborFinal += tax;
-    }
+  invs.forEach(inv => {
+    const b = computeInvoiceIVU(inv);
+    ivuProducts += b.prodTax;
+    if (b.isB2B) ivuLaborB2B += b.laborTax;
+    else ivuLaborFinal += b.laborTax;
   });
   const ivuEstatal = (ivuProducts + ivuLaborFinal) * (10.5 / 11.5);
   const ivuMunicipal = (ivuProducts + ivuLaborFinal) * (1 / 11.5);
@@ -271,7 +273,7 @@ export default async function AccountingDashboard({ searchParams }) {
   const entriesFetchEnd = rangeEnds.reduce((a, b) => (a > b ? a : b));
 
   const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: timeEntries }, { data: payrollAdjustments }, { data: allPayments }, { data: inboxNotifications }, { data: allExpenses }] = await Promise.all([
-    supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name)').order('issued_at', { ascending: false }),
+    supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name, client_type)').order('issued_at', { ascending: false }),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount, quantity, unit_price, supplier_price'),
     supabase.from('technicians').select('id, hourly_rate'),
     supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at, lunch_minutes').not('clocked_out_at', 'is', null).gte('clocked_in_at', entriesFetchStart).lte('clocked_in_at', entriesFetchEnd),
@@ -313,11 +315,10 @@ export default async function AccountingDashboard({ searchParams }) {
 
   const quarterData = quarters.map(q => {
     const qInvs = filterInvs(q.start, q.end);
-    const qIds = new Set(qInvs.map(i => i.id));
     return {
       key: q.key,
       revenue: computeRevenue(qInvs, paymentsByInvoice),
-      ivu: computeIVU(qIds, lines),
+      ivu: computeIVU(qInvs),
       payroll: computePayroll(q.start + 'T00:00:00.000Z', q.end + 'T23:59:59.999Z', techs, entries, adjustments),
       gastos: computeExpenses(q.start, q.end, expenses),
     };
@@ -352,7 +353,7 @@ export default async function AccountingDashboard({ searchParams }) {
           id="esta-semana"
           label={<WeekPeriodSelector weekStart={selWeekStartStr} />}
           revenue={computeRevenue(weekInvs, paymentsByInvoice)}
-          ivu={computeIVU(getIds(selWeekStartISO, selWeekEndISO), lines)}
+          ivu={computeIVU(weekInvs)}
           payroll={computePayroll(selWeekStartISO, selWeekEndISO, techs, entries, adjustments)}
           margin={computeMargin(getIds(selWeekStartISO, selWeekEndISO), lines)}
           gastos={computeExpenses(selWeekStartISO, selWeekEndISO, expenses)}
@@ -362,7 +363,7 @@ export default async function AccountingDashboard({ searchParams }) {
           id="mes-seleccionado"
           label={<MonthPeriodSelector year={selMonthYear} month={selMonth} />}
           revenue={computeRevenue(monthInvs, paymentsByInvoice)}
-          ivu={computeIVU(getIds(monthStart, monthEnd), lines)}
+          ivu={computeIVU(monthInvs)}
           payroll={computePayroll(monthStart, monthEnd, techs, entries, adjustments)}
           margin={computeMargin(getIds(monthStart, monthEnd), lines)}
           gastos={computeExpenses(monthStart, monthEnd, expenses)}
@@ -372,7 +373,7 @@ export default async function AccountingDashboard({ searchParams }) {
           id="ano-seleccionado"
           label={<YearPeriodSelector year={selYear} />}
           revenue={computeRevenue(yearInvs, paymentsByInvoice)}
-          ivu={computeIVU(getIds(selYearStart, selYearEnd), lines)}
+          ivu={computeIVU(yearInvs)}
           payroll={computePayroll(selYearStart, selYearEnd, techs, entries, adjustments)}
           margin={computeMargin(getIds(selYearStart, selYearEnd), lines)}
           gastos={computeExpenses(selYearStart, selYearEnd, expenses)}
