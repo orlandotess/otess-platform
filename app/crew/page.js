@@ -232,21 +232,40 @@ export default function FieldApp() {
 
   useEffect(() => { if (techId) loadJobs(); }, [jobFilter, techId]);
 
-  useEffect(() => {
-    if (!techId) return;
-    Promise.all([
+  async function loadAllJobs() {
+    const [{ data }, scheduleDayJobs] = await Promise.all([
       supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId),
       fetchScheduleDayJobs(techId),
-    ]).then(([{ data }, scheduleDayJobs]) => {
-      const direct = (data ?? []).map(row => row.jobs).filter(Boolean);
-      const merged = [...direct];
-      for (const j of scheduleDayJobs) if (!merged.some(m => m.id === j.id)) merged.push(j);
-      const list = merged
-        .filter(j => j.status === 'scheduled' || j.status === 'in_progress')
-        .sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
-      setAllJobs(list.slice(0, 20));
-    });
-  }, [techId]);
+    ]);
+    const direct = (data ?? []).map(row => row.jobs).filter(Boolean);
+    const merged = [...direct];
+    for (const j of scheduleDayJobs) if (!merged.some(m => m.id === j.id)) merged.push(j);
+    const list = merged
+      .filter(j => j.status === 'scheduled' || j.status === 'in_progress')
+      .sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
+    setAllJobs(list.slice(0, 20));
+  }
+
+  useEffect(() => { if (techId) loadAllJobs(); }, [techId]);
+
+  // Jobs are fetched once per mount/filter change with no realtime subscription, so an admin
+  // rescheduling a job from /calendario wouldn't otherwise show up until a hard reload. Refetch
+  // whenever the tech brings this tab/app back into focus to keep it reasonably current.
+  useEffect(() => {
+    if (!techId) return;
+    function refreshOnFocus() {
+      if (document.visibilityState !== 'visible') return;
+      loadJobs();
+      loadAllJobs();
+      if (tab === 'calendar') loadCalendarJobs();
+    }
+    document.addEventListener('visibilitychange', refreshOnFocus);
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [techId, tab, jobFilter]);
 
   useEffect(() => {
     if (!techId) return;
