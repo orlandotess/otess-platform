@@ -7,11 +7,10 @@ import Link from 'next/link';
 import Cliente360Client from './Cliente360Client';
 
 export default async function Cliente360Page() {
-  const [{ data: clients }, { data: invoices }, { data: payments }, { data: lines }, { data: retenciones }] = await Promise.all([
+  const [{ data: clients }, { data: invoices }, { data: payments }, { data: retenciones }] = await Promise.all([
     supabase.from('clients').select('id, name, company, client_type').order('name'),
     supabase.from('invoices').select('id, client_id, invoice_number, issued_at, status, total, subtotal_labor, tax_labor, subtotal_products, tax_products, clients(name, client_type)').order('issued_at', { ascending: false }),
     supabase.from('payments').select('invoice_id, amount'),
-    supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount'),
     supabase.from('retenciones').select('client_id, invoice_id, retencion_aplicada'),
   ]);
 
@@ -20,18 +19,6 @@ export default async function Cliente360Page() {
   (payments ?? []).forEach(p => {
     if (!paymentsByInvoice[p.invoice_id]) paymentsByInvoice[p.invoice_id] = 0;
     paymentsByInvoice[p.invoice_id] += Number(p.amount ?? 0);
-  });
-
-  // Per-invoice IVU breakdown (same convention as /accounting/ivu)
-  const ivuByInvoice = {};
-  (lines ?? []).forEach(l => {
-    if (!ivuByInvoice[l.invoice_id]) ivuByInvoice[l.invoice_id] = { ivuProducts: 0, ivuLaborFinal: 0, ivuLaborB2B: 0 };
-    const tax = Number(l.tax_amount ?? 0);
-    if (l.type === 'product') ivuByInvoice[l.invoice_id].ivuProducts += tax;
-    else if (l.type === 'labor') {
-      if (Number(l.tax_rate ?? 0) <= 0.04) ivuByInvoice[l.invoice_id].ivuLaborB2B += tax;
-      else ivuByInvoice[l.invoice_id].ivuLaborFinal += tax;
-    }
   });
 
   const retenidoByClient = {};
@@ -86,7 +73,7 @@ export default async function Cliente360Page() {
           <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
         </div>
 
-        <Cliente360Client clientTotals={clientTotals} invoices={invs} ivuByInvoice={ivuByInvoice} />
+        <Cliente360Client clientTotals={clientTotals} invoices={invs} />
       </main>
     </div>
   );

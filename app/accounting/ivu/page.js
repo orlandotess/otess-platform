@@ -8,6 +8,7 @@ import Link from 'next/link';
 import ExportIVUButton from './ExportIVUButton';
 import IVUInvoiceTableClient from './IVUInvoiceTableClient';
 import IVUPaymentTracker from './IVUPaymentTracker';
+import { computeInvoiceIVU } from '../../../lib/ivu';
 
 export default async function AccountingIVU({ searchParams }) {
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
@@ -25,20 +26,12 @@ export default async function AccountingIVU({ searchParams }) {
   const [{ data: invoices }, { data: ivuPayments }] = await Promise.all([
     supabase
       .from('invoices')
-      .select('id, invoice_number, issued_at, status, clients(name, client_type)')
+      .select('id, invoice_number, issued_at, status, total, subtotal_labor, tax_labor, subtotal_products, tax_products, clients(name, client_type)')
       .gte('issued_at', dateStart)
       .lte('issued_at', dateEnd)
       .order('issued_at', { ascending: false }),
     supabase.from('ivu_payments').select('*').eq('year', year),
   ]);
-
-  const invIds = new Set((invoices ?? []).map(i => i.id));
-  const invMap = Object.fromEntries((invoices ?? []).map(i => [i.id, i]));
-
-  const { data: lines } = await supabase
-    .from('invoice_line_items')
-    .select('invoice_id, type, tax_rate, tax_amount, line_total')
-    .in('invoice_id', [...invIds]);
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const pct = n => `${(Number(n ?? 0) * 100).toFixed(1)}%`;
@@ -47,19 +40,17 @@ export default async function AccountingIVU({ searchParams }) {
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
 
-  // Compute IVU breakdown per invoice
+  // Compute IVU breakdown per invoice straight off the invoice's own fields
+  // (see lib/ivu.js) - invoice_line_items isn't reliably populated, which
+  // previously under-reported IVU for any invoice missing them.
   const ivuByInvoice = {};
-  (lines ?? []).forEach(l => {
-    if (!ivuByInvoice[l.invoice_id]) {
-      ivuByInvoice[l.invoice_id] = { ivuProducts: 0, ivuLaborFinal: 0, ivuLaborB2B: 0 };
-    }
-    const tax = Number(l.tax_amount ?? 0);
-    if (l.type === 'product') {
-      ivuByInvoice[l.invoice_id].ivuProducts += tax;
-    } else if (l.type === 'labor') {
-      if (Number(l.tax_rate ?? 0) <= 0.04) ivuByInvoice[l.invoice_id].ivuLaborB2B += tax;
-      else ivuByInvoice[l.invoice_id].ivuLaborFinal += tax;
-    }
+  (invoices ?? []).forEach(inv => {
+    const b = computeInvoiceIVU(inv);
+    ivuByInvoice[inv.id] = {
+      ivuProducts: b.prodTax,
+      ivuLaborFinal: b.isB2B ? 0 : b.laborTax,
+      ivuLaborB2B: b.isB2B ? b.laborTax : 0,
+    };
   });
 
   // Totals
@@ -224,7 +215,6 @@ export default async function AccountingIVU({ searchParams }) {
         {/* Per invoice detail */}
         <IVUInvoiceTableClient
           invoices={invoices ?? []}
-          ivuByInvoice={ivuByInvoice}
           periodLabel={month !== null ? `${months[month]} ${year}` : `${year}`}
         />
 

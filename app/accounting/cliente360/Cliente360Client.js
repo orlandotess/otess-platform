@@ -7,11 +7,12 @@ import IVUInvoiceTableClient from '../ivu/IVUInvoiceTableClient';
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function Cliente360Client({ clientTotals, invoices, ivuByInvoice }) {
+export default function Cliente360Client({ clientTotals, invoices }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [retenciones, setRetenciones] = useState([]);
   const [loadingRetenciones, setLoadingRetenciones] = useState(false);
+  const [retencionSearch, setRetencionSearch] = useState('');
   const detailRef = useRef(null);
 
   const query = search.trim().toLowerCase();
@@ -27,8 +28,9 @@ export default function Cliente360Client({ clientTotals, invoices, ivuByInvoice 
 
   async function selectClient(c) {
     setSelected(c);
+    setRetencionSearch('');
     setLoadingRetenciones(true);
-    const { data } = await supabase.from('retenciones').select('*').eq('client_id', c.id).order('fecha', { ascending: false });
+    const { data } = await supabase.from('retenciones').select('*, invoices(invoice_number, total)').eq('client_id', c.id).order('fecha', { ascending: false });
     setRetenciones(data ?? []);
     setLoadingRetenciones(false);
   }
@@ -105,46 +107,95 @@ export default function Cliente360Client({ clientTotals, invoices, ivuByInvoice 
             </div>
           )}
 
-          <IVUInvoiceTableClient invoices={clientInvoices} ivuByInvoice={ivuByInvoice} periodLabel={selected.name} />
+          <IVUInvoiceTableClient invoices={clientInvoices} periodLabel={selected.name} hideClientColumn />
 
           <div className="card" style={{ marginTop: 20 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Historial de retenciones — {selected.name}</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>Historial de retenciones — {selected.name}</p>
+              {retenciones.length > 0 && (
+                <SearchBox value={retencionSearch} onChange={setRetencionSearch} placeholder="Buscar # factura o comprobante..." />
+              )}
+            </div>
             {loadingRetenciones ? (
               <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>Cargando...</p>
             ) : retenciones.length === 0 ? (
               <div className="empty"><p>Sin retenciones registradas.</p></div>
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th style={{ textAlign: 'right' }}>Facturado</th>
-                      <th style={{ textAlign: 'right' }}>Exento</th>
-                      <th style={{ textAlign: 'right' }}>Retenido</th>
-                      <th># Comprobante</th>
-                      <th>Estado</th>
-                      <th>Factura</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {retenciones.map(r => (
-                      <tr key={r.id}>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.fecha}</td>
-                        <td style={{ textAlign: 'right' }}>{fmt(r.monto_facturado)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(r.monto_exento)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--amber)' }}>{fmt(r.retencion_aplicada)}</td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.numero_comprobante ?? '—'}</td>
-                        <td><span className={`badge ${r.estado === 'declarado' ? 'badge-green' : 'badge-gray'}`}>{r.estado}</span></td>
-                        <td style={{ fontSize: 12 }}>
-                          {r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`} style={{ color: 'var(--navy)', fontWeight: 600 }}>Ver →</Link> : <span style={{ color: 'var(--muted)' }}>—</span>}
-                        </td>
+            ) : (() => {
+              const rq = retencionSearch.trim().toLowerCase();
+              const visibleRets = rq
+                ? retenciones.filter(r =>
+                    (r.invoices?.invoice_number ?? '').toLowerCase().includes(rq) ||
+                    (r.numero_comprobante ?? '').toLowerCase().includes(rq)
+                  )
+                : retenciones;
+              if (visibleRets.length === 0) return <div className="empty"><p>Sin resultados para "{retencionSearch}".</p></div>;
+              const totals = visibleRets.reduce((acc, r) => {
+                const totalFactura = Number(r.invoices?.total ?? r.monto_facturado ?? 0);
+                const retenido = Number(r.retencion_aplicada ?? 0);
+                return {
+                  totalFactura: acc.totalFactura + totalFactura,
+                  baseLabor: acc.baseLabor + Number(r.monto_facturado ?? 0),
+                  exento: acc.exento + Number(r.monto_exento ?? 0),
+                  retenido: acc.retenido + retenido,
+                  neto: acc.neto + (totalFactura - retenido),
+                };
+              }, { totalFactura: 0, baseLabor: 0, exento: 0, retenido: 0, neto: 0 });
+              return (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Factura</th>
+                        <th>Fecha</th>
+                        <th style={{ textAlign: 'right' }}>Total factura</th>
+                        <th style={{ textAlign: 'right' }}>Base labor</th>
+                        <th style={{ textAlign: 'right' }}>Exento</th>
+                        <th style={{ textAlign: 'right' }}>Retenido</th>
+                        <th style={{ textAlign: 'right' }}>Neto</th>
+                        <th># Comprobante</th>
+                        <th>Estado</th>
+                        <th></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                      {visibleRets.map(r => {
+                        const totalFactura = Number(r.invoices?.total ?? r.monto_facturado ?? 0);
+                        const retenido = Number(r.retencion_aplicada ?? 0);
+                        return (
+                          <tr key={r.id}>
+                            <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{r.invoices?.invoice_number ?? '—'}</td>
+                            <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.fecha}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(totalFactura)}</td>
+                            <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(r.monto_facturado)}</td>
+                            <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(r.monto_exento)}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--amber)' }}>{fmt(retenido)}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(totalFactura - retenido)}</td>
+                            <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.numero_comprobante ?? '—'}</td>
+                            <td><span className={`badge ${r.estado === 'declarado' ? 'badge-green' : 'badge-gray'}`}>{r.estado}</span></td>
+                            <td style={{ fontSize: 12 }}>
+                              {r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`} style={{ color: 'var(--navy)', fontWeight: 600 }}>Ver →</Link> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop: '2px solid var(--border)' }}>
+                        <td colSpan={2} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTAL {retencionSearch ? '(visibles)' : ''}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.totalFactura)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.baseLabor)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.exento)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.retenido)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.neto)}</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
