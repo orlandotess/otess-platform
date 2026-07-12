@@ -383,6 +383,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
               {(() => {
                 const totalFacturado = invoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
                 const totalRetenido = invoiceReconciliation?.totalRetenido ?? 0;
+                const balanceDeCuenta = invoiceReconciliation?.balanceDeCuenta ?? 0;
                 return [
                   { label: 'Propiedades', value: properties.length },
                   { label: 'Contactos', value: contacts.length },
@@ -393,6 +394,7 @@ export default function ClientesDetail({ client, jobs, invoices, properties: ini
                     { label: 'Retenido', value: fmt(totalRetenido), color: 'var(--amber)' },
                     { label: 'Total neto', value: fmt(totalFacturado - totalRetenido), color: 'var(--navy)' },
                   ] : []),
+                  { label: 'Balance de cuenta', value: fmt(balanceDeCuenta), color: balanceDeCuenta > 0 ? 'var(--warn)' : 'var(--ok)' },
                   { label: 'Propuestas', value: proposals.length },
                   { label: 'Notas internas', value: internalNotes.length },
                 ];

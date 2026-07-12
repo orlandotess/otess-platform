@@ -52,6 +52,14 @@ export default async function ClienteDetailPage({ params }) {
   const varianza = cobrado - netoEsperado;
   const hasVarianza = paidInvoices.length > 0 && Math.abs(varianza) > 0.01;
 
+  // What the client still owes across every invoice, net of its own payments
+  // and retenciones - same per-invoice math as the "Balance de cuenta" shown
+  // on individual invoice pages, just summed across all of them here.
+  const balanceDeCuenta = (invoices ?? []).reduce((a, i) => {
+    const remaining = Number(i.total ?? 0) - (paymentsByInvoice[i.id] ?? 0) - (retenidoByInvoice[i.id] ?? 0);
+    return a + Math.max(remaining, 0);
+  }, 0);
+
   if (!client) return (
     <div className="admin-shell ds-clientes">
       <Sidebar />
@@ -92,7 +100,7 @@ export default async function ClienteDetailPage({ params }) {
           internalNotes={internalNotes ?? []}
           serviceTickets={serviceTickets ?? []}
           currentRole={currentRole}
-          invoiceReconciliation={{ cobrado, netoEsperado, varianza, hasVarianza, totalRetenido }}
+          invoiceReconciliation={{ cobrado, netoEsperado, varianza, hasVarianza, totalRetenido, balanceDeCuenta }}
         />
       </main>
     </div>
