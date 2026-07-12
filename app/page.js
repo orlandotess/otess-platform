@@ -7,12 +7,13 @@ import Link from 'next/link';
 import DashboardCalendarWidget from './DashboardCalendarWidget';
 
 async function getStats() {
-  const [clients, jobs, activeJobs, tickets, activeTickets, { data: invoices }, { data: payments }, { data: expenses }] = await Promise.all([
+  const [clients, jobs, activeJobs, tickets, activeTickets, inboxTickets, { data: invoices }, { data: payments }, { data: expenses }] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }),
     supabase.from('jobs').select('*', { count: 'exact', head: true }),
     supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
     supabase.from('service_tickets').select('*', { count: 'exact', head: true }),
     supabase.from('service_tickets').select('*', { count: 'exact', head: true }).eq('status', 'en_progreso'),
+    supabase.from('service_tickets').select('*', { count: 'exact', head: true }).eq('status', 'abierto'),
     supabase.from('invoices').select('id, total, status'),
     supabase.from('payments').select('invoice_id, amount'),
     supabase.from('expenses').select('amount'),
@@ -36,6 +37,7 @@ async function getStats() {
     activeJobs: activeJobs.count ?? 0,
     tickets: tickets.count ?? 0,
     activeTickets: activeTickets.count ?? 0,
+    inboxTickets: inboxTickets.count ?? 0,
     caja: totalCollected - totalExpenses,
     pendingTotal,
     pendingCount: pendingInvoices.length,
@@ -112,6 +114,11 @@ export default async function Home() {
           <div className="stat-card">
             <div className="stat-label">Boletos en progreso</div>
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{stats.activeTickets}</div>
+            <div className="stat-sub"><Link href="/boletos" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Bandeja de entrada</div>
+            <div className="stat-value" style={{ color: 'var(--warn)' }}>{stats.inboxTickets}</div>
             <div className="stat-sub"><Link href="/boletos" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
           </div>
         </div>
