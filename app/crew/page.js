@@ -61,6 +61,27 @@ async function fetchScheduleDayJobs(techId) {
     .map(d => ({ ...d.jobs, scheduled_start: d.scheduled_start, scheduled_end: d.scheduled_end, _scheduleDayId: d.id }));
 }
 
+// A technician can be assigned to a job two independent ways: the legacy single
+// `jobs.technician_id` column, or a row in the `job_technicians` junction table (multi-tech
+// jobs) — a job assigned only via the former is invisible if you only query the latter, which
+// is what left some technicians' jobs missing from the Crew App. Union both (deduped by job
+// id, since they can both name the same job) and then append the extra-work-day entries
+// un-deduped: fetchScheduleDayJobs reuses the parent job's id on each entry by design, since
+// every extra day is meant to render as its own occurrence on that day, not get collapsed.
+async function fetchTechJobs(techId) {
+  const [{ data: viaJunction }, { data: viaPrimary }, scheduleDayJobs] = await Promise.all([
+    supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId),
+    supabase.from('jobs').select(JOB_FIELDS).eq('technician_id', techId),
+    fetchScheduleDayJobs(techId),
+  ]);
+  const mainJobs = [];
+  const seen = new Set();
+  const addMain = j => { if (j && !seen.has(j.id)) { seen.add(j.id); mainJobs.push(j); } };
+  (viaJunction ?? []).forEach(row => addMain(row.jobs));
+  (viaPrimary ?? []).forEach(addMain);
+  return [...mainJobs, ...scheduleDayJobs];
+}
+
 export default function FieldApp() {
   const [tab, setTab] = useState('home');
   const [jobs, setJobs] = useState([]);
@@ -233,14 +254,12 @@ export default function FieldApp() {
   useEffect(() => { if (techId) loadJobs(); }, [jobFilter, techId]);
 
   async function loadAllJobs() {
-    const [{ data }, scheduleDayJobs] = await Promise.all([
-      supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId),
-      fetchScheduleDayJobs(techId),
-    ]);
-    const direct = (data ?? []).map(row => row.jobs).filter(Boolean);
-    const merged = [...direct];
-    for (const j of scheduleDayJobs) if (!merged.some(m => m.id === j.id)) merged.push(j);
-    const list = merged
+    const merged = await fetchTechJobs(techId);
+    // This list backs job-picker UI (clock-in/note/photo job selection), so unlike the
+    // Jobs/Calendar tabs it should show each job once even if it also has extra work days.
+    const seen = new Set();
+    const deduped = merged.filter(j => (seen.has(j.id) ? false : (seen.add(j.id), true)));
+    const list = deduped
       .filter(j => j.status === 'scheduled' || j.status === 'in_progress')
       .sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
     setAllJobs(list.slice(0, 20));
@@ -283,22 +302,14 @@ export default function FieldApp() {
 
   async function loadCalendarJobs() {
     setLoadingCalendar(true);
-    const [{ data }, scheduleDayJobs] = await Promise.all([
-      supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId),
-      fetchScheduleDayJobs(techId),
-    ]);
-    const jobsList = (data ?? []).map(row => row.jobs).filter(Boolean);
-    setCalendarJobs([...jobsList, ...scheduleDayJobs]);
+    const merged = await fetchTechJobs(techId);
+    setCalendarJobs(merged);
     setLoadingCalendar(false);
   }
 
   async function loadJobs() {
     setLoading(true);
-    const [{ data }, scheduleDayJobs] = await Promise.all([
-      supabase.from('job_technicians').select(`jobs(${JOB_FIELDS})`).eq('technician_id', techId),
-      fetchScheduleDayJobs(techId),
-    ]);
-    let list = [...(data ?? []).map(row => row.jobs).filter(Boolean), ...scheduleDayJobs];
+    let list = await fetchTechJobs(techId);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
     if (jobFilter === 'today') list = list.filter(j => j.scheduled_start && new Date(j.scheduled_start) >= today && new Date(j.scheduled_start) < tomorrow);
