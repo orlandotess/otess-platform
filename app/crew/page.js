@@ -1816,6 +1816,7 @@ export default function FieldApp() {
             <button style={menuItem} onClick={() => { setShowMenu(false); if (tab === 'clientes') { setShowNewClient(true); } else { setShowFab(true); } }}>➕ Nuevo</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setTab('clientes'); }}>👥 Clientes</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setRefreshing(true); window.location.reload(); }}>🔄 Actualizar</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); window.location.href = '/'; }}>🏢 Panel de oficina</button>
             <button style={{ ...menuItem, borderBottom: 'none', color: '#b52a2a' }} onClick={() => { setShowMenu(false); handleLogout(); }}>🚪 Salir</button>
           </div>
         </>
