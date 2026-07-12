@@ -31,7 +31,7 @@ const DAYS_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
 const ENTRY_TYPE_ICONS = { event: '📌', reminder: '🔔', checklist: '☑' };
 
-export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, clients, pendingRequests, initialView, initialYear, initialMonth, initialWeek }) {
+export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, pendingRequests, initialView, initialYear, initialMonth, initialWeek }) {
   const router = useRouter();
   const [view, setView] = useState(initialView);
   const [year, setYear] = useState(initialYear);
@@ -46,6 +46,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const [scheduleModal, setScheduleModal] = useState(null); // { requestId?, date?, hour? }
   const [eventModal, setEventModal] = useState(null); // { dateStr?, time? }
   const [taskModal, setTaskModal] = useState(null); // { dateStr?, time? }
+  const [absenceModal, setAbsenceModal] = useState(false);
+  const [selectedAbsence, setSelectedAbsence] = useState(null);
   const [syncModal, setSyncModal] = useState(false);
   const [lightbox, setLightbox] = useState(null); // { items: [{url, isVideo}], index }
   const [addToJobModal, setAddToJobModal] = useState(false);
@@ -108,6 +110,11 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     [tasks, selectedTech]
   );
 
+  const filteredAbsences = useMemo(() =>
+    selectedTech === 'all' ? absences : absences.filter(a => a.technician_id === selectedTech),
+    [absences, selectedTech]
+  );
+
   const getJobsForDate = (dateStr) =>
     filteredJobs.filter(j => {
       const start = j.scheduled_start?.slice(0, 10);
@@ -127,6 +134,9 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
 
   const getTasksForDate = (dateStr) =>
     filteredTasks.filter(t => t.due_at?.slice(0, 10) === dateStr);
+
+  const getAbsencesForDate = (dateStr) =>
+    filteredAbsences.filter(a => a.date === dateStr);
 
   const getWeekStart = (offset = 0) => {
     const now = new Date();
@@ -246,6 +256,55 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     }
   }
 
+  async function handleUpdateEvent({ id, title, dateStr, startTime, endTime, technicianIds, clientId, notes, address }) {
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('calendar_events').update({
+        title,
+        notes: notes || null,
+        address: address || null,
+        start_at: new Date(`${dateStr}T${startTime}:00`).toISOString(),
+        end_at: new Date(`${dateStr}T${endTime}:00`).toISOString(),
+        technician_id: technicianIds[0] ?? null,
+        client_id: clientId || null,
+      }).eq('id', id);
+      if (error) { alert(error.message); return; }
+      const { error: delError } = await supabase.from('calendar_event_technicians').delete().eq('event_id', id);
+      if (delError) { alert(delError.message); return; }
+      if (technicianIds.length > 1) {
+        const { error: techError } = await supabase.from('calendar_event_technicians').insert(
+          technicianIds.slice(1).map(techId => ({ event_id: id, technician_id: techId }))
+        );
+        if (techError) { alert(techError.message); return; }
+      }
+      setEventModal(null);
+      setSelectedEvent(null);
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleUpdateTask({ id, taskType, title, dateStr, time, technicianId, clientId, notes }) {
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('tasks').update({
+        task_type: taskType,
+        title,
+        notes: notes || null,
+        due_at: new Date(`${dateStr}T${time}:00`).toISOString(),
+        technician_id: technicianId || null,
+        client_id: clientId || null,
+      }).eq('id', id);
+      if (error) { alert(error.message); return; }
+      setTaskModal(null);
+      setSelectedTask(null);
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function toggleTaskCompleted(task) {
     await supabase.from('tasks').update({ completed: !task.completed }).eq('id', task.id);
     setSelectedTask(null);
@@ -314,6 +373,32 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     router.refresh();
   }
 
+  async function handleCreateAbsence({ technicianId, startDate, endDate, reason }) {
+    setSaving(true);
+    try {
+      const dates = [];
+      for (let d = new Date(`${startDate}T00:00:00`); d <= new Date(`${endDate}T00:00:00`); d.setDate(d.getDate() + 1)) {
+        dates.push(d.toISOString().slice(0, 10));
+      }
+      const { error } = await supabase.from('technician_absences').insert(
+        dates.map(date => ({ technician_id: technicianId, date, reason: reason || null }))
+      );
+      if (error) { alert(error.message); return; }
+      setAbsenceModal(false);
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteAbsence(id) {
+    const { data, error } = await supabase.from('technician_absences').delete().eq('id', id).select();
+    if (error) { alert('Error al eliminar la ausencia: ' + error.message); return; }
+    if (!data?.length) { alert('No se pudo eliminar la ausencia (sin permiso o ya fue eliminada). Refrescando...'); router.refresh(); return; }
+    setSelectedAbsence(null);
+    router.refresh();
+  }
+
   async function addTaskToJob(task, jobId) {
     const lines = [`[Tarea] ${task.title}`];
     if (task.notes) lines.push(task.notes);
@@ -351,6 +436,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             </button>
             <button onClick={() => setEventModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ Evento</button>
             <button onClick={() => setTaskModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ Tarea</button>
+            <button onClick={() => setAbsenceModal(true)} className="btn btn-ghost">🚫 Ausencia</button>
             <button onClick={() => setSyncModal(true)} className="btn btn-ghost">🔄 Sincronizar</button>
           </div>
         </div>
@@ -447,7 +533,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   const dayVisits = cell.date ? getVisitsForDate(cell.date) : [];
                   const dayEvents = cell.date ? getEventsForDate(cell.date) : [];
                   const dayTasks = cell.date ? getTasksForDate(cell.date) : [];
-                  const dayTotal = dayJobs.length + dayVisits.length + dayEvents.length + dayTasks.length;
+                  const dayAbsences = cell.date ? getAbsencesForDate(cell.date) : [];
+                  const dayTotal = dayJobs.length + dayVisits.length + dayEvents.length + dayTasks.length + dayAbsences.length;
                   const isToday = cell.date === today;
                   return (
                     <div key={idx} style={{ minHeight: 100, height: 100, padding: '6px 8px', borderRadius: 8,
@@ -457,7 +544,15 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       boxSizing: 'border-box', overflow: 'hidden', position: 'relative', cursor: cell.current ? 'pointer' : 'default' }}
                       onClick={() => { if (cell.current) setScheduleModal({ dateStr: cell.date, time: '09:00' }); }}>
                       <div style={{ fontSize: 13, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)', marginBottom: 4 }}>{cell.day}</div>
-                      {dayVisits.slice(0, 2).map(v => (
+                      {dayAbsences.slice(0, 3).map(a => (
+                        <div key={`a${a.id}`} onClick={(e) => { e.stopPropagation(); setSelectedAbsence(a); }}
+                          style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
+                            overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                            background: 'var(--danger-tint)', color: 'var(--warn)' }}>
+                          🚫 {a.technicians?.name ?? 'Técnico'} ausente
+                        </div>
+                      ))}
+                      {dayVisits.slice(0, Math.max(2 - dayAbsences.length, 0)).map(v => (
                         <div key={`v${v.id}`} onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
@@ -465,7 +560,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           👁 {v.requests?.title ?? 'Visita'}
                         </div>
                       ))}
-                      {dayJobs.slice(0, Math.max(3 - dayVisits.length, 0)).map(j => (
+                      {dayJobs.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length, 0)).map(j => (
                         <div key={j.id} onClick={(e) => { e.stopPropagation(); setSelectedJob(j); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
@@ -473,7 +568,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           {j.title}
                         </div>
                       ))}
-                      {dayEvents.slice(0, Math.max(3 - dayVisits.length - dayJobs.length, 0)).map(e => (
+                      {dayEvents.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length - dayJobs.length, 0)).map(e => (
                         <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); setSelectedEvent(e); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
@@ -481,7 +576,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           {ENTRY_TYPE_ICONS.event} {e.title}
                         </div>
                       ))}
-                      {dayTasks.slice(0, Math.max(3 - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(t => (
+                      {dayTasks.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(t => (
                         <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); setSelectedTask(t); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', textDecoration: t.completed ? 'line-through' : 'none',
@@ -513,6 +608,22 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                     <div key={i} style={{ textAlign: 'center', padding: '8px 4px', borderBottom: '2px solid var(--border)', background: isToday ? '#f0f4ff' : 'transparent' }}>
                       <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>{DAYS_SHORT[d.getDay()]}</div>
                       <div style={{ fontSize: 18, fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--navy)' : 'var(--text)' }}>{d.getDate()}</div>
+                    </div>
+                  );
+                })}
+                <div style={{ borderBottom: '1px solid var(--border)' }} />
+                {weekDays.map((d, i) => {
+                  const dayAbsences = getAbsencesForDate(fmtDate(d));
+                  return (
+                    <div key={`abs${i}`} style={{ borderBottom: '1px solid var(--border)', padding: '2px 4px', display: 'grid', gap: 2 }}>
+                      {dayAbsences.map(a => (
+                        <div key={a.id} onClick={() => setSelectedAbsence(a)}
+                          style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
+                            overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                            background: 'var(--danger-tint)', color: 'var(--warn)' }}>
+                          🚫 {a.technicians?.name ?? 'Técnico'}
+                        </div>
+                      ))}
                     </div>
                   );
                 })}
@@ -756,10 +867,16 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 </div>
               ))}
             </div>
-            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: 'var(--warn)' }}
-              onClick={() => deleteEvent(selectedEvent.id)}>
-              Eliminar evento
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => { setEventModal({ editing: selectedEvent }); setSelectedEvent(null); }}>
+                ✏️ Editar
+              </button>
+              <button className="btn btn-ghost" style={{ color: 'var(--warn)' }}
+                onClick={() => deleteEvent(selectedEvent.id)}>
+                Eliminar
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -811,7 +928,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 {addedToJob ? '✓ Añadido al trabajo' : '📎 Añadir a trabajo'}
               </button>
             )}
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => toggleTaskCompleted(selectedTask)}>
                 {selectedTask.completed ? 'Marcar pendiente' : 'Marcar completada'}
               </button>
@@ -819,8 +936,51 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 Eliminar
               </button>
             </div>
+            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}
+              onClick={() => { setTaskModal({ editing: selectedTask }); setSelectedTask(null); }}>
+              ✏️ Editar tarea
+            </button>
           </div>
         </div>
+      )}
+
+      {/* Absence detail modal */}
+      {selectedAbsence && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={() => setSelectedAbsence(null)}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>🚫 Ausencia</div>
+              <button onClick={() => setSelectedAbsence(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
+            </div>
+            <div style={{ display: 'grid', gap: 0, marginBottom: 20 }}>
+              {[
+                ['Técnico', selectedAbsence.technicians?.name ?? '—'],
+                ['Fecha', new Date(`${selectedAbsence.date}T00:00:00`).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })],
+                ['Razón', selectedAbsence.reason || '—'],
+              ].map(([label, value]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 12 }}>
+                  <span style={{ color: 'var(--muted)', fontSize: 13 }}>{label}</span>
+                  <span style={{ fontWeight: 600, textAlign: 'right' }}>{value}</span>
+                </div>
+              ))}
+            </div>
+            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: 'var(--warn)' }}
+              onClick={() => deleteAbsence(selectedAbsence.id)}>
+              Eliminar ausencia
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Create absence modal */}
+      {absenceModal && (
+        <AbsenceModal
+          technicians={technicians}
+          saving={saving}
+          onClose={() => setAbsenceModal(false)}
+          onSubmit={handleCreateAbsence}
+        />
       )}
 
       {/* Add task/note to an existing job of the same client */}
@@ -833,7 +993,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
         />
       )}
 
-      {/* Create event modal */}
+      {/* Create/edit event modal */}
       {eventModal && (
         <EventModal
           data={eventModal}
@@ -841,11 +1001,11 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           clients={clients}
           saving={saving}
           onClose={() => setEventModal(null)}
-          onSubmit={handleCreateEvent}
+          onSubmit={eventModal.editing ? handleUpdateEvent : handleCreateEvent}
         />
       )}
 
-      {/* Create task modal */}
+      {/* Create/edit task modal */}
       {taskModal && (
         <TaskModal
           data={taskModal}
@@ -853,7 +1013,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           clients={clients}
           saving={saving}
           onClose={() => setTaskModal(null)}
-          onSubmit={handleCreateTask}
+          onSubmit={taskModal.editing ? handleUpdateTask : handleCreateTask}
         />
       )}
 
@@ -934,14 +1094,19 @@ function ScheduleModal({ data, pendingRequests, technicians, saving, onClose, on
 }
 
 function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
-  const [title, setTitle] = useState('');
-  const [dateStr, setDateStr] = useState(data.dateStr ?? new Date().toISOString().slice(0, 10));
-  const [startTime, setStartTime] = useState(data.time ?? '09:00');
-  const [endTime, setEndTime] = useState(data.time ?? '10:00');
-  const [technicianIds, setTechnicianIds] = useState([]);
-  const [clientId, setClientId] = useState('');
-  const [notes, setNotes] = useState('');
-  const [address, setAddress] = useState('');
+  const editing = data.editing;
+  const localStart = editing ? isoToLocalInput(editing.start_at) : null;
+  const localEnd = editing ? isoToLocalInput(editing.end_at) : null;
+  const [title, setTitle] = useState(editing?.title ?? '');
+  const [dateStr, setDateStr] = useState(editing ? localStart.slice(0, 10) : (data.dateStr ?? new Date().toISOString().slice(0, 10)));
+  const [startTime, setStartTime] = useState(editing ? localStart.slice(11, 16) : (data.time ?? '09:00'));
+  const [endTime, setEndTime] = useState(editing ? localEnd.slice(11, 16) : (data.time ?? '10:00'));
+  const [technicianIds, setTechnicianIds] = useState(() => editing
+    ? [editing.technician_id, ...(editing.calendar_event_technicians ?? []).map(et => et.technician_id)].filter(Boolean)
+    : []);
+  const [clientId, setClientId] = useState(editing?.client_id ?? '');
+  const [notes, setNotes] = useState(editing?.notes ?? '');
+  const [address, setAddress] = useState(editing?.address ?? '');
 
   const canSubmit = title.trim() && dateStr && startTime && endTime;
 
@@ -954,7 +1119,7 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📌 Nuevo evento</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📌 {editing ? 'Editar evento' : 'Nuevo evento'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
 
@@ -1008,8 +1173,60 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
 
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!canSubmit || saving}
-          onClick={() => onSubmit({ title: title.trim(), dateStr, startTime, endTime, technicianIds, clientId, notes, address: address.trim() })}>
-          {saving ? 'Guardando...' : 'Crear evento'}
+          onClick={() => onSubmit({ id: editing?.id, title: title.trim(), dateStr, startTime, endTime, technicianIds, clientId, notes, address: address.trim() })}>
+          {saving ? 'Guardando...' : (editing ? 'Guardar cambios' : 'Crear evento')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AbsenceModal({ technicians, saving, onClose, onSubmit }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [technicianId, setTechnicianId] = useState(technicians[0]?.id ?? '');
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
+  const [reason, setReason] = useState('');
+
+  const canSubmit = technicianId && startDate && endDate && startDate <= endDate;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+      onClick={onClose}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>🚫 Marcar ausencia</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
+        </div>
+
+        <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Técnico</label>
+            <select value={technicianId} onChange={e => setTechnicianId(e.target.value)} className="input" style={{ width: '100%' }}>
+              {technicians.length === 0 && <option value="">No hay técnicos registrados</option>}
+              {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Desde</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input" style={{ width: '100%' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Hasta</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="input" style={{ width: '100%' }} />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Razón</label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)} className="input" style={{ width: '100%', minHeight: 60 }} placeholder="Ej. Enfermedad, cita médica, asunto personal..." />
+          </div>
+        </div>
+
+        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+          disabled={!canSubmit || saving}
+          onClick={() => onSubmit({ technicianId, startDate, endDate, reason: reason.trim() })}>
+          {saving ? 'Guardando...' : 'Bloquear día(s)'}
         </button>
       </div>
     </div>
@@ -1017,17 +1234,19 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
 }
 
 function TaskModal({ data, technicians, clients, saving, onClose, onSubmit }) {
-  const [taskType, setTaskType] = useState('reminder');
-  const [title, setTitle] = useState('');
-  const [dateStr, setDateStr] = useState(data.dateStr ?? new Date().toISOString().slice(0, 10));
-  const [time, setTime] = useState(data.time ?? '09:00');
-  const [technicianId, setTechnicianId] = useState('');
-  const [clientId, setClientId] = useState('');
-  const [notes, setNotes] = useState('');
+  const editing = data.editing;
+  const localDue = editing ? isoToLocalInput(editing.due_at) : null;
+  const [taskType, setTaskType] = useState(editing?.task_type ?? 'reminder');
+  const [title, setTitle] = useState(editing?.title ?? '');
+  const [dateStr, setDateStr] = useState(editing ? localDue.slice(0, 10) : (data.dateStr ?? new Date().toISOString().slice(0, 10)));
+  const [time, setTime] = useState(editing ? localDue.slice(11, 16) : (data.time ?? '09:00'));
+  const [technicianId, setTechnicianId] = useState(editing?.technician_id ?? '');
+  const [clientId, setClientId] = useState(editing?.client_id ?? '');
+  const [notes, setNotes] = useState(editing?.notes ?? '');
   const [checklistItems, setChecklistItems] = useState(['']);
 
   const canSubmit = title.trim() && dateStr && time
-    && (taskType !== 'checklist' || checklistItems.some(i => i.trim()));
+    && (editing || taskType !== 'checklist' || checklistItems.some(i => i.trim()));
 
   function updateItem(i, value) {
     setChecklistItems(items => items.map((it, idx) => idx === i ? value : it));
@@ -1044,7 +1263,7 @@ function TaskModal({ data, technicians, clients, saving, onClose, onSubmit }) {
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>Nueva tarea</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{editing ? 'Editar tarea' : 'Nueva tarea'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
 
@@ -1089,7 +1308,7 @@ function TaskModal({ data, technicians, clients, saving, onClose, onSubmit }) {
             <textarea value={notes} onChange={e => setNotes(e.target.value)} className="input" style={{ width: '100%', minHeight: 50 }} />
           </div>
 
-          {taskType === 'checklist' && (
+          {taskType === 'checklist' && !editing && (
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Ítems del checklist</label>
               <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
@@ -1105,15 +1324,19 @@ function TaskModal({ data, technicians, clients, saving, onClose, onSubmit }) {
               </div>
             </div>
           )}
+          {taskType === 'checklist' && editing && (
+            <p style={{ fontSize: 11.5, color: 'var(--muted)' }}>Los ítems del checklist se administran desde el detalle de la tarea.</p>
+          )}
         </div>
 
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!canSubmit || saving}
           onClick={() => onSubmit({
+            id: editing?.id,
             taskType, title: title.trim(), dateStr, time, technicianId, clientId, notes,
-            checklistItems: checklistItems.map(i => i.trim()).filter(Boolean),
+            checklistItems: editing ? [] : checklistItems.map(i => i.trim()).filter(Boolean),
           })}>
-          {saving ? 'Guardando...' : 'Crear tarea'}
+          {saving ? 'Guardando...' : (editing ? 'Guardar cambios' : 'Crear tarea')}
         </button>
       </div>
     </div>

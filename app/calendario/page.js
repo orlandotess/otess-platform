@@ -78,6 +78,11 @@ export default async function CalendarioPage({ searchParams }) {
     .select('id, name, ics_token')
     .order('name');
 
+  const { data: absences } = await supabase
+    .from('technician_absences')
+    .select('id, technician_id, date, reason, technicians(name)')
+    .order('date');
+
   const { data: clients } = await supabase
     .from('clients')
     .select('id, name')
@@ -100,6 +105,7 @@ export default async function CalendarioPage({ searchParams }) {
           visits={visits ?? []}
           calendarEvents={calendarEvents ?? []}
           tasks={tasks ?? []}
+          absences={absences ?? []}
           clients={clients ?? []}
           pendingRequests={pendingRequests ?? []}
           initialView={view}

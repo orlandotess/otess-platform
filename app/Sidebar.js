@@ -31,6 +31,7 @@ const adminLinks = [
  { href: '/admin/plantillas', label: 'Plantillas', icon: 'clipboard' },
  { href: '/admin/usuarios', label: 'Usuarios', icon: 'user' },
  { href: '/admin/empresa', label: 'Empresa', icon: 'building' },
+ { href: '/admin/ausencias', label: 'Ausencias', icon: 'userOff' },
 ];
 
 const sections = [
@@ -71,6 +72,7 @@ const ICON_PATHS = {
   building: <><rect x="4" y="3" width="16" height="18" rx="1"/><rect x="7" y="6" width="3" height="3"/><rect x="14" y="6" width="3" height="3"/><rect x="7" y="11" width="3" height="3"/><rect x="14" y="11" width="3" height="3"/><rect x="9.5" y="16" width="5" height="5"/></>,
   map: <><path d="M9 4 L3 6.5 v14 L9 18 l6 2.5 L21 18 V4 l-6 2.5 z"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6.5" x2="15" y2="20.5"/></>,
   ticket: <><path d="M3 8 a2 2 0 0 1 2 -2 h14 a2 2 0 0 1 2 2 v2.5 a2 2 0 0 0 0 3 V16 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 v-2.5 a2 2 0 0 0 0 -3 z"/><line x1="14" y1="7" x2="14" y2="17" strokeDasharray="2.5 2.5"/></>,
+  userOff: <><circle cx="10" cy="8" r="3.2"/><path d="M4 20 a 6 6 0 0 1 12 0"/><line x1="3" y1="3" x2="21" y2="21"/></>,
 };
 
 function NavIcon({ name }) {
@@ -102,6 +104,10 @@ export default function Sidebar() {
    document.body.classList.toggle('sidebar-hidden', hidden);
  }, [hidden]);
 
+ useEffect(() => {
+   document.body.classList.toggle('has-back-button', path !== '/');
+ }, [path]);
+
  function toggleHidden() {
    setHidden(h => {
      localStorage.setItem('sidebar-hidden', h ? '0' : '1');
@@ -117,6 +123,14 @@ export default function Sidebar() {
    await supabase.auth.signOut();
    router.push('/login');
    router.refresh();
+ }
+
+ function handleBack() {
+   if (typeof window !== 'undefined' && window.history.length > 1) {
+     router.back();
+   } else {
+     router.push('/');
+   }
  }
 
  const isActive = (href) => {
@@ -225,6 +239,19 @@ export default function Sidebar() {
    >
      ☰
    </button>
+   {path !== '/' && (
+     <button
+       onClick={handleBack}
+       title="Regresar"
+       aria-label="Regresar"
+       className="back-button"
+     >
+       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+         <path d="M19 12H5" />
+         <path d="M12 19l-7-7 7-7" />
+       </svg>
+     </button>
+   )}
    </>
  );
 }
