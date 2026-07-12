@@ -1,20 +1,12 @@
 import { supabaseServer as supabase } from '../lib/supabase';
+import { getCurrentRole } from '../lib/supabase-server';
 import Link from 'next/link';
+import DashboardWeekJobs from './DashboardWeekJobs';
 
 const TECH_COLORS = [
   '#16223d', '#e0972c', '#27ae60', '#2a4cb5', '#e05c2a',
   '#8e44ad', '#16a085', '#c0392b', '#d35400', '#1abc9c',
 ];
-
-const STATUS_LABELS = {
-  estimate: 'Estimado', scheduled: 'Programado', in_progress: 'En progreso',
-  completed: 'Completado', cancelled: 'Cancelado',
-};
-
-const STATUS_BADGE_CLS = {
-  estimate: 'badge-gray', scheduled: 'badge-blue', in_progress: 'badge-amber',
-  completed: 'badge-green', cancelled: 'badge-red',
-};
 
 export default async function DashboardCalendarWidget() {
   const now = new Date();
@@ -32,7 +24,7 @@ export default async function DashboardCalendarWidget() {
   const rangeStart = weekStart < monthStart ? weekStart : monthStart;
   const rangeEnd = weekEnd > monthEnd ? weekEnd : monthEnd;
 
-  const [{ data: technicians }, { data: jobs }] = await Promise.all([
+  const [{ data: technicians }, { data: jobs }, currentRole] = await Promise.all([
     supabase.from('technicians').select('id, name').order('name'),
     supabase.from('jobs')
       .select('id, title, status, scheduled_start, scheduled_end, technician_id, technicians(name), clients(name)')
@@ -40,7 +32,9 @@ export default async function DashboardCalendarWidget() {
       .gte('scheduled_start', rangeStart)
       .lte('scheduled_start', rangeEnd + 'T23:59:59')
       .order('scheduled_start'),
+    getCurrentRole(),
   ]);
+  const canQuickReschedule = currentRole === 'admin';
 
   const techs = technicians ?? [];
   const allJobs = jobs ?? [];
@@ -96,8 +90,6 @@ export default async function DashboardCalendarWidget() {
   });
 
   const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const fmtTime = iso => new Date(iso).toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' });
-  const fmtDay = iso => new Date(iso).toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
@@ -158,30 +150,11 @@ export default async function DashboardCalendarWidget() {
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Trabajos de esta semana</div>
             <div style={{ fontSize: 11, color: 'var(--muted)' }}>{weekRangeLabel}</div>
           </div>
-          {weekJobs.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>No hay trabajos esta semana.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 340, overflowY: 'auto', paddingRight: 4 }}>
-              {weekJobs.map(j => {
-                const badge = STATUS_BADGE_CLS[j.status] ?? 'badge-gray';
-                return (
-                  <Link key={j.id} href={`/trabajos/${j.id}`} style={{ textDecoration: 'none', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: techColors[j.technician_id] ?? 'var(--ink-faint)', marginTop: 4, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.title}</div>
-                        <span className={`badge ${badge}`} style={{ fontSize: 10, flexShrink: 0 }}>{STATUS_LABELS[j.status] ?? j.status}</span>
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{j.clients?.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                        {fmtDay(j.scheduled_start)} · {fmtTime(j.scheduled_start)} {j.technicians?.name ? `· ${j.technicians.name}` : ''}
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+          <DashboardWeekJobs
+            jobs={weekJobs}
+            techColors={techColors}
+            canQuickReschedule={canQuickReschedule}
+          />
         </div>
       </div>
     </div>
