@@ -26,8 +26,9 @@ export default function LineItemRow({
   const subtotal = (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
   const matchedCatalogItem = catalogItemId ? catalogOptions.find(c => c.id === catalogItemId) : null;
   const stockHint = type === 'product' && matchedCatalogItem?.stock_quantity != null ? matchedCatalogItem.stock_quantity : null;
-  const hasMsrp = !!onMsrpChange;
-  const hasSupplierPrice = !!onSupplierPriceChange;
+  const hasMsrp = !!onMsrpChange && type !== 'labor';
+  const hasSupplierPrice = !!onSupplierPriceChange && type !== 'labor';
+  const hasVendor = !!onVendorChange && type !== 'labor';
   const hasPhoto = !!onPhotoSelect || !!photoUrl;
 
   if (isAccessory) {
@@ -50,7 +51,7 @@ export default function LineItemRow({
             <div style={{ fontSize: 13 }}>{description}</div>
           ) : (
             <input list={datalistId} value={description} onChange={e => onDescriptionChange(e.target.value)}
-              placeholder="Accesorio..." style={{ fontSize: 13, width: '100%' }} />
+              placeholder="Accesorio..." maxLength={200} style={{ fontSize: 13, width: '100%' }} />
           )}
           <datalist id={datalistId}>
             {catalogOptions.map(c => (
@@ -103,7 +104,7 @@ export default function LineItemRow({
               </select>
             </div>
             <input list={datalistId} value={description} onChange={e => onDescriptionChange(e.target.value)}
-              placeholder="Descripción o código..." style={{ fontSize: 13.5, fontWeight: 700, width: '100%' }} />
+              placeholder="Descripción o código..." maxLength={200} style={{ fontSize: 13.5, fontWeight: 700, width: '100%' }} />
             <datalist id={datalistId}>
               {catalogOptions.map(c => (
                 <option key={c.id} value={`${c.item_code} — ${c.description}`} />
@@ -183,7 +184,7 @@ export default function LineItemRow({
                       </datalist>
                     </div>
                   )}
-                  {onVendorChange && (
+                  {hasVendor && (
                     <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
                       <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Suplidor</label>
                       <input list="line-item-vendor-options" value={vendor ?? ''} onChange={e => onVendorChange(e.target.value)} placeholder="Adi, Multi Electric..."
