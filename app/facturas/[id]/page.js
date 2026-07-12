@@ -5,6 +5,7 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import { fallbackLineItems } from '../../../lib/ivu';
 import Sidebar from '../../Sidebar';
 import InvoiceActions from './InvoiceActions';
+import PaymentsTable from './PaymentsTable';
 
 export default async function FacturaDetail({ params }) {
   const { id } = params;
@@ -62,7 +63,6 @@ export default async function FacturaDetail({ params }) {
   const isFallbackItems = !items?.length && displayItems.length > 0;
   const statusLabel = { draft: 'Borrador', sent: 'Enviada', paid: 'Pagada', cancelled: 'Cancelada' };
   const statusCls = { draft: 'badge-gray', sent: 'badge-blue', paid: 'badge-green', cancelled: 'badge-red' };
-  const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
   const today = new Date().toISOString().slice(0, 10);
   const isOverdue = inv.status === 'sent' && inv.due_at && inv.due_at < today;
 
@@ -243,30 +243,13 @@ export default async function FacturaDetail({ params }) {
             <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Pagos registrados</h2>
             {balance > 0 && <InvoiceActions invoiceId={id} status={inv.status} showPaymentOnly balance={balance} />}
           </div>
-          {!payments?.length ? (
-            <p style={{ color: 'var(--muted)', fontSize: 14 }}>No hay pagos registrados aún.</p>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Método</th>
-                  <th>Referencia</th>
-                  <th>Monto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map(p => (
-                  <tr key={p.id}>
-                    <td>{p.paid_at}</td>
-                    <td><span className="badge badge-green">{methodLabel[p.method]}</span></td>
-                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{p.reference ?? '—'}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--ok)' }}>${Number(p.amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <PaymentsTable
+            payments={payments ?? []}
+            invoiceId={id}
+            invoiceStatus={inv.status}
+            invoiceTotal={inv.total}
+            totalRetained={totalRetained}
+          />
         </div>
 
         {inv.terms && (
