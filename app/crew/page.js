@@ -153,6 +153,7 @@ export default function FieldApp() {
   const [detailTab, setDetailTab] = useState('info');
   const [detailNotes, setDetailNotes] = useState([]);
   const [detailChecklist, setDetailChecklist] = useState([]);
+  const [detailPlanos, setDetailPlanos] = useState([]);
   const [detailNoteText, setDetailNoteText] = useState('');
   const [detailPhotos, setDetailPhotos] = useState([]);
   const [detailPhotoPreviews, setDetailPhotoPreviews] = useState([]);
@@ -312,13 +313,20 @@ export default function FieldApp() {
     setDetailNotes([]);
     setDetailChecklist([]);
     setDetailExpenses([]);
+    setDetailPlanos([]);
     setShowDetailExpenseForm(false);
-    const [{ data: notes }, { data: checklist }, { data: jobExpenses }] = await Promise.all([
+    const [{ data: notes }, { data: checklist }, { data: jobExpenses }, { data: planos }] = await Promise.all([
       supabase.from('job_notes').select('*').eq('job_id', job.id).order('created_at', { ascending: false }),
       supabase.from('job_checklist_items').select('*').eq('job_id', job.id).order('sort_order'),
       supabase.from('expenses').select('*').eq('job_id', job.id).order('expense_date', { ascending: false }),
+      supabase.from('floor_plans').select('id, name, rendered_image_path').eq('job_id', job.id).order('updated_at', { ascending: false }),
     ]);
     setDetailExpenses(jobExpenses ?? []);
+    const planosWithThumbs = await Promise.all((planos ?? []).map(async p => {
+      const { data } = await supabase.storage.from('floor-plans').createSignedUrl(p.rendered_image_path, 3600);
+      return { ...p, thumbUrl: data?.signedUrl ?? null };
+    }));
+    setDetailPlanos(planosWithThumbs);
     // Generate signed URLs for photos
     const notesWithUrls = await Promise.all((notes ?? []).map(async n => {
       if (n.photo_urls && n.photo_urls.length > 0) {
@@ -1465,6 +1473,23 @@ export default function FieldApp() {
                         </div>
                       );
                     })()}
+                  </div>
+                )}
+
+                {/* Planos */}
+                {detailPlanos.length > 0 && (
+                  <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>🗺️ Planos</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {detailPlanos.map(p => (
+                        <a key={p.id} href={`/planos/${p.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}>
+                          {p.thumbUrl
+                            ? <img src={p.thumbUrl} alt={p.name} style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee', flexShrink: 0 }} />
+                            : <div style={{ width: 52, height: 52, borderRadius: 8, background: '#f0f0f0', flexShrink: 0 }} />}
+                          <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

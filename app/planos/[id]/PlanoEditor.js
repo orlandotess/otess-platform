@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { EQUIPMENT_TYPES, getEquipmentType, EquipmentIcon } from '../../equipmentIcons';
 import { exportEquipmentListCSV } from '../../planoEquipmentCsv';
+import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 
 const FALLBACK_W = 1600;
 const FALLBACK_H = 1200;
 
 const URL_REFRESH_INTERVAL = 45 * 60 * 1000; // signed URLs expire at 1h; refresh well before that
 
-export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, customIcons, currentRole }) {
+export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, customIcons, currentRole, allClients = [] }) {
   const router = useRouter();
   const wrapRef = useRef(null);
   const dragOriginRef = useRef(null);
@@ -46,6 +47,12 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [photoUrls, setPhotoUrls] = useState({}); // markerId -> signed url
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [editingLink, setEditingLink] = useState(false);
+  const [linkClientId, setLinkClientId] = useState(plan.client_id || '');
+  const [linkJobId, setLinkJobId] = useState(plan.job_id || '');
+  const [linkJobs, setLinkJobs] = useState([]);
+  const [savingLink, setSavingLink] = useState(false);
+  const [linkDisplay, setLinkDisplay] = useState({ clientName: plan.clients?.name || null, jobTitle: plan.jobs?.title || null });
 
   const canDeletePlan = currentRole === 'admin' || currentRole === 'secretaria';
 
@@ -67,6 +74,28 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }, []);
 
   useEffect(() => { customIconsRef.current = customIconsState; }, [customIconsState]);
+
+  useEffect(() => {
+    if (!linkClientId) { setLinkJobs([]); return; }
+    supabase.from('jobs').select('id, title').eq('client_id', linkClientId).order('title').then(({ data }) => setLinkJobs(data ?? []));
+  }, [linkClientId]);
+
+  function startEditingLink() {
+    setLinkClientId(plan.client_id || '');
+    setLinkJobId(plan.job_id || '');
+    setEditingLink(true);
+  }
+
+  async function saveLink() {
+    setSavingLink(true);
+    const { error } = await supabase.from('floor_plans').update({ client_id: linkClientId || null, job_id: linkJobId || null }).eq('id', plan.id);
+    setSavingLink(false);
+    if (error) { alert('No se pudo guardar: ' + error.message); return; }
+    const clientName = allClients.find(c => c.id === linkClientId)?.name || null;
+    const jobTitle = linkJobs.find(j => j.id === linkJobId)?.title || null;
+    setLinkDisplay({ clientName, jobTitle });
+    setEditingLink(false);
+  }
 
   // Marker photos are fetched on demand (only when a marker with a photo is
   // selected) rather than signed up front for every marker on the plan.
@@ -201,7 +230,12 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     if (mode !== 'select' && mode.type === 'cable') {
       if (!cableDraft) setCableDraft({ fromMarkerId: marker.id, points: [] });
       else finalizeCable(marker.id);
-    } else if (mode === 'select') {
+    } else {
+      // Any other mode (select, place, scale) — clicking directly on an
+      // existing marker always opens it for editing. Otherwise, if you'd
+      // just placed an icon (mode stays 'place'), clicking a different
+      // existing icon did nothing, since only 'select'/'cable' were handled.
+      setMode('select');
       setSelectedMarkerId(marker.id);
       setSelectedCableId(null);
     }
@@ -387,8 +421,9 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       <div className="page-header">
         <div>
           <div className="page-title">{plan.name}</div>
-          <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-            {plan.clients?.name || plan.jobs?.title || 'Sin asignar'}
+          <div style={{ fontSize: 13, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>{[linkDisplay.clientName, linkDisplay.jobTitle].filter(Boolean).join(' — ') || 'Sin asignar'}</span>
+            <button type="button" onClick={startEditingLink} style={{ background: 'none', border: 'none', color: 'var(--amber)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>✏️ Editar</button>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -398,6 +433,26 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           <Link href="/planos" className="btn btn-ghost">← Volver</Link>
         </div>
       </div>
+
+      {editingLink && (
+        <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', padding: 14 }}>
+          <div style={{ minWidth: 260 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Cliente</label>
+            <ClientCombobox clients={allClients} value={linkClientId} onChange={id => { setLinkClientId(id); setLinkJobId(''); }} />
+          </div>
+          {linkJobs.length > 0 && (
+            <div style={{ minWidth: 220 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Trabajo</label>
+              <select value={linkJobId} onChange={e => setLinkJobId(e.target.value)} style={{ width: '100%' }}>
+                <option value="">— Sin asignar —</option>
+                {linkJobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
+              </select>
+            </div>
+          )}
+          <button className="btn btn-primary" disabled={savingLink} onClick={saveLink}>{savingLink ? 'Guardando...' : 'Guardar'}</button>
+          <button className="btn btn-ghost" onClick={() => setEditingLink(false)}>Cancelar</button>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="card" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: 12 }}>

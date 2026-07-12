@@ -9,11 +9,12 @@ import PlanoEditor from './PlanoEditor';
 export default async function PlanoDetail({ params }) {
   const { id } = params;
 
-  const [{ data: plan }, { data: markers }, { data: cables }, { data: customIcons }, currentRole] = await Promise.all([
+  const [{ data: plan }, { data: markers }, { data: cables }, { data: customIcons }, { data: allClients }, currentRole] = await Promise.all([
     supabase.from('floor_plans').select('*, clients(name), jobs(title)').eq('id', id).single(),
     supabase.from('floor_plan_markers').select('*').eq('floor_plan_id', id).order('sort_order'),
     supabase.from('floor_plan_cables').select('*').eq('floor_plan_id', id),
     supabase.from('custom_equipment_icons').select('*').order('name'),
+    supabase.from('clients').select('id, name').order('name'),
     getCurrentRole(),
   ]);
 
@@ -49,6 +50,7 @@ export default async function PlanoDetail({ params }) {
           initialCables={cables ?? []}
           customIcons={customIconsWithUrls}
           currentRole={currentRole}
+          allClients={allClients ?? []}
         />
       </main>
     </div>

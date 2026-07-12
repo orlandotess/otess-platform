@@ -32,7 +32,7 @@ const expenseCategories = [
   { value: 'otro', label: 'Otro' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
@@ -1473,6 +1473,26 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   {savingTech ? '...' : '+'}
                 </button>
               </div>
+            </div>
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Planos</p>
+                <a href={`/planos/nuevo`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>+ Nuevo plano</a>
+              </div>
+              {planos.length === 0 ? (
+                <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin planos vinculados a este trabajo.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {planos.map(p => (
+                    <a key={p.id} href={`/planos/${p.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}>
+                      {p.thumbUrl
+                        ? <img src={p.thumbUrl} alt={p.name} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
+                        : <div style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--border)', flexShrink: 0 }} />}
+                      <span style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Resumen IVU</p>

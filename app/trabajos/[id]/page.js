@@ -17,7 +17,7 @@ const statusBadge = {
 export default async function TrabajoDetail({ params }) {
   const { id } = params;
 
-  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }] = await Promise.all([
+  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }, { data: planos }] = await Promise.all([
     supabase.from('jobs').select('*, clients(name, email, phone, client_type, company), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
     supabase.from('job_line_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('technicians').select('*').order('name'),
@@ -30,6 +30,7 @@ export default async function TrabajoDetail({ params }) {
     supabase.from('invoices').select('id, invoice_number, total, status, issued_at').eq('job_id', id).order('issued_at', { ascending: false }),
     supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at, lunch_minutes').eq('job_id', id).not('clocked_out_at', 'is', null),
     supabase.from('job_reports').select('*').eq('job_id', id).order('created_at', { ascending: false }),
+    supabase.from('floor_plans').select('id, name, rendered_image_path').eq('job_id', id).order('updated_at', { ascending: false }),
   ]);
 
   const jobInvoiceIds = (jobInvoices ?? []).map(i => i.id);
@@ -97,6 +98,13 @@ export default async function TrabajoDetail({ params }) {
     (expenses ?? []).map(async (exp) => ({ ...exp, receipt_signed_url: await signPath(exp.receipt_url) }))
   );
 
+  const planosWithThumbs = await Promise.all(
+    (planos ?? []).map(async (p) => {
+      const { data } = await supabase.storage.from('floor-plans').createSignedUrl(p.rendered_image_path, 3600);
+      return { ...p, thumbUrl: data?.signedUrl ?? null };
+    })
+  );
+
   // OTESS is the office/admin account — only gets administrative jobs, never
   // shows up as an assignable field technician.
   const assignableTechnicians = (technicians ?? []).filter(t => normalizeName(t.name) !== 'otess');
@@ -152,6 +160,7 @@ export default async function TrabajoDetail({ params }) {
           payments={jobPayments ?? []}
           timeEntries={jobTimeEntries ?? []}
           reports={jobReports ?? []}
+          planos={planosWithThumbs}
         />
       </main>
     </div>
