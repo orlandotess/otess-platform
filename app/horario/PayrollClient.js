@@ -144,7 +144,7 @@ export default function PayrollClient({ technicians, entries, weekStart, weekEnd
             </tbody>
             {totals.length > 1 && (
               <tfoot>
-                <tr style={{ background: '#f8f9fb' }}>
+                <tr style={{ background: 'var(--surface-2)' }}>
                   <td colSpan={2} style={{ fontWeight: 700, padding: '12px 16px', fontSize: 13 }}>TOTALES</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, padding: '12px 16px' }}>{fmtH(totals.reduce((a, r) => a + r.regularHours, 0))}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, padding: '12px 16px' }}>{fmtH(totals.reduce((a, r) => a + r.overtimeHours, 0))}</td>
@@ -177,7 +177,7 @@ export default function PayrollClient({ technicians, entries, weekStart, weekEnd
                 { label: 'Retención 10%', value: fmt(selectedTech.retention), color: 'var(--warn)' },
                 { label: 'Pago neto', value: fmt(selectedTech.netPay), color: 'var(--ok)' },
               ].map(s => (
-                <div key={s.label} style={{ background: '#f8f9fb', borderRadius: 10, padding: '12px 16px' }}>
+                <div key={s.label} style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 16px' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>{s.label}</div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</div>
                 </div>
@@ -190,7 +190,7 @@ export default function PayrollClient({ technicians, entries, weekStart, weekEnd
           ) : (
             selectedTech.dayDetails.map(day => (
               <div key={day.day} style={{ marginBottom: 16, border: '1.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ background: '#f8f9fb', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ background: 'var(--surface-2)', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{fmtDate(day.entries[0].clocked_in_at)}</div>
                   <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
                     <span style={{ color: 'var(--muted)' }}>Total: <strong style={{ color: 'var(--text)' }}>{fmtH(day.total)}</strong></span>

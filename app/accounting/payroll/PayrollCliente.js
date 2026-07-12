@@ -297,7 +297,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
       )}
       {showManualAdd && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Agregar payroll manual</h2>
             <div className="form-group" style={{ marginBottom: 14 }}>
               <label>Técnico</label>

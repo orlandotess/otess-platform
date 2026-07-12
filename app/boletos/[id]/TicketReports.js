@@ -244,7 +244,7 @@ export default function TicketReports({ ticketId, clientContacts = [], reports: 
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={() => deleteReport(showDelete)} disabled={deleting}
-                style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>
+                style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
                 {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
               </button>
               <button className="btn btn-ghost" onClick={() => setShowDelete(null)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>

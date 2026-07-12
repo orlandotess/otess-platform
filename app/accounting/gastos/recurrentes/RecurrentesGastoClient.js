@@ -146,7 +146,7 @@ export default function RecurrentesGastoClient({ recurring: initial, categoryLab
                       <td style={{ fontSize: 13 }}>{cadenceLabel(r)}</td>
                       <td style={{ color: 'var(--muted)', fontSize: 13 }}>{fmtDate(r.next_run_date)}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(r.amount)}</td>
-                      <td><span className="badge" style={{ color: r.active ? '#1a7a4a' : '#888' }}>{r.active ? 'Activa' : 'Pausada'}</span></td>
+                      <td><span className="badge" style={{ color: r.active ? 'var(--ok)' : 'var(--ink-faint)' }}>{r.active ? 'Activa' : 'Pausada'}</span></td>
                       <td style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                         <button onClick={() => startEdit(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>✏️</button>
                         <RecurringExpenseActions id={r.id} active={r.active} onToggled={handleToggled} onDeleted={handleDeleted} />

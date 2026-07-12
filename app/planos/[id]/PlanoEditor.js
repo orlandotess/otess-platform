@@ -382,7 +382,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         <button
           onClick={() => { setMode({ type: 'cable' }); setCableDraft(null); }}
           className="btn btn-ghost"
-          style={{ background: mode !== 'select' && mode.type === 'cable' ? '#fff3e0' : undefined, border: mode !== 'select' && mode.type === 'cable' ? '1.5px solid var(--amber)' : undefined }}
+          style={{ background: mode !== 'select' && mode.type === 'cable' ? 'var(--amber-tint)' : undefined, border: mode !== 'select' && mode.type === 'cable' ? '1.5px solid var(--amber)' : undefined }}
         >
           🔌 Cable
         </button>
@@ -391,14 +391,14 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         <button
           onClick={() => { setMode({ type: 'scale' }); setScaleClickA(null); setScalePending(null); }}
           className="btn btn-ghost"
-          style={{ background: mode !== 'select' && mode.type === 'scale' ? '#e8f5ee' : undefined, border: mode !== 'select' && mode.type === 'scale' ? '1.5px solid #1a7a4a' : undefined }}
+          style={{ background: mode !== 'select' && mode.type === 'scale' ? 'var(--ok-tint)' : undefined, border: mode !== 'select' && mode.type === 'scale' ? '1.5px solid var(--ok)' : undefined }}
         >
           📏 Escala {feetPerPixel ? '✓' : ''}
         </button>
       </div>
 
       {mode !== 'select' && mode.type === 'cable' && (
-        <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: '#fff3e0' }}>
+        <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: 'var(--amber-tint)' }}>
           {!cableDraft
             ? 'Clic en el equipo donde inicia el cable.'
             : 'Clic en el plano para agregar quiebres, o clic en el equipo destino para terminar. Esc para cancelar.'}
@@ -406,7 +406,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       )}
 
       {mode !== 'select' && mode.type === 'scale' && !scalePending && (
-        <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: '#e8f5ee' }}>
+        <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: 'var(--ok-tint)' }}>
           {!scaleClickA
             ? 'Clic en el primer punto de una distancia conocida en el plano (ej: el ancho de una puerta).'
             : 'Clic en el segundo punto de esa distancia. Esc para cancelar.'}
@@ -414,7 +414,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       )}
 
       {scalePending && (
-        <form onSubmit={saveScale} className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: 12, background: '#e8f5ee' }}>
+        <form onSubmit={saveScale} className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: 12, background: 'var(--ok-tint)' }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>¿Cuántos pies hay entre esos dos puntos?</span>
           <input
             autoFocus type="number" step="0.1" min="0.1" value={scaleFeetInput}
@@ -448,7 +448,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           onPointerUp={handleWrapPointerUp}
           style={{
             position: 'relative', flex: '1 1 600px', minWidth: 320,
-            aspectRatio: `${W} / ${H}`, background: '#f3f4f6',
+            aspectRatio: `${W} / ${H}`, background: 'var(--surface-2)',
             border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden',
             cursor: mode !== 'select' ? 'crosshair' : 'default',
           }}
@@ -540,7 +540,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           {selectedMarker && (
             <div style={{
               position: 'absolute', left: `${selectedMarker.pos_x * 100}%`, top: `${selectedMarker.pos_y * 100}%`,
-              transform: 'translate(16px, -50%)', background: '#fff', border: '1.5px solid var(--border)',
+              transform: 'translate(16px, -50%)', background: 'var(--surface)', border: '1.5px solid var(--border)',
               borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5, width: 220,
             }} onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
@@ -567,7 +567,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           )}
 
           {selectedCable && (
-            <div style={{ position: 'absolute', right: 10, bottom: 10, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5 }}>
+            <div style={{ position: 'absolute', right: 10, bottom: 10, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
                 {cableLengthFeet(selectedCable) != null ? `${cableLengthFeet(selectedCable).toFixed(1)} pies` : 'Sin escala definida'}
               </div>
@@ -603,7 +603,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             <span>{totalCables}</span>
           </div>
           {feetPerPixel && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginTop: 4, color: '#1a7a4a' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginTop: 4, color: 'var(--ok)' }}>
               <span>Pietaje total</span>
               <span>{cables.reduce((sum, c) => sum + (cableLengthFeet(c) || 0), 0).toFixed(1)} pies</span>
             </div>

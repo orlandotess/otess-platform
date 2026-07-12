@@ -147,7 +147,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
                   </tr>
                   {expandedId === r.id && (
                     <tr>
-                      <td colSpan={10} style={{ background: "#f8f9fb", padding: "14px 18px" }}>
+                      <td colSpan={10} style={{ background: "var(--surface-2)", padding: "14px 18px" }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 10, textTransform: "uppercase" }}>
                           Horas de la semana — {fmtDate(r.weekStart)} al {fmtDate(r.weekEnd)}
                         </div>
@@ -155,10 +155,10 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
                           {weekDayHours(r).map(d => (
                             <div key={d.label + d.date} style={{
                               display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 14px",
-                              borderRadius: 10, background: d.hours > 0 ? "#fff" : "transparent", border: "1.5px solid var(--border)", minWidth: 64,
+                              borderRadius: 10, background: d.hours > 0 ? "var(--surface)" : "transparent", border: "1.5px solid var(--border)", minWidth: 64,
                             }}>
                               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>{d.label} {d.date}</div>
-                              <div style={{ fontSize: 15, fontWeight: 700, color: d.hours > 0 ? "var(--navy)" : "#ccc" }}>
+                              <div style={{ fontSize: 15, fontWeight: 700, color: d.hours > 0 ? "var(--navy)" : "var(--ink-faint)" }}>
                                 {d.hours > 0 ? d.hours.toFixed(1) + "h" : "—"}
                               </div>
                             </div>

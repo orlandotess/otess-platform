@@ -94,14 +94,14 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
               return (
                 <Link key={idx} href={cell.date ? `/calendario?view=month&year=${year}&month=${month}` : "#"}
                   style={{ minHeight: 54, height: 54, padding: "4px 6px", borderRadius: 8, textDecoration: "none",
-                    background: isToday ? "#f0f4ff" : "#fff",
+                    background: isToday ? "#f0f4ff" : "var(--surface)",
                     border: isToday ? "2px solid var(--navy)" : "1px solid var(--border)",
                     opacity: cell.current ? 1 : 0.4, display: "block", boxSizing: "border-box", overflow: "hidden" }}>
                   <div style={{ fontSize: 12, fontWeight: isToday ? 800 : 500, color: cell.current ? "var(--text)" : "var(--muted)" }}>{cell.day}</div>
                   {dayJobs.length > 0 && (
                     <div style={{ display: "flex", gap: 2, marginTop: 4, flexWrap: "wrap" }}>
                       {uniqueTechs.slice(0, 4).map(tid => (
-                        <div key={tid} style={{ width: 6, height: 6, borderRadius: "50%", background: techColors[tid] ?? "#888" }} />
+                        <div key={tid} style={{ width: 6, height: 6, borderRadius: "50%", background: techColors[tid] ?? "var(--ink-faint)" }} />
                       ))}
                       {dayJobs.length > 4 && <span style={{ fontSize: 9, color: "var(--muted)" }}>+{dayJobs.length - 4}</span>}
                     </div>
@@ -130,7 +130,7 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {upcoming.map(j => (
                 <Link key={j.id} href={`/trabajos/${j.id}`} style={{ textDecoration: "none", display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: techColors[j.technician_id] ?? "#888", marginTop: 4, flexShrink: 0 }} />
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: techColors[j.technician_id] ?? "var(--ink-faint)", marginTop: 4, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{j.title}</div>
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>{j.clients?.name}</div>

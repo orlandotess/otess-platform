@@ -26,9 +26,9 @@ export default function PlanosListClient({ plans }) {
           {visible.map(p => (
             <Link key={p.id} href={`/planos/${p.id}`} style={{
               display: 'block', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-              overflow: 'hidden', textDecoration: 'none', color: 'inherit', background: '#fff',
+              overflow: 'hidden', textDecoration: 'none', color: 'inherit', background: 'var(--surface)',
             }}>
-              <div style={{ aspectRatio: '4 / 3', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <div style={{ aspectRatio: '4 / 3', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 {p.thumbUrl
                   ? <img src={p.thumbUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : <span style={{ fontSize: 32, opacity: 0.4 }}>🗺️</span>}

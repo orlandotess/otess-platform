@@ -29,7 +29,7 @@ export default function DashboardSearch({ invoices }) {
       {open && query && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, width: 320, maxHeight: 320, overflowY: 'auto' }}>
+          <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, width: 320, maxHeight: 320, overflowY: 'auto' }}>
             {results.length === 0 ? (
               <p style={{ padding: '14px 16px', fontSize: 13, color: 'var(--muted)' }}>Sin resultados.</p>
             ) : (

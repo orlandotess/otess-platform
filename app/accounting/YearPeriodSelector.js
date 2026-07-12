@@ -32,7 +32,7 @@ export default function YearPeriodSelector({ year }) {
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.15)', padding: 14, zIndex: 21, width: 240 }}>
+          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.15)', padding: 14, zIndex: 21, width: 240 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <button type="button" className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 13 }} onClick={() => go(year - 1)}>‹</button>
               <strong style={{ fontSize: 14, color: 'var(--navy)' }}>Seleccionar año</strong>
@@ -47,7 +47,7 @@ export default function YearPeriodSelector({ year }) {
                   style={{
                     padding: '8px 4px', fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: 'pointer',
                     border: y === year ? '2px solid var(--amber)' : '1px solid var(--border)',
-                    background: y === year ? '#fff8e6' : '#fff',
+                    background: y === year ? 'var(--amber-tint)' : 'var(--surface)',
                     color: y === year ? 'var(--navy)' : 'var(--text)',
                   }}
                 >

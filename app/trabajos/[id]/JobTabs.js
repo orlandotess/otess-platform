@@ -890,7 +890,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
           📸 Notas & Fotos {notesList.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{notesList.length}</span>}
         </button>
         <button style={tabStyle('checklist')} onClick={() => setTab('checklist')}>
-          ✅ Checklist {realCount > 0 && <span style={{ background: progress === 100 ? '#e6f4ee' : 'var(--bg)', color: progress === 100 ? '#1a7a4a' : 'var(--muted)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{completedCount}/{realCount}</span>}
+          ✅ Checklist {realCount > 0 && <span style={{ background: progress === 100 ? 'var(--ok-tint)' : 'var(--bg)', color: progress === 100 ? 'var(--ok)' : 'var(--muted)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{completedCount}/{realCount}</span>}
         </button>
         <button style={tabStyle('reports')} onClick={() => setTab('reports')}>
           📄 Reportes {reportsList.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{reportsList.length}</span>}
@@ -1311,7 +1311,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       {technicians.map(t => {
                         const checked = newDay.technician_ids.includes(t.id);
                         return (
-                          <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : '#fff', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                          <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
                             <input type="checkbox" checked={checked} onChange={() => toggleNewDayTechnician(t.id)} style={{ margin: 0 }} />
                             {t.name}
                           </label>
@@ -1547,7 +1547,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </div>
               )}
               {noteError && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
+                <div style={{ background: 'var(--danger-tint)', border: '1px solid #fca5a5', color: 'var(--warn)', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
                   ⚠️ {noteError}
                 </div>
               )}
@@ -1851,7 +1851,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 {realItems.map(item => (
                   <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                     <div onClick={() => toggleItem(item.id, item.completed)}
-                      style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #ccc', background: item.completed ? '#1a7a4a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
+                      style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid var(--line-strong)', background: item.completed ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
                       {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
                     </div>
                     <div style={{ flex: 1 }}>

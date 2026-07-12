@@ -141,7 +141,7 @@ export default function NuevaRetencionForm({
               {showInvoiceResults && clientId && (
                 <>
                   <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowInvoiceResults(false)} />
-                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 260, overflowY: 'auto' }}>
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 260, overflowY: 'auto' }}>
                     {filteredInvoices.length === 0 ? (
                       <p style={{ padding: '12px 14px', fontSize: 13, color: 'var(--muted)' }}>Sin facturas.</p>
                     ) : filteredInvoices.map(inv => (

@@ -95,7 +95,7 @@ export default function NuevoGastoRecurrenteForm({ onSaved, onCancel }) {
         </div>
       </div>
 
-      <div style={{ background: '#f8f9fb', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+      <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
         Se registrará automáticamente como gasto general cada vez que llegue esta fecha, y luego se repetirá según la frecuencia elegida.
       </div>
 

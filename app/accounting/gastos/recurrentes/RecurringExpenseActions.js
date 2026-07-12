@@ -25,7 +25,7 @@ export default function RecurringExpenseActions({ id, active, onToggled, onDelet
       <button className="btn btn-ghost" disabled={busy} onClick={toggleActive} style={{ fontSize: 12, padding: '6px 12px' }}>
         {active ? 'Pausar' : 'Reanudar'}
       </button>
-      <button className="btn btn-ghost" disabled={busy} onClick={remove} style={{ fontSize: 12, padding: '6px 12px', color: '#b52a2a' }}>
+      <button className="btn btn-ghost" disabled={busy} onClick={remove} style={{ fontSize: 12, padding: '6px 12px', color: 'var(--warn)' }}>
         Eliminar
       </button>
     </div>

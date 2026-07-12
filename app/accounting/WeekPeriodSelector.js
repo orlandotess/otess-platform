@@ -62,7 +62,7 @@ export default function WeekPeriodSelector({ weekStart }) {
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.15)', padding: 14, zIndex: 21, width: 260 }}>
+          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.15)', padding: 14, zIndex: 21, width: 260 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
               <button type="button" className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 13 }} onClick={() => shift(-7)}>‹ Anterior</button>
               <button type="button" className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 13 }} onClick={() => shift(7)}>Siguiente ›</button>

@@ -73,7 +73,7 @@ export default function TicketActions({ ticketId, status, clientId }) {
 
       {showAssign && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 420 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>Asignar a un cliente</h2>
             <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>No encontramos ningún cliente con ese correo. Búscalo manualmente.</p>
             <div className="form-group" style={{ marginBottom: 20 }}>
@@ -91,12 +91,12 @@ export default function TicketActions({ ticketId, status, clientId }) {
 
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar boleto?</h2>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteTicket} disabled={deleting}
-                style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>
+                style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
                 {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
               </button>
               <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>

@@ -131,7 +131,7 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
       {/* Edit terms */}
       {showEditTerms && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Términos del Proyecto</h2>
             <form onSubmit={saveTerms}>
               <div className="form-group" style={{ marginBottom: 20 }}>
@@ -154,11 +154,11 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
       {/* Edit property */}
       {showEditProperty && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Propiedad del servicio</h2>
             <form onSubmit={saveProperty}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${!propertyId ? 'var(--navy)' : 'var(--border)'}`, background: !propertyId ? '#f0f4ff' : '#fff' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${!propertyId ? 'var(--navy)' : 'var(--border)'}`, background: !propertyId ? '#f0f4ff' : 'var(--surface)' }}>
                   <input type="radio" name="property" value="" checked={!propertyId} onChange={() => setPropertyId('')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>Sin propiedad</div>
@@ -166,7 +166,7 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
                   </div>
                 </label>
                 {clientProperties.map(p => (
-                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${propertyId === p.id ? 'var(--navy)' : 'var(--border)'}`, background: propertyId === p.id ? '#f0f4ff' : '#fff' }}>
+                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${propertyId === p.id ? 'var(--navy)' : 'var(--border)'}`, background: propertyId === p.id ? '#f0f4ff' : 'var(--surface)' }}>
                     <input type="radio" name="property" value={p.id} checked={propertyId === p.id} onChange={() => setPropertyId(p.id)} />
                     <div>
                       <div style={{ fontWeight: 700 }}>{p.name}</div>
@@ -187,18 +187,18 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
       {/* Edit bill to */}
       {showEditBillTo && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>A nombre de</h2>
             <form onSubmit={saveBillTo}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'person' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'person' ? '#f0f4ff' : '#fff' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'person' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'person' ? '#f0f4ff' : 'var(--surface)' }}>
                   <input type="radio" name="bill_to" value="person" checked={billTo === 'person'} onChange={() => setBillTo('person')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>{clientName}</div>
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>Persona</div>
                   </div>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'company' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'company' ? '#f0f4ff' : '#fff' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'company' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'company' ? '#f0f4ff' : 'var(--surface)' }}>
                   <input type="radio" name="bill_to" value="company" checked={billTo === 'company'} onChange={() => setBillTo('company')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>{clientCompany}</div>
@@ -218,7 +218,7 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
       {/* Edit estimate number */}
       {showEditNumber && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Editar número de estimado</h2>
             <form onSubmit={saveNumber}>
               <div className="form-group" style={{ marginBottom: 20 }}>
@@ -237,12 +237,12 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
       {/* Delete confirmation */}
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar estimado?</h2>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteEstimate} disabled={deleting}
-                style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>
+                style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
                 {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
               </button>
               <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
@@ -254,7 +254,7 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
       {/* Email modal */}
       {showEmail && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Enviar estimado por email</h2>
             <form onSubmit={sendEmail}>
               <div className="form-group" style={{ marginBottom: 20 }}>

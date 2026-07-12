@@ -3,10 +3,10 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 
 const EVENT_COLORS = {
-  job: '#2a4cb5',
-  invoice_issued: '#16223d',
-  invoice_due: '#e05c2a',
-  payment: '#1a7a4a',
+  job: 'var(--info)',
+  invoice_issued: 'var(--navy)',
+  invoice_due: 'var(--orange)',
+  payment: 'var(--ok)',
   retencion: '#8e44ad',
 };
 const EVENT_LABELS = {
@@ -85,7 +85,7 @@ export default function AccountingCalendarClient({ year, month, jobs, invoicesIs
               return (
                 <button key={idx} type="button" onClick={() => cell.date && setSelectedDate(cell.date === selectedDate ? null : cell.date)}
                   style={{ minHeight: 54, height: 54, padding: '4px 6px', borderRadius: 8, textAlign: 'left', cursor: cell.date ? 'pointer' : 'default',
-                    background: isSelected ? '#e8eeff' : isToday ? '#f0f4ff' : '#fff',
+                    background: isSelected ? '#e8eeff' : isToday ? '#f0f4ff' : 'var(--surface)',
                     border: isSelected ? '2px solid var(--amber)' : isToday ? '2px solid var(--navy)' : '1px solid var(--border)',
                     opacity: cell.current ? 1 : 0.4, display: 'block', boxSizing: 'border-box', overflow: 'hidden' }}>
                   <div style={{ fontSize: 12, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)' }}>{cell.day}</div>

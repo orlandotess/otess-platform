@@ -27,7 +27,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 420 }}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
         <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>🧮 Calcular cable/tubo</h2>
 
         <div className="form-group" style={{ marginBottom: 12 }}>
@@ -73,7 +73,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
           </div>
         </div>
 
-        <div style={{ background: '#f8f9fb', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13 }}>
+        <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ color: 'var(--muted)' }}>Pies totales</span><span style={{ fontWeight: 700 }}>{totalFeet}</span>
           </div>

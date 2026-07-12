@@ -61,7 +61,7 @@ export default function AccountingDashboardClient({ quarterData, year }) {
               style={{
                 flex: 1, padding: '14px 10px', borderRadius: 12, border: '2px solid',
                 borderColor: selected.includes(q.key) ? 'var(--navy)' : 'var(--border)',
-                background: selected.includes(q.key) ? 'var(--navy)' : '#fff',
+                background: selected.includes(q.key) ? 'var(--navy)' : 'var(--surface)',
                 color: selected.includes(q.key) ? '#fff' : 'var(--muted)',
                 cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
               }}>
@@ -90,8 +90,8 @@ export default function AccountingDashboardClient({ quarterData, year }) {
               { label: 'Facturado', value: combined.total, color: 'var(--navy)' },
               { label: 'Cobrado', value: combined.collected, color: 'var(--ok)' },
               { label: 'Pendiente', value: combined.outstanding, color: 'var(--amber)' },
-              { label: 'Nómina', value: combined.payroll, color: '#e05c2a' },
-              { label: 'Gastos', value: combined.gastos, color: '#b52a2a' },
+              { label: 'Nómina', value: combined.payroll, color: 'var(--orange)' },
+              { label: 'Gastos', value: combined.gastos, color: 'var(--warn)' },
             ].map(item => (
               <div key={item.label}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{item.label}</div>
@@ -133,7 +133,7 @@ export default function AccountingDashboardClient({ quarterData, year }) {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: netEst >= 0 ? 'var(--ok)' : 'var(--warn)', background: netEst >= 0 ? '#e6f4ee' : '#fdecea', padding: '6px 14px', borderRadius: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: netEst >= 0 ? 'var(--ok)' : 'var(--warn)', background: netEst >= 0 ? 'var(--ok-tint)' : 'var(--danger-tint)', padding: '6px 14px', borderRadius: 8 }}>
               Ganancia neta estimada: {fmt(netEst)}
             </div>
           </div>
@@ -156,8 +156,8 @@ export default function AccountingDashboardClient({ quarterData, year }) {
                 { label: 'Facturado', value: q.revenue.total, color: 'var(--navy)' },
                 { label: 'Cobrado', value: q.revenue.collected, color: 'var(--ok)' },
                 { label: 'Pendiente', value: q.revenue.outstanding, color: 'var(--amber)' },
-                { label: 'Nómina', value: q.payroll, color: '#e05c2a' },
-                { label: 'Gastos', value: q.gastos ?? 0, color: '#b52a2a' },
+                { label: 'Nómina', value: q.payroll, color: 'var(--orange)' },
+                { label: 'Gastos', value: q.gastos ?? 0, color: 'var(--warn)' },
               ].map(item => (
                 <div key={item.label}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{item.label}</div>
@@ -180,7 +180,7 @@ export default function AccountingDashboardClient({ quarterData, year }) {
               ))}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: netQ >= 0 ? 'var(--ok)' : 'var(--warn)', background: netQ >= 0 ? '#e6f4ee' : '#fdecea', padding: '4px 10px', borderRadius: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: netQ >= 0 ? 'var(--ok)' : 'var(--warn)', background: netQ >= 0 ? 'var(--ok-tint)' : 'var(--danger-tint)', padding: '4px 10px', borderRadius: 6 }}>
                 Ganancia neta: {fmt(netQ)}
               </span>
             </div>

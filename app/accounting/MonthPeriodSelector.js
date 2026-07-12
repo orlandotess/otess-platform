@@ -33,7 +33,7 @@ export default function MonthPeriodSelector({ year, month }) {
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.15)', padding: 14, zIndex: 21, width: 260 }}>
+          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.15)', padding: 14, zIndex: 21, width: 260 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <button type="button" className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 13 }} onClick={() => go(year - 1, month)}>‹</button>
               <strong style={{ fontSize: 14, color: 'var(--navy)' }}>{year}</strong>
@@ -48,7 +48,7 @@ export default function MonthPeriodSelector({ year, month }) {
                   style={{
                     padding: '8px 4px', fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: 'pointer',
                     border: i === month ? '2px solid var(--amber)' : '1px solid var(--border)',
-                    background: i === month ? '#fff8e6' : '#fff',
+                    background: i === month ? 'var(--amber-tint)' : 'var(--surface)',
                     color: i === month ? 'var(--navy)' : 'var(--text)',
                   }}
                 >

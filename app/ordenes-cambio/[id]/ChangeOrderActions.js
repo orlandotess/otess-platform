@@ -86,7 +86,7 @@ export default function ChangeOrderActions({ orderId, status, clientEmail, order
 
       {showEmail && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Enviar orden de cambio por email</h2>
             <form onSubmit={sendEmail}>
               <div className="form-group" style={{ marginBottom: 20 }}>
@@ -104,12 +104,12 @@ export default function ChangeOrderActions({ orderId, status, clientEmail, order
 
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar orden de cambio?</h2>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteOrder} disabled={deleting}
-                style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>
+                style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
                 {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
               </button>
               <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>

@@ -151,8 +151,8 @@ export default function PhotoAnnotator({ imageUrl, onSave, onCancel }) {
 
   const toolBtn = (t, icon, label) => (
     <button onClick={() => setTool(t)} style={{
-      padding: "8px 14px", borderRadius: 8, border: "2px solid", borderColor: tool === t ? "#16223d" : "#e5e7eb",
-      background: tool === t ? "#16223d" : "#fff", color: tool === t ? "#fff" : "#16223d",
+      padding: "8px 14px", borderRadius: 8, border: "2px solid", borderColor: tool === t ? "var(--navy)" : "var(--border)",
+      background: tool === t ? "var(--navy)" : "var(--surface)", color: tool === t ? "#fff" : "var(--navy)",
       fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
     }}>
       {icon} {label}
@@ -166,20 +166,20 @@ export default function PhotoAnnotator({ imageUrl, onSave, onCancel }) {
         {toolBtn("arrow", "➡️", "Flecha")}
         {toolBtn("circle", "⭕", "Círculo")}
         {toolBtn("text", "🔤", "Texto")}
-        <button onClick={undo} style={{ padding: "8px 14px", borderRadius: 8, border: "2px solid #e5e7eb", background: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>↩️ Deshacer</button>
+        <button onClick={undo} style={{ padding: "8px 14px", borderRadius: 8, border: "2px solid var(--border)", background: "var(--surface)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>↩️ Deshacer</button>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 14, alignItems: "center" }}>
         {COLORS.map(c => (
           <button key={c} onClick={() => setColor(c)} style={{
             width: 28, height: 28, borderRadius: "50%", background: c, cursor: "pointer",
-            border: color === c ? "3px solid #e0972c" : "2px solid rgba(255,255,255,0.3)",
+            border: color === c ? "3px solid var(--amber)" : "2px solid rgba(255,255,255,0.3)",
           }} />
         ))}
         <input type="range" min="2" max="12" value={lineWidth} onChange={e => setLineWidth(Number(e.target.value))} style={{ marginLeft: 10, width: 80 }} />
       </div>
 
-      <div style={{ position: "relative", background: "#fff", borderRadius: 8, overflow: "hidden", boxShadow: "0 10px 40px rgba(0,0,0,0.4)" }}>
+      <div style={{ position: "relative", background: "var(--surface)", borderRadius: 8, overflow: "hidden", boxShadow: "0 10px 40px rgba(0,0,0,0.4)" }}>
         <canvas
           ref={canvasRef}
           onMouseDown={handleStart}
@@ -192,17 +192,17 @@ export default function PhotoAnnotator({ imageUrl, onSave, onCancel }) {
           style={{ display: "block", touchAction: "none", cursor: tool === "text" ? "text" : "crosshair" }}
         />
         {textInput && (
-          <div style={{ position: "absolute", left: textInput.x, top: textInput.y - 20, display: "flex", gap: 6, background: "#fff", padding: 6, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
+          <div style={{ position: "absolute", left: textInput.x, top: textInput.y - 20, display: "flex", gap: 6, background: "var(--surface)", padding: 6, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
             <input autoFocus value={textValue} onChange={e => setTextValue(e.target.value)}
               onKeyDown={e => e.key === "Enter" && addText()}
-              style={{ border: "1px solid #ccc", borderRadius: 4, padding: "4px 8px", fontSize: 13, width: 140 }} placeholder="Texto..." />
-            <button onClick={addText} style={{ background: "#16223d", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>OK</button>
+              style={{ border: "1px solid var(--border)", borderRadius: 4, padding: "4px 8px", fontSize: 13, width: 140 }} placeholder="Texto..." />
+            <button onClick={addText} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>OK</button>
           </div>
         )}
       </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-        <button onClick={handleSave} style={{ background: "#1a7a4a", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>💾 Guardar</button>
+        <button onClick={handleSave} style={{ background: "var(--ok)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>💾 Guardar</button>
         <button onClick={onCancel} style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
       </div>
     </div>

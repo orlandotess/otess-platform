@@ -301,7 +301,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {showMore && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setShowMore(false)} />
-          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: '#fff', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.14)', minWidth: 220, zIndex: 1000, overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.14)', minWidth: 220, zIndex: 1000, overflow: 'hidden' }}>
             {moreItems.map((item, i) => (
               <button
                 key={item.key}
@@ -319,7 +319,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {/* Attachments modal */}
       {showAttachments && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 600, maxHeight: '80vh', overflow: 'auto' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 600, maxHeight: '80vh', overflow: 'auto' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📎 Adjuntos del trabajo</h2>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Selecciona qué fotos, videos o documentos compartir con el cliente en esta factura.</p>
 
@@ -332,7 +332,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
                 {jobNotes.map(n => {
                   const isSelected = selectedNoteIds.includes(n.id);
                   return (
-                    <label key={n.id} style={{ display: 'flex', gap: 12, padding: '12px 14px', borderRadius: 10, border: `2px solid ${isSelected ? 'var(--navy)' : 'var(--border)'}`, background: isSelected ? '#f0f4ff' : '#fff', cursor: 'pointer' }}>
+                    <label key={n.id} style={{ display: 'flex', gap: 12, padding: '12px 14px', borderRadius: 10, border: `2px solid ${isSelected ? 'var(--navy)' : 'var(--border)'}`, background: isSelected ? '#f0f4ff' : 'var(--surface)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleNoteSelection(n.id)} style={{ marginTop: 4 }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
@@ -343,7 +343,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
                             {n.signedUrls.map((url, idx) => {
                               const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
                               const isPdf = /\.pdf(\?|$)/i.test(url);
-                              if (isPdf) return <div key={idx} style={{ width: 60, height: 60, background: '#f0f0f0', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📄</div>;
+                              if (isPdf) return <div key={idx} style={{ width: 60, height: 60, background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📄</div>;
                               if (isVideo) return <div key={idx} style={{ width: 60, height: 60, background: '#000', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🎥</div>;
                               return <img key={idx} src={url} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6 }} />;
                             })}
@@ -370,7 +370,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {/* Edit terms */}
       {showEditTerms && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Términos del Proyecto</h2>
             <form onSubmit={saveTerms}>
               <div className="form-group" style={{ marginBottom: 12 }}>
@@ -401,7 +401,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {/* Internal notes (never shown on the printed invoice) */}
       {showInternalNotes && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 480 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 480 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📝 Notas internas</h2>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Solo visibles para el equipo — nunca aparecen en la factura impresa ni por email.</p>
             <form onSubmit={saveInternalNotes}>
@@ -422,7 +422,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {/* Check photos (internal only, stored in Job-photos bucket) */}
       {showCheckPhotos && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📷 Fotos de cheques</h2>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Internas — nunca se comparten con el cliente.</p>
 
@@ -440,7 +440,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
                     {checkPhotoUrls[p.id] ? (
                       <img src={checkPhotoUrls[p.id]} style={{ width: 140, height: 140, objectFit: 'cover', borderRadius: 8 }} />
                     ) : (
-                      <div style={{ width: 140, height: 140, background: '#f0f0f0', borderRadius: 8 }} />
+                      <div style={{ width: 140, height: 140, background: 'var(--surface-2)', borderRadius: 8 }} />
                     )}
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
                       {new Date(p.created_at).toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -463,7 +463,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20, overflow: 'auto' }}>
           <div style={{ width: 640 }}>
             {retenciones.length > 0 && (
-              <div style={{ background: '#fff8e6', border: '1.5px solid var(--amber)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: 'var(--navy)' }}>
+              <div style={{ background: 'var(--amber-tint)', border: '1.5px solid var(--amber)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: 'var(--navy)' }}>
                 ⚠️ Esta factura ya tiene {retenciones.length} retención(es) registrada(s) por un total de {fmtMoney(retenciones.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0))}. Puedes registrar otra si es necesario.
               </div>
             )}
@@ -481,11 +481,11 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {/* Edit property */}
       {showEditProperty && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Propiedad del servicio</h2>
             <form onSubmit={saveProperty}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${!propertyId ? 'var(--navy)' : 'var(--border)'}`, background: !propertyId ? '#f0f4ff' : '#fff' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${!propertyId ? 'var(--navy)' : 'var(--border)'}`, background: !propertyId ? '#f0f4ff' : 'var(--surface)' }}>
                   <input type="radio" name="property" value="" checked={!propertyId} onChange={() => setPropertyId('')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>Sin propiedad</div>
@@ -493,7 +493,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
                   </div>
                 </label>
                 {clientProperties.map(p => (
-                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${propertyId === p.id ? 'var(--navy)' : 'var(--border)'}`, background: propertyId === p.id ? '#f0f4ff' : '#fff' }}>
+                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${propertyId === p.id ? 'var(--navy)' : 'var(--border)'}`, background: propertyId === p.id ? '#f0f4ff' : 'var(--surface)' }}>
                     <input type="radio" name="property" value={p.id} checked={propertyId === p.id} onChange={() => setPropertyId(p.id)} />
                     <div>
                       <div style={{ fontWeight: 700 }}>{p.name}</div>
@@ -514,18 +514,18 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {/* Edit bill to */}
       {showEditBillTo && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Facturar a</h2>
             <form onSubmit={saveBillTo}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'person' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'person' ? '#f0f4ff' : '#fff' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'person' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'person' ? '#f0f4ff' : 'var(--surface)' }}>
                   <input type="radio" name="bill_to" value="person" checked={billTo === 'person'} onChange={() => setBillTo('person')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>{clientName}</div>
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>Persona</div>
                   </div>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'company' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'company' ? '#f0f4ff' : '#fff' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'company' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'company' ? '#f0f4ff' : 'var(--surface)' }}>
                   <input type="radio" name="bill_to" value="company" checked={billTo === 'company'} onChange={() => setBillTo('company')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>{clientCompany}</div>
@@ -545,7 +545,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {/* Edit invoice number */}
       {showEditNumber && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Editar número de factura</h2>
             <form onSubmit={saveNumber}>
               <div className="form-group" style={{ marginBottom: 20 }}>
@@ -564,12 +564,12 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {/* Delete confirmation */}
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 380 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar factura?</h2>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Se eliminarán también los pagos, retenciones, adjuntos y fotos de cheques asociados a esta factura. Esta acción no se puede deshacer.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteInvoice} disabled={deleting}
-                style={{ flex: 1, justifyContent: 'center', background: '#fdecea', color: 'var(--warn)', border: 'none' }}>
+                style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
                 {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
               </button>
               <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
@@ -581,7 +581,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
       {/* Email modal */}
       {showEmail && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 400 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Enviar factura por email</h2>
             <form onSubmit={sendEmail}>
               <div className="form-group" style={{ marginBottom: 20 }}>
@@ -608,7 +608,7 @@ function PaymentModal({ payment, setPayment, onSave, onClose, saving, balance })
   const set = (k, v) => setPayment(p => ({ ...p, [k]: v }));
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 420 }}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
         <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Registrar pago</h2>
         <form onSubmit={onSave}>
           <div className="form-row" style={{ marginBottom: 16 }}>

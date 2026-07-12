@@ -43,8 +43,8 @@ export default function AuthCallback() {
     return (
       <div style={{ padding: 40, fontFamily: "sans-serif", textAlign: "center" }}>
         <h2>Error al procesar invitación</h2>
-        <p style={{ color: "#888" }}>{error}</p>
-        <a href="/login" style={{ color: "#e0972c" }}>Ir a login</a>
+        <p style={{ color: "var(--ink-faint)" }}>{error}</p>
+        <a href="/login" style={{ color: "var(--amber)" }}>Ir a login</a>
       </div>
     );
   }

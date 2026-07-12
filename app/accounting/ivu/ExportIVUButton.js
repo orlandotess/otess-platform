@@ -66,7 +66,7 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
 
       {showModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: 28, width: 420 }}>
+          <div style={{ background: "var(--surface)", borderRadius: 16, padding: 28, width: 420 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)", marginBottom: 16 }}>Exportar IVU {year}</h2>
 
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
@@ -79,7 +79,7 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
                 <label key={m.idx} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 8, cursor: "pointer",
                   border: `2px solid ${selectedMonths.includes(m.idx) ? "var(--navy)" : "var(--border)"}`,
-                  background: selectedMonths.includes(m.idx) ? "#f0f4ff" : "#fff", fontSize: 13,
+                  background: selectedMonths.includes(m.idx) ? "#f0f4ff" : "var(--surface)", fontSize: 13,
                 }}>
                   <input type="checkbox" checked={selectedMonths.includes(m.idx)} onChange={() => toggleMonth(m.idx)} />
                   {m.name}
