@@ -123,6 +123,51 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     else if (type === 'task') setSelectedTask(item);
   }
 
+  const [draggingEntry, setDraggingEntry] = useState(null); // { type, item }
+  const [dragOverDate, setDragOverDate] = useState(null);
+
+  function daysBetween(dateStrA, dateStrB) {
+    const a = new Date(`${dateStrA}T00:00:00`);
+    const b = new Date(`${dateStrB}T00:00:00`);
+    return Math.round((b - a) / 86400000);
+  }
+
+  function shiftIsoByDays(iso, deltaDays) {
+    const d = new Date(iso);
+    d.setDate(d.getDate() + deltaDays);
+    return d.toISOString();
+  }
+
+  async function handleDayDrop(newDateStr) {
+    const entry = draggingEntry;
+    setDraggingEntry(null);
+    setDragOverDate(null);
+    if (!entry) return;
+    const { type, item } = entry;
+    const anchorDateStr = (type === 'task' ? item.due_at : type === 'event' ? item.start_at : item.scheduled_start).slice(0, 10);
+    const deltaDays = daysBetween(anchorDateStr, newDateStr);
+    if (deltaDays === 0) return;
+
+    let error;
+    if (type === 'task') {
+      ({ error } = await supabase.from('tasks').update({ due_at: shiftIsoByDays(item.due_at, deltaDays) }).eq('id', item.id));
+    } else if (type === 'event') {
+      ({ error } = await supabase.from('calendar_events').update({
+        start_at: shiftIsoByDays(item.start_at, deltaDays),
+        end_at: shiftIsoByDays(item.end_at, deltaDays),
+      }).eq('id', item.id));
+    } else {
+      const table = item.schedule_day_id ? 'job_schedule_days' : 'jobs';
+      const targetId = item.schedule_day_id ?? item.id;
+      ({ error } = await supabase.from(table).update({
+        scheduled_start: shiftIsoByDays(item.scheduled_start, deltaDays),
+        scheduled_end: item.scheduled_end ? shiftIsoByDays(item.scheduled_end, deltaDays) : null,
+      }).eq('id', targetId));
+    }
+    if (error) { alert('Error al mover la fecha: ' + error.message); return; }
+    router.refresh();
+  }
+
   const techColors = useMemo(() => {
     const map = {};
     technicians.forEach((t, i) => { map[t.id] = TECH_COLORS[i % TECH_COLORS.length]; });
@@ -583,13 +628,17 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   const dayAbsences = cell.date ? getAbsencesForDate(cell.date) : [];
                   const dayTotal = dayJobs.length + dayVisits.length + dayEvents.length + dayTasks.length + dayAbsences.length;
                   const isToday = cell.date === today;
+                  const isDragOver = cell.current && dragOverDate === cell.date;
                   return (
                     <div key={idx} style={{ minHeight: 100, height: 100, padding: '6px 8px', borderRadius: 8,
-                      background: isToday ? '#f0f4ff' : 'var(--surface)',
-                      border: isToday ? '2px solid var(--navy)' : '1px solid var(--border)',
+                      background: isDragOver ? '#fff4e0' : isToday ? '#f0f4ff' : 'var(--surface)',
+                      border: isDragOver ? '2px dashed var(--amber)' : isToday ? '2px solid var(--navy)' : '1px solid var(--border)',
                       opacity: cell.current ? 1 : 0.4,
                       boxSizing: 'border-box', overflow: 'hidden', position: 'relative', cursor: cell.current ? 'pointer' : 'default' }}
-                      onClick={() => { if (cell.current) setScheduleModal({ dateStr: cell.date, time: '09:00' }); }}>
+                      onClick={() => { if (cell.current) setScheduleModal({ dateStr: cell.date, time: '09:00' }); }}
+                      onDragOver={(e) => { if (cell.current) { e.preventDefault(); setDragOverDate(cell.date); } }}
+                      onDragLeave={() => { if (dragOverDate === cell.date) setDragOverDate(null); }}
+                      onDrop={(e) => { if (cell.current) { e.preventDefault(); handleDayDrop(cell.date); } }}>
                       <div style={{ fontSize: 13, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)', marginBottom: 4 }}>{cell.day}</div>
                       {dayAbsences.slice(0, 3).map(a => (
                         <div key={`a${a.id}`} onClick={(e) => { e.stopPropagation(); setSelectedAbsence(a); }}
@@ -609,7 +658,10 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       ))}
                       {dayJobs.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length, 0)).map(j => (
                         <div key={j.id} onClick={(e) => { e.stopPropagation(); openEntry('job', j); }}
-                          style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
+                          draggable={canQuickReschedule}
+                          onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData('text/plain', j.id); e.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'job', item: j }); }}
+                          onDragEnd={() => { setDraggingEntry(null); setDragOverDate(null); }}
+                          style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: canQuickReschedule ? 'grab' : 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           {j.title}
@@ -617,7 +669,10 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       ))}
                       {dayEvents.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length - dayJobs.length, 0)).map(e => (
                         <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('event', e); }}
-                          style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
+                          draggable={canQuickReschedule}
+                          onDragStart={(ev) => { ev.stopPropagation(); ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'event', item: e }); }}
+                          onDragEnd={() => { setDraggingEntry(null); setDragOverDate(null); }}
+                          style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: canQuickReschedule ? 'grab' : 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           {ENTRY_TYPE_ICONS.event} {e.title}
@@ -625,7 +680,10 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       ))}
                       {dayTasks.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(t => (
                         <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('task', t); }}
-                          style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
+                          draggable={canQuickReschedule}
+                          onDragStart={(ev) => { ev.stopPropagation(); ev.dataTransfer.setData('text/plain', t.id); ev.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'task', item: t }); }}
+                          onDragEnd={() => { setDraggingEntry(null); setDragOverDate(null); }}
+                          style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: canQuickReschedule ? 'grab' : 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', textDecoration: t.completed ? 'line-through' : 'none',
                             background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           {ENTRY_TYPE_ICONS[t.task_type]} {t.title}
