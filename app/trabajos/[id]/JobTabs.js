@@ -1644,7 +1644,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
           {sortedNotesList.length === 0 ? (
             <div className="empty"><p>No hay notas aún.</p></div>
           ) : sortedNotesList.map(n => (
-            <div key={n.id} className="card" style={{ marginBottom: 12, ...(n.is_pinned ? { border: '1.5px solid var(--amber)', background: '#fffaf0' } : {}) }}>
+            <div key={n.id} className="card" style={{ marginBottom: 12, ...(n.is_pinned ? { border: '1.5px solid var(--amber)', background: 'var(--amber-tint)' } : {}) }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: n.photo_url || n.note ? 10 : 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
                   {n.is_pinned && <span title="Pineada">📌</span>}

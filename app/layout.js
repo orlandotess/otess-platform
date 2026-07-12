@@ -22,7 +22,14 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{document.documentElement.dataset.theme=localStorage.getItem('otess-theme')==='dark'?'dark':'light';}catch(e){}`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

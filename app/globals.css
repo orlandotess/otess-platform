@@ -40,6 +40,52 @@
   --line-strong: #cdd2dc;
   --radius-lg: 16px;
   --shadow-pop: 0 12px 32px rgba(22,34,61,0.16);
+
+  /* Sidebar stays its own dark navy regardless of theme — it's a fixed
+     branded rail, not page content, so it doesn't invert in dark mode. */
+  --sidebar-bg: #16223d;
+}
+
+/* ── Dark mode — explicit toggle only (see Sidebar.js), not OS-preference-driven.
+   Overrides every token above; component CSS below never needs to branch on
+   theme itself, it just keeps reading the same var() names. */
+:root[data-theme="dark"] {
+  --navy:   #3a5590;
+  --navy-2: #4a68a8;
+  --amber:  #e6a544;
+  --orange: #e2724a;
+  --bg:     #0f1420;
+  --surface:#161d2d;
+  --surface-2: #1b2334;
+  --text:   #eef1f6;
+  --muted:  #a4acbb;
+  --subtle: #6b7688;
+  --border: #2a3348;
+  --border-strong: #3a4560;
+  --ok:     #4fa87f;
+  --info:   #6fa2c9;
+  --warn:   #e0764a;
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.3), 0 1px 1px rgba(0,0,0,0.2);
+
+  --badge-green-bg: #16281f;
+  --badge-amber-bg: #2c2312;
+  --badge-blue-bg:  #142433;
+  --badge-gray-bg:  #232c40;
+  --badge-red-bg:   #2e1712;
+
+  --rust: #d97142;
+  --navy-tint: #182338;
+  --amber-tint: #2c2312;
+  --ok-tint: #16281f;
+  --info-tint: #142433;
+  --danger-tint: #2e1712;
+  --neutral-tint: #232c40;
+  --ink: #eef1f6;
+  --ink-soft: #a4acbb;
+  --ink-faint: #6b7688;
+  --line: #2a3348;
+  --line-strong: #3a4560;
+  --shadow-pop: 0 16px 40px rgba(0,0,0,0.5);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -67,7 +113,7 @@ a { color: inherit; text-decoration: none; }
 
 .sidebar {
   width: 220px;
-  background: var(--navy);
+  background: var(--sidebar-bg);
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -87,7 +133,7 @@ a { color: inherit; text-decoration: none; }
   height: 34px;
   border-radius: 8px;
   border: none;
-  background: var(--navy);
+  background: var(--sidebar-bg);
   color: #fff;
   cursor: pointer;
   font-size: 15px;
@@ -386,11 +432,11 @@ tbody tr:hover td { background: var(--surface-2); }
   flex-shrink: 0;
 }
 
-.badge-green  { color: #1a7a4a; background: var(--badge-green-bg); }
-.badge-amber  { color: #92600a; background: var(--badge-amber-bg); }
-.badge-blue   { color: #2a4cb5; background: var(--badge-blue-bg); }
+.badge-green  { color: var(--ok); background: var(--badge-green-bg); }
+.badge-amber  { color: var(--amber); background: var(--badge-amber-bg); }
+.badge-blue   { color: var(--info); background: var(--badge-blue-bg); }
 .badge-gray   { color: var(--muted); background: var(--badge-gray-bg); }
-.badge-red    { color: #b52a2a; background: var(--badge-red-bg); }
+.badge-red    { color: var(--warn); background: var(--badge-red-bg); }
 
 /* ── Forms ── */
 .form-group {
@@ -536,7 +582,7 @@ body.sidebar-hidden .main-content {
 .admin-shell .badge-blue  { background: var(--info-tint); color: var(--info); }
 .admin-shell .badge-green { background: var(--ok-tint); color: var(--ok); }
 .admin-shell .badge-red   { background: var(--danger-tint); color: var(--warn); }
-.admin-shell .badge-amber { background: var(--amber-tint); color: #9c6a1a; }
+.admin-shell .badge-amber { background: var(--amber-tint); color: var(--amber); }
 
 .admin-shell table thead th {
   color: var(--ink-faint);

@@ -332,7 +332,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
                 {jobNotes.map(n => {
                   const isSelected = selectedNoteIds.includes(n.id);
                   return (
-                    <label key={n.id} style={{ display: 'flex', gap: 12, padding: '12px 14px', borderRadius: 10, border: `2px solid ${isSelected ? 'var(--navy)' : 'var(--border)'}`, background: isSelected ? '#f0f4ff' : 'var(--surface)', cursor: 'pointer' }}>
+                    <label key={n.id} style={{ display: 'flex', gap: 12, padding: '12px 14px', borderRadius: 10, border: `2px solid ${isSelected ? 'var(--navy)' : 'var(--border)'}`, background: isSelected ? 'var(--info-tint)' : 'var(--surface)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleNoteSelection(n.id)} style={{ marginTop: 4 }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
@@ -485,7 +485,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Propiedad del servicio</h2>
             <form onSubmit={saveProperty}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${!propertyId ? 'var(--navy)' : 'var(--border)'}`, background: !propertyId ? '#f0f4ff' : 'var(--surface)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${!propertyId ? 'var(--navy)' : 'var(--border)'}`, background: !propertyId ? 'var(--info-tint)' : 'var(--surface)' }}>
                   <input type="radio" name="property" value="" checked={!propertyId} onChange={() => setPropertyId('')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>Sin propiedad</div>
@@ -493,7 +493,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
                   </div>
                 </label>
                 {clientProperties.map(p => (
-                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${propertyId === p.id ? 'var(--navy)' : 'var(--border)'}`, background: propertyId === p.id ? '#f0f4ff' : 'var(--surface)' }}>
+                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${propertyId === p.id ? 'var(--navy)' : 'var(--border)'}`, background: propertyId === p.id ? 'var(--info-tint)' : 'var(--surface)' }}>
                     <input type="radio" name="property" value={p.id} checked={propertyId === p.id} onChange={() => setPropertyId(p.id)} />
                     <div>
                       <div style={{ fontWeight: 700 }}>{p.name}</div>
@@ -518,14 +518,14 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Facturar a</h2>
             <form onSubmit={saveBillTo}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'person' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'person' ? '#f0f4ff' : 'var(--surface)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'person' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'person' ? 'var(--info-tint)' : 'var(--surface)' }}>
                   <input type="radio" name="bill_to" value="person" checked={billTo === 'person'} onChange={() => setBillTo('person')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>{clientName}</div>
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>Persona</div>
                   </div>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'company' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'company' ? '#f0f4ff' : 'var(--surface)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'company' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'company' ? 'var(--info-tint)' : 'var(--surface)' }}>
                   <input type="radio" name="bill_to" value="company" checked={billTo === 'company'} onChange={() => setBillTo('company')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>{clientCompany}</div>

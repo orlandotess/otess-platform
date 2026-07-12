@@ -94,7 +94,7 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
               return (
                 <Link key={idx} href={cell.date ? `/calendario?view=month&year=${year}&month=${month}` : "#"}
                   style={{ minHeight: 54, height: 54, padding: "4px 6px", borderRadius: 8, textDecoration: "none",
-                    background: isToday ? "#f0f4ff" : "var(--surface)",
+                    background: isToday ? "var(--info-tint)" : "var(--surface)",
                     border: isToday ? "2px solid var(--navy)" : "1px solid var(--border)",
                     opacity: cell.current ? 1 : 0.4, display: "block", boxSizing: "border-box", overflow: "hidden" }}>
                   <div style={{ fontSize: 12, fontWeight: isToday ? 800 : 500, color: cell.current ? "var(--text)" : "var(--muted)" }}>{cell.day}</div>

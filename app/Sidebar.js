@@ -96,10 +96,23 @@ export default function Sidebar() {
  const [search, setSearch] = useState('');
  const [hidden, setHidden] = useState(false);
  const [absenceCount, setAbsenceCount] = useState(0);
+ const [darkMode, setDarkMode] = useState(false);
 
  useEffect(() => {
    setHidden(localStorage.getItem('sidebar-hidden') === '1');
+   setDarkMode(localStorage.getItem('otess-theme') === 'dark');
  }, []);
+
+ useEffect(() => {
+   document.documentElement.dataset.theme = darkMode ? 'dark' : 'light';
+ }, [darkMode]);
+
+ function toggleDarkMode() {
+   setDarkMode(d => {
+     localStorage.setItem('otess-theme', d ? 'light' : 'dark');
+     return !d;
+   });
+ }
 
  // Ausencias del mes en curso, para el badge junto al link en "Administración".
  // Se refresca al montar y cada vez que calendario-client.js dispara este evento tras crear/eliminar una ausencia.
@@ -247,7 +260,18 @@ export default function Sidebar() {
          </>
        )}
      </nav>
-     <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+     <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+       <button
+         onClick={toggleDarkMode}
+         style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.7)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', width: '100%', fontSize: 13, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
+       >
+         {darkMode ? (
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.5 12h2M19.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+         ) : (
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
+         )}
+         {darkMode ? 'Modo claro' : 'Modo oscuro'}
+       </button>
        <button
          onClick={handleLogout}
          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.7)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', width: '100%', fontSize: 13, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}

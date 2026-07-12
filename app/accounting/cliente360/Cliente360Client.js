@@ -66,7 +66,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
               </thead>
               <tbody>
                 {visible.map(c => (
-                  <tr key={c.id} onClick={() => selectClient(c)} style={{ cursor: 'pointer', background: selected?.id === c.id ? '#f0f4ff' : undefined }}>
+                  <tr key={c.id} onClick={() => selectClient(c)} style={{ cursor: 'pointer', background: selected?.id === c.id ? 'var(--info-tint)' : undefined }}>
                     <td style={{ fontWeight: 700 }}>{c.name}{c.company ? <span style={{ color: 'var(--muted)', fontWeight: 400 }}> — {c.company}</span> : ''}</td>
                     <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{c.count}</td>
                     <td style={{ textAlign: 'right' }}>{fmt(c.facturado)}</td>
@@ -96,7 +96,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
           </div>
 
           {selected.hasVarianza && (
-            <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--warn)', background: '#fff8f0' }}>
+            <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--warn)', background: 'var(--danger-tint)' }}>
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)', marginBottom: 6 }}>⚠️ El cobrado no cuadra con el neto esperado</p>
               <p style={{ fontSize: 13, color: 'var(--muted)' }}>
                 Neto esperado (facturado pagado − retenido de esas facturas): <strong>{fmt(selected.netoEsperado)}</strong>

@@ -105,7 +105,7 @@ export default function PayrollClient({ technicians, entries, weekStart, weekEnd
             </thead>
             <tbody>
               {totals.map(row => (
-                <tr key={row.tech.id} style={{ cursor: 'pointer', background: selected === row.tech.id ? '#f0f4ff' : 'transparent' }}
+                <tr key={row.tech.id} style={{ cursor: 'pointer', background: selected === row.tech.id ? 'var(--info-tint)' : 'transparent' }}
                   onClick={() => setSelected(selected === row.tech.id ? null : row.tech.id)}>
                   <td>
                     <div style={{ fontWeight: 700 }}>{row.tech.name}</div>

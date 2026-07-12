@@ -219,14 +219,14 @@ export default function NuevoTrabajo() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>Solicitud rápida</span>
             <button type="button" onClick={() => setQuickMode(q => !q)}
-              style={{ width: 44, height: 24, borderRadius: 20, border: 'none', cursor: 'pointer', position: 'relative', background: quickMode ? 'var(--amber)' : '#dde1e7', transition: 'background 0.2s' }}>
+              style={{ width: 44, height: 24, borderRadius: 20, border: 'none', cursor: 'pointer', position: 'relative', background: quickMode ? 'var(--amber)' : 'var(--border-strong)', transition: 'background 0.2s' }}>
               <span style={{ position: 'absolute', top: 2, left: quickMode ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--surface)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
             </button>
           </div>
         </div>
 
         {quickMode && quickSuccess && (
-          <div className="card" style={{ marginBottom: 20, background: '#eafaf0', border: '1.5px solid #34c759' }}>
+          <div className="card" style={{ marginBottom: 20, background: 'var(--ok-tint)', border: '1.5px solid var(--ok)' }}>
             <p style={{ fontSize: 13, color: 'var(--navy)', margin: 0, fontWeight: 600 }}>
               ✓ Solicitud creada. Puedes seguir agregando más.
             </p>
@@ -234,7 +234,7 @@ export default function NuevoTrabajo() {
         )}
 
         {quickMode && !quickSuccess && (
-          <div className="card" style={{ marginBottom: 20, background: '#fff8ee', border: '1.5px solid var(--amber)' }}>
+          <div className="card" style={{ marginBottom: 20, background: 'var(--amber-tint)', border: '1.5px solid var(--amber)' }}>
             <p style={{ fontSize: 13, color: 'var(--navy)', margin: 0 }}>
               Modo solicitud rápida: solo cliente + título. Se crea como <strong>Estimado</strong> sin fecha — la agendas después desde el calendario.
             </p>

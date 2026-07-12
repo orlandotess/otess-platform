@@ -99,7 +99,7 @@ export default function AccountingCalendarClient({ year, month, jobs, visits, ca
               return (
                 <button key={idx} type="button" onClick={() => cell.date && setSelectedDate(cell.date === selectedDate ? null : cell.date)}
                   style={{ minHeight: 54, height: 54, padding: '4px 6px', borderRadius: 8, textAlign: 'left', cursor: cell.date ? 'pointer' : 'default',
-                    background: isSelected ? '#e8eeff' : isToday ? '#f0f4ff' : 'var(--surface)',
+                    background: isSelected ? 'var(--info-tint)' : isToday ? 'var(--info-tint)' : 'var(--surface)',
                     border: isSelected ? '2px solid var(--amber)' : isToday ? '2px solid var(--navy)' : '1px solid var(--border)',
                     opacity: cell.current ? 1 : 0.4, display: 'block', boxSizing: 'border-box', overflow: 'hidden' }}>
                   <div style={{ fontSize: 12, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)' }}>{cell.day}</div>

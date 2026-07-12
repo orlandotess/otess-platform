@@ -131,7 +131,7 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
               <tbody>
                 {visible.map(c => (
                   <tr key={c.id} onClick={() => selectClient(c)}
-                    style={{ cursor: 'pointer', background: selected?.id === c.id ? '#f0f4ff' : undefined }}>
+                    style={{ cursor: 'pointer', background: selected?.id === c.id ? 'var(--info-tint)' : undefined }}>
                     <td style={{ fontWeight: 700 }}>{c.name}</td>
                     <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{c.count}</td>
                     <td style={{ textAlign: 'right' }}>{fmt(c.totalFacturado)}</td>

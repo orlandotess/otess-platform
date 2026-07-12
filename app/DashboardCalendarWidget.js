@@ -161,7 +161,7 @@ export default async function DashboardCalendarWidget() {
               return (
                 <Link key={idx} href={cell.date ? `/calendario?view=month&year=${year}&month=${month}` : '#'}
                   style={{ minHeight: 54, padding: '4px 6px', borderRadius: 8, textDecoration: 'none',
-                    background: isToday ? '#f0f4ff' : cell.current ? 'var(--surface)' : 'var(--surface-2)',
+                    background: isToday ? 'var(--info-tint)' : cell.current ? 'var(--surface)' : 'var(--surface-2)',
                     border: isToday ? '2px solid var(--navy)' : '1px solid var(--border)', display: 'block' }}>
                   <div style={{ fontSize: 12, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)' }}>{cell.day}</div>
                   {dayItems.length > 0 && (

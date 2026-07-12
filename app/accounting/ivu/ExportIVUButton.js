@@ -79,7 +79,7 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
                 <label key={m.idx} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 8, cursor: "pointer",
                   border: `2px solid ${selectedMonths.includes(m.idx) ? "var(--navy)" : "var(--border)"}`,
-                  background: selectedMonths.includes(m.idx) ? "#f0f4ff" : "var(--surface)", fontSize: 13,
+                  background: selectedMonths.includes(m.idx) ? "var(--info-tint)" : "var(--surface)", fontSize: 13,
                 }}>
                   <input type="checkbox" checked={selectedMonths.includes(m.idx)} onChange={() => toggleMonth(m.idx)} />
                   {m.name}

@@ -631,7 +631,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   const isDragOver = cell.current && dragOverDate === cell.date;
                   return (
                     <div key={idx} style={{ minHeight: 100, height: 100, padding: '6px 8px', borderRadius: 8,
-                      background: isDragOver ? '#fff4e0' : isToday ? '#f0f4ff' : 'var(--surface)',
+                      background: isDragOver ? 'var(--amber-tint)' : isToday ? 'var(--info-tint)' : 'var(--surface)',
                       border: isDragOver ? '2px dashed var(--amber)' : isToday ? '2px solid var(--navy)' : '1px solid var(--border)',
                       opacity: cell.current ? 1 : 0.4,
                       boxSizing: 'border-box', overflow: 'hidden', position: 'relative', cursor: cell.current ? 'pointer' : 'default' }}
@@ -710,7 +710,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 {weekDays.map((d, i) => {
                   const isToday = fmtDate(d) === today;
                   return (
-                    <div key={i} style={{ textAlign: 'center', padding: '8px 4px', borderBottom: '2px solid var(--border)', background: isToday ? '#f0f4ff' : 'transparent' }}>
+                    <div key={i} style={{ textAlign: 'center', padding: '8px 4px', borderBottom: '2px solid var(--border)', background: isToday ? 'var(--info-tint)' : 'transparent' }}>
                       <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>{DAYS_SHORT[d.getDay()]}</div>
                       <div style={{ fontSize: 18, fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--navy)' : 'var(--text)' }}>{d.getDate()}</div>
                     </div>
