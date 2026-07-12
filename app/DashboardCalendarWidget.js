@@ -1,7 +1,7 @@
 import { supabaseServer as supabase } from '../lib/supabase';
 import { getCurrentRole } from '../lib/supabase-server';
 import Link from 'next/link';
-import DashboardWeekJobs from './DashboardWeekJobs';
+import DashboardWeekItems from './DashboardWeekItems';
 
 const TECH_COLORS = [
   '#16223d', '#e0972c', '#27ae60', '#2a4cb5', '#e05c2a',
@@ -23,33 +23,70 @@ export default async function DashboardCalendarWidget() {
 
   const rangeStart = weekStart < monthStart ? weekStart : monthStart;
   const rangeEnd = weekEnd > monthEnd ? weekEnd : monthEnd;
+  const rangeEndTs = rangeEnd + 'T23:59:59';
 
-  const [{ data: technicians }, { data: jobs }, currentRole] = await Promise.all([
+  const [
+    { data: technicians },
+    { data: jobs },
+    { data: visits },
+    { data: calendarEvents },
+    { data: tasks },
+    { data: absences },
+    currentRole,
+  ] = await Promise.all([
     supabase.from('technicians').select('id, name').order('name'),
     supabase.from('jobs')
       .select('id, title, status, scheduled_start, scheduled_end, technician_id, technicians(name), clients(name)')
       .not('scheduled_start', 'is', null)
       .gte('scheduled_start', rangeStart)
-      .lte('scheduled_start', rangeEnd + 'T23:59:59')
+      .lte('scheduled_start', rangeEndTs)
       .order('scheduled_start'),
+    supabase.from('visits')
+      .select('id, request_id, technician_id, scheduled_at, duration_minutes, status, requests(title, clients(name)), technicians(name)')
+      .gte('scheduled_at', rangeStart)
+      .lte('scheduled_at', rangeEndTs)
+      .order('scheduled_at'),
+    supabase.from('calendar_events')
+      .select('id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name), technicians(name), calendar_event_technicians(technician_id, technicians(name))')
+      .gte('start_at', rangeStart)
+      .lte('start_at', rangeEndTs)
+      .order('start_at'),
+    supabase.from('tasks')
+      .select('id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name), technicians(name)')
+      .gte('due_at', rangeStart)
+      .lte('due_at', rangeEndTs)
+      .order('due_at'),
+    supabase.from('technician_absences')
+      .select('id, technician_id, date, reason, technicians(name)')
+      .gte('date', rangeStart)
+      .lte('date', rangeEnd)
+      .order('date'),
     getCurrentRole(),
   ]);
   const canQuickReschedule = currentRole === 'admin';
 
   const techs = technicians ?? [];
   const allJobs = jobs ?? [];
+  const allVisits = visits ?? [];
+  const allEvents = calendarEvents ?? [];
+  const allTasks = tasks ?? [];
+  const allAbsences = absences ?? [];
 
   const techColors = {};
   techs.forEach((t, i) => { techColors[t.id] = TECH_COLORS[i % TECH_COLORS.length]; });
 
   const today = now.toISOString().slice(0, 10);
-  const weekJobs = allJobs
-    .filter(j => {
-      const start = j.scheduled_start?.slice(0, 10);
-      const end = (j.scheduled_end ?? j.scheduled_start)?.slice(0, 10);
-      return start && start <= weekEnd && end >= weekStart;
-    })
-    .sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start));
+  const inWeek = dateStr => dateStr && dateStr <= weekEnd && dateStr >= weekStart;
+
+  const weekJobs = allJobs.filter(j => {
+    const start = j.scheduled_start?.slice(0, 10);
+    const end = (j.scheduled_end ?? j.scheduled_start)?.slice(0, 10);
+    return start && start <= weekEnd && end >= weekStart;
+  });
+  const weekVisits = allVisits.filter(v => inWeek(v.scheduled_at?.slice(0, 10)));
+  const weekEvents = allEvents.filter(e => inWeek(e.start_at?.slice(0, 10)));
+  const weekTasks = allTasks.filter(t => inWeek(t.due_at?.slice(0, 10)));
+  const weekAbsences = allAbsences.filter(a => inWeek(a.date));
 
   const fmtRangeLabel = (start, end) => {
     const sameMonth = start.getMonth() === end.getMonth();
@@ -74,20 +111,27 @@ export default async function DashboardCalendarWidget() {
   const remaining = (cells.length <= 35 ? 35 : 42) - cells.length;
   for (let i = 1; i <= remaining; i++) cells.push({ day: i, current: false, date: null });
 
-  const jobsByDate = {};
-  allJobs.forEach(j => {
-    const start = j.scheduled_start?.slice(0, 10);
-    const end = (j.scheduled_end ?? j.scheduled_start)?.slice(0, 10);
+  // One combined map so the mini calendar's day dots reflect jobs, visits, events, tasks
+  // and absences alike — matching the full picture shown on /calendario.
+  const itemsByDate = {};
+  const addRange = (startIso, endIso, technicianId) => {
+    const start = startIso?.slice(0, 10);
     if (!start) return;
+    const end = (endIso ?? startIso)?.slice(0, 10);
     let d = new Date(start);
     const endD = new Date(end);
     while (d <= endD) {
       const ds = d.toISOString().slice(0, 10);
-      if (!jobsByDate[ds]) jobsByDate[ds] = [];
-      jobsByDate[ds].push(j);
+      if (!itemsByDate[ds]) itemsByDate[ds] = [];
+      itemsByDate[ds].push({ technicianId });
       d.setDate(d.getDate() + 1);
     }
-  });
+  };
+  allJobs.forEach(j => addRange(j.scheduled_start, j.scheduled_end, j.technician_id));
+  allVisits.forEach(v => addRange(v.scheduled_at, v.scheduled_at, v.technician_id));
+  allEvents.forEach(e => addRange(e.start_at, e.end_at, e.technician_id));
+  allTasks.forEach(t => addRange(t.due_at, t.due_at, t.technician_id));
+  allAbsences.forEach(a => addRange(a.date, a.date, a.technician_id));
 
   const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -111,21 +155,21 @@ export default async function DashboardCalendarWidget() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
             {cells.map((cell, idx) => {
-              const dayJobs = cell.date ? (jobsByDate[cell.date] ?? []) : [];
+              const dayItems = cell.date ? (itemsByDate[cell.date] ?? []) : [];
               const isToday = cell.date === today;
-              const uniqueTechs = [...new Set(dayJobs.map(j => j.technician_id).filter(Boolean))];
+              const uniqueTechs = [...new Set(dayItems.map(i => i.technicianId).filter(Boolean))];
               return (
                 <Link key={idx} href={cell.date ? `/calendario?view=month&year=${year}&month=${month}` : '#'}
                   style={{ minHeight: 54, padding: '4px 6px', borderRadius: 8, textDecoration: 'none',
                     background: isToday ? '#f0f4ff' : cell.current ? 'var(--surface)' : 'var(--surface-2)',
                     border: isToday ? '2px solid var(--navy)' : '1px solid var(--border)', display: 'block' }}>
                   <div style={{ fontSize: 12, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)' }}>{cell.day}</div>
-                  {dayJobs.length > 0 && (
+                  {dayItems.length > 0 && (
                     <div style={{ display: 'flex', gap: 2, marginTop: 4, flexWrap: 'wrap' }}>
                       {uniqueTechs.slice(0, 4).map(tid => (
                         <div key={tid} style={{ width: 6, height: 6, borderRadius: '50%', background: techColors[tid] ?? 'var(--ink-faint)' }} />
                       ))}
-                      {dayJobs.length > 4 && <span style={{ fontSize: 9, color: 'var(--muted)' }}>+{dayJobs.length - 4}</span>}
+                      {dayItems.length > 4 && <span style={{ fontSize: 9, color: 'var(--muted)' }}>+{dayItems.length - 4}</span>}
                     </div>
                   )}
                 </Link>
@@ -144,14 +188,18 @@ export default async function DashboardCalendarWidget() {
           )}
         </div>
 
-        {/* This week's jobs */}
+        {/* This week's items */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Trabajos de esta semana</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Esta semana</div>
             <div style={{ fontSize: 11, color: 'var(--muted)' }}>{weekRangeLabel}</div>
           </div>
-          <DashboardWeekJobs
+          <DashboardWeekItems
             jobs={weekJobs}
+            visits={weekVisits}
+            events={weekEvents}
+            tasks={weekTasks}
+            absences={weekAbsences}
             techColors={techColors}
             canQuickReschedule={canQuickReschedule}
           />

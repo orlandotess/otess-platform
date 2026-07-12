@@ -4,6 +4,10 @@ import Link from 'next/link';
 
 const EVENT_COLORS = {
   job: 'var(--info)',
+  visit: '#16a085',
+  event: 'var(--navy)',
+  task: '#8e44ad',
+  absence: 'var(--warn)',
   invoice_issued: 'var(--navy)',
   invoice_due: 'var(--orange)',
   payment: 'var(--ok)',
@@ -11,6 +15,10 @@ const EVENT_COLORS = {
 };
 const EVENT_LABELS = {
   job: 'Trabajo programado',
+  visit: 'Visita',
+  event: 'Evento',
+  task: 'Tarea',
+  absence: 'Ausencia de técnico',
   invoice_issued: 'Factura emitida',
   invoice_due: 'Factura vence',
   payment: 'Pago recibido',
@@ -19,11 +27,13 @@ const EVENT_LABELS = {
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function AccountingCalendarClient({ year, month, jobs, invoicesIssued, invoicesDue, payments, retenciones }) {
+export default function AccountingCalendarClient({ year, month, jobs, visits, calendarEvents, tasks, absences, invoicesIssued, invoicesDue, payments, retenciones }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const today = new Date().toISOString().slice(0, 10);
   const monthName = new Date(year, month, 1).toLocaleString('es-PR', { month: 'long' });
   const monthLabel = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+  const calendarHref = `/calendario?view=month&year=${year}&month=${month}`;
 
   const eventsByDate = useMemo(() => {
     const map = {};
@@ -34,12 +44,16 @@ export default function AccountingCalendarClient({ year, month, jobs, invoicesIs
       map[d].push(ev);
     };
     jobs.forEach(j => add(j.scheduled_start, { type: 'job', label: j.title, href: `/trabajos/${j.id}`, sub: j.clients?.name }));
+    visits.forEach(v => add(v.scheduled_at, { type: 'visit', label: v.requests?.title ?? 'Visita', href: `/solicitudes/${v.request_id}`, sub: v.requests?.clients?.name }));
+    calendarEvents.forEach(e => add(e.start_at, { type: 'event', label: e.title, href: calendarHref, sub: e.clients?.name }));
+    tasks.forEach(t => add(t.due_at, { type: 'task', label: t.title, href: calendarHref, sub: t.clients?.name }));
+    absences.forEach(a => add(a.date, { type: 'absence', label: `${a.technicians?.name ?? 'Técnico'} ausente`, href: '/admin/ausencias' }));
     invoicesIssued.forEach(i => add(i.issued_at, { type: 'invoice_issued', label: i.invoice_number, href: `/facturas/${i.id}`, sub: i.clients?.name }));
     invoicesDue.forEach(i => add(i.due_at, { type: 'invoice_due', label: i.invoice_number, href: `/facturas/${i.id}`, sub: i.clients?.name }));
     payments.forEach(p => add(p.paid_at, { type: 'payment', label: fmt(p.amount), href: `/facturas/${p.invoice_id}`, sub: p.invoices?.invoice_number }));
     retenciones.forEach(r => add(r.fecha, { type: 'retencion', label: fmt(r.retencion_aplicada), href: '/accounting/retenciones?tab=cliente', sub: r.clients?.name }));
     return map;
-  }, [jobs, invoicesIssued, invoicesDue, payments, retenciones]);
+  }, [jobs, visits, calendarEvents, tasks, absences, invoicesIssued, invoicesDue, payments, retenciones, calendarHref]);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
