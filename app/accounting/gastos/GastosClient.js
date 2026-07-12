@@ -73,6 +73,7 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
         (r.jobs?.title ?? '').toLowerCase().includes(query) ||
         (r.jobs?.job_number ?? '').toLowerCase().includes(query))
     : rows;
+  const visibleTotal = visibleRows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
 
   return (
     <div>
@@ -149,6 +150,15 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'right', fontWeight: 700, color: 'var(--muted)' }}>
+                    {query ? `Total (${visibleRows.length} coincidencia${visibleRows.length === 1 ? '' : 's'}):` : 'Total:'}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(visibleTotal)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
