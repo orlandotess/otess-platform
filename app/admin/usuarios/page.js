@@ -1,32 +1,13 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { getCurrentRole } from '../../../lib/supabase-server';
 import Sidebar from '../../Sidebar';
 import UsersClient from './UsersClient';
 
-const supabaseUrl = 'https://zisidorwdhrttmdppnbj.supabase.co';
-const supabaseAnonKey = 'sb_publishable_wL7A9THCYwVcyu3t6uk-3Q_Vt09bJzn';
-
 export default async function UsuariosPage() {
-  const cookieStore = await cookies();
-  const authClient = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      get(name) { return cookieStore.get(name)?.value; },
-      set() {},
-      remove() {},
-    },
-  });
-
-  const { data: { user } } = await authClient.auth.getUser();
-
-  let currentRole = 'tecnico';
-  if (user) {
-    const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    currentRole = myProfile?.role ?? 'tecnico';
-  }
+  const currentRole = (await getCurrentRole()) ?? 'tecnico';
 
   const { data: profiles } = await supabase
     .from('profiles')

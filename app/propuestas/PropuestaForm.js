@@ -150,7 +150,8 @@ export default function PropuestaForm({ initialData = null }) {
     if (!isEdit) {
       supabase.auth.getSession().then(async ({ data: { session } }) => {
         if (!session) return;
-        const { data: profile } = await supabase.from('profiles').select('name').eq('id', session.user.id).single();
+        // profiles.id doesn't always match auth.users.id in this app — look up by email.
+        const { data: profile } = await supabase.from('profiles').select('name').eq('email', session.user.email).single();
         if (profile?.name) setPreparedBy(profile.name);
       });
     }
