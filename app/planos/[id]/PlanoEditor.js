@@ -303,6 +303,20 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     }
   }
 
+  function adjustMarkerScale(id, delta) {
+    const marker = markerById(id);
+    const current = marker?.icon_scale ?? 1;
+    const next = Math.min(2, Math.max(0.5, Math.round((current + delta) * 100) / 100));
+    if (next === current) return;
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, icon_scale: next } : m));
+    supabase.from('floor_plan_markers').update({ icon_scale: next }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setMarkers(prev => prev.map(m => m.id === id ? { ...m, icon_scale: current } : m));
+        alert('No se pudo guardar el tamaño, se revirtió: ' + error.message);
+      }
+    });
+  }
+
   function updateMarkerModel(id, model) {
     setMarkers(prev => prev.map(m => m.id === id ? { ...m, model } : m));
   }
@@ -627,6 +641,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
             {markers.map(m => {
               const cx = m.pos_x * W, cy = m.pos_y * H;
+              const size = iconSize * (m.icon_scale ?? 1);
               const customIcon = m.custom_icon_id ? customIconsState.find(ic => ic.id === m.custom_icon_id) : null;
               const isSelected = selectedMarkerId === m.id;
               return (
@@ -637,11 +652,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   onPointerDown={e => handleMarkerPointerDown(e, m)}
                   style={{ cursor: mode === 'select' ? 'grab' : 'pointer' }}
                 >
-                  <circle r={iconSize * 0.75} fill="#fff" stroke={isSelected ? 'var(--amber)' : '#c7cbd4'} strokeWidth={isSelected ? iconSize * 0.08 : iconSize * 0.04} />
+                  <circle r={size * 0.75} fill="#fff" stroke={isSelected ? 'var(--amber)' : '#c7cbd4'} strokeWidth={isSelected ? size * 0.08 : size * 0.04} />
                   {customIcon?.url ? (
-                    <image href={customIcon.url} x={-iconSize / 2} y={-iconSize / 2} width={iconSize} height={iconSize} preserveAspectRatio="xMidYMid meet" />
+                    <image href={customIcon.url} x={-size / 2} y={-size / 2} width={size} height={size} preserveAspectRatio="xMidYMid meet" />
                   ) : (
-                    <svg x={-iconSize / 2} y={-iconSize / 2} width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke={getEquipmentType(m.equipment_type)?.color || '#16223d'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <svg x={-size / 2} y={-size / 2} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={getEquipmentType(m.equipment_type)?.color || '#16223d'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       {getEquipmentType(m.equipment_type)?.icon}
                     </svg>
                   )}
@@ -681,6 +696,18 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 placeholder="Modelo (ej: APC AR3100)"
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Tamaño del ícono</span>
+                <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px', marginLeft: 'auto' }}
+                  disabled={(selectedMarker.icon_scale ?? 1) <= 0.5}
+                  onClick={() => adjustMarkerScale(selectedMarker.id, -0.25)}>−</button>
+                <span style={{ fontSize: 12, fontWeight: 700, minWidth: 34, textAlign: 'center' }}>
+                  {Math.round((selectedMarker.icon_scale ?? 1) * 100)}%
+                </span>
+                <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px' }}
+                  disabled={(selectedMarker.icon_scale ?? 1) >= 2}
+                  onClick={() => adjustMarkerScale(selectedMarker.id, 0.25)}>+</button>
+              </div>
               {photoUrls[selectedMarker.id] ? (
                 <div style={{ marginBottom: 8 }}>
                   <img
