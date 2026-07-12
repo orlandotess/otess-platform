@@ -22,7 +22,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
   const W = plan.image_width || FALLBACK_W;
   const H = plan.image_height || FALLBACK_H;
-  const iconSize = Math.max(W, H) * 0.035;
+  const iconSize = Math.max(W, H) * 0.022;
 
   const [planState, setPlanState] = useState(plan);
   const [markers, setMarkers] = useState(initialMarkers);

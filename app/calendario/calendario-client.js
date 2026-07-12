@@ -646,7 +646,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--danger-tint)', color: 'var(--warn)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                          🚫 {a.technicians?.name ?? 'Técnico'} ausente
+                          <span style={{ fontSize: 9 }}>🚫</span> {a.technicians?.name ?? 'Técnico'} ausente
                         </div>
                       ))}
                       {dayVisits.slice(0, Math.max(2 - dayAbsences.length, 0)).map(v => (
@@ -654,7 +654,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                          👁 {v.requests?.title ?? 'Visita'}
+                          <span style={{ fontSize: 9 }}>👁</span> {v.requests?.title ?? 'Visita'}
                         </div>
                       ))}
                       {dayJobs.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length, 0)).map(j => (
@@ -676,7 +676,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: canQuickReschedule ? 'grab' : 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                          {ENTRY_TYPE_ICONS.event} {e.title}
+                          <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS.event}</span> {e.title}
                         </div>
                       ))}
                       {dayTasks.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(t => (
@@ -687,7 +687,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: canQuickReschedule ? 'grab' : 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', textDecoration: t.completed ? 'line-through' : 'none',
                             background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                          {ENTRY_TYPE_ICONS[t.task_type]} {t.title}
+                          <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS[t.task_type]}</span> {t.title}
                         </div>
                       ))}
                       {dayTotal > 3 && <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>+{dayTotal - 3} más</div>}
@@ -727,7 +727,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--danger-tint)', color: 'var(--warn)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                          🚫 {a.technicians?.name ?? 'Técnico'}
+                          <span style={{ fontSize: 9 }}>🚫</span> {a.technicians?.name ?? 'Técnico'}
                         </div>
                       ))}
                     </div>
@@ -767,7 +767,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             <div key={`v${v.id}`} onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
                               style={{ background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)',
                                 borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                              👁 {v.requests?.title ?? 'Visita'}
+                              <span style={{ fontSize: 9 }}>👁</span> {v.requests?.title ?? 'Visita'}
                               <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(v.scheduled_at)}</div>
                             </div>
                           ))}
@@ -788,7 +788,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('event', e); }}
                               style={{ background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)',
                                 borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                              {ENTRY_TYPE_ICONS.event} {e.title}
+                              <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS.event}</span> {e.title}
                               <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(e.start_at)}</div>
                             </div>
                           ))}
@@ -797,7 +797,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                               style={{ background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)',
                                 textDecoration: t.completed ? 'line-through' : 'none',
                                 borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                              {ENTRY_TYPE_ICONS[t.task_type]} {t.title}
+                              <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS[t.task_type]}</span> {t.title}
                               <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(t.due_at)}</div>
                             </div>
                           ))}
