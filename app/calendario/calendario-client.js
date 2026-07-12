@@ -56,6 +56,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const [reschedulingJob, setReschedulingJob] = useState(false);
   const [rescheduleForm, setRescheduleForm] = useState({ start: '', end: '' });
   const [savingReschedule, setSavingReschedule] = useState(false);
+  const [quickReschedule, setQuickReschedule] = useState(null); // { type: 'job'|'event'|'task', item }
+  const [savingQuick, setSavingQuick] = useState(false);
 
   function openJobReschedule(job) {
     setRescheduleForm({ start: isoToLocalInput(job.scheduled_start), end: isoToLocalInput(job.scheduled_end) });
@@ -76,6 +78,38 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     setReschedulingJob(false);
     setSelectedJob(null);
     router.refresh();
+  }
+
+  async function saveQuickReschedule(form) {
+    const { type, item } = quickReschedule;
+    setSavingQuick(true);
+    let error;
+    if (type === 'task') {
+      ({ error } = await supabase.from('tasks').update({ due_at: localInputToIso(form.due) }).eq('id', item.id));
+    } else if (type === 'event') {
+      ({ error } = await supabase.from('calendar_events').update({
+        start_at: localInputToIso(form.start), end_at: localInputToIso(form.end),
+      }).eq('id', item.id));
+    } else {
+      // Extra work days live in job_schedule_days; the job's primary date range lives on jobs itself.
+      const table = item.schedule_day_id ? 'job_schedule_days' : 'jobs';
+      const targetId = item.schedule_day_id ?? item.id;
+      ({ error } = await supabase.from(table).update({
+        scheduled_start: localInputToIso(form.start), scheduled_end: localInputToIso(form.end),
+      }).eq('id', targetId));
+    }
+    setSavingQuick(false);
+    if (error) { alert('Error al mover la fecha: ' + error.message); return; }
+    setQuickReschedule(null);
+    router.refresh();
+  }
+
+  function viewQuickDetails() {
+    const { type, item } = quickReschedule;
+    setQuickReschedule(null);
+    if (type === 'job') setSelectedJob(item);
+    else if (type === 'event') setSelectedEvent(item);
+    else if (type === 'task') setSelectedTask(item);
   }
 
   const techColors = useMemo(() => {
@@ -385,6 +419,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       );
       if (error) { alert(error.message); return; }
       setAbsenceModal(false);
+      window.dispatchEvent(new Event('otess:absences-changed'));
       router.refresh();
     } finally {
       setSaving(false);
@@ -396,6 +431,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     if (error) { alert('Error al eliminar la ausencia: ' + error.message); return; }
     if (!data?.length) { alert('No se pudo eliminar la ausencia (sin permiso o ya fue eliminada). Refrescando...'); router.refresh(); return; }
     setSelectedAbsence(null);
+    window.dispatchEvent(new Event('otess:absences-changed'));
     router.refresh();
   }
 
@@ -561,7 +597,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         </div>
                       ))}
                       {dayJobs.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length, 0)).map(j => (
-                        <div key={j.id} onClick={(e) => { e.stopPropagation(); setSelectedJob(j); }}
+                        <div key={j.id} onClick={(e) => { e.stopPropagation(); setQuickReschedule({ type: 'job', item: j }); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff' }}>
@@ -569,7 +605,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         </div>
                       ))}
                       {dayEvents.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length - dayJobs.length, 0)).map(e => (
-                        <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); setSelectedEvent(e); }}
+                        <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); setQuickReschedule({ type: 'event', item: e }); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)' }}>
@@ -577,7 +613,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         </div>
                       ))}
                       {dayTasks.slice(0, Math.max(3 - dayAbsences.length - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(t => (
-                        <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); setSelectedTask(t); }}
+                        <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); setQuickReschedule({ type: 'task', item: t }); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', textDecoration: t.completed ? 'line-through' : 'none',
                             background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)' }}>
@@ -670,7 +706,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             const end = new Date(j.scheduled_end ?? j.scheduled_start);
                             const duration = Math.max((end - start) / 3600000, 0.5);
                             return (
-                              <div key={j.id} onClick={(e) => { e.stopPropagation(); setSelectedJob(j); }}
+                              <div key={j.id} onClick={(e) => { e.stopPropagation(); setQuickReschedule({ type: 'job', item: j }); }}
                                 style={{ background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff', borderRadius: 4, padding: '2px 6px',
                                   fontSize: 11, fontWeight: 600, cursor: 'pointer', height: `${Math.min(duration * 64, 60)}px`, overflow: 'hidden' }}>
                                 {j.title}
@@ -679,7 +715,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             );
                           })}
                           {hourEvents.map(e => (
-                            <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); setSelectedEvent(e); }}
+                            <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); setQuickReschedule({ type: 'event', item: e }); }}
                               style={{ background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)',
                                 borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden' }}>
                               {ENTRY_TYPE_ICONS.event} {e.title}
@@ -687,7 +723,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             </div>
                           ))}
                           {hourTasks.map(t => (
-                            <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); setSelectedTask(t); }}
+                            <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); setQuickReschedule({ type: 'task', item: t }); }}
                               style={{ background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)',
                                 textDecoration: t.completed ? 'line-through' : 'none',
                                 borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden' }}>
@@ -739,6 +775,17 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           saving={saving}
           onClose={() => setScheduleModal(null)}
           onSubmit={handleSchedule}
+        />
+      )}
+
+      {/* Quick reschedule: move a job/event/task's date without opening its full detail */}
+      {quickReschedule && (
+        <QuickRescheduleModal
+          data={quickReschedule}
+          saving={savingQuick}
+          onClose={() => setQuickReschedule(null)}
+          onSave={saveQuickReschedule}
+          onViewDetails={viewQuickDetails}
         />
       )}
 
@@ -1026,6 +1073,61 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       {lightbox && (
         <AttachmentLightbox item={lightbox.item} startIndex={lightbox.index} onClose={() => setLightbox(null)} />
       )}
+    </div>
+  );
+}
+
+function QuickRescheduleModal({ data, saving, onClose, onSave, onViewDetails }) {
+  const { type, item } = data;
+  const isTask = type === 'task';
+  const [form, setForm] = useState(() => isTask
+    ? { due: isoToLocalInput(item.due_at) }
+    : { start: isoToLocalInput(item.scheduled_start ?? item.start_at), end: isoToLocalInput(item.scheduled_end ?? item.end_at) });
+
+  const icon = type === 'event' ? ENTRY_TYPE_ICONS.event : type === 'task' ? ENTRY_TYPE_ICONS[item.task_type] : '🔧';
+  const subtitle = item.clients?.name ?? null;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+      onClick={onClose}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{icon} {item.title}</div>
+            {subtitle && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{subtitle}</div>}
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
+        </div>
+
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Mover fecha</div>
+        {isTask ? (
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label>Vence</label>
+            <input type="datetime-local" value={form.due} onChange={e => setForm(f => ({ ...f, due: e.target.value }))} />
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div className="form-group">
+              <label>Inicio</label>
+              <input type="datetime-local" value={form.start} onChange={e => setForm(f => ({ ...f, start: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label>Fin</label>
+              <input type="datetime-local" value={form.end} onChange={e => setForm(f => ({ ...f, end: e.target.value }))} />
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+          <button className="btn btn-primary" onClick={() => onSave(form)} disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
+            {saving ? 'Guardando...' : '💾 Guardar'}
+          </button>
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        </div>
+        <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={onViewDetails}>
+          Ver detalles →
+        </button>
+      </div>
     </div>
   );
 }

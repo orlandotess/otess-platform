@@ -102,13 +102,19 @@ export default function Sidebar() {
  }, []);
 
  // Ausencias del mes en curso, para el badge junto al link en "Administración".
+ // Se refresca al montar y cada vez que calendario-client.js dispara este evento tras crear/eliminar una ausencia.
  useEffect(() => {
-   const now = new Date();
-   const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-   supabase.from('technician_absences').select('id', { count: 'exact', head: true })
-     .gte('date', start).lte('date', end)
-     .then(({ count }) => setAbsenceCount(count ?? 0));
+   function fetchAbsenceCount() {
+     const now = new Date();
+     const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+     supabase.from('technician_absences').select('id', { count: 'exact', head: true })
+       .gte('date', start).lte('date', end)
+       .then(({ count }) => setAbsenceCount(count ?? 0));
+   }
+   fetchAbsenceCount();
+   window.addEventListener('otess:absences-changed', fetchAbsenceCount);
+   return () => window.removeEventListener('otess:absences-changed', fetchAbsenceCount);
  }, []);
 
  const badgeCounts = { '/admin/ausencias': absenceCount };
