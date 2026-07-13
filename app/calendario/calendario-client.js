@@ -324,13 +324,14 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     }
   }
 
-  async function handleCreateTask({ taskType, title, dateStr, time, technicianId, clientId, notes, checklistItems }) {
+  async function handleCreateTask({ taskType, title, dateStr, time, technicianId, clientId, notes, address, checklistItems }) {
     setSaving(true);
     try {
       const { data: task, error } = await supabase.from('tasks').insert({
         task_type: taskType,
         title,
         notes: notes || null,
+        address: address || null,
         due_at: new Date(`${dateStr}T${time}:00`).toISOString(),
         technician_id: technicianId || null,
         client_id: clientId || null,
@@ -377,13 +378,14 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     }
   }
 
-  async function handleUpdateTask({ id, taskType, title, dateStr, time, technicianId, clientId, notes }) {
+  async function handleUpdateTask({ id, taskType, title, dateStr, time, technicianId, clientId, notes, address }) {
     setSaving(true);
     try {
       const { error } = await supabase.from('tasks').update({
         task_type: taskType,
         title,
         notes: notes || null,
+        address: address || null,
         due_at: new Date(`${dateStr}T${time}:00`).toISOString(),
         technician_id: technicianId || null,
         client_id: clientId || null,
@@ -1080,6 +1082,11 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 ['Tipo', selectedTask.task_type === 'checklist' ? 'Checklist' : 'Recordatorio'],
                 ['Técnico', selectedTask.technicians?.name ?? '— Sin asignar —'],
                 ['Vence', new Date(selectedTask.due_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
+                ...(selectedTask.address ? [['Dirección', (
+                  <a href={pickMapsLink(selectedTask.address)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--amber)', fontWeight: 600 }}>
+                    📍 {selectedTask.address}
+                  </a>
+                )]] : []),
                 ['Notas', selectedTask.notes || '—'],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 12 }}>
@@ -1192,6 +1199,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           data={taskModal}
           technicians={technicians}
           clients={clients}
+          clientProperties={clientProperties}
           saving={saving}
           onClose={() => setTaskModal(null)}
           onSubmit={taskModal.editing ? handleUpdateTask : handleCreateTask}
@@ -1433,7 +1441,7 @@ function AbsenceModal({ technicians, saving, onClose, onSubmit }) {
   );
 }
 
-function TaskModal({ data, technicians, clients, saving, onClose, onSubmit }) {
+function TaskModal({ data, technicians, clients, clientProperties, saving, onClose, onSubmit }) {
   const editing = data.editing;
   const localDue = editing ? isoToLocalInput(editing.due_at) : null;
   const [taskType, setTaskType] = useState(editing?.task_type ?? 'reminder');
@@ -1442,11 +1450,21 @@ function TaskModal({ data, technicians, clients, saving, onClose, onSubmit }) {
   const [time, setTime] = useState(editing ? localDue.slice(11, 16) : (data.time ?? '09:00'));
   const [technicianId, setTechnicianId] = useState(editing?.technician_id ?? '');
   const [clientId, setClientId] = useState(editing?.client_id ?? '');
+  const [propertyId, setPropertyId] = useState('');
   const [notes, setNotes] = useState(editing?.notes ?? '');
+  const [address, setAddress] = useState(editing?.address ?? '');
   const [checklistItems, setChecklistItems] = useState(['']);
 
   const canSubmit = title.trim() && dateStr && time
     && (editing || taskType !== 'checklist' || checklistItems.some(i => i.trim()));
+
+  const clientProps = (clientProperties ?? []).filter(p => p.client_id === clientId);
+
+  function selectProperty(id) {
+    setPropertyId(id);
+    const p = clientProps.find(p => p.id === id);
+    if (p) setAddress([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '));
+  }
 
   function updateItem(i, value) {
     setChecklistItems(items => items.map((it, idx) => idx === i ? value : it));
@@ -1501,7 +1519,21 @@ function TaskModal({ data, technicians, clients, saving, onClose, onSubmit }) {
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Cliente (opcional)</label>
-            <ClientCombobox clients={clients} value={clientId} onChange={setClientId} />
+            <ClientCombobox clients={clients} value={clientId} onChange={id => { setClientId(id); setPropertyId(''); }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Dirección (opcional)</label>
+            {clientProps.length > 0 && (
+              <select value={propertyId} onChange={e => selectProperty(e.target.value)} className="input" style={{ width: '100%', marginBottom: 6 }}>
+                <option value="">— Escoger propiedad del cliente —</option>
+                {clientProps.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name ? `${p.name} — ` : ''}{[p.street, p.city].filter(Boolean).join(', ')}{p.is_primary ? ' (Principal)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            <input value={address} onChange={e => setAddress(e.target.value)} className="input" style={{ width: '100%' }} placeholder="Ej. 123 Calle Sol, San Juan, PR" />
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Notas</label>
@@ -1533,7 +1565,7 @@ function TaskModal({ data, technicians, clients, saving, onClose, onSubmit }) {
           disabled={!canSubmit || saving}
           onClick={() => onSubmit({
             id: editing?.id,
-            taskType, title: title.trim(), dateStr, time, technicianId, clientId, notes,
+            taskType, title: title.trim(), dateStr, time, technicianId, clientId, notes, address: address.trim(),
             checklistItems: editing ? [] : checklistItems.map(i => i.trim()).filter(Boolean),
           })}>
           {saving ? 'Guardando...' : (editing ? 'Guardar cambios' : 'Crear tarea')}

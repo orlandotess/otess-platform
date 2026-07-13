@@ -60,7 +60,7 @@ export default async function CalendarioPage({ searchParams }) {
 
   const { data: tasksRaw } = await supabase
     .from('tasks')
-    .select('id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name), technicians(name), task_items(id, text, done, sort_order, attachments)')
+    .select('id, task_type, title, notes, address, due_at, client_id, technician_id, completed, clients(name), technicians(name), task_items(id, text, done, sort_order, attachments)')
     .order('due_at');
 
   // Resolve a signed URL (1h) for each stored attachment path so images/videos can render inline.
