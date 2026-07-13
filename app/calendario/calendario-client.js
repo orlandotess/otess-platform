@@ -61,6 +61,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const [savingReschedule, setSavingReschedule] = useState(false);
   const [quickReschedule, setQuickReschedule] = useState(null); // { type: 'job'|'event'|'task', item }
   const [savingQuick, setSavingQuick] = useState(false);
+  const [dayDetail, setDayDetail] = useState(null); // dateStr
 
   function openJobReschedule(job) {
     setRescheduleForm({ start: isoToLocalInput(job.scheduled_start), end: isoToLocalInput(job.scheduled_end) });
@@ -583,10 +584,12 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                     {Array.from({ length: daysInMonth }, (_, i) => {
                       const dateStr = `${mStr}-${String(i + 1).padStart(2, '0')}`;
                       const hasItems = getJobsForDate(dateStr).length > 0 || getVisitsForDate(dateStr).length > 0
-                        || getEventsForDate(dateStr).length > 0 || getTasksForDate(dateStr).length > 0;
+                        || getEventsForDate(dateStr).length > 0 || getTasksForDate(dateStr).length > 0
+                        || getAbsencesForDate(dateStr).length > 0;
                       const isToday = dateStr === today;
                       return (
-                        <div key={i} style={{ textAlign: 'center', fontSize: 10, borderRadius: 4, padding: '2px 0',
+                        <div key={i} onClick={(e) => { if (hasItems) { e.stopPropagation(); setDayDetail(dateStr); } }}
+                          style={{ textAlign: 'center', fontSize: 10, borderRadius: 4, padding: '2px 0', cursor: hasItems ? 'pointer' : 'default',
                           background: isToday ? 'var(--navy)' : hasItems ? 'var(--amber)' : 'transparent',
                           color: isToday || hasItems ? '#fff' : 'var(--text)', fontWeight: hasItems ? 700 : 400 }}>
                           {i + 1}
@@ -640,7 +643,9 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       onDragOver={(e) => { if (cell.current) { e.preventDefault(); setDragOverDate(cell.date); } }}
                       onDragLeave={() => { if (dragOverDate === cell.date) setDragOverDate(null); }}
                       onDrop={(e) => { if (cell.current) { e.preventDefault(); handleDayDrop(cell.date); } }}>
-                      <div style={{ fontSize: 13, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)', marginBottom: 4 }}>{cell.day}</div>
+                      <div onClick={(e) => { if (cell.current && dayTotal > 0) { e.stopPropagation(); setDayDetail(cell.date); } }}
+                        style={{ fontSize: 13, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)', marginBottom: 4,
+                          cursor: cell.current && dayTotal > 0 ? 'pointer' : 'inherit', width: 'fit-content' }}>{cell.day}</div>
                       {dayAbsences.slice(0, 3).map(a => (
                         <div key={`a${a.id}`} onClick={(e) => { e.stopPropagation(); setSelectedAbsence(a); }}
                           style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
@@ -690,7 +695,12 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS[t.task_type]}</span> {t.title}
                         </div>
                       ))}
-                      {dayTotal > 3 && <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>+{dayTotal - 3} más</div>}
+                      {dayTotal > 3 && (
+                        <div onClick={(e) => { e.stopPropagation(); setDayDetail(cell.date); }}
+                          style={{ fontSize: 10, color: 'var(--navy)', fontWeight: 700, cursor: 'pointer', width: 'fit-content' }}>
+                          +{dayTotal - 3} más
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -710,8 +720,10 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 <div style={{ borderBottom: '2px solid var(--border)', padding: '8px 0' }} />
                 {weekDays.map((d, i) => {
                   const isToday = fmtDate(d) === today;
+                  const dateStr = fmtDate(d);
                   return (
-                    <div key={i} style={{ textAlign: 'center', padding: '8px 4px', borderBottom: '2px solid var(--border)', background: isToday ? 'var(--info-tint)' : 'transparent' }}>
+                    <div key={i} onClick={() => setDayDetail(dateStr)}
+                      style={{ textAlign: 'center', padding: '8px 4px', borderBottom: '2px solid var(--border)', background: isToday ? 'var(--info-tint)' : 'transparent', cursor: 'pointer' }}>
                       <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>{DAYS_SHORT[d.getDay()]}</div>
                       <div style={{ fontSize: 18, fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--navy)' : 'var(--text)' }}>{d.getDate()}</div>
                     </div>
@@ -860,6 +872,55 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           onViewDetails={viewQuickDetails}
         />
       )}
+
+      {/* Day detail modal */}
+      {dayDetail && (() => {
+        const dItems = [
+          ...getAbsencesForDate(dayDetail).map(a => ({ type: 'absence', item: a, time: null, label: `🚫 ${a.technicians?.name ?? 'Técnico'} ausente`, color: 'var(--warn)' })),
+          ...getVisitsForDate(dayDetail).map(v => ({ type: 'visit', item: v, time: v.scheduled_at, label: `👁 ${v.requests?.title ?? 'Visita'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)' })),
+          ...getJobsForDate(dayDetail).map(j => ({ type: 'job', item: j, time: j.scheduled_start, label: j.title, color: techColors[j.technician_id] ?? 'var(--ink-faint)' })),
+          ...getEventsForDate(dayDetail).map(e => ({ type: 'event', item: e, time: e.start_at, label: `${ENTRY_TYPE_ICONS.event} ${e.title}`, color: techColors[e.technician_id] ?? 'var(--navy)' })),
+          ...getTasksForDate(dayDetail).map(t => ({ type: 'task', item: t, time: t.due_at, label: `${ENTRY_TYPE_ICONS[t.task_type]} ${t.title}`, color: techColors[t.technician_id] ?? 'var(--muted)' })),
+        ].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''));
+
+        const handleItemClick = (di) => {
+          setDayDetail(null);
+          if (di.type === 'absence') setSelectedAbsence(di.item);
+          else if (di.type === 'visit') setSelectedVisit(di.item);
+          else openEntry(di.type, di.item);
+        };
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+            onClick={() => setDayDetail(null)}>
+            <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', textTransform: 'capitalize' }}>
+                  {new Date(`${dayDetail}T00:00:00`).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </div>
+                <button onClick={() => setDayDetail(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
+              </div>
+              <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {dItems.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 13 }}>No hay nada programado.</div>}
+                {dItems.map((di, i) => (
+                  <div key={`${di.type}-${di.item.id}-${i}`} onClick={() => handleItemClick(di)}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                      border: `1px solid ${di.color}`, background: 'var(--bg)' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: di.color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{di.label}</span>
+                    {di.time && <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0, marginLeft: 8 }}>{fmtTime(di.time)}</span>}
+                  </div>
+                ))}
+              </div>
+              {canScheduleVisit && (
+                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}
+                  onClick={() => { const d = dayDetail; setDayDetail(null); setScheduleModal({ dateStr: d, time: '09:00' }); }}>
+                  + Agendar visita
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Job detail modal */}
       {selectedJob && (
