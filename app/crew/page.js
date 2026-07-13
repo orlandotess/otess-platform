@@ -215,6 +215,32 @@ export default function FieldApp() {
   const [techTasks, setTechTasks] = useState([]);
   const [techVisits, setTechVisits] = useState([]);
   const [detailEntry, setDetailEntry] = useState(null); // { kind, raw } — simple read-only view for event/task/visit
+  const [detailEntryNotes, setDetailEntryNotes] = useState([]);
+  const [newEntryNoteText, setNewEntryNoteText] = useState('');
+  const [savingEntryNote, setSavingEntryNote] = useState(false);
+
+  useEffect(() => {
+    setNewEntryNoteText('');
+    if (!detailEntry || (detailEntry._kind !== 'event' && detailEntry._kind !== 'task')) { setDetailEntryNotes([]); return; }
+    const table = detailEntry._kind === 'event' ? 'calendar_event_notes' : 'task_notes';
+    const fkColumn = detailEntry._kind === 'event' ? 'event_id' : 'task_id';
+    supabase.from(table).select('*').eq(fkColumn, detailEntry._raw.id)
+      .order('created_at', { ascending: false }).then(({ data }) => setDetailEntryNotes(data ?? []));
+  }, [detailEntry?._kind, detailEntry?._raw?.id]);
+
+  async function addDetailEntryNote() {
+    if (!newEntryNoteText.trim()) return;
+    setSavingEntryNote(true);
+    const table = detailEntry._kind === 'event' ? 'calendar_event_notes' : 'task_notes';
+    const fkColumn = detailEntry._kind === 'event' ? 'event_id' : 'task_id';
+    const { data, error } = await supabase.from(table).insert([{
+      [fkColumn]: detailEntry._raw.id, note: newEntryNoteText.trim(), author_name: techName,
+    }]).select().single();
+    setSavingEntryNote(false);
+    if (error) { alert(error.message); return; }
+    setNewEntryNoteText('');
+    setDetailEntryNotes(prev => [data, ...prev]);
+  }
 
   // Clientes state
   const [clientSearch, setClientSearch] = useState('');
@@ -1994,7 +2020,7 @@ export default function FieldApp() {
           clock-in/photos/expenses, since those actions are job-specific. */}
       {detailEntry && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 1000 }} onClick={() => setDetailEntry(null)}>
-          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px calc(24px + env(safe-area-inset-bottom,0px))', width: '100%', maxWidth: 430, margin: '0 auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px calc(24px + env(safe-area-inset-bottom,0px))', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto', margin: '0 auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 18, flex: 1 }}>{detailEntry.title}</div>
               <button onClick={() => setDetailEntry(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#888', cursor: 'pointer' }}>×</button>
@@ -2009,6 +2035,30 @@ export default function FieldApp() {
               <a href={pickMapsLink(detailEntry._raw.address)} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 13, color: ORANGE, marginBottom: 6, fontWeight: 600 }}>📍 {detailEntry._raw.address}</a>
             )}
             {detailEntry._raw.notes && <div style={{ fontSize: 13, color: '#888', marginTop: 8, whiteSpace: 'pre-wrap' }}>{detailEntry._raw.notes}</div>}
+            {(detailEntry._kind === 'event' || detailEntry._kind === 'task') && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 13, color: '#555', fontWeight: 700, marginBottom: 8 }}>📝 Notas</div>
+                <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 180, overflowY: 'auto' }}>
+                  {detailEntryNotes.map(n => (
+                    <div key={n.id} style={{ background: '#f7f7f7', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>
+                      <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                        {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input value={newEntryNoteText} onChange={e => setNewEntryNoteText(e.target.value)} placeholder="Add a note..."
+                    style={{ flex: 1, borderRadius: 8, border: '1px solid #ddd', padding: '10px 12px', fontSize: 14 }}
+                    onKeyDown={e => { if (e.key === 'Enter') addDetailEntryNote(); }} />
+                  <button onClick={addDetailEntryNote} disabled={savingEntryNote || !newEntryNoteText.trim()}
+                    style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '0 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                    {savingEntryNote ? '...' : 'Add'}
+                  </button>
+                </div>
+              </div>
+            )}
             {detailEntry._kind === 'task' && (
               <button
                 onClick={async () => {

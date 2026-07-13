@@ -32,7 +32,7 @@ const DAYS_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
 const ENTRY_TYPE_ICONS = { event: '📌', reminder: '🔔', checklist: '☑' };
 
-export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, clientProperties, pendingRequests, currentRole, initialView, initialYear, initialMonth, initialWeek }) {
+export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, clientProperties, pendingRequests, currentRole, currentUserName, initialView, initialYear, initialMonth, initialWeek }) {
   const router = useRouter();
   const canQuickReschedule = currentRole === 'admin';
   const canScheduleVisit = currentRole === 'admin' || currentRole === 'secretaria';
@@ -62,6 +62,68 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const [quickReschedule, setQuickReschedule] = useState(null); // { type: 'job'|'event'|'task', item }
   const [savingQuick, setSavingQuick] = useState(false);
   const [dayDetail, setDayDetail] = useState(null); // dateStr
+
+  const [eventNotes, setEventNotes] = useState([]);
+  const [taskNotes, setTaskNotes] = useState([]);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+
+  useEffect(() => {
+    setNewNoteText('');
+    if (!selectedEvent) { setEventNotes([]); return; }
+    supabase.from('calendar_event_notes').select('*').eq('event_id', selectedEvent.id)
+      .order('created_at', { ascending: false }).then(({ data }) => setEventNotes(data ?? []));
+  }, [selectedEvent?.id]);
+
+  useEffect(() => {
+    setNewNoteText('');
+    if (!selectedTask) { setTaskNotes([]); return; }
+    supabase.from('task_notes').select('*').eq('task_id', selectedTask.id)
+      .order('created_at', { ascending: false }).then(({ data }) => setTaskNotes(data ?? []));
+  }, [selectedTask?.id]);
+
+  async function addEntryNote(kind, id) {
+    if (!newNoteText.trim()) return;
+    setSavingNote(true);
+    const table = kind === 'event' ? 'calendar_event_notes' : 'task_notes';
+    const fkColumn = kind === 'event' ? 'event_id' : 'task_id';
+    const { data, error } = await supabase.from(table).insert([{
+      [fkColumn]: id, note: newNoteText.trim(), author_name: currentUserName || null,
+    }]).select().single();
+    setSavingNote(false);
+    if (error) { alert(error.message); return; }
+    setNewNoteText('');
+    if (kind === 'event') setEventNotes(prev => [data, ...prev]);
+    else setTaskNotes(prev => [data, ...prev]);
+  }
+
+  function renderEntryNotes(kind, notes) {
+    const id = kind === 'event' ? selectedEvent?.id : selectedTask?.id;
+    return (
+      <div style={{ marginTop: 4, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600, marginBottom: 8 }}>📝 Notas</div>
+        {notes.length === 0 && <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>Sin notas todavía.</div>}
+        <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 180, overflowY: 'auto' }}>
+          {notes.map(n => (
+            <div key={n.id} style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+              <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('es-PR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input value={newNoteText} onChange={e => setNewNoteText(e.target.value)} placeholder="Agregar nota..."
+            style={{ flex: 1, borderRadius: 8, border: '1px solid var(--border)', padding: '8px 10px', fontSize: 13 }}
+            onKeyDown={e => { if (e.key === 'Enter') addEntryNote(kind, id); }} />
+          <button className="btn btn-ghost" disabled={savingNote || !newNoteText.trim()} onClick={() => addEntryNote(kind, id)}>
+            {savingNote ? '...' : 'Agregar'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   function openJobReschedule(job) {
     setRescheduleForm({ start: isoToLocalInput(job.scheduled_start), end: isoToLocalInput(job.scheduled_end) });
@@ -1052,6 +1114,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 </div>
               ))}
             </div>
+            {renderEntryNotes('event', eventNotes)}
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
                 onClick={() => { setEventModal({ editing: selectedEvent }); setSelectedEvent(null); }}>
@@ -1112,6 +1175,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 ))}
               </div>
             )}
+            {renderEntryNotes('task', taskNotes)}
             {selectedTask.client_id && (
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
                 onClick={() => setAddToJobModal(true)}>
