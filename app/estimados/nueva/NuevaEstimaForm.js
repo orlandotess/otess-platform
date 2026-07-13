@@ -21,8 +21,11 @@ export default function NuevaEstimaForm() {
   const [clients, setClients] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
+  const [properties, setProperties] = useState([]);
+  const [propertyMode, setPropertyMode] = useState('none'); // none | existing | new
+  const [newProperty, setNewProperty] = useState({ name: '', street: '', city: '', state: 'PR', zip: '' });
   const [form, setForm] = useState({
-    client_id: '', job_id: '', notes: '', bill_to: 'person', terms: DEFAULT_TERMS,
+    client_id: '', job_id: '', property_id: '', notes: '', bill_to: 'person', terms: DEFAULT_TERMS,
     issued_at: new Date().toISOString().split('T')[0],
     valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
@@ -36,6 +39,12 @@ export default function NuevaEstimaForm() {
     supabase.from('jobs').select('id, title, client_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
+
+  useEffect(() => {
+    if (!form.client_id) { setProperties([]); return; }
+    supabase.from('client_properties').select('*').eq('client_id', form.client_id).order('is_primary', { ascending: false })
+      .then(({ data }) => setProperties(data ?? []));
+  }, [form.client_id]);
 
   useEffect(() => {
     if (jobIdParam && jobs.length) {
@@ -107,7 +116,25 @@ export default function NuevaEstimaForm() {
     e.preventDefault();
     if (!form.client_id) { setError('Selecciona un cliente'); return; }
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
+    if (propertyMode === 'new' && !newProperty.name.trim()) { setError('Ponle un nombre a la propiedad nueva'); return; }
     setSaving(true); setError('');
+
+    let propertyId = null;
+    if (propertyMode === 'existing' && form.property_id) {
+      propertyId = form.property_id;
+    } else if (propertyMode === 'new') {
+      const { data: newProp, error: propErr } = await supabase.from('client_properties').insert([{
+        client_id: form.client_id,
+        name: newProperty.name.trim(),
+        street: newProperty.street || null,
+        city: newProperty.city || null,
+        state: newProperty.state || null,
+        zip: newProperty.zip || null,
+        is_primary: properties.length === 0,
+      }]).select().single();
+      if (propErr) { setError(propErr.message); setSaving(false); return; }
+      propertyId = newProp.id;
+    }
 
     const { data: allEstimates } = await supabase.from('estimates').select('estimate_number');
     let maxNum = 1000;
@@ -124,6 +151,7 @@ export default function NuevaEstimaForm() {
       estimate_number: estimateNumber,
       client_id: form.client_id,
       job_id: form.job_id || null,
+      property_id: propertyId,
       notes: form.notes || null,
       terms: form.terms || null,
       issued_at: form.issued_at,
@@ -182,7 +210,10 @@ export default function NuevaEstimaForm() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Cliente *</label>
-                  <ClientCombobox clients={clients} value={form.client_id} onChange={id => { set('client_id', id); set('bill_to', 'person'); }} />
+                  <ClientCombobox clients={clients} value={form.client_id} onChange={id => {
+                    set('client_id', id); set('bill_to', 'person'); set('property_id', '');
+                    setPropertyMode('none'); setNewProperty({ name: '', street: '', city: '', state: 'PR', zip: '' });
+                  }} />
                 </div>
                 <div className="form-group">
                   <label>Trabajo (opcional)</label>
@@ -226,6 +257,54 @@ export default function NuevaEstimaForm() {
                 <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Notas, condiciones de pago, etc..." />
               </div>
             </div>
+
+            {form.client_id && (
+              <div className="card">
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>📍 Propiedad (opcional)</p>
+                <div className="form-group">
+                  <label>Dirección del trabajo</label>
+                  <select
+                    value={propertyMode === 'existing' ? form.property_id : (propertyMode === 'new' ? '__new__' : '')}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (v === '__new__') { setPropertyMode('new'); set('property_id', ''); }
+                      else if (v === '') { setPropertyMode('none'); set('property_id', ''); }
+                      else { setPropertyMode('existing'); set('property_id', v); }
+                    }}>
+                    <option value="">— Sin propiedad —</option>
+                    {properties.map(p => <option key={p.id} value={p.id}>{p.name}{p.is_primary ? ' ★' : ''}</option>)}
+                    <option value="__new__">+ Dirección nueva</option>
+                  </select>
+                </div>
+                {propertyMode === 'new' && (
+                  <>
+                    <div className="form-group">
+                      <label>Nombre de la propiedad</label>
+                      <input value={newProperty.name} onChange={e => setNewProperty(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Oficina Principal, Almacén Caguas" />
+                    </div>
+                    <div className="form-group">
+                      <label>Dirección</label>
+                      <input value={newProperty.street} onChange={e => setNewProperty(p => ({ ...p, street: e.target.value }))} placeholder="Calle y número" />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
+                      <div className="form-group">
+                        <label>Ciudad</label>
+                        <input value={newProperty.city} onChange={e => setNewProperty(p => ({ ...p, city: e.target.value }))} placeholder="San Juan" />
+                      </div>
+                      <div className="form-group">
+                        <label>Estado</label>
+                        <input value={newProperty.state} onChange={e => setNewProperty(p => ({ ...p, state: e.target.value }))} placeholder="PR" />
+                      </div>
+                      <div className="form-group">
+                        <label>Zip</label>
+                        <input value={newProperty.zip} onChange={e => setNewProperty(p => ({ ...p, zip: e.target.value }))} placeholder="00901" />
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>Se guardará como propiedad del cliente para futuros estimados, facturas y trabajos.</p>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
