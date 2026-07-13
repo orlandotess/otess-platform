@@ -640,7 +640,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       <span style={{ background: 'var(--amber)', color: '#fff', borderRadius: 20, padding: '1px 8px', fontSize: 11, fontWeight: 700 }}>{monthCount}</span>
                     )}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
                     {['D','L','M','X','J','V','S'].map(d => (
                       <div key={d} style={{ fontSize: 9, color: 'var(--muted)', textAlign: 'center', fontWeight: 600 }}>{d}</div>
                     ))}
@@ -653,7 +653,9 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       const isToday = dateStr === today;
                       return (
                         <div key={i} onClick={(e) => { if (hasItems) { e.stopPropagation(); setDayDetail(dateStr); } }}
-                          style={{ textAlign: 'center', fontSize: 10, borderRadius: 4, padding: '2px 0', cursor: hasItems ? 'pointer' : 'default',
+                          style={{ textAlign: 'center', fontSize: 10.5, borderRadius: 4, padding: '4px 0', minHeight: 22, boxSizing: 'border-box',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: hasItems ? 'pointer' : 'default',
                           background: isToday ? 'var(--navy)' : hasItems ? 'var(--amber)' : 'transparent',
                           color: isToday || hasItems ? '#fff' : 'var(--text)', fontWeight: hasItems ? 700 : 400 }}>
                           {i + 1}
