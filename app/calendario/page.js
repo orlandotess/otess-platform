@@ -91,6 +91,11 @@ export default async function CalendarioPage({ searchParams }) {
     .select('id, name')
     .order('name');
 
+  const { data: clientProperties } = await supabase
+    .from('client_properties')
+    .select('id, client_id, name, street, city, state, zip, is_primary')
+    .order('is_primary', { ascending: false });
+
   // Client service requests waiting to be scheduled into a visit.
   const { data: pendingRequests } = await supabase
     .from('requests')
@@ -110,6 +115,7 @@ export default async function CalendarioPage({ searchParams }) {
           tasks={tasks ?? []}
           absences={absences ?? []}
           clients={clients ?? []}
+          clientProperties={clientProperties ?? []}
           pendingRequests={pendingRequests ?? []}
           currentRole={currentRole}
           initialView={view}

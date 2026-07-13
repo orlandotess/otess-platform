@@ -32,7 +32,7 @@ const DAYS_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
 const ENTRY_TYPE_ICONS = { event: '📌', reminder: '🔔', checklist: '☑' };
 
-export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, pendingRequests, currentRole, initialView, initialYear, initialMonth, initialWeek }) {
+export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, clientProperties, pendingRequests, currentRole, initialView, initialYear, initialMonth, initialWeek }) {
   const router = useRouter();
   const canQuickReschedule = currentRole === 'admin';
   const canScheduleVisit = currentRole === 'admin' || currentRole === 'secretaria';
@@ -1179,6 +1179,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           data={eventModal}
           technicians={technicians}
           clients={clients}
+          clientProperties={clientProperties}
           saving={saving}
           onClose={() => setEventModal(null)}
           onSubmit={eventModal.editing ? handleUpdateEvent : handleCreateEvent}
@@ -1273,7 +1274,7 @@ function ScheduleModal({ data, pendingRequests, technicians, saving, onClose, on
   );
 }
 
-function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
+function EventModal({ data, technicians, clients, clientProperties, saving, onClose, onSubmit }) {
   const editing = data.editing;
   const localStart = editing ? isoToLocalInput(editing.start_at) : null;
   const localEnd = editing ? isoToLocalInput(editing.end_at) : null;
@@ -1285,13 +1286,22 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
     ? [editing.technician_id, ...(editing.calendar_event_technicians ?? []).map(et => et.technician_id)].filter(Boolean)
     : []);
   const [clientId, setClientId] = useState(editing?.client_id ?? '');
+  const [propertyId, setPropertyId] = useState('');
   const [notes, setNotes] = useState(editing?.notes ?? '');
   const [address, setAddress] = useState(editing?.address ?? '');
 
   const canSubmit = title.trim() && dateStr && startTime && endTime;
 
+  const clientProps = (clientProperties ?? []).filter(p => p.client_id === clientId);
+
   function toggleTechnician(techId) {
     setTechnicianIds(ids => ids.includes(techId) ? ids.filter(id => id !== techId) : [...ids, techId]);
+  }
+
+  function selectProperty(id) {
+    setPropertyId(id);
+    const p = clientProps.find(p => p.id === id);
+    if (p) setAddress([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '));
   }
 
   return (
@@ -1339,10 +1349,20 @@ function EventModal({ data, technicians, clients, saving, onClose, onSubmit }) {
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Cliente (opcional)</label>
-            <ClientCombobox clients={clients} value={clientId} onChange={setClientId} />
+            <ClientCombobox clients={clients} value={clientId} onChange={id => { setClientId(id); setPropertyId(''); }} />
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Dirección (opcional)</label>
+            {clientProps.length > 0 && (
+              <select value={propertyId} onChange={e => selectProperty(e.target.value)} className="input" style={{ width: '100%', marginBottom: 6 }}>
+                <option value="">— Escoger propiedad del cliente —</option>
+                {clientProps.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name ? `${p.name} — ` : ''}{[p.street, p.city].filter(Boolean).join(', ')}{p.is_primary ? ' (Principal)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
             <input value={address} onChange={e => setAddress(e.target.value)} className="input" style={{ width: '100%' }} placeholder="Ej. 123 Calle Sol, San Juan, PR" />
           </div>
           <div>
