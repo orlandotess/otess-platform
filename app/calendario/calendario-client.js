@@ -640,14 +640,17 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       background: isDragOver ? 'var(--amber-tint)' : isToday ? 'var(--info-tint)' : 'var(--surface)',
                       border: isDragOver ? '2px dashed var(--amber)' : isToday ? '2px solid var(--navy)' : '1px solid var(--border)',
                       opacity: cell.current ? 1 : 0.4,
-                      boxSizing: 'border-box', overflow: 'hidden', position: 'relative', cursor: cell.current && canScheduleVisit ? 'pointer' : 'default' }}
-                      onClick={() => { if (cell.current && canScheduleVisit) setScheduleModal({ dateStr: cell.date, time: '09:00' }); }}
+                      boxSizing: 'border-box', overflow: 'hidden', position: 'relative',
+                      cursor: cell.current && (dayTotal > 0 || canScheduleVisit) ? 'pointer' : 'default' }}
+                      onClick={() => {
+                        if (!cell.current) return;
+                        if (dayTotal > 0) setDayDetail(cell.date);
+                        else if (canScheduleVisit) setScheduleModal({ dateStr: cell.date, time: '09:00' });
+                      }}
                       onDragOver={(e) => { if (cell.current) { e.preventDefault(); setDragOverDate(cell.date); } }}
                       onDragLeave={() => { if (dragOverDate === cell.date) setDragOverDate(null); }}
                       onDrop={(e) => { if (cell.current) { e.preventDefault(); handleDayDrop(cell.date); } }}>
-                      <div onClick={(e) => { if (cell.current && dayTotal > 0) { e.stopPropagation(); setDayDetail(cell.date); } }}
-                        style={{ fontSize: 13, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)', marginBottom: 4,
-                          cursor: cell.current && dayTotal > 0 ? 'pointer' : 'inherit', width: 'fit-content' }}>{cell.day}</div>
+                      <div style={{ fontSize: 13, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)', marginBottom: 4, width: 'fit-content' }}>{cell.day}</div>
                       {dayAbsences.slice(0, 3).map(a => (
                         <div key={`a${a.id}`} onClick={(e) => { e.stopPropagation(); setSelectedAbsence(a); }}
                           style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
