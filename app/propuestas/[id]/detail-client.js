@@ -22,6 +22,8 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
   const [cloning, setCloning] = useState(false);
+  const [archivedAt, setArchivedAt] = useState(proposal.archived_at);
+  const [archiving, setArchiving] = useState(false);
 
   const menuItemStyle = { display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' };
 
@@ -175,6 +177,17 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     }
   }
 
+  async function toggleArchive() {
+    setArchiving(true);
+    const newValue = archivedAt ? null : new Date().toISOString();
+    const { error } = await supabase.from('proposals').update({ archived_at: newValue }).eq('id', proposal.id);
+    setArchiving(false);
+    if (error) { alert('Error al archivar la propuesta: ' + error.message); return; }
+    setArchivedAt(newValue);
+    setMenuOpen(false);
+    router.refresh();
+  }
+
   function copyLink() {
     navigator.clipboard.writeText(publicUrl);
     setCopied(true);
@@ -212,6 +225,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
           <span className={`badge ${STATUS_BADGE[status] ?? 'badge-gray'}`}>
             {STATUS_LABELS[status] ?? status}
           </span>
+          {archivedAt && <span className="badge badge-gray">📦 Archivada</span>}
           {['borrador', 'enviada', 'vista', 'cambios_requeridos'].includes(status) && (
             <Link href={`/propuestas/${proposal.id}/editar`} className="btn btn-ghost">✏️ Editar</Link>
           )}
@@ -243,6 +257,9 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                   )}
                   <button type="button" disabled={cloning} onClick={cloneProposal} style={menuItemStyle}>
                     {cloning ? '⏳ Clonando...' : '📄 Clonar propuesta'}
+                  </button>
+                  <button type="button" disabled={archiving} onClick={toggleArchive} style={menuItemStyle}>
+                    {archiving ? '⏳ Guardando...' : archivedAt ? '📤 Desarchivar' : '📦 Archivar'}
                   </button>
                   <div style={{ position: 'relative' }}>
                     <button type="button" onClick={() => setStatusMenuOpen(o => !o)} style={menuItemStyle}>

@@ -9,10 +9,12 @@ const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'ba
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', cambios_requeridos: 'Cambios requeridos', expirada: 'Expirada', aprobada: 'Aprobada', rechazada: 'Rechazada', completada: 'Completada' };
 const EXPIRABLE_STATUSES = ['enviada', 'vista', 'cambios_requeridos'];
 
-export default async function PropuestasPage() {
+export default async function PropuestasPage({ searchParams }) {
+  const showArchived = searchParams?.archived === '1';
+
   const { data: proposals } = await supabase
     .from('proposals')
-    .select('id, proposal_number, title, status, valid_until, created_at, sent_at, approved_at, clients(name), proposal_options(id, name, is_recommended, proposal_line_items(quantity, unit_price))')
+    .select('id, proposal_number, title, status, valid_until, archived_at, created_at, sent_at, approved_at, clients(name), proposal_options(id, name, is_recommended, proposal_line_items(quantity, unit_price))')
     .order('created_at', { ascending: false });
 
   const today = new Date().toISOString().split('T')[0];
@@ -23,7 +25,10 @@ export default async function PropuestasPage() {
     (proposals ?? []).forEach(p => { if (expiredIds.has(p.id)) p.status = 'expirada'; });
   }
 
-  const rows = (proposals ?? []).map(p => {
+  const archivedCount = (proposals ?? []).filter(p => p.archived_at).length;
+  const visible = (proposals ?? []).filter(p => showArchived ? !!p.archived_at : !p.archived_at);
+
+  const rows = visible.map(p => {
     const totals = (p.proposal_options ?? []).map(o => ({
       name: o.name,
       total: (o.proposal_line_items ?? []).reduce((sum, li) => sum + (li.quantity || 0) * (li.unit_price || 0), 0),
@@ -37,7 +42,12 @@ export default async function PropuestasPage() {
       <main className="main-content">
         <div className="page-header">
           <div className="page-title">Propuestas</div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {showArchived ? (
+              <Link href="/propuestas" className="btn btn-ghost">← Ver activas</Link>
+            ) : (
+              <Link href="/propuestas?archived=1" className="btn btn-ghost">📦 Ver archivadas{archivedCount ? ` (${archivedCount})` : ''}</Link>
+            )}
             <Link href="/facturas/nueva" className="btn btn-ghost">+ Nueva factura</Link>
             <Link href="/propuestas/nuevo" className="btn btn-primary">+ Nueva propuesta</Link>
           </div>
@@ -45,7 +55,7 @@ export default async function PropuestasPage() {
 
         {rows.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--muted)' }}>
-            No hay propuestas todavía.
+            {showArchived ? 'No hay propuestas archivadas.' : 'No hay propuestas todavía.'}
           </div>
         ) : (
           <div className="card" style={{ padding: 0 }}>
