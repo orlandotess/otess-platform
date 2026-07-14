@@ -180,7 +180,7 @@ export default function Sidebar() {
    <>
    <aside className="sidebar">
      <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-       <img src="/otess-logo.png" alt="OTESS" style={{ width: '100%', maxWidth: 160, height: 'auto', display: 'block' }} />
+       <img src="/otess-logo-blanco.png" alt="OTESS" style={{ width: '100%', maxWidth: 160, height: 'auto', display: 'block' }} />
        <button
          onClick={toggleHidden}
          title="Ocultar sidebar"
