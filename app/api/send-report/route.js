@@ -15,13 +15,14 @@ export async function POST(request) {
     const ccList = Array.isArray(cc) ? cc.filter(Boolean) : [];
     const { data: report } = await supabase
       .from('job_reports')
-      .select('*, jobs(title, clients(name))')
+      .select('*, jobs(title, clients(name, company))')
       .eq('id', reportId)
       .single();
     if (!report) return Response.json({ error: 'No encontrado' }, { status: 404 });
 
     const publicUrl = `https://app.otesspr.com/reporte/${reportId}`;
-    const clientName = report.jobs?.clients?.name ?? 'Cliente';
+    const asCompany = report.name_source === 'company' && report.jobs?.clients?.company;
+    const clientName = (asCompany ? report.jobs?.clients?.company : report.jobs?.clients?.name) ?? 'Cliente';
     const jobTitle = report.jobs?.title ?? '';
 
     const html = `<!DOCTYPE html>

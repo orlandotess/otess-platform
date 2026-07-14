@@ -418,6 +418,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [reportObservations, setReportObservations] = useState('');
   const [reportRecommendations, setReportRecommendations] = useState('');
   const [reportPreparedBy, setReportPreparedBy] = useState('');
+  const [reportNameSource, setReportNameSource] = useState('client');
   const [reportPhaseFilter, setReportPhaseFilter] = useState('all');
   const [savingReport, setSavingReport] = useState(false);
   const [emailingReportId, setEmailingReportId] = useState(null);
@@ -682,6 +683,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setReportObservations('');
     setReportRecommendations('');
     setReportPreparedBy('');
+    setReportNameSource('client');
     setReportPhaseFilter('all');
     setShowReportModal(true);
   }
@@ -696,6 +698,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setReportObservations(report.observations ?? '');
     setReportRecommendations(report.recommendations ?? '');
     setReportPreparedBy(report.prepared_by ?? '');
+    setReportNameSource(report.name_source ?? 'client');
     setReportPhaseFilter('all');
     setShowReportModal(true);
   }
@@ -716,6 +719,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       observations: reportObservations.trim() || null,
       recommendations: reportRecommendations.trim() || null,
       prepared_by: reportPreparedBy.trim() || null,
+      name_source: reportNameSource,
     };
     if (editingReportId) {
       const { data } = await supabase.from('job_reports')
@@ -2080,6 +2084,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <label>Título</label>
               <input value={reportTitle} onChange={e => setReportTitle(e.target.value)} placeholder="Ej: Avance de instalación — semana 1" autoFocus />
             </div>
+            {job.clients?.company && (
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label>A nombre de</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => setReportNameSource('client')}
+                    style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: reportNameSource === 'client' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: reportNameSource === 'client' ? 'var(--navy)' : 'transparent', color: reportNameSource === 'client' ? '#fff' : 'var(--text)' }}>
+                    {job.clients.name}
+                  </button>
+                  <button type="button" onClick={() => setReportNameSource('company')}
+                    style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: reportNameSource === 'company' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: reportNameSource === 'company' ? 'var(--navy)' : 'transparent', color: reportNameSource === 'company' ? '#fff' : 'var(--text)' }}>
+                    {job.clients.company}
+                  </button>
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label>Fecha de visita</label>
