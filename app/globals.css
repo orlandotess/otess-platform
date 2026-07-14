@@ -437,6 +437,7 @@ tbody tr:hover td { background: var(--surface-2); }
 .badge-blue   { color: var(--info); background: var(--badge-blue-bg); }
 .badge-gray   { color: var(--muted); background: var(--badge-gray-bg); }
 .badge-red    { color: var(--warn); background: var(--badge-red-bg); }
+.badge-dark   { color: var(--navy); background: var(--navy-tint); }
 
 /* ── Forms ── */
 .form-group {
@@ -583,6 +584,7 @@ body.sidebar-hidden .main-content {
 .admin-shell .badge-green { background: var(--ok-tint); color: var(--ok); }
 .admin-shell .badge-red   { background: var(--danger-tint); color: var(--warn); }
 .admin-shell .badge-amber { background: var(--amber-tint); color: var(--amber); }
+.admin-shell .badge-dark  { background: var(--navy-tint); color: var(--navy); }
 
 .admin-shell table thead th {
   color: var(--ink-faint);

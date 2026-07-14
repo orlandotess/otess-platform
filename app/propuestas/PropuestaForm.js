@@ -276,7 +276,7 @@ export default function PropuestaForm({ initialData = null }) {
     let proposal;
     if (isEdit) {
       const { data: current } = await supabase.from('proposals').select('status').eq('id', initialData.proposal.id).single();
-      if (!current || !['borrador', 'enviada', 'vista'].includes(current.status)) {
+      if (!current || !['borrador', 'enviada', 'vista', 'cambios_requeridos'].includes(current.status)) {
         setError('Esta propuesta ya no se puede editar (fue aprobada o rechazada).');
         setSaving(false);
         return;

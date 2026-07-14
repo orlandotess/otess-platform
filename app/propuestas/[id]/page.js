@@ -13,6 +13,11 @@ export default async function PropuestaDetailPage({ params }) {
     .eq('id', params.id)
     .single();
 
+  if (proposal?.valid_until && proposal.valid_until < new Date().toISOString().split('T')[0] && ['enviada', 'vista', 'cambios_requeridos'].includes(proposal.status)) {
+    await supabase.from('proposals').update({ status: 'expirada' }).eq('id', proposal.id);
+    proposal.status = 'expirada';
+  }
+
   const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
   const { data: payments } = await supabase.from('proposal_payments').select('*').eq('proposal_id', params.id).order('sort_order');
   const { data: companyInfo } = await supabase.from('company_settings').select('*').limit(1).single();

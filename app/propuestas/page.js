@@ -5,14 +5,23 @@ import Link from 'next/link';
 import { supabaseServer as supabase } from '../../lib/supabase';
 import Sidebar from '../Sidebar';
 
-const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', aprobada: 'badge-green', rechazada: 'badge-red' };
-const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', aprobada: 'Aprobada', rechazada: 'Rechazada' };
+const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', cambios_requeridos: 'badge-amber', expirada: 'badge-gray', aprobada: 'badge-green', rechazada: 'badge-red', completada: 'badge-dark' };
+const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', cambios_requeridos: 'Cambios requeridos', expirada: 'Expirada', aprobada: 'Aprobada', rechazada: 'Rechazada', completada: 'Completada' };
+const EXPIRABLE_STATUSES = ['enviada', 'vista', 'cambios_requeridos'];
 
 export default async function PropuestasPage() {
   const { data: proposals } = await supabase
     .from('proposals')
-    .select('id, proposal_number, title, status, created_at, sent_at, approved_at, clients(name), proposal_options(id, name, is_recommended, proposal_line_items(quantity, unit_price))')
+    .select('id, proposal_number, title, status, valid_until, created_at, sent_at, approved_at, clients(name), proposal_options(id, name, is_recommended, proposal_line_items(quantity, unit_price))')
     .order('created_at', { ascending: false });
+
+  const today = new Date().toISOString().split('T')[0];
+  const toExpire = (proposals ?? []).filter(p => p.valid_until && p.valid_until < today && EXPIRABLE_STATUSES.includes(p.status));
+  if (toExpire.length) {
+    await supabase.from('proposals').update({ status: 'expirada' }).in('id', toExpire.map(p => p.id));
+    const expiredIds = new Set(toExpire.map(p => p.id));
+    (proposals ?? []).forEach(p => { if (expiredIds.has(p.id)) p.status = 'expirada'; });
+  }
 
   const rows = (proposals ?? []).map(p => {
     const totals = (p.proposal_options ?? []).map(o => ({

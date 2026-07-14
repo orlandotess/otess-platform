@@ -6,8 +6,9 @@ import { supabase } from '../../../lib/supabase';
 import ProposalDocument, { financialBreakdown } from '../ProposalDocument';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 
-const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', aprobada: 'badge-green', rechazada: 'badge-red' };
-const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', aprobada: 'Aprobada', rechazada: 'Rechazada' };
+const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', cambios_requeridos: 'badge-amber', expirada: 'badge-gray', aprobada: 'badge-green', rechazada: 'badge-red', completada: 'badge-dark' };
+const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', cambios_requeridos: 'Cambios requeridos', expirada: 'Expirada', aprobada: 'Aprobada', rechazada: 'Rechazada', completada: 'Completada' };
+const STATUS_ORDER = ['borrador', 'enviada', 'vista', 'cambios_requeridos', 'expirada', 'aprobada', 'rechazada', 'completada'];
 
 export default function PropuestaDetailClient({ proposal, options, taxRules, payments, companyInfo, primaryAddress }) {
   const router = useRouter();
@@ -17,6 +18,11 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   const [generatingPdf, setGeneratingPdf] = useState(null);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
+
+  const menuItemStyle = { display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' };
 
   async function handlePdf(optId) {
     setGeneratingPdf(optId);
@@ -61,6 +67,17 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     }
   }
 
+  async function changeStatus(newStatus) {
+    setChangingStatus(true);
+    const { error } = await supabase.from('proposals').update({ status: newStatus }).eq('id', proposal.id);
+    setChangingStatus(false);
+    if (error) { alert('Error al cambiar el estado: ' + error.message); return; }
+    setStatus(newStatus);
+    setStatusMenuOpen(false);
+    setMenuOpen(false);
+    router.refresh();
+  }
+
   function copyLink() {
     navigator.clipboard.writeText(publicUrl);
     setCopied(true);
@@ -98,7 +115,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
           <span className={`badge ${STATUS_BADGE[status] ?? 'badge-gray'}`}>
             {STATUS_LABELS[status] ?? status}
           </span>
-          {['borrador', 'enviada', 'vista'].includes(status) && (
+          {['borrador', 'enviada', 'vista', 'cambios_requeridos'].includes(status) && (
             <Link href={`/propuestas/${proposal.id}/editar`} className="btn btn-ghost">✏️ Editar</Link>
           )}
           {status === 'borrador' && (
@@ -106,11 +123,53 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
               {sending ? 'Enviando...' : 'Enviar propuesta'}
             </button>
           )}
-          {status !== 'borrador' && status !== 'aprobada' && status !== 'rechazada' && (
+          {!['borrador', 'aprobada', 'rechazada', 'completada'].includes(status) && (
             <button className="btn btn-ghost" disabled={sending} onClick={handleSend}>
               {sending ? 'Enviando...' : '↻ Reenviar propuesta'}
             </button>
           )}
+          <div style={{ position: 'relative' }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setMenuOpen(o => !o)}>⋮</button>
+            {menuOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => { setMenuOpen(false); setStatusMenuOpen(false); }} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 4, minWidth: 210, whiteSpace: 'nowrap' }}>
+                  {status !== 'borrador' && (
+                    <button type="button" onClick={() => { copyLink(); setMenuOpen(false); }} style={menuItemStyle}>
+                      {copied ? '✓ Copiado' : '🔗 Copiar link del cliente'}
+                    </button>
+                  )}
+                  {status !== 'borrador' && (
+                    <button type="button" onClick={() => { window.open(publicUrl, '_blank'); setMenuOpen(false); }} style={menuItemStyle}>
+                      👁 Vista previa
+                    </button>
+                  )}
+                  <div style={{ position: 'relative' }}>
+                    <button type="button" onClick={() => setStatusMenuOpen(o => !o)} style={menuItemStyle}>
+                      🏷 Cambiar estado
+                    </button>
+                    {statusMenuOpen && (
+                      <div style={{ position: 'absolute', top: 0, right: '100%', marginRight: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 4, minWidth: 170 }}>
+                        {STATUS_ORDER.filter(s => s !== status).map(s => (
+                          <button key={s} type="button" disabled={changingStatus} onClick={() => changeStatus(s)} style={menuItemStyle}>
+                            <span className={`badge ${STATUS_BADGE[s]}`} style={{ marginRight: 6 }}>{STATUS_LABELS[s]}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ borderTop: status !== 'borrador' ? '1px solid var(--border)' : 'none', marginTop: status !== 'borrador' ? 4 : 0, paddingTop: status !== 'borrador' ? 4 : 0 }}>
+                    <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Descargar PDF</div>
+                    {options.map(opt => (
+                      <button key={opt.id} type="button" disabled={generatingPdf === opt.id} onClick={() => handlePdf(opt.id)} style={menuItemStyle}>
+                        {generatingPdf === opt.id ? '⏳ Generando...' : `🖨️ ${opt.name}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
         </div>
       </div>
@@ -182,9 +241,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                 {proposal.approved_option_id === opt.id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--ok)' }}>ELEGIDA POR CLIENTE</span>}
                 <span style={{ marginLeft: 12, fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{fmt(optionTotal(opt))}</span>
               </div>
-              <button className="btn btn-ghost" onClick={() => handlePdf(opt.id)} disabled={generatingPdf === opt.id}>
-                {generatingPdf === opt.id ? '⏳ Generando...' : '🖨️ PDF'}
-              </button>
+              {generatingPdf === opt.id && <span style={{ fontSize: 12, color: 'var(--muted)' }}>⏳ Generando PDF...</span>}
             </div>
             {opt.description && <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>{opt.description}</p>}
             <div id={`proposal-doc-${opt.id}`} className="card" style={{ padding: 0, overflow: 'hidden' }}>

@@ -24,7 +24,7 @@ export default async function EditarPropuestaPage({ params }) {
     );
   }
 
-  if (!['borrador', 'enviada', 'vista'].includes(proposal.status)) {
+  if (!['borrador', 'enviada', 'vista', 'cambios_requeridos'].includes(proposal.status)) {
     return (
       <div className="admin-shell">
         <Sidebar />
