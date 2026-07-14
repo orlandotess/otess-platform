@@ -29,7 +29,7 @@ function FieldIcon({ name }) {
     </svg>
   );
 }
-const JOB_FIELDS = 'id, title, status, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)';
+const JOB_FIELDS = 'id, title, status, client_id, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)';
 const EXPENSE_CATEGORIES = [
   { value: 'materiales', label: 'Materiales' },
   { value: 'gasolina', label: 'Gasolina' },
@@ -199,6 +199,26 @@ export default function FieldApp() {
   const [editExpenseForm, setEditExpenseForm] = useState(blankExpenseForm());
   const [savingExpenseEdit, setSavingExpenseEdit] = useState(false);
   const fileRef4 = useRef();
+
+  // Job reports (create/edit + email to client, mirrors app/trabajos/[id]/JobTabs.js)
+  const [detailReports, setDetailReports] = useState([]);
+  const [detailClientContacts, setDetailClientContacts] = useState([]);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [editingReportId, setEditingReportId] = useState(null);
+  const [reportTitle, setReportTitle] = useState('');
+  const [reportNoteIds, setReportNoteIds] = useState([]);
+  const [reportVisitDate, setReportVisitDate] = useState('');
+  const [reportPersonnel, setReportPersonnel] = useState('');
+  const [reportSummary, setReportSummary] = useState('');
+  const [reportObservations, setReportObservations] = useState('');
+  const [reportRecommendations, setReportRecommendations] = useState('');
+  const [reportPreparedBy, setReportPreparedBy] = useState('');
+  const [savingReport, setSavingReport] = useState(false);
+  const [emailingReportId, setEmailingReportId] = useState(null);
+  const [reportEmailTo, setReportEmailTo] = useState('');
+  const [reportEmailCc, setReportEmailCc] = useState([]);
+  const [reportEmailCcExtra, setReportEmailCcExtra] = useState('');
+  const [sendingReport, setSendingReport] = useState(false);
   const [lightbox, setLightbox] = useState(null); // { urls: [], index: 0 }
   const [annotatingIdx, setAnnotatingIdx] = useState(null);
   const [annotatingExisting, setAnnotatingExisting] = useState(null); // { noteId, url, path, isGallery, galleryIdx }
@@ -447,14 +467,20 @@ export default function FieldApp() {
     setDetailChecklist([]);
     setDetailExpenses([]);
     setDetailPlanos([]);
+    setDetailReports([]);
+    setDetailClientContacts([]);
     setShowDetailExpenseForm(false);
-    const [{ data: notes }, { data: checklist }, { data: jobExpenses }, { data: planos }] = await Promise.all([
+    const [{ data: notes }, { data: checklist }, { data: jobExpenses }, { data: planos }, { data: reports }, { data: contacts }] = await Promise.all([
       supabase.from('job_notes').select('*').eq('job_id', job.id).order('created_at', { ascending: false }),
       supabase.from('job_checklist_items').select('*').eq('job_id', job.id).order('sort_order'),
       supabase.from('expenses').select('*').eq('job_id', job.id).order('expense_date', { ascending: false }),
       supabase.from('floor_plans').select('id, name, rendered_image_path').eq('job_id', job.id).order('updated_at', { ascending: false }),
+      supabase.from('job_reports').select('*').eq('job_id', job.id).order('created_at', { ascending: false }),
+      job.client_id ? supabase.from('client_contacts').select('*').eq('client_id', job.client_id).order('is_primary', { ascending: false }) : Promise.resolve({ data: [] }),
     ]);
     setDetailExpenses(jobExpenses ?? []);
+    setDetailReports(reports ?? []);
+    setDetailClientContacts(contacts ?? []);
     const planosWithThumbs = await Promise.all((planos ?? []).map(async p => {
       const { data } = await supabase.storage.from('floor-plans').createSignedUrl(p.rendered_image_path, 3600);
       return { ...p, thumbUrl: data?.signedUrl ?? null };
@@ -472,6 +498,103 @@ export default function FieldApp() {
     }));
     setDetailNotes(notesWithUrls);
     setDetailChecklist(checklist ?? []);
+  }
+
+  function openNewReport() {
+    setEditingReportId(null);
+    setReportTitle('');
+    setReportNoteIds([]);
+    setReportVisitDate(new Date().toISOString().slice(0, 10));
+    setReportPersonnel(techName ?? '');
+    setReportSummary('');
+    setReportObservations('');
+    setReportRecommendations('');
+    setReportPreparedBy('');
+    setShowReportModal(true);
+  }
+
+  function openEditReport(report) {
+    setEditingReportId(report.id);
+    setReportTitle(report.title);
+    setReportNoteIds(report.note_ids ?? []);
+    setReportVisitDate(report.visit_date ?? '');
+    setReportPersonnel(report.personnel ?? '');
+    setReportSummary(report.summary ?? '');
+    setReportObservations(report.observations ?? '');
+    setReportRecommendations(report.recommendations ?? '');
+    setReportPreparedBy(report.prepared_by ?? '');
+    setShowReportModal(true);
+  }
+
+  function toggleReportNoteSelection(noteId) {
+    setReportNoteIds(prev => prev.includes(noteId) ? prev.filter(id => id !== noteId) : [...prev, noteId]);
+  }
+
+  async function saveReport() {
+    if (!reportTitle.trim() || !detailJob) return;
+    setSavingReport(true);
+    const fields = {
+      title: reportTitle.trim(),
+      note_ids: reportNoteIds,
+      visit_date: reportVisitDate || null,
+      personnel: reportPersonnel.trim() || null,
+      summary: reportSummary.trim() || null,
+      observations: reportObservations.trim() || null,
+      recommendations: reportRecommendations.trim() || null,
+      prepared_by: reportPreparedBy.trim() || null,
+    };
+    if (editingReportId) {
+      const { data } = await supabase.from('job_reports')
+        .update({ ...fields, updated_at: new Date().toISOString() })
+        .eq('id', editingReportId).select().single();
+      if (data) setDetailReports(prev => prev.map(r => r.id === editingReportId ? data : r));
+    } else {
+      const { data } = await supabase.from('job_reports')
+        .insert([{ job_id: detailJob.id, created_by: profileId, ...fields }])
+        .select().single();
+      if (data) setDetailReports(prev => [data, ...prev]);
+    }
+    setSavingReport(false);
+    setShowReportModal(false);
+  }
+
+  async function deleteReport(reportId) {
+    if (!confirm('¿Eliminar este reporte? Las notas no se borran, solo el reporte.')) return;
+    await supabase.from('job_reports').delete().eq('id', reportId);
+    setDetailReports(prev => prev.filter(r => r.id !== reportId));
+  }
+
+  function openReportEmail(report) {
+    setEmailingReportId(report.id);
+    setReportEmailTo(report.sent_to || detailJob?.clients?.email || '');
+    const contactEmails = new Set(detailClientContacts.filter(c => c.email).map(c => c.email));
+    const savedCc = report.sent_cc ?? [];
+    setReportEmailCc(savedCc.filter(e => contactEmails.has(e)));
+    setReportEmailCcExtra(savedCc.filter(e => !contactEmails.has(e)).join(', '));
+  }
+
+  function toggleReportCcContact(email) {
+    setReportEmailCc(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
+  }
+
+  async function sendReportEmail(e) {
+    e.preventDefault();
+    setSendingReport(true);
+    const extraCc = reportEmailCcExtra.split(',').map(s => s.trim()).filter(Boolean);
+    const cc = [...new Set([...reportEmailCc, ...extraCc])];
+    const res = await fetch('/api/send-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reportId: emailingReportId, toEmail: reportEmailTo, cc }),
+    });
+    const data = await res.json();
+    setSendingReport(false);
+    if (data.success) {
+      setDetailReports(prev => prev.map(r => r.id === emailingReportId ? { ...r, sent_at: new Date().toISOString(), sent_to: reportEmailTo, sent_cc: cc.length ? cc : null } : r));
+      setEmailingReportId(null);
+    } else {
+      alert('Error: ' + data.error);
+    }
   }
 
   async function handleLogout() {
@@ -1634,7 +1757,7 @@ export default function FieldApp() {
           </div>
 
           <div style={{ background: '#fff', display: 'flex', borderBottom: '1px solid #dde1e7', flexShrink: 0 }}>
-            {[['info', '📋 Info'], ['checklist', `✅ (${completedCount}/${realChecklistCount})`], ['notes', `📸 (${detailNotes.length})`], ['gastos', `💸 ${detailExpenses.length > 0 ? fmtMoney(totalDetailExpenses) : ''}`]].map(([t, label]) => (
+            {[['info', '📋 Info'], ['checklist', `✅ (${completedCount}/${realChecklistCount})`], ['notes', `📸 (${detailNotes.length})`], ['gastos', `💸 ${detailExpenses.length > 0 ? fmtMoney(totalDetailExpenses) : ''}`], ['reports', `📄 (${detailReports.length})`]].map(([t, label]) => (
               <button key={t} onClick={() => setDetailTab(t)} style={{ flex: 1, padding: '12px 8px', background: 'none', border: 'none', borderBottom: detailTab === t ? '2px solid ' + ORANGE : '2px solid transparent', fontWeight: detailTab === t ? 700 : 500, color: detailTab === t ? ORANGE : '#888', cursor: 'pointer', fontSize: 13 }}>
                 {label}
               </button>
@@ -2052,6 +2175,41 @@ export default function FieldApp() {
                 }
               </div>
             )}
+
+            {/* REPORTS TAB */}
+            {detailTab === 'reports' && (
+              <div>
+                <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>Reportes para el cliente</div>
+                    <button onClick={openNewReport} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>+ Nuevo</button>
+                  </div>
+                  <p style={{ color: '#888', fontSize: 12.5, margin: 0 }}>Agrupa notas y fotos por fase para compartir el avance del trabajo — envía por email al cliente.</p>
+                </div>
+
+                {detailReports.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>No hay reportes aún.</div>
+                ) : detailReports.map(r => (
+                  <div key={r.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{r.title}</div>
+                    <div style={{ fontSize: 12, color: '#888', marginTop: 3 }}>
+                      {(r.note_ids ?? []).length} nota{(r.note_ids ?? []).length === 1 ? '' : 's'} ·{' '}
+                      {r.sent_at ? `Enviado a ${r.sent_to} el ${new Date(r.sent_at).toLocaleDateString('es-PR')}` : 'No enviado'}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                      <a href={`/reporte/${r.id}`} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', background: '#f0f0f0', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#333', textDecoration: 'none' }}>👁 Ver</a>
+                      <button onClick={() => openReportEmail(r)} style={{ padding: '6px 12px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📧 Enviar</button>
+                      {r.created_by === profileId && (
+                        <>
+                          <button onClick={() => openEditReport(r)} style={{ padding: '6px 12px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✏️ Editar</button>
+                          <button onClick={() => deleteReport(r.id)} style={{ padding: '6px 12px', background: '#fef2f2', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#b91c1c', cursor: 'pointer' }}>🗑 Eliminar</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2436,6 +2594,133 @@ export default function FieldApp() {
                 <button type="button" onClick={closeExpenseModal} style={{ marginTop: 10, width: '100%', padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {showReportModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setShowReportModal(false)}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>{editingReportId ? '✏️ Editar reporte' : '📄 Nuevo reporte'}</div>
+              <button onClick={() => setShowReportModal(false)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <input value={reportTitle} onChange={e => setReportTitle(e.target.value)} placeholder="Título — Ej: Avance de instalación, semana 1" autoFocus
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 8, marginBottom: 8 }}>
+              <input type="date" value={reportVisitDate} onChange={e => setReportVisitDate(e.target.value)}
+                style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
+              <input value={reportPersonnel} onChange={e => setReportPersonnel(e.target.value)} placeholder="Personal presente"
+                style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+            </div>
+
+            <textarea value={reportSummary} onChange={e => setReportSummary(e.target.value)} rows={3} placeholder="Resumen de actividades..."
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 12 }} />
+
+            <p style={{ fontWeight: 700, fontSize: 12, color: '#555', marginBottom: 8 }}>SELECCIONA LAS NOTAS/FOTOS A INCLUIR</p>
+            {detailNotes.length === 0 ? (
+              <p style={{ color: '#aaa', fontSize: 13 }}>Este trabajo no tiene notas todavía.</p>
+            ) : (() => {
+              const groups = {};
+              [...detailNotes]
+                .sort((a, b) => (a.phase_number ?? Infinity) - (b.phase_number ?? Infinity) || new Date(b.created_at) - new Date(a.created_at))
+                .forEach(n => {
+                  const key = n.phase_number != null ? `Fase ${n.phase_number}` : 'Sin fase';
+                  if (!groups[key]) groups[key] = [];
+                  groups[key].push(n);
+                });
+              return Object.entries(groups).map(([label, notesInGroup]) => (
+                <div key={label} style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
+                  {notesInGroup.map(n => {
+                    const thumbUrls = n.photo_urls && n.photo_urls.length > 0 ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
+                    const isVideo = url => /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                    const isPdf = url => /\.pdf(\?|$)/i.test(url);
+                    return (
+                      <label key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={reportNoteIds.includes(n.id)} onChange={() => toggleReportNoteSelection(n.id)} style={{ marginTop: 3 }} />
+                        {thumbUrls.length > 0 && (
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            {thumbUrls.slice(0, 3).map((url, idx) => (
+                              isPdf(url) ? (
+                                <div key={idx} style={{ width: 40, height: 40, borderRadius: 6, background: '#f0f0f0', border: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📄</div>
+                              ) : isVideo(url) ? (
+                                <video key={idx} src={url} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, background: '#000' }} />
+                              ) : (
+                                <img key={idx} src={url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid #eee' }} />
+                              )
+                            ))}
+                          </div>
+                        )}
+                        <span style={{ fontSize: 13 }}>
+                          {n.title && <strong>{n.title}</strong>}
+                          {n.title && n.note ? ' — ' : ''}
+                          {n.note && <span style={{ color: '#888' }}>{n.note.slice(0, 60)}{n.note.length > 60 ? '…' : ''}</span>}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ));
+            })()}
+
+            <textarea value={reportObservations} onChange={e => setReportObservations(e.target.value)} rows={3} placeholder="Observaciones — una por línea"
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginTop: 14, marginBottom: 8 }} />
+            <textarea value={reportRecommendations} onChange={e => setReportRecommendations(e.target.value)} rows={3} placeholder="Recomendaciones — una por línea"
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 8 }} />
+            <input value={reportPreparedBy} onChange={e => setReportPreparedBy(e.target.value)} placeholder="Preparado por (opcional)"
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14 }} />
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={saveReport} disabled={savingReport || !reportTitle.trim()} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                {savingReport ? 'Guardando...' : '💾 Guardar reporte'}
+              </button>
+              <button onClick={() => setShowReportModal(false)} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {emailingReportId && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setEmailingReportId(null)}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📧 Enviar reporte por email</div>
+              <button onClick={() => setEmailingReportId(null)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+            </div>
+            <form onSubmit={sendReportEmail}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>EMAIL DEL CLIENTE</p>
+              <input type="email" required value={reportEmailTo} onChange={e => setReportEmailTo(e.target.value)} autoFocus
+                style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14 }} />
+
+              {detailClientContacts.filter(c => c.email).length > 0 && (
+                <>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>COPIAR A (CC)</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1.5px solid #dde1e7', borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
+                    {detailClientContacts.filter(c => c.email).map(c => (
+                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={reportEmailCc.includes(c.email)} onChange={() => toggleReportCcContact(c.email)} />
+                        <span style={{ fontWeight: 600 }}>{c.name}</span>
+                        <span style={{ color: '#888' }}>{c.email}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>OTROS CORREOS EN COPIA (OPCIONAL)</p>
+              <input value={reportEmailCcExtra} onChange={e => setReportEmailCcExtra(e.target.value)} placeholder="correo1@ejemplo.com, correo2@ejemplo.com"
+                style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16 }} />
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="submit" disabled={sendingReport} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                  {sendingReport ? 'Enviando...' : '📤 Enviar'}
+                </button>
+                <button type="button" onClick={() => setEmailingReportId(null)} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
