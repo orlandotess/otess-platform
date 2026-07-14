@@ -126,6 +126,7 @@ export default function PropuestaForm({ initialData = null }) {
     setPaymentSchedule(prev => prev.filter(p => p.key !== key));
   }
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
+  const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — the item group currently being dragged
   const [multiOption, setMultiOption] = useState((initialData?.options?.length ?? 0) > 1);
   const [options, setOptions] = useState(() => {
     if (!initialData?.options?.length) return [emptyOption('Propuesta')];
@@ -218,6 +219,36 @@ export default function PropuestaForm({ initialData = null }) {
     setOptions(prev => prev.map(o => o.key === optKey
       ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.filter(it => it.key !== itemKey && it.parentKey !== itemKey) } : a) }
       : o));
+  }
+  // Moves a parent item + its trailing accessory block (contiguous in the
+  // items array, linked by parentKey) from one area to another, or reorders
+  // it within the same area. beforeItemKey is where to insert — null appends
+  // at the end of the target area.
+  function moveItemGroup(optKey, fromAreaKey, itemKey, toAreaKey, beforeItemKey) {
+    setOptions(prev => prev.map(o => {
+      if (o.key !== optKey) return o;
+      const fromArea = o.areas.find(a => a.key === fromAreaKey);
+      if (!fromArea) return o;
+      const startIdx = fromArea.items.findIndex(it => it.key === itemKey);
+      if (startIdx === -1) return o;
+      let endIdx = startIdx;
+      while (endIdx + 1 < fromArea.items.length && fromArea.items[endIdx + 1].parentKey === itemKey) endIdx++;
+      const block = fromArea.items.slice(startIdx, endIdx + 1);
+      const blockKeys = new Set(block.map(it => it.key));
+      if (beforeItemKey && blockKeys.has(beforeItemKey)) return o; // dropped onto itself/its own accessory
+
+      const afterRemoval = o.areas.map(a => a.key === fromAreaKey
+        ? { ...a, items: a.items.filter(it => !blockKeys.has(it.key)) }
+        : a);
+      const afterInsert = afterRemoval.map(a => {
+        if (a.key !== toAreaKey) return a;
+        const items = [...a.items];
+        const insertIdx = beforeItemKey ? items.findIndex(it => it.key === beforeItemKey) : -1;
+        items.splice(insertIdx === -1 ? items.length : insertIdx, 0, ...block);
+        return { ...a, items };
+      });
+      return { ...o, areas: afterInsert };
+    }));
   }
   function updateItem(optKey, areaKey, itemKey, field, value) {
     setOptions(prev => prev.map(o => o.key === optKey
@@ -544,7 +575,10 @@ export default function PropuestaForm({ initialData = null }) {
 
               {/* Áreas */}
               {opt.areas.map((area, areaIndex) => (
-                <div key={area.key} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                <div key={area.key}
+                  onDragOver={e => { if (dragItem) e.preventDefault(); }}
+                  onDrop={e => { e.preventDefault(); if (dragItem) { moveItemGroup(opt.key, dragItem.areaKey, dragItem.itemKey, area.key, null); setDragItem(null); } }}
+                  style={{ background: 'var(--surface-2)', border: dragItem ? '1px dashed var(--border-strong)' : '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <input value={area.name} onChange={e => updateAreaName(opt.key, area.key, e.target.value)}
                       style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0 }} />
@@ -588,7 +622,11 @@ export default function PropuestaForm({ initialData = null }) {
                         }
                       />
                     ) : (
-                      <div key={it.key}>
+                      <div key={it.key}
+                        onDragOver={e => { if (dragItem) e.preventDefault(); }}
+                        onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragItem) { moveItemGroup(opt.key, dragItem.areaKey, dragItem.itemKey, area.key, it.key); setDragItem(null); } }}
+                        style={{ opacity: dragItem?.itemKey === it.key ? 0.4 : 1 }}
+                      >
                         <LineItemRow
                           type={it.item_type}
                           onTypeChange={v => updateItem(opt.key, area.key, it.key, 'item_type', v)}
@@ -612,7 +650,16 @@ export default function PropuestaForm({ initialData = null }) {
                           onPhotoSelect={file => handleItemPhoto(opt.key, area.key, it.key, file)}
                           fmt={fmt}
                           actions={
-                            <button type="button" onClick={() => removeItem(opt.key, area.key, it.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
+                            <>
+                              <span
+                                draggable
+                                onDragStart={() => setDragItem({ areaKey: area.key, itemKey: it.key })}
+                                onDragEnd={() => setDragItem(null)}
+                                title="Arrastrar para mover a otra área"
+                                style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 15, padding: '0 4px', userSelect: 'none' }}
+                              >⠿</span>
+                              <button type="button" onClick={() => removeItem(opt.key, area.key, it.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
+                            </>
                           }
                         />
                         <button type="button" onClick={() => addAccessory(opt.key, area.key, it.key)}
