@@ -622,22 +622,53 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   }
 
   async function addTaskToJob(task, jobId) {
-    const lines = [`[Tarea] ${task.title}`];
-    if (task.notes) lines.push(task.notes);
+    // Checklist items go into the job's own checklist system (grouped under
+    // an area named after the task) instead of being flattened into text —
+    // that's what makes them show up as real checkable items in the job's
+    // ✅ tab rather than "[x] ..." lines inside a note.
     if (task.task_type === 'checklist' && (task.task_items ?? []).length) {
-      lines.push('', 'Checklist:');
-      [...task.task_items].sort((a, b) => a.sort_order - b.sort_order).forEach(i => {
-        lines.push(`${i.done ? '[x]' : '[ ]'} ${i.text}`);
+      const { count } = await supabase.from('job_checklist_items').select('id', { count: 'exact', head: true }).eq('job_id', jobId);
+      const baseOrder = count ?? 0;
+      const sorted = [...task.task_items].sort((a, b) => a.sort_order - b.sort_order);
+      const { error: checklistError } = await supabase.from('job_checklist_items').insert(
+        sorted.map((i, idx) => ({
+          job_id: jobId,
+          description: i.text,
+          completed: !!i.done,
+          completed_at: i.done ? new Date().toISOString() : null,
+          sort_order: baseOrder + idx,
+          group_name: task.title,
+        }))
+      );
+      if (checklistError) { alert(checklistError.message); return; }
+    }
+
+    // Notes go into the job's Notes tab as separate entries — one per
+    // source note — so each keeps its own author instead of being merged
+    // into one blob (job_notes has no author column, so we prefix the name
+    // into the text itself rather than adding a migration for this).
+    const noteRows = [{ job_id: jobId, note: task.notes ? `[Tarea] ${task.title}\n${task.notes}` : `[Tarea] ${task.title}` }];
+    [...taskNotes].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).forEach(n => {
+      if (!n.note) return;
+      noteRows.push({
+        job_id: jobId,
+        note: n.author_name ? `${n.author_name}: ${n.note}` : n.note,
+        photo_url: n.photo_urls?.[0] ?? null,
+        photo_urls: n.photo_urls?.length ? n.photo_urls : null,
+      });
+    });
+    const checklistPhotoPaths = (task.task_items ?? []).flatMap(i => i.attachments ?? []);
+    if (checklistPhotoPaths.length) {
+      noteRows.push({
+        job_id: jobId,
+        note: `Fotos del checklist: ${task.title}`,
+        photo_url: checklistPhotoPaths[0],
+        photo_urls: checklistPhotoPaths,
       });
     }
-    const photoPaths = (task.task_items ?? []).flatMap(i => i.attachments ?? []);
-    const { error } = await supabase.from('job_notes').insert({
-      job_id: jobId,
-      note: lines.join('\n'),
-      photo_url: photoPaths[0] ?? null,
-      photo_urls: photoPaths.length ? photoPaths : null,
-    });
+    const { error } = await supabase.from('job_notes').insert(noteRows);
     if (error) { alert(error.message); return; }
+
     setAddToJobModal(false);
     setAddedToJob(true);
     setTimeout(() => setAddedToJob(false), 2500);
