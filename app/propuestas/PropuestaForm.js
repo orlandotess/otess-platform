@@ -127,6 +127,7 @@ export default function PropuestaForm({ initialData = null }) {
   }
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — the item group currently being dragged
+  const [selectedItemKeys, setSelectedItemKeys] = useState(new Set()); // parent item keys selected for bulk actions
   const [multiOption, setMultiOption] = useState((initialData?.options?.length ?? 0) > 1);
   const [options, setOptions] = useState(() => {
     if (!initialData?.options?.length) return [emptyOption('Propuesta')];
@@ -249,6 +250,57 @@ export default function PropuestaForm({ initialData = null }) {
       });
       return { ...o, areas: afterInsert };
     }));
+  }
+
+  function toggleItemSelection(itemKey) {
+    setSelectedItemKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(itemKey)) next.delete(itemKey);
+      else next.add(itemKey);
+      return next;
+    });
+  }
+  function clearSelection() { setSelectedItemKeys(new Set()); }
+
+  // Deletes every selected parent item (+ its accessories), wherever it is.
+  function bulkDeleteSelected() {
+    setOptions(prev => prev.map(o => ({
+      ...o,
+      areas: o.areas.map(a => ({
+        ...a,
+        items: a.items.filter(it => !selectedItemKeys.has(it.key) && !selectedItemKeys.has(it.parentKey)),
+      })),
+    })));
+    clearSelection();
+  }
+  // Moves every selected item group (within a single option) to the end of
+  // the given area, preserving each group's internal parent+accessory order.
+  function bulkMoveSelectedToArea(optKey, toAreaKey) {
+    setOptions(prev => prev.map(o => {
+      if (o.key !== optKey) return o;
+      const blocks = [];
+      const areasAfterRemoval = o.areas.map(a => {
+        const remaining = [];
+        let i = 0;
+        while (i < a.items.length) {
+          const it = a.items[i];
+          if (!it.parentKey && selectedItemKeys.has(it.key)) {
+            let j = i + 1;
+            const block = [it];
+            while (j < a.items.length && a.items[j].parentKey === it.key) { block.push(a.items[j]); j++; }
+            blocks.push(block);
+            i = j;
+          } else {
+            remaining.push(it);
+            i++;
+          }
+        }
+        return { ...a, items: remaining };
+      });
+      const areasAfterInsert = areasAfterRemoval.map(a => a.key === toAreaKey ? { ...a, items: [...a.items, ...blocks.flat()] } : a);
+      return { ...o, areas: areasAfterInsert };
+    }));
+    clearSelection();
   }
   function updateItem(optKey, areaKey, itemKey, field, value) {
     setOptions(prev => prev.map(o => o.key === optKey
@@ -548,6 +600,27 @@ export default function PropuestaForm({ initialData = null }) {
             </div>
           </div>
 
+          {selectedItemKeys.size > 0 && (() => {
+            const optionsWithSelection = options.filter(o => o.areas.some(a => a.items.some(it => !it.parentKey && selectedItemKeys.has(it.key))));
+            const singleOption = optionsWithSelection.length === 1 ? optionsWithSelection[0] : null;
+            return (
+              <div style={{ position: 'sticky', top: 0, zIndex: 15, display: 'flex', alignItems: 'center', gap: 12, background: 'var(--navy)', color: '#fff', borderRadius: 10, padding: '10px 16px', marginBottom: 14 }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{selectedItemKeys.size} seleccionado{selectedItemKeys.size > 1 ? 's' : ''}</span>
+                {singleOption ? (
+                  <select onChange={e => { if (e.target.value) bulkMoveSelectedToArea(singleOption.key, e.target.value); }} value=""
+                    style={{ fontSize: 12.5, padding: '4px 8px', borderRadius: 6 }}>
+                    <option value="">↔ Mover a área...</option>
+                    {singleOption.areas.map(a => <option key={a.key} value={a.key}>{a.name}</option>)}
+                  </select>
+                ) : (
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Selección en varias opciones — solo se puede eliminar</span>
+                )}
+                <button type="button" onClick={bulkDeleteSelected} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 6, padding: '4px 10px', fontSize: 12.5, cursor: 'pointer' }}>🗑 Eliminar</button>
+                <button type="button" onClick={clearSelection} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 12.5, marginLeft: 'auto' }}>Cancelar selección</button>
+              </div>
+            );
+          })()}
+
           {options.map((opt, optIndex) => (
             <div key={opt.key} className="card" style={{ border: opt.is_recommended ? '2px solid var(--amber)' : undefined }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
@@ -651,6 +724,8 @@ export default function PropuestaForm({ initialData = null }) {
                           fmt={fmt}
                           actions={
                             <>
+                              <input type="checkbox" checked={selectedItemKeys.has(it.key)} onChange={() => toggleItemSelection(it.key)}
+                                title="Seleccionar para acciones en lote" style={{ marginRight: 2, cursor: 'pointer' }} />
                               <span
                                 draggable
                                 onDragStart={() => setDragItem({ areaKey: area.key, itemKey: it.key })}
