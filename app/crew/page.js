@@ -5,6 +5,7 @@ import PhotoAnnotator from '../PhotoAnnotator';
 import { buildMapsLinks, pickMapsLink } from '../../lib/mapsLinks';
 import { normalizeName } from '../../lib/normalizeName';
 import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
+import { computeHours } from '../../lib/hours';
 
 const ORANGE = '#E05C2A';
 const AMBER = '#e0972c';
@@ -92,6 +93,7 @@ export default function FieldApp() {
   const [timeEntries, setTimeEntries] = useState([]);
   const [techId, setTechId] = useState(null);
   const [techName, setTechName] = useState('OTESS');
+  const [todayAbsence, setTodayAbsence] = useState(null);
   const [profileId, setProfileId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
@@ -167,6 +169,7 @@ export default function FieldApp() {
   const [editingEntryId, setEditingEntryId] = useState(null);
   const [editEntryIn, setEditEntryIn] = useState('');
   const [editEntryOut, setEditEntryOut] = useState('');
+  const [editEntryError, setEditEntryError] = useState('');
   const [savingEntry, setSavingEntry] = useState(false);
 
   // Job detail state
@@ -342,6 +345,20 @@ export default function FieldApp() {
       .order('clocked_in_at', { ascending: false }).limit(1).single()
       .then(({ data }) => { if (data) { setClockedIn(true); setActiveEntry(data); } });
   }, [techId]);
+
+  useEffect(() => {
+    if (!techId) return;
+    const today = new Date();
+    const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    supabase.from('technician_absences').select('*').eq('technician_id', techId).eq('date', todayLocal).maybeSingle()
+      .then(({ data }) => setTodayAbsence(data ?? null));
+  }, [techId]);
+
+  // Blocks Clock In on a day with an "ausencia" registered for this technician.
+  function getClockBlockMessage() {
+    if (!todayAbsence) return null;
+    return `Tienes una ausencia registrada hoy${todayAbsence.reason ? ': ' + todayAbsence.reason : ''}. No puedes marcar entrada.`;
+  }
 
   useEffect(() => {
     if (!clockedIn || !activeEntry) return;
@@ -604,6 +621,8 @@ export default function FieldApp() {
 
   async function handleClockIn(jobId) {
     if (!techId) return;
+    const blockMessage = getClockBlockMessage();
+    if (blockMessage) { alert(blockMessage); setShowFab(false); setShowJobClock(false); return; }
     const { data } = await supabase.from('time_entries')
       .insert([{ technician_id: techId, job_id: jobId || null, clocked_in_at: new Date().toISOString() }])
       .select().single();
@@ -702,6 +721,11 @@ export default function FieldApp() {
     clockedIn.setHours(to24(form.entryHour, form.entryAmPm), parseInt(form.entryMinute, 10) || 0, 0, 0);
     const clockedOut = new Date(dateObj);
     clockedOut.setHours(to24(form.exitHour, form.exitAmPm), parseInt(form.exitMinute, 10) || 0, 0, 0);
+    if (computeHours(clockedIn.toISOString(), clockedOut.toISOString(), form.lunch ? 60 : 0).invalid) {
+      setSavingDay(null);
+      setDayFormStatus(prev => ({ ...prev, [key]: 'invalid' }));
+      return;
+    }
     const payload = {
       technician_id: techId,
       clocked_in_at: clockedIn.toISOString(),
@@ -736,14 +760,20 @@ export default function FieldApp() {
     setEditingEntryId(entry.id);
     setEditEntryIn(new Date(entry.clocked_in_at).toTimeString().slice(0, 5));
     setEditEntryOut(entry.clocked_out_at ? new Date(entry.clocked_out_at).toTimeString().slice(0, 5) : '');
+    setEditEntryError('');
   }
 
   async function saveEntryEdit(entry) {
     if (!editEntryIn) return;
-    setSavingEntry(true);
     const baseDate = entry.clocked_in_at.slice(0, 10);
     const newIn = new Date(baseDate + 'T' + editEntryIn + ':00');
     const newOut = editEntryOut ? new Date(baseDate + 'T' + editEntryOut + ':00') : null;
+    if (newOut && computeHours(newIn.toISOString(), newOut.toISOString(), entry.lunch_minutes).invalid) {
+      setEditEntryError('La salida debe ser después de la entrada.');
+      return;
+    }
+    setEditEntryError('');
+    setSavingEntry(true);
     await supabase.from('time_entries').update({
       clocked_in_at: newIn.toISOString(),
       clocked_out_at: newOut ? newOut.toISOString() : null,
@@ -1113,7 +1143,7 @@ export default function FieldApp() {
   }
 
   const fmtE = s => String(Math.floor(s / 3600)).padStart(2, '0') + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const fmtH = es => (es.reduce((a, e) => a + (e.clocked_out_at ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60 : 0), 0)).toFixed(1) + 'h';
+  const fmtH = es => (es.reduce((a, e) => a + (e.clocked_out_at ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours : 0), 0)).toFixed(1) + 'h';
   // Job the technician is currently clocked into, used to skip the "select job" step in the FAB
   const activeJob = clockedIn && activeEntry?.job_id ? allJobs.find(j => j.id === activeEntry.job_id) ?? null : null;
   const now = new Date();
@@ -1276,9 +1306,13 @@ export default function FieldApp() {
                 <div style={{ width: 40, height: 40, background: BG, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>⏱</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 15 }}>{clockedIn ? 'Clocked in' : 'Not clocked in'}</div>
-                  <div style={{ fontSize: 12, color: '#888' }}>{clockedIn ? fmtE(elapsed) : 'Tap to start your shift'}</div>
+                  <div style={{ fontSize: 12, color: !clockedIn && getClockBlockMessage() ? '#c04a1a' : '#888' }}>
+                    {clockedIn ? fmtE(elapsed) : (getClockBlockMessage() ?? 'Tap to start your shift')}
+                  </div>
                 </div>
-                <button style={{ background: clockedIn ? '#1a7a4a' : ORANGE, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }} onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
+                <button disabled={!clockedIn && !!getClockBlockMessage()}
+                  style={{ background: clockedIn ? '#1a7a4a' : (getClockBlockMessage() ? '#ccc' : ORANGE), color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: (!clockedIn && getClockBlockMessage()) ? 'not-allowed' : 'pointer' }}
+                  onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
                   {clockedIn ? 'Clock Out' : 'Clock In'}
                 </button>
               </div>
@@ -1345,9 +1379,13 @@ export default function FieldApp() {
                 <div style={{ width: 40, height: 40, background: BG, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>⏱</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{clockedIn ? 'Clocked in' : 'Not clocked in'}</div>
-                  <div style={{ fontSize: 12, color: '#888' }}>{clockedIn ? fmtE(elapsed) : fmtH(timeEntries) + ' logged this week'}</div>
+                  <div style={{ fontSize: 12, color: !clockedIn && getClockBlockMessage() ? '#c04a1a' : '#888' }}>
+                    {clockedIn ? fmtE(elapsed) : (getClockBlockMessage() ?? fmtH(timeEntries) + ' logged this week')}
+                  </div>
                 </div>
-                <button style={{ background: clockedIn ? '#1a7a4a' : '#f5ddd3', color: clockedIn ? '#fff' : '#c04a1a', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }} onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
+                <button disabled={!clockedIn && !!getClockBlockMessage()}
+                  style={{ background: clockedIn ? '#1a7a4a' : (getClockBlockMessage() ? '#eee' : '#f5ddd3'), color: clockedIn ? '#fff' : '#c04a1a', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: (!clockedIn && getClockBlockMessage()) ? 'not-allowed' : 'pointer' }}
+                  onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
                   {clockedIn ? 'Clock Out' : 'Clock In'}
                 </button>
               </div>
@@ -1362,7 +1400,7 @@ export default function FieldApp() {
                   return eDate.getDate() === dayDate.getDate() && eDate.getMonth() === dayDate.getMonth();
                 });
                 const dayHours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
-                  ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60
+                  ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours
                   : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0).toFixed(1);
                 const isToday = dayDate.getDate() === now.getDate() && dayDate.getMonth() === now.getMonth();
                 const hasHours = parseFloat(dayHours) > 0;
@@ -1383,7 +1421,8 @@ export default function FieldApp() {
                 {selectedDay.entries.map((e, i) => {
                   const inTime = new Date(e.clocked_in_at);
                   const outTime = e.clocked_out_at ? new Date(e.clocked_out_at) : null;
-                  const dur = outTime ? ((outTime - inTime) / 3600000 - (e.lunch_minutes ?? 0) / 60).toFixed(2) : null;
+                  const { hours: durHours, invalid: durInvalid } = outTime ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes) : { hours: 0, invalid: false };
+                  const dur = outTime ? durHours.toFixed(2) : null;
                   const isEditing = editingEntryId === e.id;
                   if (isEditing) {
                     return (
@@ -1404,11 +1443,12 @@ export default function FieldApp() {
                               style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                               {savingEntry ? '...' : 'Guardar'}
                             </button>
-                            <button onClick={() => setEditingEntryId(null)}
+                            <button onClick={() => { setEditingEntryId(null); setEditEntryError(''); }}
                               style={{ background: '#f0f0f0', color: '#333', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                               Cancelar
                             </button>
                           </div>
+                          {editEntryError && <div style={{ color: '#e74c3c', fontSize: 12, width: '100%' }}>⚠️ {editEntryError}</div>}
                         </div>
                       </div>
                     );
@@ -1424,6 +1464,7 @@ export default function FieldApp() {
                         {(e.lunch_minutes ?? 0) > 0 && <div style={{ fontSize: 11, color: ORANGE, marginTop: 2 }}>🍽️ Lunch -{(e.lunch_minutes / 60).toFixed(1)}h</div>}
                       </div>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        {durInvalid && <span style={{ fontSize: 11, fontWeight: 700, color: '#e74c3c' }} title="Salida antes de la entrada o almuerzo mayor al turno">⚠️</span>}
                         <div style={{ fontWeight: 700, color: dur ? '#16223d' : ORANGE, fontSize: 14 }}>
                           {dur ? dur + 'h' : '⏱'}
                         </div>
@@ -1522,6 +1563,11 @@ export default function FieldApp() {
                   {dayFormStatus[key] === 'error' && (
                     <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
                       ⚠️ No se pudo guardar. Verifica tu conexión e intenta de nuevo.
+                    </div>
+                  )}
+                  {dayFormStatus[key] === 'invalid' && (
+                    <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
+                      ⚠️ La salida debe ser después de la entrada (revisa a.m./p.m.).
                     </div>
                   )}
                   </>
