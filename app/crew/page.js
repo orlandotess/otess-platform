@@ -2030,6 +2030,7 @@ export default function FieldApp() {
                     <div key={n.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                         <div style={{ fontSize: 11, color: '#aaa' }}>
+                          {n.author_name && <>{n.author_name} · </>}
                           {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                         {n.created_by === profileId && editingDetailNoteId !== n.id && (
@@ -2080,7 +2081,7 @@ export default function FieldApp() {
                             <button type="button" onClick={() => { setEditingDetailNoteId(null); setEditingDetailNoteText(''); }} style={{ padding: '6px 14px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
                           </div>
                         </div>
-                      ) : n.note && <p style={{ fontSize: 14, margin: 0 }}>{n.note}</p>}
+                      ) : n.note && <p style={{ fontSize: 14, margin: 0, whiteSpace: 'pre-wrap' }}>{n.note}</p>}
                     </div>
                   ))
                 }

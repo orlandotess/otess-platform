@@ -644,15 +644,17 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     }
 
     // Notes go into the job's Notes tab as separate entries — one per
-    // source note — so each keeps its own author instead of being merged
-    // into one blob (job_notes has no author column, so we prefix the name
-    // into the text itself rather than adding a migration for this).
+    // source note — so each keeps its own author. author_name is its own
+    // column (mirrors task_notes) rather than baked into the text, so it
+    // can be shown next to the note in Notas & Fotos while staying out of
+    // the auto-generated Status Report, which never reads that column.
     const noteRows = [{ job_id: jobId, note: task.notes ? `[Tarea] ${task.title}\n${task.notes}` : `[Tarea] ${task.title}` }];
     [...taskNotes].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).forEach(n => {
       if (!n.note) return;
       noteRows.push({
         job_id: jobId,
-        note: n.author_name ? `${n.author_name}: ${n.note}` : n.note,
+        note: n.note,
+        author_name: n.author_name ?? null,
         photo_url: n.photo_urls?.[0] ?? null,
         photo_urls: n.photo_urls?.length ? n.photo_urls : null,
       });
