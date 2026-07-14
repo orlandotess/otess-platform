@@ -26,7 +26,7 @@ export default async function ReportePublico({ params }) {
   const [{ data: report }, currentRole] = await Promise.all([
     supabase
       .from('job_reports')
-      .select('*, jobs(title, job_number, clients(name, email, company))')
+      .select('*, jobs(title, job_number, property_name, street, city, state, zip, clients(name, email, company))')
       .eq('id', id)
       .single(),
     getCurrentRole(),
@@ -71,6 +71,8 @@ export default async function ReportePublico({ params }) {
   })));
 
   const client = report.jobs?.clients;
+  const property = report.jobs;
+  const hasProperty = property && (property.property_name || property.street || property.city);
   const fmtDate = d => d ? new Date(`${d}T00:00:00`).toLocaleDateString('es-PR', { year: 'numeric', month: 'long', day: 'numeric' }) : null;
 
   return (
@@ -116,6 +118,19 @@ export default async function ReportePublico({ params }) {
                   <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Cliente</div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{client.name}</div>
                   {client.company && <div style={{ color: '#999', fontSize: 13 }}>{client.company}</div>}
+                </div>
+              )}
+
+              {hasProperty && (
+                <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 20, border: '1px solid #f0f0f0' }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Propiedad</div>
+                  {property.property_name && <div style={{ fontWeight: 700, fontSize: 15 }}>{property.property_name}</div>}
+                  {property.street && <div style={{ color: '#999', fontSize: 13 }}>{property.street}</div>}
+                  {(property.city || property.state || property.zip) && (
+                    <div style={{ color: '#999', fontSize: 13 }}>
+                      {property.city}{property.state ? `, ${property.state}` : ''}{property.zip ? ` ${property.zip}` : ''}
+                    </div>
+                  )}
                 </div>
               )}
 
