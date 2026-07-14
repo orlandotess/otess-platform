@@ -5,11 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
 import LineItemRow from '../LineItemRow';
 
-function emptyItem(parentKey = null) {
+function emptyItem(parentKey = null, itemType = 'labor') {
   return {
     key: Math.random().toString(36).slice(2),
     parentKey,
-    item_type: 'labor',
+    item_type: itemType,
     description: '',
     quantity: 1,
     msrp: '',
@@ -125,6 +125,7 @@ export default function PropuestaForm({ initialData = null }) {
   function removePayment(key) {
     setPaymentSchedule(prev => prev.filter(p => p.key !== key));
   }
+  const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [multiOption, setMultiOption] = useState((initialData?.options?.length ?? 0) > 1);
   const [options, setOptions] = useState(() => {
     if (!initialData?.options?.length) return [emptyOption('Propuesta')];
@@ -191,9 +192,9 @@ export default function PropuestaForm({ initialData = null }) {
     setOptions(prev => prev.map(o => o.key === optKey ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, name } : a) } : o));
   }
 
-  function addItem(optKey, areaKey) {
+  function addItem(optKey, areaKey, itemType = 'labor') {
     setOptions(prev => prev.map(o => o.key === optKey
-      ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: [...a.items, emptyItem()] } : a) }
+      ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: [...a.items, emptyItem(null, itemType)] } : a) }
       : o));
   }
   // Accessories are inserted right after the last item already belonging to
@@ -248,8 +249,11 @@ export default function PropuestaForm({ initialData = null }) {
     if (it.parentKey) return 0;
     return (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0) - (parseFloat(it.discount) || 0);
   }
+  function areaTotal(area) {
+    return area.items.reduce((s, it) => s + itemLineTotal(it), 0);
+  }
   function optionTotal(opt) {
-    return opt.areas.reduce((sum, a) => sum + a.items.reduce((s, it) => s + itemLineTotal(it), 0), 0);
+    return opt.areas.reduce((sum, a) => sum + areaTotal(a), 0);
   }
   const fmt = n => `$${(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -544,9 +548,25 @@ export default function PropuestaForm({ initialData = null }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <input value={area.name} onChange={e => updateAreaName(opt.key, area.key, e.target.value)}
                       style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0 }} />
-                    {opt.areas.length > 1 && (
-                      <button type="button" onClick={() => removeArea(opt.key, area.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 15 }}>× Quitar área</button>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{area.name} Total: {fmt(areaTotal(area))}</span>
+                      <div style={{ position: 'relative' }}>
+                        <button type="button" onClick={() => setAreaMenuOpen(o => o === area.key ? null : area.key)}
+                          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, padding: '2px 6px' }}>⋮</button>
+                        {areaMenuOpen === area.key && (
+                          <>
+                            <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setAreaMenuOpen(null)} />
+                            <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 4, minWidth: 160, whiteSpace: 'nowrap' }}>
+                              <button type="button" disabled={opt.areas.length <= 1}
+                                onClick={() => { removeArea(opt.key, area.key); setAreaMenuOpen(null); }}
+                                style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: opt.areas.length <= 1 ? 'default' : 'pointer', borderRadius: 6, color: opt.areas.length <= 1 ? 'var(--muted)' : 'var(--warn)' }}>
+                                🗑 Eliminar área
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {area.items.map((it, itemIndex) => (
@@ -602,7 +622,10 @@ export default function PropuestaForm({ initialData = null }) {
                       </div>
                     )
                   ))}
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key)}>+ Línea</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key, 'product')}>+ Añadir producto</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key, 'labor')}>+ Añadir labor</button>
+                  </div>
                 </div>
               ))}
               <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => addArea(opt.key)}>+ Agregar área</button>
