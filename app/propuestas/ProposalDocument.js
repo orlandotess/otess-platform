@@ -47,7 +47,7 @@ const page = { padding: '50px', minHeight: 700, background: '#fff' };
 const pageBreak = { ...page, breakBefore: 'page', pageBreakBefore: 'always' };
 const h2 = { fontSize: 22, fontWeight: 800, color: NAVY, marginBottom: 20 };
 
-export default function ProposalDocument({ proposal, option, companyInfo, primaryAddress, taxRules, payments }) {
+export default function ProposalDocument({ proposal, option, companyInfo, primaryAddress, taxRules, payments, mode = 'client' }) {
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
   const areas = groupByArea(option.items ?? []);
   const fb = financialBreakdown(option.items, clientType, taxRules);
@@ -57,44 +57,81 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
 
   return (
     <div style={{ fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif', color: '#1a1a1a' }}>
-      {/* Cover */}
-      <div style={{ ...page, display: 'flex', flexDirection: 'column', minHeight: 850 }}>
-        <div style={{ flex: 1 }} />
-        <div>
-          <div style={{ fontSize: 40, fontWeight: 900, marginBottom: 36, letterSpacing: -1 }}>{proposal.title}</div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#999', letterSpacing: '0.08em', marginBottom: 6 }}>A PROPOSAL FOR</div>
-          <div style={{ fontSize: 19, fontWeight: 800, color: NAVY, marginBottom: 10 }}>{proposal.clients?.company || proposal.clients?.name}</div>
-          <div style={{ fontSize: 14, lineHeight: 1.8 }}>
-            {proposal.clients?.company && <div>{proposal.clients?.name}</div>}
-            {proposal.clients?.email && <div>{proposal.clients?.email}</div>}
-            {proposal.clients?.phone && <div>{proposal.clients?.phone}</div>}
-          </div>
-          {primaryAddress && (
-            <div style={{ fontSize: 14, lineHeight: 1.8, marginTop: 14 }}>
-              {primaryAddress.street && <div>{primaryAddress.street}</div>}
-              <div>{primaryAddress.city}{primaryAddress.state ? `, ${primaryAddress.state}` : ''} {primaryAddress.zip ?? ''}</div>
+      {mode === 'invoice' ? (
+        /* Invoice header — mirrors the Facturas module's letterhead so this
+           reads as a real invoice, not a proposal cover page. */
+        <div style={page}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+            <div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>OTESS</div>
+              <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>OT Electrical & Security Solutions</div>
+              <div style={{ fontSize: 12, color: '#999' }}>Calle 56, #2D8 Lomas de Carolina</div>
+              <div style={{ fontSize: 12, color: '#999' }}>Carolina, PR 00987</div>
+              <div style={{ fontSize: 12, color: '#999' }}>(787) 513-8352 · info@otesspr.com</div>
             </div>
-          )}
-        </div>
-        <div style={{ flex: 1 }} />
-        <div style={{ borderTop: '1px solid #eee', paddingTop: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#999', letterSpacing: '0.05em', marginBottom: 14 }}>
-            {proposal.prepared_by ? `PREPARED BY ${proposal.prepared_by.toUpperCase()}` : ''}
-            {proposal.prepared_by && proposal.valid_until ? ' • ' : ''}
-            {proposal.valid_until ? `EXPIRES ${fmtDate(proposal.valid_until)}` : ''}
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 32, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>FACTURA</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#e0972c', fontFamily: 'monospace' }}>{proposal.proposal_number}</div>
+              <div style={{ fontSize: 13, color: '#999', marginTop: 8 }}>Fecha: <strong>{new Date().toLocaleDateString('en-CA')}</strong></div>
+              {proposal.valid_until && <div style={{ fontSize: 13, color: '#999' }}>Vence: <strong>{proposal.valid_until}</strong></div>}
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img src="/otess-logo.png" alt="OTESS" style={{ height: 26 }} />
-            <span style={{ fontSize: 13, color: '#999', fontWeight: 600 }}>OT Electrical And Security Solutions</span>
+          <div style={{ background: '#f6f7fa', borderRadius: 10, padding: '16px 20px', marginBottom: 28 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#999', marginBottom: 8, textTransform: 'uppercase' }}>Facturar a</div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{proposal.clients?.company || proposal.clients?.name}</div>
+            {proposal.clients?.company && <div style={{ color: '#999', fontSize: 14 }}>{proposal.clients?.name}</div>}
+            {primaryAddress && (
+              <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>
+                {primaryAddress.street && <div>{primaryAddress.street}</div>}
+                <div>{primaryAddress.city}{primaryAddress.state ? `, ${primaryAddress.state}` : ''} {primaryAddress.zip ?? ''}</div>
+              </div>
+            )}
+            {proposal.clients?.email && <div style={{ color: '#999', fontSize: 13 }}>{proposal.clients.email}</div>}
+            {proposal.clients?.phone && <div style={{ color: '#999', fontSize: 13 }}>{proposal.clients.phone}</div>}
           </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Cover */}
+          <div style={{ ...page, display: 'flex', flexDirection: 'column', minHeight: 850 }}>
+            <div style={{ flex: 1 }} />
+            <div>
+              <div style={{ fontSize: 40, fontWeight: 900, marginBottom: 36, letterSpacing: -1 }}>{proposal.title}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', letterSpacing: '0.08em', marginBottom: 6 }}>A PROPOSAL FOR</div>
+              <div style={{ fontSize: 19, fontWeight: 800, color: NAVY, marginBottom: 10 }}>{proposal.clients?.company || proposal.clients?.name}</div>
+              <div style={{ fontSize: 14, lineHeight: 1.8 }}>
+                {proposal.clients?.company && <div>{proposal.clients?.name}</div>}
+                {proposal.clients?.email && <div>{proposal.clients?.email}</div>}
+                {proposal.clients?.phone && <div>{proposal.clients?.phone}</div>}
+              </div>
+              {primaryAddress && (
+                <div style={{ fontSize: 14, lineHeight: 1.8, marginTop: 14 }}>
+                  {primaryAddress.street && <div>{primaryAddress.street}</div>}
+                  <div>{primaryAddress.city}{primaryAddress.state ? `, ${primaryAddress.state}` : ''} {primaryAddress.zip ?? ''}</div>
+                </div>
+              )}
+            </div>
+            <div style={{ flex: 1 }} />
+            <div style={{ borderTop: '1px solid #eee', paddingTop: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', letterSpacing: '0.05em', marginBottom: 14 }}>
+                {proposal.prepared_by ? `PREPARED BY ${proposal.prepared_by.toUpperCase()}` : ''}
+                {proposal.prepared_by && proposal.valid_until ? ' • ' : ''}
+                {proposal.valid_until ? `EXPIRES ${fmtDate(proposal.valid_until)}` : ''}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img src="/otess-logo.png" alt="OTESS" style={{ height: 26 }} />
+                <span style={{ fontSize: 13, color: '#999', fontWeight: 600 }}>OT Electrical And Security Solutions</span>
+              </div>
+            </div>
+          </div>
 
-      {/* About Us */}
-      <div style={pageBreak}>
-        <div style={h2}>About Us</div>
-        <p style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{companyInfo?.about_us || DEFAULT_ABOUT_US}</p>
-      </div>
+          {/* About Us */}
+          <div style={pageBreak}>
+            <div style={h2}>About Us</div>
+            <p style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{companyInfo?.about_us || DEFAULT_ABOUT_US}</p>
+          </div>
+        </>
+      )}
 
       {/* Areas & Items */}
       {areas.map((area, areaIdx) => {

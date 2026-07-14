@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import ProposalDocument, { financialBreakdown } from '../ProposalDocument';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
+import { exportProposalDataCSV } from '../../propuestaDataCsv';
 
 const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', cambios_requeridos: 'badge-amber', expirada: 'badge-gray', aprobada: 'badge-green', rechazada: 'badge-red', completada: 'badge-dark' };
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', cambios_requeridos: 'Cambios requeridos', expirada: 'Expirada', aprobada: 'Aprobada', rechazada: 'Rechazada', completada: 'Completada' };
@@ -24,6 +25,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   const [cloning, setCloning] = useState(false);
   const [archivedAt, setArchivedAt] = useState(proposal.archived_at);
   const [archiving, setArchiving] = useState(false);
+  const [invoicePreviewOpt, setInvoicePreviewOpt] = useState(null);
 
   const menuItemStyle = { display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' };
 
@@ -37,6 +39,28 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     } catch (err) {
       console.error('PDF error:', err);
     }
+    setGeneratingPdf(null);
+  }
+
+  async function handleInvoicePdf(optId) {
+    setGeneratingPdf(`invoice-${optId}`);
+    // Mounted in normal document flow (briefly) so html2canvas measures a
+    // real layout — an off-screen/absolute clone reliably captured at 0
+    // height in testing, unlike this codebase's other PDF exports which
+    // all render their source element visibly on the page. setTimeout
+    // (not requestAnimationFrame) because openPdfPreview's window.open()
+    // backgrounds this tab, and backgrounded tabs can stall rAF entirely.
+    setInvoicePreviewOpt(optId);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    try {
+      await openPdfPreview(`invoice-doc-${optId}`, `${proposal.proposal_number}-Factura.pdf`, {
+        margin: 0,
+        pagebreak: { mode: 'css' },
+      });
+    } catch (err) {
+      console.error('Invoice PDF error:', err);
+    }
+    setInvoicePreviewOpt(null);
     setGeneratingPdf(null);
   }
 
@@ -279,9 +303,17 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                     <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Descargar PDF</div>
                     {options.map(opt => (
                       <button key={opt.id} type="button" disabled={generatingPdf === opt.id} onClick={() => handlePdf(opt.id)} style={menuItemStyle}>
-                        {generatingPdf === opt.id ? '⏳ Generando...' : `🖨️ ${opt.name}`}
+                        {generatingPdf === opt.id ? '⏳ Generando...' : `🖨️ Cliente — ${opt.name}`}
                       </button>
                     ))}
+                    {options.map(opt => (
+                      <button key={`inv-${opt.id}`} type="button" disabled={generatingPdf === `invoice-${opt.id}`} onClick={() => handleInvoicePdf(opt.id)} style={menuItemStyle}>
+                        {generatingPdf === `invoice-${opt.id}` ? '⏳ Generando...' : `🧾 Factura — ${opt.name}`}
+                      </button>
+                    ))}
+                    <button type="button" onClick={() => { exportProposalDataCSV(options, proposal.proposal_number); setMenuOpen(false); }} style={menuItemStyle}>
+                      📊 CSV — Datos de propuesta
+                    </button>
                   </div>
                 </div>
               </>
@@ -367,6 +399,16 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
           </div>
         ))}
       </div>
+      {/* Mounted in normal flow (not hidden) only while a "Factura" PDF is being generated — see handleInvoicePdf */}
+      {invoicePreviewOpt && (() => {
+        const opt = options.find(o => o.id === invoicePreviewOpt);
+        if (!opt) return null;
+        return (
+          <div id={`invoice-doc-${opt.id}`} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} mode="invoice" />
+          </div>
+        );
+      })()}
     </div>
   );
 }
