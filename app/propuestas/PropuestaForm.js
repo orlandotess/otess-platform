@@ -17,6 +17,7 @@ function emptyItem(parentKey = null, itemType = 'labor') {
     supplier_price: '',
     exempt: false,
     discount: '',
+    vendor: '',
     photoFile: null,
     photoPreview: null,
     existingPhotoPath: null,
@@ -58,6 +59,7 @@ function itemsToAreas(items) {
       supplier_price: parent.supplier_price ?? '',
       exempt: !!parent.exempt_reason,
       discount: parent.discount_amount ?? '',
+      vendor: parent.vendor ?? '',
       photoFile: null,
       photoPreview: parent.photo_signed_url ?? null,
       existingPhotoPath: parent.photo_url ?? null,
@@ -125,6 +127,7 @@ export default function PropuestaForm({ initialData = null }) {
   function removePayment(key) {
     setPaymentSchedule(prev => prev.filter(p => p.key !== key));
   }
+  const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — the item group currently being dragged
   const [selectedItemKeys, setSelectedItemKeys] = useState(new Set()); // parent item keys selected for bulk actions
@@ -313,6 +316,7 @@ export default function PropuestaForm({ initialData = null }) {
       setOptions(prev => prev.map(o => o.key === optKey
         ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.map(it => it.key === itemKey ? {
               ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+              vendor: it.vendor || match.vendor || '',
             } : it) } : a) }
         : o));
     } else {
@@ -456,6 +460,7 @@ export default function PropuestaForm({ initialData = null }) {
             supplier_price: it.supplier_price !== '' ? parseFloat(it.supplier_price) : null,
             exempt_reason: it.exempt ? 'Exento' : null,
             discount_amount: it.discount !== '' ? parseFloat(it.discount) : null,
+            vendor: it.vendor || null,
             photo_url: photoPath,
             sort_order: sortOrder++,
           }]).select().single();
@@ -719,6 +724,9 @@ export default function PropuestaForm({ initialData = null }) {
                           onExemptChange={v => updateItem(opt.key, area.key, it.key, 'exempt', v)}
                           discount={it.discount}
                           onDiscountChange={v => updateItem(opt.key, area.key, it.key, 'discount', v)}
+                          vendor={it.vendor}
+                          onVendorChange={v => updateItem(opt.key, area.key, it.key, 'vendor', v)}
+                          vendorOptions={vendorOptions}
                           photoUrl={it.photoPreview}
                           onPhotoSelect={file => handleItemPhoto(opt.key, area.key, it.key, file)}
                           fmt={fmt}

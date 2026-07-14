@@ -158,6 +158,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
             supplier_price: it.supplier_price,
             exempt_reason: it.exempt_reason,
             discount_amount: it.discount_amount,
+            vendor: it.vendor,
             photo_url: it.photo_url,
             sort_order: it.sort_order,
           }]).select().single();
@@ -180,6 +181,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
             supplier_price: it.supplier_price,
             exempt_reason: it.exempt_reason,
             discount_amount: it.discount_amount,
+            vendor: it.vendor,
             photo_url: it.photo_url,
             sort_order: it.sort_order,
           }]);
