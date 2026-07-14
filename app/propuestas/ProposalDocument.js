@@ -48,12 +48,15 @@ const pageBreak = { ...page, breakBefore: 'page', pageBreakBefore: 'always' };
 const h2 = { fontSize: 22, fontWeight: 800, color: NAVY, marginBottom: 20 };
 
 export default function ProposalDocument({ proposal, option, companyInfo, primaryAddress, taxRules, payments, mode = 'client' }) {
+  if (mode === 'picklist') return <PickListDocument proposal={proposal} option={option} />;
+
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
   const areas = groupByArea(option.items ?? []);
   const fb = financialBreakdown(option.items, clientType, taxRules);
   const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
   const partsRate = fb.parts > 0 ? (fb.taxParts / fb.parts * 100).toFixed(1) : '11.5';
   const laborRate = fb.labor > 0 ? (fb.taxLabor / fb.labor * 100).toFixed(1) : (clientType === 'b2b' ? '4' : '11.5');
+  const hidePricing = mode === 'installer';
 
   return (
     <div style={{ fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif', color: '#1a1a1a' }}>
@@ -89,6 +92,30 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
             {proposal.clients?.email && <div style={{ color: '#999', fontSize: 13 }}>{proposal.clients.email}</div>}
             {proposal.clients?.phone && <div style={{ color: '#999', fontSize: 13 }}>{proposal.clients.phone}</div>}
           </div>
+        </div>
+      ) : mode === 'installer' ? (
+        /* Installer header — no pricing, just what/where/how much, for the
+           crew doing the physical work rather than the client or accounting. */
+        <div style={page}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+            <div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>OTESS</div>
+              <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>Hoja de instalación — uso interno</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>INSTALADOR</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#e0972c', fontFamily: 'monospace' }}>{proposal.proposal_number}</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: NAVY, marginBottom: 6 }}>{proposal.title}</div>
+          <div style={{ fontSize: 13, color: '#666' }}>
+            {proposal.clients?.name}{proposal.clients?.phone ? ` · ${proposal.clients.phone}` : ''}
+          </div>
+          {primaryAddress && (
+            <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+              {primaryAddress.street && `${primaryAddress.street}, `}{primaryAddress.city}{primaryAddress.state ? `, ${primaryAddress.state}` : ''} {primaryAddress.zip ?? ''}
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -144,9 +171,9 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
               <thead>
                 <tr style={{ borderBottom: '1.5px solid #eee' }}>
                   <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Items</th>
-                  <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Sell Price</th>
+                  {!hidePricing && <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Sell Price</th>}
                   <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Qty</th>
-                  <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Total</th>
+                  {!hidePricing && <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Total</th>}
                 </tr>
               </thead>
               <tbody>
@@ -163,13 +190,15 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                             <div style={{ fontWeight: 700, fontSize: 14 }}>{it.description}</div>
                           </div>
                         </td>
-                        <td style={{ textAlign: 'right', fontSize: 13.5, color: '#333', verticalAlign: 'top', paddingTop: 14 }}>{bundled ? '' : fmt(it.unit_price)}</td>
+                        {!hidePricing && <td style={{ textAlign: 'right', fontSize: 13.5, color: '#333', verticalAlign: 'top', paddingTop: 14 }}>{bundled ? '' : fmt(it.unit_price)}</td>}
                         <td style={{ textAlign: 'center', fontSize: 13.5, color: '#333', verticalAlign: 'top', paddingTop: 14 }}>x{it.quantity}</td>
-                        <td style={{ textAlign: 'right', verticalAlign: 'top', paddingTop: 14 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(itemTotal(it))}</div>
-                          {it.children.length > 0 && <div style={{ fontSize: 10.5, color: '#999' }}>Combined Price</div>}
-                          {it.discount_amount > 0 && <div style={{ fontSize: 11, color: '#1a7a4a', fontWeight: 600 }}>{fmt(it.discount_amount)} Discount</div>}
-                        </td>
+                        {!hidePricing && (
+                          <td style={{ textAlign: 'right', verticalAlign: 'top', paddingTop: 14 }}>
+                            <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(itemTotal(it))}</div>
+                            {it.children.length > 0 && <div style={{ fontSize: 10.5, color: '#999' }}>Combined Price</div>}
+                            {it.discount_amount > 0 && <div style={{ fontSize: 11, color: '#1a7a4a', fontWeight: 600 }}>{fmt(it.discount_amount)} Discount</div>}
+                          </td>
+                        )}
                       </tr>
                       {it.children.map((child, ci) => (
                         <tr key={child.id} style={{ borderBottom: ci === it.children.length - 1 ? '1px solid #f4f4f4' : 'none' }}>
@@ -179,9 +208,9 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                             </div>
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#444' }}>{child.description}</div>
                           </td>
-                          <td></td>
+                          {!hidePricing && <td></td>}
                           <td style={{ textAlign: 'center', fontSize: 13, color: '#999' }}>x{child.quantity}</td>
-                          <td></td>
+                          {!hidePricing && <td></td>}
                         </tr>
                       ))}
                     </Fragment>
@@ -189,14 +218,18 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                 })}
               </tbody>
             </table>
-            <div style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: NAVY, marginTop: 14, paddingTop: 12, borderTop: '1px solid #eee' }}>
-              {area.name} Total: {fmt(areaTotal)}
-            </div>
+            {!hidePricing && (
+              <div style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: NAVY, marginTop: 14, paddingTop: 12, borderTop: '1px solid #eee' }}>
+                {area.name} Total: {fmt(areaTotal)}
+              </div>
+            )}
           </div>
         );
       })}
 
-      {/* Financial Summary */}
+      {/* Financial Summary — skipped for the installer sheet, which has no pricing */}
+      {!hidePricing && (
+      <>
       <div style={pageBreak}>
         <div style={h2}>Financial Summary</div>
         <div style={{ display: 'flex', gap: 40 }}>
@@ -245,6 +278,73 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
         {proposal.valid_until && (
           <p style={{ fontSize: 12, color: '#999', marginTop: 16 }}>Esta propuesta es válida hasta el {fmtDate(proposal.valid_until)}.</p>
         )}
+      </div>
+      </>
+      )}
+    </div>
+  );
+}
+
+// Warehouse Pick List — a flat, aggregated checklist of the products needed
+// for one option (quantities summed across areas; labor lines excluded).
+// Deliberately its own render path rather than a mode branch further up:
+// it isn't area-grouped and has no financial section at all, so bolting it
+// onto the area-by-area layout above would mean threading hidePricing-style
+// conditionals through code that doesn't otherwise apply to it.
+function PickListDocument({ proposal, option }) {
+  const products = (option.items ?? []).filter(it => it.item_type === 'product' && !it.parent_item_id);
+  const grouped = new Map();
+  products.forEach(it => {
+    const key = it.description;
+    const existing = grouped.get(key);
+    if (existing) existing.quantity += it.quantity || 0;
+    else grouped.set(key, { description: it.description, quantity: it.quantity || 0, photo_signed_url: it.photo_signed_url });
+  });
+  const rows = [...grouped.values()].sort((a, b) => a.description.localeCompare(b.description));
+
+  return (
+    <div style={{ fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif', color: '#1a1a1a' }}>
+      <div style={page}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+          <div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>OTESS</div>
+            <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>Warehouse Pick List — uso interno</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#e0972c', fontFamily: 'monospace' }}>{proposal.proposal_number}</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 19, fontWeight: 800, color: NAVY, marginBottom: 20 }}>{proposal.title}</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1.5px solid #eee' }}>
+              <th style={{ width: 28, padding: '8px 0' }}></th>
+              <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Producto</th>
+              <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Cantidad</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #f4f4f4' }}>
+                <td style={{ padding: '12px 0' }}>
+                  <div style={{ width: 16, height: 16, border: '1.5px solid #ccc', borderRadius: 3 }} />
+                </td>
+                <td style={{ padding: '12px 10px 12px 0' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {r.photo_signed_url ? <img src={r.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>📦</span>}
+                    </div>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{r.description}</span>
+                  </div>
+                </td>
+                <td style={{ textAlign: 'center', fontSize: 15, fontWeight: 700 }}>x{r.quantity}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={3} style={{ padding: '20px 0', color: '#999', fontSize: 13, textAlign: 'center' }}>No hay productos en esta opción.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

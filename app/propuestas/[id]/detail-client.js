@@ -25,7 +25,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   const [cloning, setCloning] = useState(false);
   const [archivedAt, setArchivedAt] = useState(proposal.archived_at);
   const [archiving, setArchiving] = useState(false);
-  const [invoicePreviewOpt, setInvoicePreviewOpt] = useState(null);
+  const [extraPreview, setExtraPreview] = useState(null); // { mode, optId } — see handleExtraPdf
 
   const menuItemStyle = { display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' };
 
@@ -42,25 +42,27 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     setGeneratingPdf(null);
   }
 
-  async function handleInvoicePdf(optId) {
-    setGeneratingPdf(`invoice-${optId}`);
-    // Mounted in normal document flow (briefly) so html2canvas measures a
-    // real layout — an off-screen/absolute clone reliably captured at 0
-    // height in testing, unlike this codebase's other PDF exports which
-    // all render their source element visibly on the page. setTimeout
-    // (not requestAnimationFrame) because openPdfPreview's window.open()
-    // backgrounds this tab, and backgrounded tabs can stall rAF entirely.
-    setInvoicePreviewOpt(optId);
+  // Covers the invoice, installer and pick-list exports — each is a
+  // ProposalDocument mode with no visible on-page rendering of its own.
+  // Mounted in normal document flow (briefly) so html2canvas measures a
+  // real layout — an off-screen/absolute clone reliably captured at 0
+  // height in testing, unlike the client PDF, which renders visibly on
+  // the page and works fine. setTimeout (not requestAnimationFrame)
+  // because openPdfPreview's window.open() backgrounds this tab, and
+  // backgrounded tabs can stall rAF entirely.
+  async function handleExtraPdf(mode, optId, filenameSuffix) {
+    setGeneratingPdf(`${mode}-${optId}`);
+    setExtraPreview({ mode, optId });
     await new Promise(resolve => setTimeout(resolve, 50));
     try {
-      await openPdfPreview(`invoice-doc-${optId}`, `${proposal.proposal_number}-Factura.pdf`, {
+      await openPdfPreview(`${mode}-doc-${optId}`, `${proposal.proposal_number}-${filenameSuffix}.pdf`, {
         margin: 0,
         pagebreak: { mode: 'css' },
       });
     } catch (err) {
-      console.error('Invoice PDF error:', err);
+      console.error(`${mode} PDF error:`, err);
     }
-    setInvoicePreviewOpt(null);
+    setExtraPreview(null);
     setGeneratingPdf(null);
   }
 
@@ -307,8 +309,18 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                       </button>
                     ))}
                     {options.map(opt => (
-                      <button key={`inv-${opt.id}`} type="button" disabled={generatingPdf === `invoice-${opt.id}`} onClick={() => handleInvoicePdf(opt.id)} style={menuItemStyle}>
+                      <button key={`inv-${opt.id}`} type="button" disabled={generatingPdf === `invoice-${opt.id}`} onClick={() => handleExtraPdf('invoice', opt.id, 'Factura')} style={menuItemStyle}>
                         {generatingPdf === `invoice-${opt.id}` ? '⏳ Generando...' : `🧾 Factura — ${opt.name}`}
+                      </button>
+                    ))}
+                    {options.map(opt => (
+                      <button key={`inst-${opt.id}`} type="button" disabled={generatingPdf === `installer-${opt.id}`} onClick={() => handleExtraPdf('installer', opt.id, 'Instalador')} style={menuItemStyle}>
+                        {generatingPdf === `installer-${opt.id}` ? '⏳ Generando...' : `🔧 Instalador — ${opt.name}`}
+                      </button>
+                    ))}
+                    {options.map(opt => (
+                      <button key={`pick-${opt.id}`} type="button" disabled={generatingPdf === `picklist-${opt.id}`} onClick={() => handleExtraPdf('picklist', opt.id, 'PickList')} style={menuItemStyle}>
+                        {generatingPdf === `picklist-${opt.id}` ? '⏳ Generando...' : `📋 Pick List — ${opt.name}`}
                       </button>
                     ))}
                     <button type="button" onClick={() => { exportProposalDataCSV(options, proposal.proposal_number); setMenuOpen(false); }} style={menuItemStyle}>
@@ -399,13 +411,13 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
           </div>
         ))}
       </div>
-      {/* Mounted in normal flow (not hidden) only while a "Factura" PDF is being generated — see handleInvoicePdf */}
-      {invoicePreviewOpt && (() => {
-        const opt = options.find(o => o.id === invoicePreviewOpt);
+      {/* Mounted in normal flow (not hidden) only while a Factura/Instalador/Pick List PDF is being generated — see handleExtraPdf */}
+      {extraPreview && (() => {
+        const opt = options.find(o => o.id === extraPreview.optId);
         if (!opt) return null;
         return (
-          <div id={`invoice-doc-${opt.id}`} className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} mode="invoice" />
+          <div id={`${extraPreview.mode}-doc-${opt.id}`} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} mode={extraPreview.mode} />
           </div>
         );
       })()}
