@@ -418,6 +418,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [reportObservations, setReportObservations] = useState('');
   const [reportRecommendations, setReportRecommendations] = useState('');
   const [reportPreparedBy, setReportPreparedBy] = useState('');
+  const [reportPhaseFilter, setReportPhaseFilter] = useState('all');
   const [savingReport, setSavingReport] = useState(false);
   const [emailingReportId, setEmailingReportId] = useState(null);
   const [reportEmailTo, setReportEmailTo] = useState('');
@@ -681,6 +682,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setReportObservations('');
     setReportRecommendations('');
     setReportPreparedBy('');
+    setReportPhaseFilter('all');
     setShowReportModal(true);
   }
 
@@ -694,6 +696,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     setReportObservations(report.observations ?? '');
     setReportRecommendations(report.recommendations ?? '');
     setReportPreparedBy(report.prepared_by ?? '');
+    setReportPhaseFilter('all');
     setShowReportModal(true);
   }
 
@@ -1669,6 +1672,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
                   {n.is_pinned && <span title="Pineada">📌</span>}
                   {n.phase_number != null && <span style={{ background: 'var(--navy)', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>Fase {n.phase_number}</span>}
+                  {n.author_name && <>{n.author_name} · </>}
                   {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -1734,7 +1738,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               ) : (
                 <>
                   {n.title && <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', margin: '0 0 4px' }}>{n.title}</p>}
-                  {n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0 }}>{n.note}</p>}
+                  {n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0, whiteSpace: 'pre-wrap' }}>{n.note}</p>}
                 </>
               )}
             </div>
@@ -2103,39 +2107,81 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   if (!groups[key]) groups[key] = [];
                   groups[key].push(n);
                 });
-              return Object.entries(groups).map(([label, notesInGroup]) => (
-                <div key={label} style={{ marginBottom: 14 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
-                  {notesInGroup.map(n => {
-                    const thumbUrls = n.photo_urls && n.photo_urls.length > 0 ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
-                    const isVideo = url => /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
-                    const isPdf = url => /\.pdf(\?|$)/i.test(url);
-                    return (
-                      <label key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', cursor: 'pointer', textTransform: 'none' }}>
-                        <input type="checkbox" checked={reportNoteIds.includes(n.id)} onChange={() => toggleReportNoteSelection(n.id)} style={{ marginTop: 3 }} />
-                        {thumbUrls.length > 0 && (
-                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                            {thumbUrls.slice(0, 3).map((url, idx) => (
-                              isPdf(url) ? (
-                                <div key={idx} style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📄</div>
-                              ) : isVideo(url) ? (
-                                <video key={idx} src={url} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, background: '#000' }} />
-                              ) : (
-                                <img key={idx} src={url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
-                              )
-                            ))}
+              const groupEntries = Object.entries(groups);
+              const visibleEntries = reportPhaseFilter === 'all' ? groupEntries : groupEntries.filter(([label]) => label === reportPhaseFilter);
+              return (
+                <>
+                  {groupEntries.length > 1 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                      <button type="button" onClick={() => setReportPhaseFilter('all')}
+                        style={{ fontSize: 11, fontWeight: 700, padding: '4px 11px', borderRadius: 20, border: 'none', cursor: 'pointer', background: reportPhaseFilter === 'all' ? 'var(--navy)' : 'var(--surface-2)', color: reportPhaseFilter === 'all' ? '#fff' : 'var(--muted)' }}>
+                        Todas
+                      </button>
+                      {groupEntries.map(([label]) => (
+                        <button key={label} type="button" onClick={() => setReportPhaseFilter(label)}
+                          style={{ fontSize: 11, fontWeight: 700, padding: '4px 11px', borderRadius: 20, border: 'none', cursor: 'pointer', background: reportPhaseFilter === label ? 'var(--navy)' : 'var(--surface-2)', color: reportPhaseFilter === label ? '#fff' : 'var(--muted)' }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {visibleEntries.map(([label, notesInGroup]) => (
+                    <div key={label} style={{ marginBottom: 14 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
+                      {notesInGroup.map(n => {
+                        const thumbUrls = n.photo_urls && n.photo_urls.length > 0 ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
+                        const isVideo = url => /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                        const isPdf = url => /\.pdf(\?|$)/i.test(url);
+                        if (editingNoteId === n.id) {
+                          return (
+                            <div key={n.id} style={{ padding: '8px 0', textTransform: 'none' }}>
+                              <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                                <input value={editingNoteTitle} onChange={e => setEditingNoteTitle(e.target.value)} placeholder="Título (opcional)"
+                                  style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontWeight: 600, outline: 'none' }} />
+                                <input type="number" value={editingNotePhase} onChange={e => setEditingNotePhase(e.target.value)} placeholder="Fase #"
+                                  style={{ width: 80, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+                              </div>
+                              <textarea autoFocus value={editingNoteText} onChange={e => setEditingNoteText(e.target.value)} rows={2}
+                                style={{ width: '100%', padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 6 }} />
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button type="button" className="btn btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => saveNoteEdit(n.id)}>Guardar</button>
+                                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => { setEditingNoteId(null); setEditingNoteText(''); setEditingNoteTitle(''); setEditingNotePhase(''); }}>Cancelar</button>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', textTransform: 'none' }}>
+                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', flex: 1 }}>
+                              <input type="checkbox" checked={reportNoteIds.includes(n.id)} onChange={() => toggleReportNoteSelection(n.id)} style={{ marginTop: 3 }} />
+                              {thumbUrls.length > 0 && (
+                                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                                  {thumbUrls.slice(0, 3).map((url, idx) => (
+                                    isPdf(url) ? (
+                                      <div key={idx} style={{ width: 40, height: 40, borderRadius: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📄</div>
+                                    ) : isVideo(url) ? (
+                                      <video key={idx} src={url} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, background: '#000' }} />
+                                    ) : (
+                                      <img key={idx} src={url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                                    )
+                                  ))}
+                                </div>
+                              )}
+                              <span style={{ fontSize: 13 }}>
+                                {n.title && <strong>{n.title}</strong>}
+                                {n.title && n.note ? ' — ' : ''}
+                                {n.note && <span style={{ color: 'var(--muted)' }}>{n.note.slice(0, 60)}{n.note.length > 60 ? '…' : ''}</span>}
+                              </span>
+                            </label>
+                            <button type="button" onClick={() => { setEditingNoteId(n.id); setEditingNoteText(n.note ?? ''); setEditingNoteTitle(n.title ?? ''); setEditingNotePhase(n.phase_number != null ? String(n.phase_number) : ''); }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, flexShrink: 0 }}>✏️</button>
                           </div>
-                        )}
-                        <span style={{ fontSize: 13 }}>
-                          {n.title && <strong>{n.title}</strong>}
-                          {n.title && n.note ? ' — ' : ''}
-                          {n.note && <span style={{ color: 'var(--muted)' }}>{n.note.slice(0, 60)}{n.note.length > 60 ? '…' : ''}</span>}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              ));
+                        );
+                      })}
+                    </div>
+                  ))}
+                </>
+              );
             })()}
             <div className="form-group" style={{ marginTop: 16, marginBottom: 16 }}>
               <label>Observaciones</label>

@@ -1,7 +1,11 @@
 export const dynamic = 'force-dynamic';
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { getCurrentRole } from '../../../lib/supabase-server';
 import ReporteActions from './ReporteActions';
+import FaseDetalle from './FaseDetalle';
+
+const EDITABLE_ROLES = ['admin', 'secretaria', 'vendedor', 'tecnico'];
 
 function lines(text) {
   return (text ?? '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -19,11 +23,15 @@ function Section({ title, children }) {
 export default async function ReportePublico({ params }) {
   const { id } = params;
 
-  const { data: report } = await supabase
-    .from('job_reports')
-    .select('*, jobs(title, job_number, clients(name, email, company))')
-    .eq('id', id)
-    .single();
+  const [{ data: report }, currentRole] = await Promise.all([
+    supabase
+      .from('job_reports')
+      .select('*, jobs(title, job_number, clients(name, email, company))')
+      .eq('id', id)
+      .single(),
+    getCurrentRole(),
+  ]);
+  const canEdit = EDITABLE_ROLES.includes(currentRole);
 
   if (!report) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -121,19 +129,13 @@ export default async function ReportePublico({ params }) {
 
               {Object.keys(phaseGroups).length > 0 && (
                 <Section title="Detalle por Fase">
-                  {Object.entries(phaseGroups).map(([label, notesInGroup]) => (
-                    <div key={label} style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', background: '#16223d', display: 'inline-block', padding: '4px 12px', borderRadius: 20, marginBottom: 10 }}>{label}</div>
-                      <ul style={{ margin: 0, paddingLeft: 20 }}>
-                        {notesInGroup.map(n => (
-                          <li key={n.id} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, marginBottom: 4 }}>
-                            {n.title && <strong style={{ color: '#16223d' }}>{n.title}{n.note ? ': ' : ''}</strong>}
-                            {n.note}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+                  <FaseDetalle
+                    phaseGroups={Object.fromEntries(Object.entries(phaseGroups).map(([label, notesInGroup]) => [
+                      label,
+                      notesInGroup.map(n => ({ id: n.id, title: n.title ?? null, note: n.note ?? null, phase_number: n.phase_number ?? null })),
+                    ]))}
+                    canEdit={canEdit}
+                  />
                 </Section>
               )}
 
