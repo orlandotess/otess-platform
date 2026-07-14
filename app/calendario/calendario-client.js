@@ -66,35 +66,59 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const [eventNotes, setEventNotes] = useState([]);
   const [taskNotes, setTaskNotes] = useState([]);
   const [newNoteText, setNewNoteText] = useState('');
+  const [newNotePhotos, setNewNotePhotos] = useState([]); // [{file, previewUrl}]
   const [savingNote, setSavingNote] = useState(false);
+  const notePhotoInputRef = useRef(null);
+
+  async function resolveNotePhotoUrls(notes) {
+    return Promise.all(notes.map(async n => ({
+      ...n,
+      photo_signed_urls: await Promise.all((n.photo_urls ?? []).map(async p => {
+        const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
+        return data?.signedUrl ?? null;
+      })),
+    })));
+  }
 
   useEffect(() => {
     setNewNoteText('');
+    setNewNotePhotos([]);
     if (!selectedEvent) { setEventNotes([]); return; }
     supabase.from('calendar_event_notes').select('*').eq('event_id', selectedEvent.id)
-      .order('created_at', { ascending: false }).then(({ data }) => setEventNotes(data ?? []));
+      .order('created_at', { ascending: false }).then(async ({ data }) => setEventNotes(await resolveNotePhotoUrls(data ?? [])));
   }, [selectedEvent?.id]);
 
   useEffect(() => {
     setNewNoteText('');
+    setNewNotePhotos([]);
     if (!selectedTask) { setTaskNotes([]); return; }
     supabase.from('task_notes').select('*').eq('task_id', selectedTask.id)
-      .order('created_at', { ascending: false }).then(({ data }) => setTaskNotes(data ?? []));
+      .order('created_at', { ascending: false }).then(async ({ data }) => setTaskNotes(await resolveNotePhotoUrls(data ?? [])));
   }, [selectedTask?.id]);
 
   async function addEntryNote(kind, id) {
-    if (!newNoteText.trim()) return;
+    if (!newNoteText.trim() && newNotePhotos.length === 0) return;
     setSavingNote(true);
     const table = kind === 'event' ? 'calendar_event_notes' : 'task_notes';
     const fkColumn = kind === 'event' ? 'event_id' : 'task_id';
+    const uploadedPaths = [];
+    for (const { file } of newNotePhotos) {
+      const ext = file.name.split('.').pop();
+      const path = `${id}/note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const { error } = await supabase.storage.from('Job-photos').upload(path, file);
+      if (!error) uploadedPaths.push(path);
+    }
     const { data, error } = await supabase.from(table).insert([{
-      [fkColumn]: id, note: newNoteText.trim(), author_name: currentUserName || null,
+      [fkColumn]: id, note: newNoteText.trim() || null, author_name: currentUserName || null,
+      photo_urls: uploadedPaths.length ? uploadedPaths : null,
     }]).select().single();
     setSavingNote(false);
     if (error) { alert(error.message); return; }
+    const newNote = { ...data, photo_signed_urls: newNotePhotos.map(p => p.previewUrl) };
     setNewNoteText('');
-    if (kind === 'event') setEventNotes(prev => [data, ...prev]);
-    else setTaskNotes(prev => [data, ...prev]);
+    setNewNotePhotos([]);
+    if (kind === 'event') setEventNotes(prev => [newNote, ...prev]);
+    else setTaskNotes(prev => [newNote, ...prev]);
   }
 
   async function deleteEntryNote(kind, noteId) {
@@ -111,11 +135,20 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       <div style={{ marginTop: 4, marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600, marginBottom: 8 }}>📝 Notas</div>
         {notes.length === 0 && <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>Sin notas todavía.</div>}
-        <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 180, overflowY: 'auto' }}>
+        <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 220, overflowY: 'auto' }}>
           {notes.map(n => (
             <div key={n.id} style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                {n.note && <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>}
+                {(n.photo_signed_urls ?? []).filter(Boolean).length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: n.note ? 6 : 0 }}>
+                    {n.photo_signed_urls.filter(Boolean).map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                        <img src={url} alt="foto de la nota" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                      </a>
+                    ))}
+                  </div>
+                )}
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
                   {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('es-PR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
@@ -125,11 +158,29 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             </div>
           ))}
         </div>
+        {newNotePhotos.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            {newNotePhotos.map((p, i) => (
+              <div key={i} style={{ position: 'relative', width: 44, height: 44 }}>
+                <img src={p.previewUrl} alt="foto pendiente" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                <button type="button" onClick={() => setNewNotePhotos(prev => prev.filter((_, idx) => idx !== i))}
+                  style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', background: 'var(--warn)', color: '#fff', border: 'none', fontSize: 10, lineHeight: 1, cursor: 'pointer' }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 6 }}>
           <input value={newNoteText} onChange={e => setNewNoteText(e.target.value)} placeholder="Agregar nota..."
             style={{ flex: 1, borderRadius: 8, border: '1px solid var(--border)', padding: '8px 10px', fontSize: 13 }}
             onKeyDown={e => { if (e.key === 'Enter') addEntryNote(kind, id); }} />
-          <button className="btn btn-ghost" disabled={savingNote || !newNoteText.trim()} onClick={() => addEntryNote(kind, id)}>
+          <input ref={notePhotoInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+            onChange={e => {
+              const files = Array.from(e.target.files || []);
+              setNewNotePhotos(prev => [...prev, ...files.map(file => ({ file, previewUrl: URL.createObjectURL(file) }))]);
+              e.target.value = '';
+            }} />
+          <button type="button" className="btn btn-ghost" title="Adjuntar foto" onClick={() => notePhotoInputRef.current?.click()}>📷</button>
+          <button className="btn btn-ghost" disabled={savingNote || (!newNoteText.trim() && newNotePhotos.length === 0)} onClick={() => addEntryNote(kind, id)}>
             {savingNote ? '...' : 'Agregar'}
           </button>
         </div>

@@ -217,29 +217,53 @@ export default function FieldApp() {
   const [detailEntry, setDetailEntry] = useState(null); // { kind, raw } — simple read-only view for event/task/visit
   const [detailEntryNotes, setDetailEntryNotes] = useState([]);
   const [newEntryNoteText, setNewEntryNoteText] = useState('');
+  const [newEntryNotePhotos, setNewEntryNotePhotos] = useState([]); // [{file, previewUrl}]
   const [savingEntryNote, setSavingEntryNote] = useState(false);
+  const entryNotePhotoInputRef = useRef(null);
+
+  async function resolveNotePhotoUrls(notes) {
+    return Promise.all(notes.map(async n => ({
+      ...n,
+      photo_signed_urls: await Promise.all((n.photo_urls ?? []).map(async p => {
+        const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
+        return data?.signedUrl ?? null;
+      })),
+    })));
+  }
 
   useEffect(() => {
     setNewEntryNoteText('');
+    setNewEntryNotePhotos([]);
     if (!detailEntry || (detailEntry._kind !== 'event' && detailEntry._kind !== 'task')) { setDetailEntryNotes([]); return; }
     const table = detailEntry._kind === 'event' ? 'calendar_event_notes' : 'task_notes';
     const fkColumn = detailEntry._kind === 'event' ? 'event_id' : 'task_id';
     supabase.from(table).select('*').eq(fkColumn, detailEntry._raw.id)
-      .order('created_at', { ascending: false }).then(({ data }) => setDetailEntryNotes(data ?? []));
+      .order('created_at', { ascending: false }).then(async ({ data }) => setDetailEntryNotes(await resolveNotePhotoUrls(data ?? [])));
   }, [detailEntry?._kind, detailEntry?._raw?.id]);
 
   async function addDetailEntryNote() {
-    if (!newEntryNoteText.trim()) return;
+    if (!newEntryNoteText.trim() && newEntryNotePhotos.length === 0) return;
     setSavingEntryNote(true);
     const table = detailEntry._kind === 'event' ? 'calendar_event_notes' : 'task_notes';
     const fkColumn = detailEntry._kind === 'event' ? 'event_id' : 'task_id';
+    const taskId = detailEntry._raw.id;
+    const uploadedPaths = [];
+    for (const { file } of newEntryNotePhotos) {
+      const ext = file.name.split('.').pop();
+      const path = `${taskId}/note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const { error } = await supabase.storage.from('Job-photos').upload(path, file);
+      if (!error) uploadedPaths.push(path);
+    }
     const { data, error } = await supabase.from(table).insert([{
-      [fkColumn]: detailEntry._raw.id, note: newEntryNoteText.trim(), author_name: techName,
+      [fkColumn]: taskId, note: newEntryNoteText.trim() || null, author_name: techName,
+      photo_urls: uploadedPaths.length ? uploadedPaths : null,
     }]).select().single();
     setSavingEntryNote(false);
     if (error) { alert(error.message); return; }
     setNewEntryNoteText('');
-    setDetailEntryNotes(prev => [data, ...prev]);
+    const newNote = { ...data, photo_signed_urls: newEntryNotePhotos.map(p => p.previewUrl) };
+    setNewEntryNotePhotos([]);
+    setDetailEntryNotes(prev => [newNote, ...prev]);
   }
 
   async function deleteDetailEntryNote(noteId) {
@@ -2068,11 +2092,20 @@ export default function FieldApp() {
             {(detailEntry._kind === 'event' || detailEntry._kind === 'task') && (
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 13, color: '#555', fontWeight: 700, marginBottom: 8 }}>📝 Notas</div>
-                <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 180, overflowY: 'auto' }}>
+                <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 220, overflowY: 'auto' }}>
                   {detailEntryNotes.map(n => (
                     <div key={n.id} style={{ background: '#f7f7f7', borderRadius: 8, padding: '8px 10px', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        {n.note && <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>}
+                        {(n.photo_signed_urls ?? []).filter(Boolean).length > 0 && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: n.note ? 6 : 0 }}>
+                            {n.photo_signed_urls.filter(Boolean).map((url, i) => (
+                              <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                                <img src={url} alt="note photo" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
+                              </a>
+                            ))}
+                          </div>
+                        )}
                         <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
                           {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                         </div>
@@ -2082,11 +2115,30 @@ export default function FieldApp() {
                     </div>
                   ))}
                 </div>
+                {newEntryNotePhotos.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                    {newEntryNotePhotos.map((p, i) => (
+                      <div key={i} style={{ position: 'relative', width: 44, height: 44 }}>
+                        <img src={p.previewUrl} alt="pending photo" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
+                        <button type="button" onClick={() => setNewEntryNotePhotos(prev => prev.filter((_, idx) => idx !== i))}
+                          style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', background: '#c0392b', color: '#fff', border: 'none', fontSize: 10, lineHeight: 1, cursor: 'pointer' }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 6 }}>
                   <input value={newEntryNoteText} onChange={e => setNewEntryNoteText(e.target.value)} placeholder="Add a note..."
                     style={{ flex: 1, borderRadius: 8, border: '1px solid #ddd', padding: '10px 12px', fontSize: 14 }}
                     onKeyDown={e => { if (e.key === 'Enter') addDetailEntryNote(); }} />
-                  <button onClick={addDetailEntryNote} disabled={savingEntryNote || !newEntryNoteText.trim()}
+                  <input ref={entryNotePhotoInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+                    onChange={e => {
+                      const files = Array.from(e.target.files || []);
+                      setNewEntryNotePhotos(prev => [...prev, ...files.map(file => ({ file, previewUrl: URL.createObjectURL(file) }))]);
+                      e.target.value = '';
+                    }} />
+                  <button type="button" onClick={() => entryNotePhotoInputRef.current?.click()} title="Attach photo"
+                    style={{ background: '#f0f0f0', border: '1px solid #ddd', borderRadius: 8, padding: '0 14px', fontSize: 16, cursor: 'pointer' }}>📷</button>
+                  <button onClick={addDetailEntryNote} disabled={savingEntryNote || (!newEntryNoteText.trim() && newEntryNotePhotos.length === 0)}
                     style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '0 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                     {savingEntryNote ? '...' : 'Add'}
                   </button>
