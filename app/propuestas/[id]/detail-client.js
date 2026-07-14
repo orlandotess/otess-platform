@@ -21,6 +21,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   const [menuOpen, setMenuOpen] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
+  const [cloning, setCloning] = useState(false);
 
   const menuItemStyle = { display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' };
 
@@ -76,6 +77,102 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     setStatusMenuOpen(false);
     setMenuOpen(false);
     router.refresh();
+  }
+
+  async function cloneProposal() {
+    setCloning(true);
+    try {
+      const { data: last } = await supabase.from('proposals').select('proposal_number').order('created_at', { ascending: false }).limit(1).single();
+      let nextNum = 1001;
+      if (last?.proposal_number) {
+        const n = parseInt(last.proposal_number.replace('PROP-', ''));
+        if (!isNaN(n)) nextNum = n + 1;
+      }
+
+      const { data: newProposal, error: propErr } = await supabase.from('proposals').insert([{
+        proposal_number: `PROP-${nextNum}`,
+        client_id: proposal.client_id,
+        title: `${proposal.title} (copia)`,
+        prepared_by: proposal.prepared_by,
+        intro_note: proposal.intro_note,
+        requires_signature: proposal.requires_signature,
+        status: 'borrador',
+        tax_client_type: proposal.tax_client_type,
+        cover_photo_url: proposal.cover_photo_url,
+        terms: proposal.terms,
+        valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      }]).select().single();
+      if (propErr) throw propErr;
+
+      for (let i = 0; i < options.length; i++) {
+        const opt = options[i];
+        const { data: newOpt, error: optErr } = await supabase.from('proposal_options').insert([{
+          proposal_id: newProposal.id,
+          name: opt.name,
+          description: opt.description,
+          is_recommended: opt.is_recommended,
+          sort_order: opt.sort_order ?? i,
+        }]).select().single();
+        if (optErr) throw optErr;
+
+        const idMap = {};
+        const parents = (opt.items ?? []).filter(it => !it.parent_item_id);
+        for (const it of parents) {
+          const { data: newItem, error: itemErr } = await supabase.from('proposal_line_items').insert([{
+            option_id: newOpt.id,
+            area: it.area,
+            parent_item_id: null,
+            item_type: it.item_type,
+            description: it.description,
+            quantity: it.quantity,
+            msrp: it.msrp,
+            unit_price: it.unit_price,
+            supplier_price: it.supplier_price,
+            exempt_reason: it.exempt_reason,
+            discount_amount: it.discount_amount,
+            photo_url: it.photo_url,
+            sort_order: it.sort_order,
+          }]).select().single();
+          if (itemErr) throw itemErr;
+          idMap[it.id] = newItem.id;
+        }
+        const children = (opt.items ?? []).filter(it => it.parent_item_id);
+        for (const it of children) {
+          const newParentId = idMap[it.parent_item_id];
+          if (!newParentId) continue;
+          await supabase.from('proposal_line_items').insert([{
+            option_id: newOpt.id,
+            area: it.area,
+            parent_item_id: newParentId,
+            item_type: it.item_type,
+            description: it.description,
+            quantity: it.quantity,
+            msrp: it.msrp,
+            unit_price: it.unit_price,
+            supplier_price: it.supplier_price,
+            exempt_reason: it.exempt_reason,
+            discount_amount: it.discount_amount,
+            photo_url: it.photo_url,
+            sort_order: it.sort_order,
+          }]);
+        }
+      }
+
+      const paymentsToInsert = (payments ?? []).map(p => ({
+        proposal_id: newProposal.id,
+        label: p.label,
+        basis: p.basis,
+        percent: p.percent,
+        due_trigger: p.due_trigger,
+        sort_order: p.sort_order,
+      }));
+      if (paymentsToInsert.length) await supabase.from('proposal_payments').insert(paymentsToInsert);
+
+      router.push(`/propuestas/${newProposal.id}`);
+    } catch (err) {
+      alert('Error al clonar la propuesta: ' + err.message);
+      setCloning(false);
+    }
   }
 
   function copyLink() {
@@ -144,6 +241,9 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                       👁 Vista previa
                     </button>
                   )}
+                  <button type="button" disabled={cloning} onClick={cloneProposal} style={menuItemStyle}>
+                    {cloning ? '⏳ Clonando...' : '📄 Clonar propuesta'}
+                  </button>
                   <div style={{ position: 'relative' }}>
                     <button type="button" onClick={() => setStatusMenuOpen(o => !o)} style={menuItemStyle}>
                       🏷 Cambiar estado
