@@ -242,6 +242,13 @@ export default function FieldApp() {
     setDetailEntryNotes(prev => [data, ...prev]);
   }
 
+  async function deleteDetailEntryNote(noteId) {
+    const table = detailEntry._kind === 'event' ? 'calendar_event_notes' : 'task_notes';
+    const { error } = await supabase.from(table).delete().eq('id', noteId);
+    if (error) { alert(error.message); return; }
+    setDetailEntryNotes(prev => prev.filter(n => n.id !== noteId));
+  }
+
   // Clientes state
   const [clientSearch, setClientSearch] = useState('');
   const [clientResults, setClientResults] = useState([]);
@@ -2040,11 +2047,15 @@ export default function FieldApp() {
                 <div style={{ fontSize: 13, color: '#555', fontWeight: 700, marginBottom: 8 }}>📝 Notas</div>
                 <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 180, overflowY: 'auto' }}>
                   {detailEntryNotes.map(n => (
-                    <div key={n.id} style={{ background: '#f7f7f7', borderRadius: 8, padding: '8px 10px' }}>
-                      <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>
-                      <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                        {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    <div key={n.id} style={{ background: '#f7f7f7', borderRadius: 8, padding: '8px 10px', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>
+                        <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                          {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        </div>
                       </div>
+                      <button onClick={() => deleteDetailEntryNote(n.id)} title="Delete note"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: 14, flexShrink: 0 }}>🗑</button>
                     </div>
                   ))}
                 </div>

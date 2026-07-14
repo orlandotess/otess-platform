@@ -97,6 +97,14 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     else setTaskNotes(prev => [data, ...prev]);
   }
 
+  async function deleteEntryNote(kind, noteId) {
+    const table = kind === 'event' ? 'calendar_event_notes' : 'task_notes';
+    const { error } = await supabase.from(table).delete().eq('id', noteId);
+    if (error) { alert(error.message); return; }
+    if (kind === 'event') setEventNotes(prev => prev.filter(n => n.id !== noteId));
+    else setTaskNotes(prev => prev.filter(n => n.id !== noteId));
+  }
+
   function renderEntryNotes(kind, notes) {
     const id = kind === 'event' ? selectedEvent?.id : selectedTask?.id;
     return (
@@ -105,11 +113,15 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
         {notes.length === 0 && <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>Sin notas todavía.</div>}
         <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 180, overflowY: 'auto' }}>
           {notes.map(n => (
-            <div key={n.id} style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
-              <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('es-PR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            <div key={n.id} style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                  {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('es-PR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </div>
               </div>
+              <button onClick={() => deleteEntryNote(kind, n.id)} title="Eliminar nota"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, flexShrink: 0 }}>🗑</button>
             </div>
           ))}
         </div>
