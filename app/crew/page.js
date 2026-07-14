@@ -249,6 +249,14 @@ export default function FieldApp() {
     setDetailEntryNotes(prev => prev.filter(n => n.id !== noteId));
   }
 
+  async function toggleDetailTaskItem(item) {
+    const taskId = detailEntry._raw.id;
+    await supabase.from('task_items').update({ done: !item.done }).eq('id', item.id);
+    const applyToggle = items => items.map(i => i.id === item.id ? { ...i, done: !i.done } : i);
+    setDetailEntry(prev => prev && ({ ...prev, _raw: { ...prev._raw, task_items: applyToggle(prev._raw.task_items) } }));
+    setTechTasks(prev => prev.map(t => t.id === taskId ? { ...t, task_items: applyToggle(t.task_items ?? []) } : t));
+  }
+
   // Clientes state
   const [clientSearch, setClientSearch] = useState('');
   const [clientResults, setClientResults] = useState([]);
@@ -321,7 +329,7 @@ export default function FieldApp() {
     const [{ data: eventsDirect }, { data: eventsViaJunction }, { data: tasksData }, { data: visitsData }] = await Promise.all([
       supabase.from('calendar_events').select('id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name)').eq('technician_id', techId),
       supabase.from('calendar_event_technicians').select('calendar_events(id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name))').eq('technician_id', techId),
-      supabase.from('tasks').select('id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name)').eq('technician_id', techId),
+      supabase.from('tasks').select('id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name), task_items(id, text, done, sort_order)').eq('technician_id', techId),
       supabase.from('visits').select('id, request_id, scheduled_at, duration_minutes, status, requests(title, clients(name))').eq('technician_id', techId),
     ]);
     const seen = new Set();
@@ -2042,6 +2050,21 @@ export default function FieldApp() {
               <a href={pickMapsLink(detailEntry._raw.address)} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 13, color: ORANGE, marginBottom: 6, fontWeight: 600 }}>📍 {detailEntry._raw.address}</a>
             )}
             {detailEntry._raw.notes && <div style={{ fontSize: 13, color: '#888', marginTop: 8, whiteSpace: 'pre-wrap' }}>{detailEntry._raw.notes}</div>}
+            {detailEntry._kind === 'task' && detailEntry._raw.task_type === 'checklist' && (detailEntry._raw.task_items ?? []).length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 13, color: '#555', fontWeight: 700, marginBottom: 8 }}>
+                  ✅ Checklist ({detailEntry._raw.task_items.filter(i => i.done).length}/{detailEntry._raw.task_items.length})
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {[...detailEntry._raw.task_items].sort((a, b) => a.sort_order - b.sort_order).map(item => (
+                    <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: item.done ? '#aaa' : '#333', textDecoration: item.done ? 'line-through' : 'none' }}>
+                      <input type="checkbox" checked={item.done} onChange={() => toggleDetailTaskItem(item)} style={{ width: 18, height: 18, flexShrink: 0 }} />
+                      {item.text}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             {(detailEntry._kind === 'event' || detailEntry._kind === 'task') && (
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 13, color: '#555', fontWeight: 700, marginBottom: 8 }}>📝 Notas</div>
