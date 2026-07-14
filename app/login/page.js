@@ -25,8 +25,9 @@ export default function LoginPage() {
     <div style={{ minHeight:'100vh', background:'var(--navy)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
       <div style={{ background:'var(--surface)', borderRadius:20, padding:40, width:'100%', maxWidth:400 }}>
         <div style={{ textAlign:'center', marginBottom:32 }}>
-          <div style={{ fontSize:32, fontWeight:900, color:'var(--navy)' }}>OTESS</div>
-          <div style={{ fontSize:13, color:'var(--ink-faint)', marginTop:4 }}>OT Electrical and Security Solutions</div>
+          <img src="/otess-logo.png" alt="OTESS" className="brand-logo-light" style={{ width:'100%', maxWidth:220, height:'auto', margin:'0 auto', display:'block' }} />
+          <img src="/otess-logo-blanco.png" alt="OTESS" className="brand-logo-dark" style={{ width:'100%', maxWidth:220, height:'auto', margin:'0 auto', display:'block' }} />
+          <div style={{ fontSize:13, color:'var(--ink-faint)', marginTop:10 }}>OT Electrical and Security Solutions</div>
           <div style={{ fontSize:14, color:'var(--ink-soft)', marginTop:16 }}>Acceso a la plataforma</div>
         </div>
         <form onSubmit={handleLogin}>

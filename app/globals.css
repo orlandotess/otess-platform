@@ -604,3 +604,8 @@ body.sidebar-hidden .main-content {
     gap: 14px;
   }
 }
+
+/* Logo de marca: cambia segun el tema (negro sobre claro, blanco sobre oscuro) */
+.brand-logo-dark { display: none !important; }
+:root[data-theme="dark"] .brand-logo-light { display: none !important; }
+:root[data-theme="dark"] .brand-logo-dark  { display: block !important; }
