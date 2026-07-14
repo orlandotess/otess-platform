@@ -266,11 +266,12 @@ export default function FieldApp() {
     setDetailEntryNotes(prev => [newNote, ...prev]);
   }
 
-  async function deleteDetailEntryNote(noteId) {
+  async function deleteDetailEntryNote(note) {
     const table = detailEntry._kind === 'event' ? 'calendar_event_notes' : 'task_notes';
-    const { error } = await supabase.from(table).delete().eq('id', noteId);
+    const { error } = await supabase.from(table).delete().eq('id', note.id);
     if (error) { alert(error.message); return; }
-    setDetailEntryNotes(prev => prev.filter(n => n.id !== noteId));
+    if (note.photo_urls?.length) await supabase.storage.from('Job-photos').remove(note.photo_urls);
+    setDetailEntryNotes(prev => prev.filter(n => n.id !== note.id));
   }
 
   async function toggleDetailTaskItem(item) {
@@ -2110,7 +2111,7 @@ export default function FieldApp() {
                           {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                         </div>
                       </div>
-                      <button onClick={() => deleteDetailEntryNote(n.id)} title="Delete note"
+                      <button onClick={() => deleteDetailEntryNote(n)} title="Delete note"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: 14, flexShrink: 0 }}>🗑</button>
                     </div>
                   ))}

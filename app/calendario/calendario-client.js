@@ -121,12 +121,13 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     else setTaskNotes(prev => [newNote, ...prev]);
   }
 
-  async function deleteEntryNote(kind, noteId) {
+  async function deleteEntryNote(kind, note) {
     const table = kind === 'event' ? 'calendar_event_notes' : 'task_notes';
-    const { error } = await supabase.from(table).delete().eq('id', noteId);
+    const { error } = await supabase.from(table).delete().eq('id', note.id);
     if (error) { alert(error.message); return; }
-    if (kind === 'event') setEventNotes(prev => prev.filter(n => n.id !== noteId));
-    else setTaskNotes(prev => prev.filter(n => n.id !== noteId));
+    if (note.photo_urls?.length) await supabase.storage.from('Job-photos').remove(note.photo_urls);
+    if (kind === 'event') setEventNotes(prev => prev.filter(n => n.id !== note.id));
+    else setTaskNotes(prev => prev.filter(n => n.id !== note.id));
   }
 
   function renderEntryNotes(kind, notes) {
@@ -153,7 +154,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('es-PR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
-              <button onClick={() => deleteEntryNote(kind, n.id)} title="Eliminar nota"
+              <button onClick={() => deleteEntryNote(kind, n)} title="Eliminar nota"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, flexShrink: 0 }}>🗑</button>
             </div>
           ))}
