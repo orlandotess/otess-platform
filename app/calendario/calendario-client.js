@@ -10,7 +10,7 @@ import QuickRescheduleModal from './QuickRescheduleModal';
 
 const TECH_COLORS = [
   '#16223d', '#e0972c', '#27ae60', '#2a4cb5', '#e05c2a',
-  '#8e44ad', '#16a085', '#c0392b', '#d35400', '#1abc9c',
+  '#8e44ad', '#16a085', '#c0392b', '#d35400', '#1abc9c', '#c1501f',
 ];
 
 const STATUS_COLORS = {

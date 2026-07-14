@@ -25,7 +25,7 @@
   --badge-gray-bg:  #eceef2;
   --badge-red-bg:   #fbeae3;
 
-  /* ── Design system v1 tokens (proposal) — additive, not yet wired into components ── */
+  /* ── Design system v1 tokens — see .admin-shell rules below for how these are wired in ── */
   --rust: #c1501f;
   --navy-tint: #eef1f7;
   --amber-tint: #fdf1de;
