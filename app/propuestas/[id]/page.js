@@ -9,7 +9,7 @@ import PropuestaDetailClient from './detail-client';
 export default async function PropuestaDetailPage({ params }) {
   const { data: proposal } = await supabase
     .from('proposals')
-    .select('*, clients(id, name, phone, email, company, client_type, client_addresses(*)), proposal_options(*, proposal_line_items(*))')
+    .select('*, clients(id, name, phone, email, company, client_type, report_name_source, client_addresses(*)), proposal_options(*, proposal_line_items(*))')
     .eq('id', params.id)
     .single();
 

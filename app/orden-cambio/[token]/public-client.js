@@ -11,6 +11,7 @@ export default function OrdenCambioPublicClient({ order, items }) {
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const canApprove = !order.requires_signature || signedName.trim().length > 1;
+  const billToName = order.bill_to === 'company' && order.clients?.company ? order.clients.company : order.clients?.name;
 
   async function handleApprove() {
     if (!canApprove) return;
@@ -62,7 +63,7 @@ export default function OrdenCambioPublicClient({ order, items }) {
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 12, color: '#999', fontWeight: 600, letterSpacing: '0.03em' }}>{order.change_order_number} · ORDEN DE CAMBIO</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: NAVY, marginTop: 6, letterSpacing: '-0.3px' }}>{order.title}</div>
-          <div style={{ fontSize: 14, color: '#999', marginTop: 4 }}>Para {order.clients?.name}</div>
+          <div style={{ fontSize: 14, color: '#999', marginTop: 4 }}>Para {billToName}</div>
         </div>
 
         {order.intro_note && (

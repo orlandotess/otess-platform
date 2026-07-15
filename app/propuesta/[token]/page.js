@@ -7,7 +7,7 @@ import PropuestaPublicClient from './public-client';
 export default async function PropuestaPublicPage({ params }) {
   const { data: proposal } = await supabase
     .from('proposals')
-    .select('*, clients(name, email, phone, company, client_type, client_addresses(*)), proposal_options(*, proposal_line_items(*))')
+    .select('*, clients(name, email, phone, company, client_type, report_name_source, client_addresses(*)), proposal_options(*, proposal_line_items(*))')
     .eq('public_token', params.token)
     .single();
 

@@ -57,6 +57,9 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
   const partsRate = fb.parts > 0 ? (fb.taxParts / fb.parts * 100).toFixed(1) : '11.5';
   const laborRate = fb.labor > 0 ? (fb.taxLabor / fb.labor * 100).toFixed(1) : (clientType === 'b2b' ? '4' : '11.5');
   const hidePricing = mode === 'installer';
+  const clientAsCompany = proposal.clients?.report_name_source === 'company' && proposal.clients?.company;
+  const clientPrimaryName = clientAsCompany ? proposal.clients?.company : proposal.clients?.name;
+  const clientSecondaryName = clientAsCompany ? null : proposal.clients?.company;
 
   return (
     <div style={{ fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif', color: '#1a1a1a' }}>
@@ -81,8 +84,8 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
           </div>
           <div style={{ background: '#f6f7fa', borderRadius: 10, padding: '16px 20px', marginBottom: 28 }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#999', marginBottom: 8, textTransform: 'uppercase' }}>Facturar a</div>
-            <div style={{ fontWeight: 700, fontSize: 16 }}>{proposal.clients?.company || proposal.clients?.name}</div>
-            {proposal.clients?.company && <div style={{ color: '#999', fontSize: 14 }}>{proposal.clients?.name}</div>}
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{clientPrimaryName}</div>
+            {clientSecondaryName && <div style={{ color: '#999', fontSize: 14 }}>{clientSecondaryName}</div>}
             {primaryAddress && (
               <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>
                 {primaryAddress.street && <div>{primaryAddress.street}</div>}
@@ -125,9 +128,9 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
             <div>
               <div style={{ fontSize: 40, fontWeight: 900, marginBottom: 36, letterSpacing: -1 }}>{proposal.title}</div>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#999', letterSpacing: '0.08em', marginBottom: 6 }}>A PROPOSAL FOR</div>
-              <div style={{ fontSize: 19, fontWeight: 800, color: NAVY, marginBottom: 10 }}>{proposal.clients?.company || proposal.clients?.name}</div>
+              <div style={{ fontSize: 19, fontWeight: 800, color: NAVY, marginBottom: 10 }}>{clientPrimaryName}</div>
               <div style={{ fontSize: 14, lineHeight: 1.8 }}>
-                {proposal.clients?.company && <div>{proposal.clients?.name}</div>}
+                {clientSecondaryName && <div>{clientSecondaryName}</div>}
                 {proposal.clients?.email && <div>{proposal.clients?.email}</div>}
                 {proposal.clients?.phone && <div>{proposal.clients?.phone}</div>}
               </div>

@@ -37,7 +37,7 @@ export default function NuevoTrabajo() {
   const [creatingClient, setCreatingClient] = useState(false);
 
   useEffect(() => {
-    supabase.from('clients').select('id, name, client_type, company').order('name').then(({ data }) => setClients(data ?? []));
+    supabase.from('clients').select('id, name, client_type, company, report_name_source').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
 
@@ -65,7 +65,7 @@ export default function NuevoTrabajo() {
     if (!form.property_id) return;
     const p = properties.find(p => p.id === form.property_id);
     if (p) {
-      setForm(f => ({ ...f, street: p.street ?? '', city: p.city ?? '', state: p.state ?? 'PR', zip: p.zip ?? '' }));
+      setForm(f => ({ ...f, property_name: p.name ?? '', street: p.street ?? '', city: p.city ?? '', state: p.state ?? 'PR', zip: p.zip ?? '' }));
     }
   }, [form.property_id]);
 
@@ -285,7 +285,7 @@ export default function NuevoTrabajo() {
                           {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 ? (
                             <div style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13 }}>No se encontraron clientes.</div>
                           ) : clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(c => (
-                            <div key={c.id} onClick={() => { set('client_id', c.id); set('bill_to', 'person'); setClientSearch(''); setShowClientDropdown(false); }}
+                            <div key={c.id} onClick={() => { set('client_id', c.id); set('bill_to', c.report_name_source === 'company' ? 'company' : 'person'); setClientSearch(''); setShowClientDropdown(false); }}
                               style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 500, borderBottom: '1px solid var(--border)' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>

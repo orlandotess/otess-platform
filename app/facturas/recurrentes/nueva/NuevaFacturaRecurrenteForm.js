@@ -24,7 +24,7 @@ export default function NuevaFacturaRecurrenteForm() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    supabase.from('clients').select('id, name, company, client_type, email').order('name').then(({ data }) => setClients(data ?? []));
+    supabase.from('clients').select('id, name, company, client_type, email, report_name_source').order('name').then(({ data }) => setClients(data ?? []));
   }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -97,7 +97,7 @@ export default function NuevaFacturaRecurrenteForm() {
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
               <div className="form-group">
                 <label>Cliente *</label>
-                <ClientCombobox clients={clients} value={form.client_id} onChange={v => { set('client_id', v); set('bill_to', 'person'); }} />
+                <ClientCombobox clients={clients} value={form.client_id} onChange={v => { const c = clients.find(cl => cl.id === v); set('client_id', v); set('bill_to', c?.report_name_source === 'company' ? 'company' : 'person'); }} />
               </div>
 
               {hasCompany && (

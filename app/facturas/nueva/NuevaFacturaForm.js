@@ -34,7 +34,7 @@ export default function NuevaFactura() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    supabase.from('clients').select('id, name, company, client_type').order('name').then(({ data }) => setClients(data ?? []));
+    supabase.from('clients').select('id, name, company, client_type, report_name_source').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('jobs').select('id, title, description, client_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
@@ -209,7 +209,7 @@ export default function NuevaFactura() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Cliente *</label>
-                  <ClientCombobox clients={clients} value={form.client_id} onChange={id => { set('client_id', id); set('bill_to', 'person'); }} />
+                  <ClientCombobox clients={clients} value={form.client_id} onChange={id => { const c = clients.find(cl => cl.id === id); set('client_id', id); set('bill_to', c?.report_name_source === 'company' ? 'company' : 'person'); }} />
                 </div>
                 <div className="form-group">
                   <label>Trabajo (opcional)</label>
