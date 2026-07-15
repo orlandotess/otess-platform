@@ -23,15 +23,37 @@ export default async function AccountingIVU({ searchParams }) {
     dateEnd = `${year}-12-31`;
   }
 
-  const [{ data: invoices }, { data: ivuPayments }] = await Promise.all([
+  // Cash basis: an invoice only counts toward IVU once it's fully paid, and
+  // it counts in the period it was paid off - not the period it was issued.
+  // A June invoice paid in August shows up in August's report, not June's.
+  const [{ data: paidInvoices }, { data: ivuPayments }] = await Promise.all([
     supabase
       .from('invoices')
       .select('id, invoice_number, issued_at, status, total, subtotal_labor, tax_labor, subtotal_products, tax_products, clients(name, client_type)')
-      .gte('issued_at', dateStart)
-      .lte('issued_at', dateEnd)
+      .eq('status', 'paid')
       .order('issued_at', { ascending: false }),
     supabase.from('ivu_payments').select('*').eq('year', year),
   ]);
+
+  const invoiceIds = (paidInvoices ?? []).map(inv => inv.id);
+  const { data: paymentRows } = invoiceIds.length
+    ? await supabase.from('payments').select('invoice_id, paid_at').in('invoice_id', invoiceIds)
+    : { data: [] };
+
+  const paidOffDate = {};
+  (paymentRows ?? []).forEach(p => {
+    if (!paidOffDate[p.invoice_id] || p.paid_at > paidOffDate[p.invoice_id]) {
+      paidOffDate[p.invoice_id] = p.paid_at;
+    }
+  });
+
+  const invoices = (paidInvoices ?? [])
+    .filter(inv => {
+      const d = paidOffDate[inv.id];
+      return d && d >= dateStart && d <= dateEnd;
+    })
+    .map(inv => ({ ...inv, paid_at: paidOffDate[inv.id] }))
+    .sort((a, b) => (b.paid_at > a.paid_at ? 1 : -1));
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const pct = n => `${(Number(n ?? 0) * 100).toFixed(1)}%`;
@@ -71,7 +93,7 @@ export default async function AccountingIVU({ searchParams }) {
   const monthlyData = months.map((m, i) => {
     const mStart = `${year}-${String(i + 1).padStart(2, '0')}-01`;
     const mEnd = new Date(year, i + 1, 0).toISOString().slice(0, 10);
-    const mInvIds = new Set((invoices ?? []).filter(inv => inv.issued_at >= mStart && inv.issued_at <= mEnd).map(inv => inv.id));
+    const mInvIds = new Set((invoices ?? []).filter(inv => inv.paid_at >= mStart && inv.paid_at <= mEnd).map(inv => inv.id));
     let mProd = 0, mLaborFinal = 0, mLaborB2B = 0;
     mInvIds.forEach(id => {
       const v = ivuByInvoice[id];

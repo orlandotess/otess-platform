@@ -41,7 +41,8 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
       sumField("total").toFixed(2),
     ];
 
-    const csvContent = [headers, ...rows, totalRow]
+    const noteRow = ["Base de caja: factura cuenta el mes en que se paga por completo, no el mes en que se emite."];
+    const csvContent = [noteRow, headers, ...rows, totalRow]
       .map(row => row.map(cell => `"${cell}"`).join(","))
       .join("\n");
 
@@ -50,7 +51,7 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
     const link = document.createElement("a");
     link.href = url;
     const monthLabel = filtered.length === 12 ? "completo" : filtered.map(m => m.name).join("-");
-    link.download = `IVU_${year}_${monthLabel}.csv`;
+    link.download = `IVU_${year}_${monthLabel}_base-caja.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

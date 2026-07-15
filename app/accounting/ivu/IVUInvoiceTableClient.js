@@ -31,7 +31,7 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
               <tr>
                 <th>#</th>
                 {!hideClientColumn && <th>Cliente</th>}
-                <th>Fecha</th>
+                <th>{invoices.some(i => i.paid_at) ? 'Fecha pago' : 'Fecha'}</th>
                 <th style={{ textAlign: 'right' }}>Labor</th>
                 <th style={{ textAlign: 'right' }}>Tasa labor</th>
                 <th style={{ textAlign: 'right' }}>IVU Labor</th>
@@ -58,7 +58,12 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
                         <span className={`badge ${b.isB2B ? 'badge-blue' : 'badge-gray'}`} style={{ marginLeft: 6 }}>{b.isB2B ? 'B2B' : 'Final'}</span>
                       </td>
                     )}
-                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at}</td>
+                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>
+                      {inv.paid_at ?? inv.issued_at}
+                      {inv.paid_at && inv.paid_at !== inv.issued_at && (
+                        <div style={{ fontSize: 11, opacity: 0.7 }}>Fact: {inv.issued_at}</div>
+                      )}
+                    </td>
                     <td style={{ textAlign: 'right' }}>{fmt(b.laborSub)}</td>
                     <td style={{ textAlign: 'right', color: 'var(--muted)', fontSize: 13 }}>{pct(b.laborRate)}</td>
                     <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(b.laborTax)}</td>
