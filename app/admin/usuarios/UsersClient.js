@@ -71,7 +71,7 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
       const existing = (allTechs ?? []).find(t => normalizeName(t.name) === normalizeName(profileName));
       if (!existing) {
         const slug = profileName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
-        const { error: techError } = await supabase.from('technicians').insert([{ name: profileName, username: slug || profileId.slice(0, 8) }]);
+        const { error: techError } = await supabase.from('technicians').insert([{ name: profileName, username: slug || profileId.slice(0, 8), profile_id: profileId }]);
         if (techError) {
           setSuccess(`⚠️ Rol cambiado, pero no se pudo crear el registro de técnico: ${techError.message}`);
         } else {
@@ -106,7 +106,7 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
       return;
     }
     const slug = profile.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
-    const { error: techError } = await supabase.from('technicians').insert([{ name: profile.name, username: slug || profile.id.slice(0, 8) }]);
+    const { error: techError } = await supabase.from('technicians').insert([{ name: profile.name, username: slug || profile.id.slice(0, 8), profile_id: profile.id }]);
     if (techError) {
       setSuccess(`⚠️ No se pudo crear el registro de técnico: ${techError.message}`);
       setEnablingTechFor(null);

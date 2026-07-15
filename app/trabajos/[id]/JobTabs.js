@@ -47,7 +47,14 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     if (!techId) return;
     setSavingTech(true);
     const { data } = await supabase.from('job_technicians').insert([{ job_id: job.id, technician_id: techId }]).select('*, technicians(name)').single();
-    if (data) setAssignedTechs(prev => [...prev, data]);
+    if (data) {
+      setAssignedTechs(prev => [...prev, data]);
+      fetch('/api/trabajos/notify-assignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: job.id, technicianId: techId }),
+      }).catch(() => {});
+    }
     setAddingTech('');
     setSavingTech(false);
   }

@@ -28,6 +28,13 @@ export default function JobActions({ jobId, status, showTechOnly = false, techni
   async function assignTech(val) {
     setTechId(val);
     await supabase.from('jobs').update({ technician_id: val || null }).eq('id', jobId);
+    if (val) {
+      fetch('/api/trabajos/notify-assignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId, technicianId: val }),
+      }).catch(() => {});
+    }
     router.refresh();
   }
 

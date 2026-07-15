@@ -11,6 +11,10 @@
     {
       "path": "/api/recurring-expenses/run",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/calendar-reminders/run",
+      "schedule": "0 10 * * *"
     }
   ]
 }

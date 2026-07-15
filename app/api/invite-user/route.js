@@ -50,7 +50,7 @@ export async function POST(request) {
     } else if (!existing) {
       const slug = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '');
       const username = slug || data.user.id.slice(0, 8);
-      const { error: techError } = await supabaseAdmin.from('technicians').insert([{ name, username }]);
+      const { error: techError } = await supabaseAdmin.from('technicians').insert([{ name, username, profile_id: data.user.id }]);
       if (techError) {
         warning = `Usuario creado, pero no se pudo crear el registro de t\u00e9cnico (no podr\u00e1 asignarse a trabajos ni aparecer en payroll hasta corregirlo): ${techError.message}`;
       }
