@@ -44,6 +44,21 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  try {
+    return await runDigest();
+  } catch (err) {
+    console.error('calendar-reminders/run crashed:', err);
+    await resend.emails.send({
+      from: 'OTESS <info@otesspr.com>',
+      to: 'services@otesspr.com',
+      subject: 'Error enviando el resumen del calendario',
+      html: `<div style="font-family:Arial,sans-serif;padding:20px"><p>El cron de agenda diaria falló antes de poder enviar los correos de hoy.</p><pre style="white-space:pre-wrap;font-size:12px;color:#b52a2a">${(err?.stack ?? String(err)).replace(/</g, '&lt;')}</pre></div>`,
+    }).catch(sendErr => console.error('Error enviando notificación de fallo:', sendErr));
+    return Response.json({ error: err?.message ?? String(err) }, { status: 500 });
+  }
+}
+
+async function runDigest() {
   const today = todayPR();
   const { start, end } = dayBoundsPR(today);
   const dateLabel = new Intl.DateTimeFormat('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${today}T12:00:00-04:00`));
