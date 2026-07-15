@@ -2,14 +2,14 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { computeHours } from '../../../lib/hours';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 
 const MARGIN_ALERT_THRESHOLD = 20;
 
 function hoursOf(entry) {
-  const hrs = (new Date(entry.clocked_out_at) - new Date(entry.clocked_in_at)) / 3600000 - (entry.lunch_minutes ?? 0) / 60;
-  return hrs > 0 ? hrs : 0;
+  return computeHours(entry.clocked_in_at, entry.clocked_out_at, entry.lunch_minutes).hours;
 }
 
 export default async function RentabilidadPage() {

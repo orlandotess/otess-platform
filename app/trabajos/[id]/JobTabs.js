@@ -9,6 +9,7 @@ import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
+import { computeHours } from '../../../lib/hours';
 
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
@@ -64,6 +65,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [schedStart, setSchedStart] = useState(isoToLocalInput(job.scheduled_start));
   const [schedEnd, setSchedEnd] = useState(isoToLocalInput(job.scheduled_end));
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [scheduleError, setScheduleError] = useState('');
   const [editingDetails, setEditingDetails] = useState(false);
   const [titleForm, setTitleForm] = useState(job.title ?? '');
   const [descForm, setDescForm] = useState(job.description ?? '');
@@ -165,6 +167,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   }
 
   async function saveSchedule() {
+    if (schedStart && schedEnd && computeHours(localInputToIso(schedStart), localInputToIso(schedEnd)).invalid) {
+      setScheduleError('El fin debe ser después del inicio.');
+      return;
+    }
+    setScheduleError('');
     setSavingSchedule(true);
     await supabase.from('jobs').update({
       scheduled_start: localInputToIso(schedStart),
@@ -181,9 +188,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [addingDay, setAddingDay] = useState(false);
   const [newDay, setNewDay] = useState({ start: '', end: '', technician_ids: [], lunch_minutes: 0 });
   const [savingDay, setSavingDay] = useState(false);
+  const [newDayError, setNewDayError] = useState('');
   const [editingDayId, setEditingDayId] = useState(null);
   const [editDayForm, setEditDayForm] = useState({ start: '', end: '', technician_id: '', lunch_minutes: 0 });
   const [savingEditDay, setSavingEditDay] = useState(false);
+  const [editDayError, setEditDayError] = useState('');
 
   function toggleNewDayTechnician(techId) {
     setNewDay(d => ({
@@ -196,6 +205,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
 
   async function addScheduleDay() {
     if (!newDay.start) return;
+    if (newDay.end && computeHours(localInputToIso(newDay.start), localInputToIso(newDay.end), newDay.lunch_minutes).invalid) {
+      setNewDayError('El fin debe ser después del inicio (y dejar tiempo tras descontar el almuerzo).');
+      return;
+    }
+    setNewDayError('');
     setSavingDay(true);
     // One row per selected technician so each tech's hours count toward the day/grand totals;
     // falls back to a single unassigned row when no technician is picked.
@@ -232,18 +246,26 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       technician_id: d.technician_id ?? '',
       lunch_minutes: d.lunch_minutes ?? 0,
     });
+    setEditDayError('');
   }
 
   function cancelEditDay() {
     setEditingDayId(null);
+    setEditDayError('');
   }
 
   async function saveEditDay(dayId) {
     if (!editDayForm.start) return;
+    const endIso = editDayForm.end ? localInputToIso(editDayForm.end) : null;
+    if (endIso && computeHours(localInputToIso(editDayForm.start), endIso, editDayForm.lunch_minutes).invalid) {
+      setEditDayError('El fin debe ser después del inicio (y dejar tiempo tras descontar el almuerzo).');
+      return;
+    }
+    setEditDayError('');
     setSavingEditDay(true);
     const payload = {
       scheduled_start: localInputToIso(editDayForm.start),
-      scheduled_end: editDayForm.end ? localInputToIso(editDayForm.end) : null,
+      scheduled_end: endIso,
       technician_id: editDayForm.technician_id || null,
       lunch_minutes: editDayForm.lunch_minutes,
     };
@@ -828,7 +850,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     technicians.forEach(t => { techRateById[t.id] = Number(t.hourly_rate ?? 0); });
     const hoursByTech = {};
     timeEntries.forEach(e => {
-      const hrs = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
+      const { hours: hrs } = computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes);
       if (hrs <= 0) return;
       hoursByTech[e.technician_id] = (hoursByTech[e.technician_id] ?? 0) + hrs;
     });
@@ -847,10 +869,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   })();
 
   function hoursBetween(start, end, lunchMinutes = 0) {
-    if (!start || !end) return 0;
-    const diff = new Date(end) - new Date(start);
-    const hrs = diff > 0 ? diff / 3600000 : 0;
-    return Math.max(hrs - (lunchMinutes ?? 0) / 60, 0);
+    return computeHours(start, end, lunchMinutes).hours;
   }
   function formatHours(totalHours) {
     const h = Math.floor(totalHours);
@@ -874,7 +893,18 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   })();
   const scheduleDaysTotalHours = scheduleDays.reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes), 0);
   const primaryScheduleHours = hoursBetween(job.scheduled_start, job.scheduled_end);
-  const grandTotalHours = primaryScheduleHours + scheduleDaysTotalHours;
+  // Once individual work days exist, they're the source of truth for hours worked —
+  // the primary start/end becomes just the job's overall window (which can legitimately
+  // span multiple calendar days) and must not be added on top, or hours get double-counted.
+  const grandTotalHours = scheduleDays.length > 0 ? scheduleDaysTotalHours : primaryScheduleHours;
+  const hoursByTechForDays = (() => {
+    const map = {};
+    scheduleDays.forEach(d => {
+      const name = d.technicians?.name ?? '— Sin asignar —';
+      map[name] = (map[name] ?? 0) + hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes);
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  })();
 
   const sortedNotesList = [...notesList].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0));
 
@@ -1149,11 +1179,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       <input type="datetime-local" value={schedEnd} onChange={e => setSchedEnd(e.target.value)} />
                     </div>
                   </div>
+                  {scheduleError && <p style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>⚠️ {scheduleError}</p>}
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button className="btn btn-primary" onClick={saveSchedule} disabled={savingSchedule}>
                       {savingSchedule ? 'Guardando...' : '💾 Guardar'}
                     </button>
-                    <button className="btn btn-ghost" onClick={() => setEditingSchedule(false)}>Cancelar</button>
+                    <button className="btn btn-ghost" onClick={() => { setEditingSchedule(false); setScheduleError(''); }}>Cancelar</button>
                   </div>
                 </div>
               ) : (
@@ -1176,10 +1207,22 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     )}
                   </div>
                   {job.scheduled_start && job.scheduled_end && (
-                    <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
-                      <span style={{ fontSize: 13 }}>⏱</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(primaryScheduleHours)} de trabajo</span>
-                    </div>
+                    computeHours(job.scheduled_start, job.scheduled_end).invalid ? (
+                      <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--warn-tint, #fef2f2)', borderRadius: 8, padding: '6px 12px' }}>
+                        <span style={{ fontSize: 13 }}>⚠️</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--warn)' }}>Fin antes del inicio — revisa las fechas</span>
+                      </div>
+                    ) : scheduleDays.length > 0 ? (
+                      <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                        <span style={{ fontSize: 13 }}>🗓️</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>Ventana del trabajo</span>
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                        <span style={{ fontSize: 13 }}>⏱</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(primaryScheduleHours)} de trabajo</span>
+                      </div>
+                    )
                   )}
                   {scheduleDays.length > 0 && (
                     <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1256,6 +1299,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                                   </select>
                                 </div>
                               </div>
+                              {editDayError && <p style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>⚠️ {editDayError}</p>}
                               <div style={{ display: 'flex', gap: 10 }}>
                                 <button className="btn btn-primary" onClick={() => saveEditDay(d.id)} disabled={savingEditDay || !editDayForm.start}>{savingEditDay ? 'Guardando...' : '💾 Guardar'}</button>
                                 <button className="btn btn-ghost" onClick={cancelEditDay}>Cancelar</button>
@@ -1267,7 +1311,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                                 <div style={{ fontSize: 13, fontWeight: 600 }} suppressHydrationWarning>
                                   {new Date(d.scheduled_start).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}
                                   {d.scheduled_end && ` – ${new Date(d.scheduled_end).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}`}
-                                  {d.scheduled_end && <span style={{ color: 'var(--muted)', fontWeight: 500 }}> ({formatHours(hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes))})</span>}
+                                  {d.scheduled_end && (
+                                    computeHours(d.scheduled_start, d.scheduled_end, d.lunch_minutes).invalid
+                                      ? <span style={{ color: 'var(--warn)', fontWeight: 700 }} title="Fin antes del inicio o almuerzo mayor al turno"> (⚠️ revisar)</span>
+                                      : <span style={{ color: 'var(--muted)', fontWeight: 500 }}> ({formatHours(hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes))})</span>
+                                  )}
                                 </div>
                                 <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.technicians?.name ?? '— Sin asignar —'}</div>
                               </div>
@@ -1288,6 +1336,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       </div>
                     </div>
                   ))}
+                  {hoursByTechForDays.length > 1 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                      {hoursByTechForDays.map(([name, hours]) => (
+                        <div key={name} style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', background: 'var(--bg)', borderRadius: 8, padding: '4px 10px' }}>
+                          {name}: {formatHours(hours)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1327,9 +1384,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
                     </div>
                   </div>
+                  {newDayError && <p style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>⚠️ {newDayError}</p>}
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button className="btn btn-primary" onClick={addScheduleDay} disabled={savingDay || !newDay.start}>{savingDay ? 'Guardando...' : '💾 Guardar'}</button>
-                    <button className="btn btn-ghost" onClick={() => { setAddingDay(false); setNewDay({ start: '', end: '', technician_ids: [] }); }}>Cancelar</button>
+                    <button className="btn btn-ghost" onClick={() => { setAddingDay(false); setNewDayError(''); setNewDay({ start: '', end: '', technician_ids: [] }); }}>Cancelar</button>
                   </div>
                 </div>
               )}

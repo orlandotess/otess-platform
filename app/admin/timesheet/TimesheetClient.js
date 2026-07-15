@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { computeHours } from '../../../lib/hours';
 import SearchBox from '../../SearchBox';
 
 const DAYS = ['Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Lun', 'Mar'];
@@ -14,6 +15,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   const [editingEntry, setEditingEntry] = useState(null);
   const [editInTime, setEditInTime] = useState('');
   const [editOutTime, setEditOutTime] = useState('');
+  const [editEntryError, setEditEntryError] = useState('');
   const [saving, setSaving] = useState(false);
   const [localStats, setLocalStats] = useState(techStats);
   const [search, setSearch] = useState('');
@@ -28,7 +30,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     const dayKey = dayIso.slice(0, 10);
     const dayEntries = tech.byDay[dayKey] ?? [];
     return dayEntries.reduce((a, e) => a + (e.clocked_out_at
-      ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60
+      ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours
       : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
   }
 
@@ -50,7 +52,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     weekDays.forEach(dayIso => {
       const dayEntries = byDay[dayIso.slice(0, 10)] ?? [];
       const hours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
-        ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60
+        ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours
         : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
       const dayRegular = Math.min(hours, Math.max(0, 40 - cumulative));
       regular += dayRegular;
@@ -132,13 +134,20 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     const outDate = entry.clocked_out_at ? new Date(entry.clocked_out_at) : null;
     setEditInTime(inDate.toTimeString().slice(0, 5));
     setEditOutTime(outDate ? outDate.toTimeString().slice(0, 5) : '');
+    setEditEntryError('');
   }
 
   async function saveEntry(entry) {
-    setSaving(true);
     const baseDate = entry.clocked_in_at.slice(0, 10);
     const newIn = new Date(baseDate + 'T' + editInTime + ':00');
     const newOut = editOutTime ? new Date(baseDate + 'T' + editOutTime + ':00') : null;
+
+    if (newOut && computeHours(newIn.toISOString(), newOut.toISOString(), entry.lunch_minutes).invalid) {
+      setEditEntryError('Clock Out debe ser después de Clock In.');
+      return;
+    }
+    setEditEntryError('');
+    setSaving(true);
 
     await supabase.from('time_entries').update({
       clocked_in_at: newIn.toISOString(),
@@ -280,7 +289,8 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               {getDayEntries(tech, selectedDay).map((e, i, arr) => {
                 const inTime = new Date(e.clocked_in_at);
                 const outTime = e.clocked_out_at ? new Date(e.clocked_out_at) : null;
-                const dur = outTime ? ((outTime - inTime) / 3600000 - (e.lunch_minutes ?? 0) / 60).toFixed(2) : null;
+                const { hours: durHours, invalid: durInvalid } = outTime ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes) : { hours: 0, invalid: false };
+                const dur = outTime ? durHours.toFixed(2) : null;
                 const isEditingThis = editingEntry === e.id;
                 return (
                   <div key={e.id} style={{ padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -296,11 +306,12 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                           <input type="time" value={editOutTime} onChange={e => setEditOutTime(e.target.value)}
                             style={{ padding: '6px 10px', border: '2px solid var(--navy)', borderRadius: 8, fontSize: 14 }} />
                         </div>
-                        <div style={{ display: 'flex', gap: 6, marginTop: 16 }}>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 16, alignItems: 'center' }}>
                           <button onClick={() => saveEntry(e)} disabled={saving} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 12 }}>
                             {saving ? '...' : '💾 Guardar'}
                           </button>
-                          <button onClick={() => setEditingEntry(null)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>Cancelar</button>
+                          <button onClick={() => { setEditingEntry(null); setEditEntryError(''); }} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>Cancelar</button>
+                          {editEntryError && <span style={{ color: 'var(--warn)', fontSize: 12 }}>⚠️ {editEntryError}</span>}
                         </div>
                       </div>
                     ) : (
@@ -315,6 +326,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                           {e.notes && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, fontStyle: 'italic' }}>"{e.notes}"</div>}
                         </div>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                          {durInvalid && <span className="badge badge-red" title="Salida antes de la entrada o almuerzo mayor al turno">⚠️ Revisar</span>}
                           <div style={{ fontWeight: 700, color: dur ? 'var(--navy)' : 'var(--amber)', fontSize: 15 }}>{dur ? dur + 'h' : '—'}</div>
                           <button onClick={() => startEditEntry(e)} className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }}>✏️</button>
                         </div>

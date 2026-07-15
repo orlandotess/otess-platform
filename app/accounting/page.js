@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../lib/supabase';
 import { computeInvoiceIVU } from '../../lib/ivu';
+import { computeHours } from '../../lib/hours';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
 
@@ -100,7 +101,7 @@ function computePayroll(start, end, techs, ents, adjustments) {
     const hoursByWeek = {};
     filtered.filter(e => e.technician_id === tech.id).forEach(e => {
       const wk = getPayrollWeekStart(e.clocked_in_at);
-      const hours = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
+      const { hours } = computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes);
       hoursByWeek[wk] = (hoursByWeek[wk] ?? 0) + hours;
     });
 

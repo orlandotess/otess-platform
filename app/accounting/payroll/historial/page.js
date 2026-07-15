@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from "../../../../lib/supabase";
+import { computeHours } from "../../../../lib/hours";
 import Sidebar from "../../../Sidebar";
 import Link from "next/link";
 import HistorialClient from "./HistorialClient";
@@ -64,7 +65,7 @@ export default async function PayrollHistorial() {
       techEntries.forEach(e => {
         const day = e.clocked_in_at.slice(0, 10);
         if (!byDay[day]) byDay[day] = 0;
-        byDay[day] += (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
+        byDay[day] += computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours;
       });
       let rawRegular = 0, rawOvertime = 0, cumulativeHours = 0;
       Object.keys(byDay).sort().forEach(day => {

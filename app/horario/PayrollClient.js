@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { computeHours } from '../../lib/hours';
 
 const OVERTIME_THRESHOLD = 40; // hours per week
 const OVERTIME_MULTIPLIER = 1.5;
@@ -25,7 +26,7 @@ function calcDayHours(entries) {
   Object.entries(byDay).forEach(([day, dayEntries]) => {
     let dayTotal = 0;
     dayEntries.forEach(e => {
-      const duration = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
+      const { hours: duration } = computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes);
       dayTotal += duration;
     });
     const reg = Math.min(dayTotal, Math.max(0, OVERTIME_THRESHOLD - cumulativeHours));
@@ -211,14 +212,16 @@ export default function PayrollClient({ technicians, entries, weekStart, weekEnd
                   </thead>
                   <tbody>
                     {day.entries.map((e, i) => {
-                      const duration = (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60;
+                      const { hours: duration, invalid } = computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes);
                       return (
                         <tr key={e.id}>
                           <td>{fmtTime(e.clocked_in_at)}</td>
                           <td>{fmtTime(e.clocked_out_at)}</td>
                           <td style={{ textAlign: 'right' }}>{fmtH(duration)}{(e.lunch_minutes ?? 0) > 0 && ' 🍽️'}</td>
                           <td style={{ textAlign: 'right' }}>
-                            {day.overtime > 0
+                            {invalid
+                              ? <span className="badge badge-red" title="Salida antes de la entrada o almuerzo mayor al turno">⚠️ Revisar</span>
+                              : day.overtime > 0
                               ? <span className="badge badge-red">Incluye OT</span>
                               : <span className="badge badge-green">Regular</span>}
                           </td>

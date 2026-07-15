@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { computeHours } from '../../../lib/hours';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import TimesheetClient from './TimesheetClient';
@@ -69,7 +70,7 @@ export default async function TimesheetPage({ searchParams }) {
     weekDays.forEach(d => {
       const dayEntries = byDay[d.toISOString().slice(0, 10)];
       const hours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
-        ? (new Date(e.clocked_out_at) - new Date(e.clocked_in_at)) / 3600000 - (e.lunch_minutes ?? 0) / 60
+        ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours
         : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
       const dayRegular = Math.min(hours, Math.max(0, 40 - cumulativeHours));
       const dayOvertime = hours - dayRegular;
