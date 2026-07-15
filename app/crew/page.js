@@ -710,10 +710,20 @@ export default function FieldApp() {
     setWeekDayForms(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }
 
+  function isAbsenceBlockedDay(dateObj) {
+    if (!todayAbsence) return false;
+    const localKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+    return localKey === todayAbsence.date;
+  }
+
   async function saveDayForm(dateObj) {
     const key = dayKey(dateObj);
     const form = weekDayForms[key];
     if (!form?.entryHour || !form?.exitHour) return;
+    if (isAbsenceBlockedDay(dateObj)) {
+      setDayFormStatus(prev => ({ ...prev, [key]: 'blocked' }));
+      return;
+    }
     setSavingDay(key);
     setDayFormStatus(prev => ({ ...prev, [key]: null }));
     const to24 = (hour, ampm) => { let h = parseInt(hour, 10) % 12; if (ampm === 'PM') h += 12; return h; };
@@ -1505,17 +1515,24 @@ export default function FieldApp() {
               const saving = savingDay === key;
               const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
               const isFutureDay = dateObj > todayStart;
+              const isBlockedDay = isAbsenceBlockedDay(dateObj);
               return (
                 <div key={key} style={card}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFutureDay ? 0 : 14 }}>
                     <div><span style={{ fontWeight: 700, fontSize: 16 }}>{dayLabel}</span> <span style={{ color: '#888', fontSize: 13 }}>{dateLabel}</span></div>
                     {!isFutureDay && (
-                      <button onClick={() => saveDayForm(dateObj)} disabled={saving || !form.entryHour || !form.exitHour}
-                        style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!form.entryHour || !form.exitHour) ? 0.5 : 1 }}>
+                      <button onClick={() => saveDayForm(dateObj)} disabled={saving || !form.entryHour || !form.exitHour || isBlockedDay}
+                        style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!form.entryHour || !form.exitHour || isBlockedDay) ? 0.5 : 1 }}>
                         {saving ? '...' : '💾'}
                       </button>
                     )}
                   </div>
+
+                  {isBlockedDay && (
+                    <div style={{ marginBottom: 14, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
+                      🚫 Ausencia registrada este día{todayAbsence.reason ? ': ' + todayAbsence.reason : ''}. No puedes registrar horas.
+                    </div>
+                  )}
 
                   {isFutureDay ? (
                     <div style={{ padding: '8px 0 2px', color: '#aaa', fontSize: 13 }}>Disponible cuando llegue este día</div>
@@ -1568,6 +1585,11 @@ export default function FieldApp() {
                   {dayFormStatus[key] === 'invalid' && (
                     <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
                       ⚠️ La salida debe ser después de la entrada (revisa a.m./p.m.).
+                    </div>
+                  )}
+                  {dayFormStatus[key] === 'blocked' && (
+                    <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
+                      🚫 No puedes registrar horas — ausencia registrada este día.
                     </div>
                   )}
                   </>
