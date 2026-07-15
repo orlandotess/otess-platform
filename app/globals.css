@@ -43,7 +43,7 @@
 
   /* Sidebar stays a fixed light rail regardless of theme — it's a branded
      surface, not page content, and the logo wordmark is black-ink only. */
-  --sidebar-bg: #ffffff;
+  --sidebar-bg: #eef1f7;
 }
 
 /* ── Dark mode — explicit toggle only (see Sidebar.js), not OS-preference-driven.
