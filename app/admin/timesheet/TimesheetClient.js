@@ -16,6 +16,9 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   const [editInTime, setEditInTime] = useState('');
   const [editOutTime, setEditOutTime] = useState('');
   const [editEntryError, setEditEntryError] = useState('');
+  const [editingDayKey, setEditingDayKey] = useState(null);
+  const [editDayRegular, setEditDayRegular] = useState('');
+  const [editDayOvertime, setEditDayOvertime] = useState('');
   const [saving, setSaving] = useState(false);
   const [localStats, setLocalStats] = useState(techStats);
   const [search, setSearch] = useState('');
@@ -34,7 +37,13 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
       : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
   }
 
+  function hasDayOverride(tech, dayIso) {
+    return !!tech.dayOverrides?.[dayIso.slice(0, 10)];
+  }
+
   function getDayHours(tech, dayIso) {
+    const override = tech.dayOverrides?.[dayIso.slice(0, 10)];
+    if (override) return Number(override.regular_hours_override ?? 0) + Number(override.overtime_hours_override ?? 0);
     const rawHours = getRawDayHours(tech, dayIso);
     if (!tech.hasOverride || rawHours === 0) return rawHours;
     const totalRaw = tech.regularHoursRaw + tech.overtimeHoursRaw;
@@ -47,26 +56,39 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     return tech.byDay[dayIso.slice(0, 10)] ?? [];
   }
 
-  function computeRawWeekHours(byDay) {
+  function computeEffectiveWeekHours(byDay, dayOverrides) {
     let regular = 0, overtime = 0, cumulative = 0;
     weekDays.forEach(dayIso => {
-      const dayEntries = byDay[dayIso.slice(0, 10)] ?? [];
-      const hours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
-        ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours
-        : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
-      const dayRegular = Math.min(hours, Math.max(0, 40 - cumulative));
+      const dayKey = dayIso.slice(0, 10);
+      const override = dayOverrides?.[dayKey];
+      let dayRegular, dayOvertime, hours;
+      if (override) {
+        dayRegular = Number(override.regular_hours_override ?? 0);
+        dayOvertime = Number(override.overtime_hours_override ?? 0);
+        hours = dayRegular + dayOvertime;
+      } else {
+        const dayEntries = byDay[dayKey] ?? [];
+        hours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
+          ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours
+          : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
+        dayRegular = Math.min(hours, Math.max(0, 40 - cumulative));
+        dayOvertime = hours - dayRegular;
+      }
       regular += dayRegular;
-      overtime += hours - dayRegular;
+      overtime += dayOvertime;
       cumulative += hours;
     });
     return { regular, overtime };
   }
 
   function getDayOvertimeHours(tech, dayIso) {
+    const dayKey = dayIso.slice(0, 10);
+    const override = tech.dayOverrides?.[dayKey];
+    if (override) return Number(override.overtime_hours_override ?? 0);
     let cumulative = 0;
     for (const d of weekDays) {
       const hours = getRawDayHours(tech, d);
-      if (d.slice(0, 10) === dayIso.slice(0, 10)) {
+      if (d.slice(0, 10) === dayKey) {
         const dayRegular = Math.min(hours, Math.max(0, 40 - cumulative));
         return hours - dayRegular;
       }
@@ -166,7 +188,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
         return t;
       }
 
-      const { regular: regularHoursRaw, overtime: overtimeHoursRaw } = computeRawWeekHours(newByDay);
+      const { regular: regularHoursRaw, overtime: overtimeHoursRaw } = computeEffectiveWeekHours(newByDay, t.dayOverrides);
       if (t.hasOverride) {
         return { ...t, byDay: newByDay, regularHoursRaw, overtimeHoursRaw };
       }
@@ -177,6 +199,67 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     }));
 
     setEditingEntry(null);
+    setSaving(false);
+  }
+
+  function startEditDay(tech, dayIso) {
+    const dayKey = dayIso.slice(0, 10);
+    const override = tech.dayOverrides?.[dayKey];
+    setEditingDayKey(`${tech.id}_${dayIso}`);
+    setEditDayRegular((override ? Number(override.regular_hours_override ?? 0) : getRawDayHours(tech, dayIso)).toFixed(2));
+    setEditDayOvertime((override ? Number(override.overtime_hours_override ?? 0) : getDayOvertimeHours(tech, dayIso)).toFixed(2));
+  }
+
+  async function saveDayEdit(tech, dayIso) {
+    const dayKey = dayIso.slice(0, 10);
+    const regular = parseFloat(editDayRegular) || 0;
+    const overtime = parseFloat(editDayOvertime) || 0;
+    setSaving(true);
+
+    await supabase.from('daily_hour_overrides').upsert({
+      technician_id: tech.id,
+      work_date: dayKey,
+      regular_hours_override: regular,
+      overtime_hours_override: overtime,
+    }, { onConflict: 'technician_id,work_date' });
+
+    setLocalStats(prev => prev.map(t => {
+      if (t.id !== tech.id) return t;
+      const newDayOverrides = { ...t.dayOverrides, [dayKey]: { regular_hours_override: regular, overtime_hours_override: overtime } };
+      if (t.hasOverride) return { ...t, dayOverrides: newDayOverrides };
+      const { regular: regularHoursRaw, overtime: overtimeHoursRaw } = computeEffectiveWeekHours(t.byDay, newDayOverrides);
+      const rate = Number(t.hourly_rate ?? 0);
+      const totalHours = regularHoursRaw + overtimeHoursRaw;
+      const grossPay = (regularHoursRaw * rate) + (overtimeHoursRaw * rate * 1.5);
+      return { ...t, dayOverrides: newDayOverrides, regularHoursRaw, overtimeHoursRaw, regularHours: regularHoursRaw, overtimeHours: overtimeHoursRaw, totalHours, grossPay };
+    }));
+
+    setEditingDayKey(null);
+    setSaving(false);
+  }
+
+  async function resetDayOverride(tech, dayIso) {
+    const dayKey = dayIso.slice(0, 10);
+    if (!confirm(`¿Borrar el ajuste manual de ${tech.name} para este día? Las horas volverán al cálculo automático.`)) return;
+    setSaving(true);
+
+    await supabase.from('daily_hour_overrides').delete()
+      .eq('technician_id', tech.id)
+      .eq('work_date', dayKey);
+
+    setLocalStats(prev => prev.map(t => {
+      if (t.id !== tech.id) return t;
+      const newDayOverrides = { ...t.dayOverrides };
+      delete newDayOverrides[dayKey];
+      if (t.hasOverride) return { ...t, dayOverrides: newDayOverrides };
+      const { regular: regularHoursRaw, overtime: overtimeHoursRaw } = computeEffectiveWeekHours(t.byDay, newDayOverrides);
+      const rate = Number(t.hourly_rate ?? 0);
+      const totalHours = regularHoursRaw + overtimeHoursRaw;
+      const grossPay = (regularHoursRaw * rate) + (overtimeHoursRaw * rate * 1.5);
+      return { ...t, dayOverrides: newDayOverrides, regularHoursRaw, overtimeHoursRaw, regularHours: regularHoursRaw, overtimeHours: overtimeHoursRaw, totalHours, grossPay };
+    }));
+
+    setEditingDayKey(null);
     setSaving(false);
   }
 
@@ -261,13 +344,14 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
             {weekDays.map((dayIso, i) => {
               const hours = getDayHours(tech, dayIso);
               const isToday = dayIso.slice(0, 10) === todayPR;
-              const hasHours = getRawDayHours(tech, dayIso) > 0;
+              const dayOverridden = hasDayOverride(tech, dayIso);
+              const hasHours = getRawDayHours(tech, dayIso) > 0 || dayOverridden;
               const isOvertime = getDayOvertimeHours(tech, dayIso) > 0;
               const isSelected = selectedDay === dayIso && selectedTech === tech.id;
               const [y,m,d] = dayIso.slice(0,10).split('-');
               return (
-                <div key={dayIso} onClick={() => { if (hasHours) { setSelectedDay(isSelected ? null : dayIso); setSelectedTech(isSelected ? null : tech.id); } }}
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 4px', borderRadius: 10, cursor: hasHours ? 'pointer' : 'default',
+                <div key={dayIso} onClick={() => { setSelectedDay(isSelected ? null : dayIso); setSelectedTech(isSelected ? null : tech.id); }}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 4px', borderRadius: 10, cursor: 'pointer',
                     background: isSelected ? 'var(--navy)' : isToday ? 'var(--info-tint)' : 'var(--surface-2)',
                     border: isToday ? '2px solid var(--navy)' : '2px solid transparent' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#fff' : isToday ? 'var(--navy)' : 'var(--muted)' }}>{DAYS[i]}</div>
@@ -275,7 +359,9 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                     {hasHours ? hours.toFixed(1) + 'h' : '—'}
                   </div>
                   <div style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--muted)' }}>{new Date(y, m-1, d).getDate()}</div>
-                  {isOvertime && <div style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#ffd700' : 'var(--warn)' }}>OT</div>}
+                  {dayOverridden ? (
+                    <div style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#ffd700' : 'var(--amber)' }} title="Ajuste manual">✏️</div>
+                  ) : isOvertime && <div style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#ffd700' : 'var(--warn)' }}>OT</div>}
                 </div>
               );
             })}
@@ -335,10 +421,46 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                   </div>
                 );
               })}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTop: '2px solid var(--border)', fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>
-                <span>Total del día</span>
-                <span>{getDayHours(tech, selectedDay).toFixed(2)}h</span>
-              </div>
+              {getDayEntries(tech, selectedDay).length === 0 && (
+                <div style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', padding: '4px 0' }}>Sin entradas de reloj registradas para este día.</div>
+              )}
+              {editingDayKey === `${tech.id}_${selectedDay}` ? (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '2px solid var(--border)' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Regular</div>
+                    <input type="number" value={editDayRegular} onChange={e => setEditDayRegular(e.target.value)} step="0.1" min="0"
+                      style={{ width: 70, padding: '4px 8px', border: '2px solid var(--navy)', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'center' }} />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>OT</div>
+                    <input type="number" value={editDayOvertime} onChange={e => setEditDayOvertime(e.target.value)} step="0.1" min="0"
+                      style={{ width: 70, padding: '4px 8px', border: '2px solid var(--warn)', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'center' }} />
+                  </div>
+                  <button onClick={() => saveDayEdit(tech, selectedDay)} disabled={saving} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 12, marginTop: 16 }}>
+                    {saving ? '...' : '💾'}
+                  </button>
+                  <button onClick={() => setEditingDayKey(null)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12, marginTop: 16 }}>✕</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '2px solid var(--border)' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>
+                    <span>Total del día</span>
+                    {hasDayOverride(tech, selectedDay) && (
+                      <span style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 700 }} title="Horas ajustadas manualmente">✏️ ajuste manual</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>{getDayHours(tech, selectedDay).toFixed(2)}h</span>
+                    <button onClick={() => startEditDay(tech, selectedDay)} className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }}>✏️</button>
+                    {hasDayOverride(tech, selectedDay) && (
+                      <button onClick={() => resetDayOverride(tech, selectedDay)} disabled={saving}
+                        className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12, color: 'var(--warn)' }} title="Borrar ajuste del día">
+                        🗑
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

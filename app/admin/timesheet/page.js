@@ -8,15 +8,15 @@ import Link from 'next/link';
 import TimesheetClient from './TimesheetClient';
 
 function getWeekRange(offset = 0) {
-  const now = new Date();
-  const day = now.getDay();
+  const now = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  const day = now.getUTCDay();
   const daysSinceWed = (day + 4) % 7;
   const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - daysSinceWed + (offset * 7));
-  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setUTCDate(now.getUTCDate() - daysSinceWed + (offset * 7));
+  weekStart.setUTCHours(0, 0, 0, 0);
   const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  weekEnd.setHours(23, 59, 59, 999);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+  weekEnd.setUTCHours(23, 59, 59, 999);
   return { weekStart, weekEnd };
 }
 
@@ -29,7 +29,7 @@ export default async function TimesheetPage({ searchParams }) {
   console.log('WEEK:', weekStart.toISOString().slice(0, 10), new Date(weekStart.getTime() + 6 * 86400000).toISOString().slice(0, 10));
   const weekEndStr = weekEnd.toISOString().slice(0, 10);
 
-  const [{ data: technicians }, { data: entries }, { data: adjustments }] = await Promise.all([
+  const [{ data: technicians }, { data: entries }, { data: adjustments }, { data: dayOverrides }] = await Promise.all([
     supabase.from("technicians").select("*").order("name"),
     supabase.from("time_entries")
       .select("*, technicians(name)")
@@ -40,18 +40,23 @@ export default async function TimesheetPage({ searchParams }) {
       .select("*")
       .eq("period_start", weekStart.toISOString().slice(0, 10))
       .eq("period_end", new Date(weekStart.getTime() + 6 * 86400000).toISOString().slice(0, 10)),
+    supabase.from("daily_hour_overrides")
+      .select("*")
+      .gte("work_date", weekStartStr)
+      .lte("work_date", weekEndStr),
   ]);
 
   const techs = technicians ?? [];
   const ents = entries ?? [];
   const adjs = adjustments ?? [];
+  const dayOvs = dayOverrides ?? [];
   console.log('ADJS:', JSON.stringify(adjs));
 
   const fmtDate = d => new Date(d).toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric" });
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
+    d.setUTCDate(weekStart.getUTCDate() + i);
     return d;
   });
 
@@ -66,14 +71,26 @@ export default async function TimesheetPage({ searchParams }) {
       if (byDay[day] !== undefined) byDay[day].push(e);
     });
 
+    const techDayOverrides = {};
+    dayOvs.filter(o => o.technician_id === tech.id).forEach(o => { techDayOverrides[o.work_date] = o; });
+
     let regularHours = 0, overtimeHours = 0, cumulativeHours = 0;
     weekDays.forEach(d => {
-      const dayEntries = byDay[d.toISOString().slice(0, 10)];
-      const hours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
-        ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours
-        : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
-      const dayRegular = Math.min(hours, Math.max(0, 40 - cumulativeHours));
-      const dayOvertime = hours - dayRegular;
+      const dayKey = d.toISOString().slice(0, 10);
+      const override = techDayOverrides[dayKey];
+      let dayRegular, dayOvertime, hours;
+      if (override) {
+        dayRegular = Number(override.regular_hours_override ?? 0);
+        dayOvertime = Number(override.overtime_hours_override ?? 0);
+        hours = dayRegular + dayOvertime;
+      } else {
+        const dayEntries = byDay[dayKey];
+        hours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
+          ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours
+          : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0);
+        dayRegular = Math.min(hours, Math.max(0, 40 - cumulativeHours));
+        dayOvertime = hours - dayRegular;
+      }
       regularHours += dayRegular;
       overtimeHours += dayOvertime;
       cumulativeHours += hours;
@@ -87,7 +104,7 @@ export default async function TimesheetPage({ searchParams }) {
     const rate = Number(tech.hourly_rate ?? 0);
     const grossPay = (finalRegular * rate) + (finalOvertime * rate * 1.5);
 
-    return { ...tech, regularHours: finalRegular, overtimeHours: finalOvertime, regularHoursRaw: regularHours, overtimeHoursRaw: overtimeHours, totalHours: finalRegular + finalOvertime, grossPay, byDay, entries: techEntries, hasOverride };
+    return { ...tech, regularHours: finalRegular, overtimeHours: finalOvertime, regularHoursRaw: regularHours, overtimeHoursRaw: overtimeHours, totalHours: finalRegular + finalOvertime, grossPay, byDay, dayOverrides: techDayOverrides, entries: techEntries, hasOverride };
   });
 
   const filtered = techStats.filter(t => techFilter === "all" || t.id === techFilter);
