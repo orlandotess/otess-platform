@@ -1,5 +1,7 @@
 # Orden de build priorizado — Módulo Propuestas
 
+**AUDITORÍA CERRADA (2026-07-15).** Los 3 gaps de Sección A (Project Description, Profit Analysis, Payment Requests) y todo el resto del orden de build de Portal.io-parity están construidos y verificados en vivo. Único ítem fuera de alcance: **Order Parts**, diferido porque depende del módulo Orders (ver `auditoria-orders-otesspr.md` para esa auditoría, iniciada por separado).
+
 Reemplaza la lista "Siguiente paso tras la auditoría" del documento original (`auditoria-propuestas-otesspr.md`), basado en los hallazgos reales de la auditoría de código.
 
 > **Actualización 2026-07-14:** en una sesión posterior a la auditoría original ya se construyó y verificó en vivo casi todo el orden de abajo (ver commits en `main` y memoria `propuestas_portal_io_parity_build`). Este documento ahora separa **lo ya hecho** de **lo que queda realmente pendiente**, para no reabrir trabajo terminado.

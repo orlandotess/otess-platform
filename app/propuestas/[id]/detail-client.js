@@ -6,6 +6,7 @@ import { supabase } from '../../../lib/supabase';
 import ProposalDocument, { financialBreakdown, profitBreakdown } from '../ProposalDocument';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { exportProposalDataCSV } from '../../propuestaDataCsv';
+import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 
 const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', cambios_requeridos: 'badge-amber', expirada: 'badge-gray', aprobada: 'badge-green', rechazada: 'badge-red', completada: 'badge-dark' };
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', cambios_requeridos: 'Cambios requeridos', expirada: 'Expirada', aprobada: 'Aprobada', rechazada: 'Rechazada', completada: 'Completada' };
@@ -28,6 +29,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   const [extraPreview, setExtraPreview] = useState(null); // { mode, optId } — see handleExtraPdf
   const [requests, setRequests] = useState(paymentRequests ?? []);
   const [requestingId, setRequestingId] = useState(null);
+  const [generatingPO, setGeneratingPO] = useState(false);
 
   const menuItemStyle = { display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' };
 
@@ -254,6 +256,39 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'pagado', paid_at: now } : r));
   }
 
+  async function generarOrdenCompra() {
+    const approvedOption = options.find(o => o.id === proposal.approved_option_id);
+    if (!approvedOption) return;
+    setGeneratingPO(true);
+    try {
+      const items = (approvedOption.items ?? []).map(it => ({
+        id: it.id,
+        description: it.description,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+        supplier_price: it.supplier_price,
+        vendor: it.vendor,
+        isProduct: it.item_type === 'product',
+      }));
+      const { orders, reason } = await generatePurchaseOrders(items, {
+        sourceType: 'proposal',
+        sourceId: proposal.id,
+        sourceLabel: `${proposal.proposal_number} — ${proposal.title}`,
+      });
+      if (reason === 'no-items') {
+        alert('No hay productos con proveedor asignado en esta opción.');
+      } else {
+        alert(`${orders.length} orden(es) de compra generada(s).`);
+        router.push('/compras');
+      }
+    } catch (err) {
+      alert('Error al generar la orden de compra: ' + err.message);
+    } finally {
+      setGeneratingPO(false);
+      setMenuOpen(false);
+    }
+  }
+
   async function deleteProposal() {
     setDeleting(true);
     const { data: opts } = await supabase.from('proposal_options').select('id').eq('proposal_id', proposal.id);
@@ -313,6 +348,11 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                   {status !== 'borrador' && (
                     <button type="button" onClick={() => { window.open(publicUrl, '_blank'); setMenuOpen(false); }} style={menuItemStyle}>
                       👁 Vista previa
+                    </button>
+                  )}
+                  {proposal.approved_option_id && (
+                    <button type="button" disabled={generatingPO} onClick={generarOrdenCompra} style={menuItemStyle}>
+                      {generatingPO ? '⏳ Generando...' : '📦 Generar orden de compra'}
                     </button>
                   )}
                   <button type="button" disabled={cloning} onClick={cloneProposal} style={menuItemStyle}>

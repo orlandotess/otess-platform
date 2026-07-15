@@ -14,6 +14,7 @@ const operationsLinks = [
  { href: '/crew',       label: 'Crew App',   icon: 'phone' },
  { href: '/catalogo', label: 'Labor & Productos', icon: 'toolbox' },
  { href: '/planos',   label: 'Planos',   icon: 'map' },
+ { href: '/compras',  label: 'Compras',  icon: 'box' },
 ];
 
 const accountingLinks = [
@@ -73,6 +74,7 @@ const ICON_PATHS = {
   map: <><path d="M9 4 L3 6.5 v14 L9 18 l6 2.5 L21 18 V4 l-6 2.5 z"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6.5" x2="15" y2="20.5"/></>,
   ticket: <><path d="M3 8 a2 2 0 0 1 2 -2 h14 a2 2 0 0 1 2 2 v2.5 a2 2 0 0 0 0 3 V16 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 v-2.5 a2 2 0 0 0 0 -3 z"/><line x1="14" y1="7" x2="14" y2="17" strokeDasharray="2.5 2.5"/></>,
   userOff: <><circle cx="10" cy="8" r="3.2"/><path d="M4 20 a 6 6 0 0 1 12 0"/><line x1="3" y1="3" x2="21" y2="21"/></>,
+  box: <><path d="M3 8 L12 4 L21 8 L12 12 Z"/><path d="M3 8 V16 L12 20 V12"/><path d="M21 8 V16 L12 20"/></>,
 };
 
 function NavIcon({ name }) {

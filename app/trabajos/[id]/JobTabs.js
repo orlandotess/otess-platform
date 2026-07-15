@@ -6,6 +6,7 @@ import PhotoAnnotator from '../../PhotoAnnotator';
 import LineItemRow from '../../LineItemRow';
 import CableCalculator from '../../CableCalculator';
 import { exportPurchaseListCSV } from '../../purchaseListCsv';
+import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
@@ -42,6 +43,37 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [assignedTechs, setAssignedTechs] = useState(jobTechnicians);
   const [addingTech, setAddingTech] = useState('');
   const [savingTech, setSavingTech] = useState(false);
+  const [generatingPO, setGeneratingPO] = useState(false);
+
+  async function generarOrdenCompra() {
+    setGeneratingPO(true);
+    try {
+      const normalized = lineItems.map(it => ({
+        id: it.id,
+        description: it.description,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+        supplier_price: it.supplier_price,
+        vendor: it.vendor,
+        isProduct: it.type === 'product',
+      }));
+      const { orders, reason } = await generatePurchaseOrders(normalized, {
+        sourceType: 'job',
+        sourceId: job.id,
+        sourceLabel: `${job.job_number} — ${job.title}`,
+      });
+      if (reason === 'no-items') {
+        alert('No hay productos con proveedor asignado en este trabajo.');
+      } else {
+        alert(`${orders.length} orden(es) de compra generada(s).`);
+        router.push('/compras');
+      }
+    } catch (err) {
+      alert('Error al generar la orden de compra: ' + err.message);
+    } finally {
+      setGeneratingPO(false);
+    }
+  }
 
   async function addTechnician(techId) {
     if (!techId) return;
@@ -1401,6 +1433,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de trabajo</p>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => exportPurchaseListCSV(lineItems, job.job_number)}>📦 Lista de compra</button>
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} disabled={generatingPO} onClick={generarOrdenCompra}>{generatingPO ? '⏳ Generando...' : '🛒 Generar orden de compra'}</button>
                   <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setShowCableCalc(true)}>🧮 Calcular cable/tubo</button>
                   <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingLine(true)}>+ Agregar línea</button>
                 </div>
