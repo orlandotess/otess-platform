@@ -52,7 +52,7 @@ export default async function TimesheetPage({ searchParams }) {
   const dayOvs = dayOverrides ?? [];
   console.log('ADJS:', JSON.stringify(adjs));
 
-  const fmtDate = d => new Date(d).toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric" });
+  const fmtDate = d => new Date(d).toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
