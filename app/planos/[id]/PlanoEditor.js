@@ -12,6 +12,11 @@ const FALLBACK_H = 1200;
 
 const URL_REFRESH_INTERVAL = 45 * 60 * 1000; // signed URLs expire at 1h; refresh well before that
 
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 8;
+const ZOOM_STEP = 1.4;
+const WHEEL_ZOOM_INTENSITY = 0.0018;
+
 export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, customIcons, currentRole, allClients = [] }) {
   const router = useRouter();
   const wrapRef = useRef(null);
@@ -53,8 +58,22 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [linkJobs, setLinkJobs] = useState([]);
   const [savingLink, setSavingLink] = useState(false);
   const [linkDisplay, setLinkDisplay] = useState({ clientName: plan.clients?.name || null, jobTitle: plan.jobs?.title || null });
+  const [view, setView] = useState({ zoom: MIN_ZOOM, pan: { x: 0, y: 0 } });
+  const [rectSize, setRectSize] = useState({ width: 0, height: 0 });
+  const panRef = useRef({ dragging: false, moved: false, startX: 0, startY: 0, startPan: { x: 0, y: 0 } });
+  const suppressClickRef = useRef(false);
 
   const canDeletePlan = currentRole === 'admin' || currentRole === 'secretaria';
+
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const el = wrapRef.current;
+    const update = () => setRectSize({ width: el.clientWidth, height: el.clientHeight });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   function resetTransientModes() {
     setCableDraft(null);
@@ -171,9 +190,58 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const rect = wrapRef.current.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const fx = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    const fy = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+    const lx = (clientX - rect.left - view.pan.x) / view.zoom;
+    const ly = (clientY - rect.top - view.pan.y) / view.zoom;
+    const fx = Math.min(1, Math.max(0, lx / rect.width));
+    const fy = Math.min(1, Math.max(0, ly / rect.height));
     return { x: fx, y: fy };
+  }
+
+  function clampPan(pan, zoom, rect) {
+    const minX = rect.width * (1 - zoom);
+    const minY = rect.height * (1 - zoom);
+    return {
+      x: Math.min(0, Math.max(minX, pan.x)),
+      y: Math.min(0, Math.max(minY, pan.y)),
+    };
+  }
+
+  function applyZoomAt(clientX, clientY, factor) {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setView(prev => {
+      const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.zoom * factor));
+      if (nextZoom === prev.zoom) return prev;
+      if (nextZoom === MIN_ZOOM) return { zoom: MIN_ZOOM, pan: { x: 0, y: 0 } };
+      const cx = clientX - rect.left;
+      const cy = clientY - rect.top;
+      const nextPan = {
+        x: cx - (nextZoom / prev.zoom) * (cx - prev.pan.x),
+        y: cy - (nextZoom / prev.zoom) * (cy - prev.pan.y),
+      };
+      return { zoom: nextZoom, pan: clampPan(nextPan, nextZoom, rect) };
+    });
+  }
+
+  function zoomByButton(factor) {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    applyZoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+  }
+
+  function resetZoom() {
+    setView({ zoom: MIN_ZOOM, pan: { x: 0, y: 0 } });
+  }
+
+  function handleWheel(e) {
+    e.preventDefault();
+    const factor = Math.exp(-e.deltaY * WHEEL_ZOOM_INTENSITY);
+    applyZoomAt(e.clientX, e.clientY, factor);
+  }
+
+  function handleWrapPointerDown(e) {
+    if (view.zoom <= MIN_ZOOM) return;
+    panRef.current = { dragging: true, moved: false, startX: e.clientX, startY: e.clientY, startPan: view.pan };
   }
 
   async function placeMarker(point) {
@@ -210,6 +278,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }
 
   function handleCanvasClick(e) {
+    if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     const point = getPoint(e);
     if (mode !== 'select' && mode.type === 'place') {
       placeMarker(point);
@@ -250,6 +319,16 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }
 
   function handleWrapPointerMove(e) {
+    if (panRef.current.dragging) {
+      const dx = e.clientX - panRef.current.startX;
+      const dy = e.clientY - panRef.current.startY;
+      if (!panRef.current.moved && Math.hypot(dx, dy) > 4) panRef.current.moved = true;
+      if (panRef.current.moved) {
+        const rect = wrapRef.current.getBoundingClientRect();
+        setView(prev => ({ ...prev, pan: clampPan({ x: panRef.current.startPan.x + dx, y: panRef.current.startPan.y + dy }, prev.zoom, rect) }));
+      }
+      return;
+    }
     if (draggingId) {
       const point = getPoint(e);
       setMarkers(prev => prev.map(m => m.id === draggingId ? { ...m, pos_x: point.x, pos_y: point.y } : m));
@@ -261,6 +340,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }
 
   async function handleWrapPointerUp() {
+    if (panRef.current.dragging) {
+      if (panRef.current.moved) suppressClickRef.current = true;
+      panRef.current.dragging = false;
+      panRef.current.moved = false;
+    }
     if (draggingId) {
       const m = markers.find(m => m.id === draggingId);
       const origin = dragOriginRef.current;
@@ -571,15 +655,20 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         <div
           ref={wrapRef}
           onClick={handleCanvasClick}
+          onPointerDown={handleWrapPointerDown}
           onPointerMove={handleWrapPointerMove}
           onPointerUp={handleWrapPointerUp}
+          onWheel={handleWheel}
+          onDragStart={e => e.preventDefault()}
           style={{
             position: 'relative', flex: '1 1 600px', minWidth: 320,
             aspectRatio: `${W} / ${H}`, background: 'var(--surface-2)',
             border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden',
-            cursor: mode !== 'select' ? 'crosshair' : 'default',
+            touchAction: 'none',
+            cursor: panRef.current.dragging ? 'grabbing' : view.zoom > MIN_ZOOM && mode === 'select' ? 'grab' : mode !== 'select' ? 'crosshair' : 'default',
           }}
         >
+          <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${view.pan.x}px, ${view.pan.y}px) scale(${view.zoom})` }}>
           <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" style={{ display: 'block' }}>
             {imageUrlState && <image href={imageUrlState} x="0" y="0" width={W} height={H} preserveAspectRatio="xMidYMid meet" />}
 
@@ -664,6 +753,25 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               );
             })}
           </svg>
+          </div>
+
+          <div
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
+            onWheel={e => e.stopPropagation()}
+            style={{
+              position: 'absolute', right: 10, top: 10, zIndex: 6, display: 'flex', flexDirection: 'column', gap: 4,
+              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 4,
+              boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
+            }}
+          >
+            <button type="button" className="btn btn-ghost" style={{ padding: '4px 10px', fontWeight: 700 }} disabled={view.zoom >= MAX_ZOOM} onClick={() => zoomByButton(ZOOM_STEP)}>+</button>
+            <div style={{ fontSize: 11, textAlign: 'center', fontWeight: 700, color: 'var(--muted)' }}>{Math.round(view.zoom * 100)}%</div>
+            <button type="button" className="btn btn-ghost" style={{ padding: '4px 10px', fontWeight: 700 }} disabled={view.zoom <= MIN_ZOOM} onClick={() => zoomByButton(1 / ZOOM_STEP)}>−</button>
+            {view.zoom > MIN_ZOOM && (
+              <button type="button" className="btn btn-ghost" style={{ padding: '4px 6px', fontSize: 10 }} onClick={resetZoom}>Ajustar</button>
+            )}
+          </div>
 
           {selectedMarker && (() => {
             // Flip to the marker's other side / edge when it sits near the canvas
@@ -671,12 +779,18 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             const flipX = selectedMarker.pos_x > 0.6;
             const xOffset = flipX ? 'calc(-100% - 16px)' : '16px';
             const yOffset = selectedMarker.pos_y < 0.25 ? '0%' : selectedMarker.pos_y > 0.75 ? '-100%' : '-50%';
+            const markerLeft = view.pan.x + selectedMarker.pos_x * rectSize.width * view.zoom;
+            const markerTop = view.pan.y + selectedMarker.pos_y * rectSize.height * view.zoom;
             return (
-            <div style={{
-              position: 'absolute', left: `${selectedMarker.pos_x * 100}%`, top: `${selectedMarker.pos_y * 100}%`,
-              transform: `translate(${xOffset}, ${yOffset})`, background: 'var(--surface)', border: '1.5px solid var(--border)',
-              borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5, width: 220,
-            }} onClick={e => e.stopPropagation()}>
+            <div
+              onPointerDown={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
+              style={{
+                position: 'absolute', left: markerLeft, top: markerTop,
+                transform: `translate(${xOffset}, ${yOffset})`, background: 'var(--surface)', border: '1.5px solid var(--border)',
+                borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5, width: 220,
+              }}
+            >
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
                 {customIconsState.find(ic => ic.id === selectedMarker.custom_icon_id)?.name || getEquipmentType(selectedMarker.equipment_type)?.label}
               </div>
