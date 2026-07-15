@@ -106,6 +106,7 @@ export default function PropuestaForm({ initialData = null }) {
   const [title, setTitle] = useState(initialData?.proposal.title ?? '');
   const [preparedBy, setPreparedBy] = useState(initialData?.proposal.prepared_by ?? '');
   const [introNote, setIntroNote] = useState(initialData?.proposal.intro_note ?? '');
+  const [projectDescription, setProjectDescription] = useState(initialData?.proposal.project_description ?? '');
   const [requiresSignature, setRequiresSignature] = useState(initialData?.proposal.requires_signature ?? false);
   const [taxClientType, setTaxClientType] = useState(initialData?.proposal.tax_client_type ?? 'final');
   const [paymentSchedule, setPaymentSchedule] = useState(
@@ -388,6 +389,7 @@ export default function PropuestaForm({ initialData = null }) {
         title: title.trim(),
         prepared_by: preparedBy.trim() || null,
         intro_note: introNote.trim() || null,
+        project_description: projectDescription.trim() || null,
         requires_signature: requiresSignature,
         tax_client_type: taxClientType,
         cover_photo_url: coverPath,
@@ -418,6 +420,7 @@ export default function PropuestaForm({ initialData = null }) {
         title: title.trim(),
         prepared_by: preparedBy.trim() || null,
         intro_note: introNote.trim() || null,
+        project_description: projectDescription.trim() || null,
         requires_signature: requiresSignature,
         status: 'borrador',
         tax_client_type: taxClientType,
@@ -567,6 +570,11 @@ export default function PropuestaForm({ initialData = null }) {
             <div className="form-group">
               <label>Nota para el cliente</label>
               <textarea value={introNote} onChange={e => setIntroNote(e.target.value)} placeholder="Mensaje introductorio que verá el cliente..." />
+            </div>
+
+            <div className="form-group">
+              <label>Descripción del proyecto</label>
+              <textarea value={projectDescription} onChange={e => setProjectDescription(e.target.value)} placeholder="Alcance del proyecto: qué se va a hacer, en qué consiste el trabajo..." />
             </div>
 
             <div className="form-group">

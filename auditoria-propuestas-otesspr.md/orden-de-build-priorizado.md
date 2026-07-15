@@ -20,16 +20,14 @@ Reemplaza la lista "Siguiente paso tras la auditoría" del documento original (`
 ## ✅ Recién construido y verificado en vivo (2026-07-14)
 
 - ~~Conectar campo `vendor` en el kebab de ítem~~ — migración `alter table proposal_line_items add column if not exists vendor text` corrida por el usuario; cableado en `PropuestaForm.js` (emptyItem, itemsToAreas, vendorOptions, handleCatalogSelect, handleSave) y en `cloneProposal` (`detail-client.js`). Verificado en vivo: se guarda, se recarga al editar, ítem de prueba limpiado (PROP-1005 restaurada a su estado original). Solo aparece en ítems tipo "Producto", igual que en Trabajos/Estimados.
+- ~~Project Description (sección faltante, Sección A de la auditoría)~~ — migración `alter table proposals add column if not exists project_description text` corrida por el usuario; campo agregado en `PropuestaForm.js` y cableado en `cloneProposal` (`detail-client.js`). **Decisión del usuario: nunca debe llegar al cliente** — no vive en `ProposalDocument.js` (que es lo que ven el link público y el PDF Cliente), sino como bloque solo-admin en `detail-client.js`, etiquetado "(interno, no visible al cliente)". Verificado en vivo: se guarda, persiste, aparece en el panel admin, no aparece en el documento/PDF ni en `public-client.js` (confirmado por grep — cero referencias), ítem de prueba limpiado (PROP-1005 restaurada a su estado original).
 
 ## Pendiente real
 
-1. **Project Description (sección faltante, Sección A de la auditoría)**
-   Esfuerzo: bajo. No hay campo dedicado a describir el alcance del proyecto — solo `intro_note` genérico y `option.description` por opción. Mismo patrón que `terms`/`intro_note`: un campo de texto más en `PropuestaForm.js`, columna nueva en `proposals` (o `proposal_options`), y su bloque en `ProposalDocument.js` y `public-client.js`.
-
-2. **Profit Analysis (sección faltante, Sección A de la auditoría)**
+1. **Profit Analysis (sección faltante, Sección A de la auditoría)**
    Esfuerzo: bajo-medio. El dato ya existe (`supplier_price` por ítem, usado en `app/accounting/rentabilidad/page.js`) — falta la **vista** dentro de Propuestas (margen = venta vs. costo, por opción y total). Sin migración. **Solo-lectura y solo en el documento admin — nunca debe exponerse en `public-client.js`**, es información interna de costo/margen.
 
-3. **Payment Requests (sección faltante, Sección A de la auditoría)**
+2. **Payment Requests (sección faltante, Sección A de la auditoría)**
    Esfuerzo: alto. No confundir con Payment Schedule (calendario planificado, ya existe): es un flujo real de solicitud/registro de pago contra la propuesta — no hay tabla, API ni UI hoy. Requiere modelo de datos nuevo (`proposal_payment_requests` con estado propio) y decidir si notifica al cliente y si aparece en `public-client.js`. El más caro de los tres gaps de Sección A — depende de decisiones de producto (QuickBooks excluido de esta fase, tracking sería manual).
 
 ## Historial de cambios de prioridad (contexto, ya no aplica al día de hoy)
@@ -39,4 +37,4 @@ Reemplaza la lista "Siguiente paso tras la auditoría" del documento original (`
 - Archive se independizó de Clone por ser mecánicamente más parecido a Change Status — cumplido.
 - CSV se separó de "Download" por ser más barato sin motor de plantillas nuevo — cumplido.
 - Drag-and-drop y Bulk toolbar se dejaron al final por ser 100% nuevos — cumplido, ambos construidos.
-- Los 3 gaps de Sección A (Project Description, Profit Analysis, Payment Requests) se agregaron después de cerrar esa sección de la auditoría — son el único trabajo real que queda.
+- Los 3 gaps de Sección A (Project Description, Profit Analysis, Payment Requests) se agregaron después de cerrar esa sección de la auditoría. Project Description ya se construyó; quedan Profit Analysis y Payment Requests.

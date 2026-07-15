@@ -123,6 +123,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         title: `${proposal.title} (copia)`,
         prepared_by: proposal.prepared_by,
         intro_note: proposal.intro_note,
+        project_description: proposal.project_description,
         requires_signature: proposal.requires_signature,
         status: 'borrador',
         tax_client_type: proposal.tax_client_type,
@@ -367,6 +368,13 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         <div className="card" style={{ marginBottom: 20 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Nota para el cliente</p>
           <p style={{ fontSize: 14, margin: 0 }}>{proposal.intro_note}</p>
+        </div>
+      )}
+
+      {proposal.project_description && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Descripción del proyecto (interno, no visible al cliente)</p>
+          <p style={{ fontSize: 14, margin: 0, whiteSpace: 'pre-line' }}>{proposal.project_description}</p>
         </div>
       )}
 
