@@ -43,6 +43,21 @@ export function financialBreakdown(items, clientType, taxRules) {
   return { parts, labor, taxParts, taxLabor, totalDiscount, subtotal: parts + labor, tax: taxParts + taxLabor, total: parts + labor + taxParts + taxLabor };
 }
 
+// Margin estimate for internal use only — never rendered inside ProposalDocument,
+// so it can't leak into the client PDF or the public proposal link. Mirrors the
+// cost convention in app/accounting/rentabilidad/page.js: items without a
+// supplier_price are skipped rather than treated as zero cost.
+export function profitBreakdown(items) {
+  let sell = 0, cost = 0;
+  (items ?? []).filter(it => !it.parent_item_id).forEach(it => {
+    sell += itemTotal(it);
+    if (it.supplier_price == null) return;
+    cost += (it.quantity || 0) * it.supplier_price;
+  });
+  const profit = sell - cost;
+  return { sell, cost, profit, marginPct: sell > 0 ? (profit / sell) * 100 : null };
+}
+
 const page = { padding: '50px', minHeight: 700, background: '#fff' };
 const pageBreak = { ...page, breakBefore: 'page', pageBreakBefore: 'always' };
 const h2 = { fontSize: 22, fontWeight: 800, color: NAVY, marginBottom: 20 };

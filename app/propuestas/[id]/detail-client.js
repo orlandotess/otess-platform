@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
-import ProposalDocument, { financialBreakdown } from '../ProposalDocument';
+import ProposalDocument, { financialBreakdown, profitBreakdown } from '../ProposalDocument';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { exportProposalDataCSV } from '../../propuestaDataCsv';
 
@@ -11,7 +11,7 @@ const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'ba
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', cambios_requeridos: 'Cambios requeridos', expirada: 'Expirada', aprobada: 'Aprobada', rechazada: 'Rechazada', completada: 'Completada' };
 const STATUS_ORDER = ['borrador', 'enviada', 'vista', 'cambios_requeridos', 'expirada', 'aprobada', 'rechazada', 'completada'];
 
-export default function PropuestaDetailClient({ proposal, options, taxRules, payments, companyInfo, primaryAddress }) {
+export default function PropuestaDetailClient({ proposal, options, taxRules, payments, paymentRequests, companyInfo, primaryAddress }) {
   const router = useRouter();
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -26,6 +26,8 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   const [archivedAt, setArchivedAt] = useState(proposal.archived_at);
   const [archiving, setArchiving] = useState(false);
   const [extraPreview, setExtraPreview] = useState(null); // { mode, optId } — see handleExtraPdf
+  const [requests, setRequests] = useState(paymentRequests ?? []);
+  const [requestingId, setRequestingId] = useState(null);
 
   const menuItemStyle = { display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' };
 
@@ -223,6 +225,35 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function solicitarPago(payment, amount) {
+    setRequestingId(payment.id);
+    try {
+      const res = await fetch('/api/propuestas/solicitar-pago', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposalId: proposal.id, paymentId: payment.id, amount, label: payment.label }),
+      });
+      const data = await res.json();
+      if (data.error) { alert('Error: ' + data.error); return; }
+      if (data.warning) alert(data.warning);
+      setRequests(prev => {
+        const exists = prev.some(r => r.payment_id === payment.id);
+        return exists ? prev.map(r => r.payment_id === payment.id ? data.record : r) : [...prev, data.record];
+      });
+    } catch (err) {
+      alert('Error al solicitar el pago: ' + err.message);
+    } finally {
+      setRequestingId(null);
+    }
+  }
+
+  async function marcarPagado(requestId) {
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('proposal_payment_requests').update({ status: 'pagado', paid_at: now }).eq('id', requestId);
+    if (error) { alert('Error al marcar como pagado: ' + error.message); return; }
+    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'pagado', paid_at: now } : r));
+  }
+
   async function deleteProposal() {
     setDeleting(true);
     const { data: opts } = await supabase.from('proposal_options').select('id').eq('proposal_id', proposal.id);
@@ -402,6 +433,50 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         </div>
       )}
 
+      {proposal.approved_option_id && payments.length > 0 && (() => {
+        const approvedOption = options.find(o => o.id === proposal.approved_option_id);
+        if (!approvedOption) return null;
+        const fb = financialBreakdown(approvedOption.items, clientType, taxRules ?? []);
+        const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
+        return (
+          <div className="card" style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>Solicitudes de pago (interno, no visible al cliente)</p>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {payments.map(p => {
+                const amount = (basisAmount[p.basis] ?? 0) * (p.percent / 100);
+                const req = requests.find(r => r.payment_id === p.id);
+                return (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.label}</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        {fmt(amount)}
+                        {req?.status === 'pagado' && ` · Pagado el ${new Date(req.paid_at).toLocaleDateString('es-PR')}`}
+                        {req?.status === 'solicitado' && ` · Solicitado el ${new Date(req.requested_at).toLocaleDateString('es-PR')}`}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {req?.status === 'pagado' ? (
+                        <span className="badge badge-green">Pagado</span>
+                      ) : (
+                        <>
+                          <button className="btn btn-ghost" disabled={requestingId === p.id} onClick={() => solicitarPago(p, amount)}>
+                            {requestingId === p.id ? 'Enviando...' : req ? '↻ Reenviar solicitud' : 'Solicitar pago'}
+                          </button>
+                          {req && (
+                            <button className="btn btn-ghost" onClick={() => marcarPagado(req.id)}>Marcar pagado</button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ display: 'grid', gap: 20 }}>
         {options.map(opt => (
           <div key={opt.id}>
@@ -415,6 +490,20 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
               {generatingPdf === opt.id && <span style={{ fontSize: 12, color: 'var(--muted)' }}>⏳ Generando PDF...</span>}
             </div>
             {opt.description && <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>{opt.description}</p>}
+            {(() => {
+              const pb = profitBreakdown(opt.items);
+              return (
+                <div className="card" style={{ marginBottom: 12, background: 'var(--surface-2)' }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Profit Analysis (interno, no visible al cliente)</p>
+                  <div style={{ display: 'flex', gap: 24, fontSize: 13, flexWrap: 'wrap' }}>
+                    <div><span style={{ color: 'var(--muted)' }}>Venta: </span><strong>{fmt(pb.sell)}</strong></div>
+                    <div><span style={{ color: 'var(--muted)' }}>Costo: </span><strong>{fmt(pb.cost)}</strong></div>
+                    <div><span style={{ color: 'var(--muted)' }}>Ganancia: </span><strong>{fmt(pb.profit)}</strong></div>
+                    <div><span style={{ color: 'var(--muted)' }}>Margen: </span><strong>{pb.marginPct != null ? `${pb.marginPct.toFixed(1)}%` : '—'}</strong></div>
+                  </div>
+                </div>
+              );
+            })()}
             <div id={`proposal-doc-${opt.id}`} className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} />
             </div>
