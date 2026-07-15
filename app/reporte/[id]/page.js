@@ -116,7 +116,7 @@ export default async function ReportePublico({ params }) {
               {client && (() => {
                 const asCompany = client.report_name_source === 'company' && client.company;
                 const primary = asCompany ? client.company : client.name;
-                const secondary = asCompany ? client.name : client.company;
+                const secondary = asCompany ? null : client.company;
                 return (
                   <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 20, border: '1px solid #f0f0f0' }}>
                     <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Cliente</div>
