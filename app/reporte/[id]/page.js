@@ -26,7 +26,7 @@ export default async function ReportePublico({ params }) {
   const [{ data: report }, currentRole] = await Promise.all([
     supabase
       .from('job_reports')
-      .select('*, jobs(title, job_number, property_name, street, city, state, zip, clients(name, email, company))')
+      .select('*, jobs(title, job_number, property_name, street, city, state, zip, clients(name, email, company, report_name_source))')
       .eq('id', id)
       .single(),
     getCurrentRole(),
@@ -114,7 +114,7 @@ export default async function ReportePublico({ params }) {
               )}
 
               {client && (() => {
-                const asCompany = report.name_source === 'company' && client.company;
+                const asCompany = client.report_name_source === 'company' && client.company;
                 const primary = asCompany ? client.company : client.name;
                 const secondary = asCompany ? client.name : client.company;
                 return (

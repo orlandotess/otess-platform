@@ -133,6 +133,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       phone: client.phone ?? '',
       client_type: client.client_type ?? 'final',
       notes: client.notes ?? '',
+      report_name_source: client.report_name_source ?? 'client',
     });
     setEditingInfo(true);
   }
@@ -350,6 +351,21 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       <textarea value={editInfoData.notes} onChange={e => setEditInfoData(d => ({ ...d, notes: e.target.value }))} />
                     </div>
                   </div>
+                  {editInfoData.company.trim() && (
+                    <div className="form-group" style={{ marginBottom: 12 }}>
+                      <label>Nombre en reportes</label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" onClick={() => setEditInfoData(d => ({ ...d, report_name_source: 'client' }))}
+                          style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editInfoData.report_name_source === 'client' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editInfoData.report_name_source === 'client' ? 'var(--navy)' : 'transparent', color: editInfoData.report_name_source === 'client' ? '#fff' : 'var(--text)' }}>
+                          {editInfoData.name || 'Nombre del cliente'}
+                        </button>
+                        <button type="button" onClick={() => setEditInfoData(d => ({ ...d, report_name_source: 'company' }))}
+                          style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editInfoData.report_name_source === 'company' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editInfoData.report_name_source === 'company' ? 'var(--navy)' : 'transparent', color: editInfoData.report_name_source === 'company' ? '#fff' : 'var(--text)' }}>
+                          {editInfoData.company}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button type="submit" className="btn btn-primary" disabled={savingInfo}>{savingInfo ? 'Guardando...' : '💾 Guardar'}</button>
                     <button type="button" className="btn btn-ghost" onClick={() => setEditingInfo(false)}>Cancelar</button>
@@ -363,6 +379,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     { label: 'Email', value: client.email },
                     { label: 'Teléfono', value: client.phone },
                     { label: 'Tipo', value: client.client_type === 'b2b' ? 'Comerciante Registrado (B2B)' : 'Consumidor final' },
+                    { label: 'Nombre en reportes', value: client.company ? (client.report_name_source === 'company' ? client.company : client.name) : null },
                   ].map(f => f.value ? (
                     <div key={f.label}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{f.label}</div>
