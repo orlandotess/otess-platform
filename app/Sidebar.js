@@ -180,17 +180,17 @@ export default function Sidebar() {
    <>
    <aside className="sidebar">
      <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-       <img src="/otess-logo-blanco.png" alt="OTESS" style={{ width: '100%', maxWidth: 132, minWidth: 0, height: 'auto', display: 'block' }} />
+       <img src="/otess-logo.png" alt="OTESS" style={{ width: '100%', maxWidth: 132, minWidth: 0, height: 'auto', display: 'block' }} />
        <button
          onClick={toggleHidden}
          title="Ocultar sidebar"
-         style={{ flexShrink: 0, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.7)', width: 26, height: 26, borderRadius: 6, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+         style={{ flexShrink: 0, background: 'rgba(22,34,61,0.06)', border: 'none', color: 'rgba(22,34,61,0.6)', width: 26, height: 26, borderRadius: 6, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
        >
          «
        </button>
      </div>
      <div style={{ padding: '12px 16px 4px', position: 'relative' }}>
-       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" style={{ position: 'absolute', left: 28, top: '50%', transform: 'translateY(-50%)', opacity: 0.45, pointerEvents: 'none' }}>
+       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16223d" strokeWidth="2.2" style={{ position: 'absolute', left: 28, top: '50%', transform: 'translateY(-50%)', opacity: 0.4, pointerEvents: 'none' }}>
          <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>
        </svg>
        <input
@@ -199,15 +199,15 @@ export default function Sidebar() {
          placeholder="Buscar..."
          style={{
            width: '100%', padding: '8px 12px 8px 30px', borderRadius: 8, fontSize: 13,
-           border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.08)',
-           color: '#fff', outline: 'none',
+           border: '1px solid #e2e5ea', background: '#f6f7fa',
+           color: '#16223d', outline: 'none',
          }}
        />
      </div>
      <nav className="sidebar-nav">
        {searchResults ? (
          searchResults.length === 0 ? (
-           <p style={{ padding: '10px 16px', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Sin resultados.</p>
+           <p style={{ padding: '10px 16px', fontSize: 13, color: 'rgba(22,34,61,0.5)' }}>Sin resultados.</p>
          ) : (
            searchResults.map(l => (
              <Link key={l.href} href={l.href} className={isActive(l.href) ? 'active' : ''}>
@@ -231,7 +231,7 @@ export default function Sidebar() {
                <button
                  onClick={() => toggleSection(s.id)}
                  className="sidebar-group-btn"
-                 style={{ background: openSections[s.id] ? 'rgba(255,255,255,0.08)' : 'none' }}
+                 style={{ background: openSections[s.id] ? 'rgba(22,34,61,0.05)' : 'none' }}
                >
                  {s.label}
                  <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>{openSections[s.id] ? '▼' : '▶'}</span>
@@ -260,10 +260,10 @@ export default function Sidebar() {
          </>
        )}
      </nav>
-     <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+     <div style={{ padding: '16px 20px', borderTop: '1px solid #e2e5ea', display: 'flex', flexDirection: 'column', gap: 6 }}>
        <button
          onClick={toggleDarkMode}
-         style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.7)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', width: '100%', fontSize: 13, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
+         style={{ background: 'rgba(22,34,61,0.05)', border: 'none', color: 'rgba(22,34,61,0.65)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', width: '100%', fontSize: 13, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
        >
          {darkMode ? (
            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.5 12h2M19.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
@@ -274,7 +274,7 @@ export default function Sidebar() {
        </button>
        <button
          onClick={handleLogout}
-         style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.7)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', width: '100%', fontSize: 13, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
+         style={{ background: 'rgba(22,34,61,0.05)', border: 'none', color: 'rgba(22,34,61,0.65)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', width: '100%', fontSize: 13, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
        >
          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
          Cerrar sesión
