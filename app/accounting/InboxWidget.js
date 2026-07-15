@@ -20,6 +20,11 @@ export default function InboxWidget({ notifications: initial }) {
     await supabase.from('inbox_notifications').update({ read: true }).in('id', ids);
   }
 
+  async function deleteNotification(id) {
+    setItems(prev => prev.filter(n => n.id !== id));
+    await supabase.from('inbox_notifications').delete().eq('id', id);
+  }
+
   if (items.length === 0) return null;
 
   return (
@@ -56,7 +61,16 @@ export default function InboxWidget({ notifications: initial }) {
                   <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
                     {new Date(n.created_at).toLocaleDateString('es-PR', { month: 'short', day: 'numeric' })}
                   </span>
-                  {n.link && <Link href={n.link} onClick={e => e.stopPropagation()} style={{ fontSize: 11.5, color: 'var(--amber)', fontWeight: 600 }}>Ver →</Link>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {n.link && <Link href={n.link} onClick={e => e.stopPropagation()} style={{ fontSize: 11.5, color: 'var(--amber)', fontWeight: 600 }}>Ver →</Link>}
+                    <button
+                      onClick={e => { e.stopPropagation(); if (confirm('¿Eliminar esta notificación?')) deleteNotification(n.id); }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--muted)', padding: 0 }}
+                      title="Eliminar notificación"
+                    >
+                      🗑
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
