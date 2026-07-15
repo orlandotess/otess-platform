@@ -316,7 +316,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
             {proposal.proposal_number} · {proposal.clients?.name}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
           <span className={`badge ${STATUS_BADGE[status] ?? 'badge-gray'}`}>
             {STATUS_LABELS[status] ?? status}
           </span>
@@ -427,7 +427,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
 
       {status !== 'borrador' && (
         <div className="card" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Link público</div>
             <div style={{ fontSize: 13, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{publicUrl}</div>
           </div>
