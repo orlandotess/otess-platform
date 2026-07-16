@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { computeHours } from '../../../lib/hours';
+import { indexDayOverrides, splitRegularOvertime } from '../../../lib/payrollOverrides';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import PayrollClient from './PayrollCliente';
@@ -22,30 +23,36 @@ function getWeekRange(offset = 0) {
 
 // Overtime is calculated per pay-week (Wed-Tue): first 40h/week are regular, the rest is overtime.
 // Entries are bucketed into pay-weeks first so this works for week, month, and year views alike.
-function computeWeeklyOvertimeHours(techEntries) {
+// Any day present in `techDayOverrides` (a per-day manual correction made in
+// the admin Timesheet) replaces that day's raw clocked hours entirely.
+function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}) {
   const byWeek = {};
-  techEntries.forEach(e => {
-    const d = new Date(e.clocked_in_at);
+  const weekOf = dayKey => {
+    const d = new Date(dayKey + 'T00:00:00');
     const daysSinceWed = (d.getDay() + 4) % 7;
     const weekStart = new Date(d);
     weekStart.setDate(d.getDate() - daysSinceWed);
-    const wsKey = weekStart.toISOString().slice(0, 10);
+    return weekStart.toISOString().slice(0, 10);
+  };
+  techEntries.forEach(e => {
     const dayKey = e.clocked_in_at.slice(0, 10);
+    const wsKey = weekOf(dayKey);
     if (!byWeek[wsKey]) byWeek[wsKey] = {};
     if (!byWeek[wsKey][dayKey]) byWeek[wsKey][dayKey] = 0;
     byWeek[wsKey][dayKey] += computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours;
   });
+  // Make sure override-only days (no matching raw entries) are still represented.
+  Object.keys(techDayOverrides).forEach(dayKey => {
+    const wsKey = weekOf(dayKey);
+    if (!byWeek[wsKey]) byWeek[wsKey] = {};
+    if (!(dayKey in byWeek[wsKey])) byWeek[wsKey][dayKey] = 0;
+  });
 
   let regular = 0, overtime = 0;
   Object.keys(byWeek).sort().forEach(wsKey => {
-    let cumulative = 0;
-    Object.keys(byWeek[wsKey]).sort().forEach(dayKey => {
-      const hours = byWeek[wsKey][dayKey];
-      const dayRegular = Math.min(hours, Math.max(0, 40 - cumulative));
-      regular += dayRegular;
-      overtime += hours - dayRegular;
-      cumulative += hours;
-    });
+    const { regular: wkRegular, overtime: wkOvertime } = splitRegularOvertime(byWeek[wsKey], techDayOverrides);
+    regular += wkRegular;
+    overtime += wkOvertime;
   });
   return { regular, overtime };
 }
@@ -72,7 +79,7 @@ export default async function AccountingPayroll({ searchParams }) {
   const periodStart = dateStart.slice(0, 10);
   const periodEnd = dateEnd.slice(0, 10);
 
-  const [{ data: technicians }, { data: entries }, { data: adjustments }] = await Promise.all([
+  const [{ data: technicians }, { data: entries }, { data: adjustments }, { data: dayOverrides }] = await Promise.all([
     supabase.from('technicians').select('*').order('name'),
     supabase.from('time_entries')
       .select('*')
@@ -84,11 +91,16 @@ export default async function AccountingPayroll({ searchParams }) {
       .select('*')
       .eq('period_start', periodStart)
       .eq('period_end', periodEnd),
+    supabase.from('daily_hour_overrides')
+      .select('*')
+      .gte('work_date', periodStart)
+      .lte('work_date', periodEnd),
   ]);
 
   const techs = technicians ?? [];
   const ents = entries ?? [];
   const adjs = adjustments ?? [];
+  const dayOvs = dayOverrides ?? [];
   const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
@@ -97,7 +109,8 @@ export default async function AccountingPayroll({ searchParams }) {
 
   const techStats = techs.map(tech => {
     const techEntries = ents.filter(e => e.technician_id === tech.id);
-    const { regular: rawRegular, overtime: rawOvertime } = computeWeeklyOvertimeHours(techEntries);
+    const techDayOverrides = indexDayOverrides(dayOvs, tech.id);
+    const { regular: rawRegular, overtime: rawOvertime } = computeWeeklyOvertimeHours(techEntries, techDayOverrides);
 
     // Apply overrides if they exist
     const adj = adjs.find(a => a.technician_id === tech.id);

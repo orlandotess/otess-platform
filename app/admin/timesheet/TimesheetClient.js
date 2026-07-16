@@ -109,17 +109,28 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     const overtime = parseFloat(editOvertime) || 0;
     const rate = Number(tech.hourly_rate ?? 0);
     const grossPay = (regular * rate) + (overtime * rate * 1.5);
+    // Skip writing a payroll_adjustments row when the entered hours match the
+    // raw computed total — otherwise every open-and-save of this editor turns
+    // a normal week into a "manual override" for no reason.
+    const hoursChanged = regular !== tech.regularHoursRaw || overtime !== tech.overtimeHoursRaw;
 
-    await supabase.from('payroll_adjustments').upsert({
-      technician_id: tech.id,
-      period_start: weekStart,
-      period_end: weekEnd,
-      regular_hours_override: regular,
-      overtime_hours_override: overtime,
-    }, { onConflict: 'technician_id,period_start,period_end' });
+    if (hoursChanged) {
+      await supabase.from('payroll_adjustments').upsert({
+        technician_id: tech.id,
+        period_start: weekStart,
+        period_end: weekEnd,
+        regular_hours_override: regular,
+        overtime_hours_override: overtime,
+      }, { onConflict: 'technician_id,period_start,period_end' });
+    } else if (tech.hasOverride) {
+      await supabase.from('payroll_adjustments').delete()
+        .eq('technician_id', tech.id)
+        .eq('period_start', weekStart)
+        .eq('period_end', weekEnd);
+    }
 
     setLocalStats(prev => prev.map(t => t.id === tech.id
-      ? { ...t, regularHours: regular, overtimeHours: overtime, totalHours: regular + overtime, grossPay, hasOverride: true }
+      ? { ...t, regularHours: regular, overtimeHours: overtime, totalHours: regular + overtime, grossPay, hasOverride: hoursChanged }
       : t
     ));
 

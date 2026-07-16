@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from "../../../../lib/supabase";
 import { computeHours } from "../../../../lib/hours";
+import { indexDayOverrides, splitRegularOvertime } from "../../../../lib/payrollOverrides";
 import Sidebar from "../../../Sidebar";
 import Link from "next/link";
 import HistorialClient from "./HistorialClient";
@@ -18,15 +19,17 @@ function getWeekRange(offset = 0) {
 }
 
 export default async function PayrollHistorial() {
-  const [{ data: technicians }, { data: allEntries }, { data: allAdjustments }] = await Promise.all([
+  const [{ data: technicians }, { data: allEntries }, { data: allAdjustments }, { data: allDayOverrides }] = await Promise.all([
     supabase.from("technicians").select("*").order("name"),
     supabase.from("time_entries").select("*").not("clocked_out_at", "is", null).order("clocked_in_at"),
     supabase.from("payroll_adjustments").select("*").order("period_start", { ascending: false }),
+    supabase.from("daily_hour_overrides").select("*"),
   ]);
 
   const techs = technicians ?? [];
   const entries = allEntries ?? [];
   const adjustments = allAdjustments ?? [];
+  const dayOverrides = allDayOverrides ?? [];
 
   // Build a set of all week period_start values that have activity (from entries or adjustments)
   const weekStarts = new Set();
@@ -42,6 +45,13 @@ export default async function PayrollHistorial() {
     weekStarts.add(ws.toISOString().slice(0, 10));
   });
   adjustments.forEach(a => weekStarts.add(a.period_start));
+  dayOverrides.forEach(o => {
+    const d = new Date(o.work_date + "T00:00:00");
+    const daysSinceWed = (d.getDay() + 4) % 7;
+    const ws = new Date(d);
+    ws.setDate(d.getDate() - daysSinceWed);
+    weekStarts.add(ws.toISOString().slice(0, 10));
+  });
 
   const months = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
@@ -67,13 +77,17 @@ export default async function PayrollHistorial() {
         if (!byDay[day]) byDay[day] = 0;
         byDay[day] += computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours;
       });
-      let rawRegular = 0, rawOvertime = 0, cumulativeHours = 0;
-      Object.keys(byDay).sort().forEach(day => {
-        const h = byDay[day];
-        const dayRegular = Math.min(h, Math.max(0, 40 - cumulativeHours));
-        rawRegular += dayRegular;
-        rawOvertime += h - dayRegular;
-        cumulativeHours += h;
+
+      const techDayOverrides = indexDayOverrides(dayOverrides, tech.id);
+      Object.keys(techDayOverrides).forEach(day => {
+        if (day >= wsStr && day <= weekEndStr && !(day in byDay)) byDay[day] = 0;
+      });
+      const { regular: rawRegular, overtime: rawOvertime } = splitRegularOvertime(byDay, techDayOverrides);
+      // Reflect corrected per-day hours in the breakdown shown to the user too.
+      Object.keys(techDayOverrides).forEach(day => {
+        if (day < wsStr || day > weekEndStr) return;
+        const o = techDayOverrides[day];
+        byDay[day] = Number(o.regular_hours_override ?? 0) + Number(o.overtime_hours_override ?? 0);
       });
 
       const adj = adjustments.find(a => a.technician_id === tech.id && a.period_start === wsStr && a.period_end === weekEndStr);

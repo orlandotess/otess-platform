@@ -2,25 +2,30 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
-import { computeHours } from '../../../lib/hours';
+import { effectiveEntryHours } from '../../../lib/payrollOverrides';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 
 const MARGIN_ALERT_THRESHOLD = 20;
 
-function hoursOf(entry) {
-  return computeHours(entry.clocked_in_at, entry.clocked_out_at, entry.lunch_minutes).hours;
-}
-
 export default async function RentabilidadPage() {
-  const [{ data: jobs }, { data: invoices }, { data: lineItems }, { data: timeEntries }, { data: technicians }, { data: expenses }] = await Promise.all([
+  const [{ data: jobs }, { data: invoices }, { data: lineItems }, { data: timeEntries }, { data: technicians }, { data: expenses }, { data: dayOverrides }] = await Promise.all([
     supabase.from('jobs').select('id, title, job_number, status, clients(name)'),
     supabase.from('invoices').select('id, job_id, total'),
     supabase.from('job_line_items').select('job_id, quantity, unit_price, supplier_price'),
     supabase.from('time_entries').select('job_id, technician_id, clocked_in_at, clocked_out_at, lunch_minutes').not('job_id', 'is', null).not('clocked_out_at', 'is', null),
     supabase.from('technicians').select('id, name, hourly_rate'),
     supabase.from('expenses').select('job_id, amount'),
+    supabase.from('daily_hour_overrides').select('technician_id, work_date, regular_hours_override, overtime_hours_override'),
   ]);
+
+  // Per-day manual corrections (from the admin Timesheet, e.g. an absence)
+  // replace raw clocked hours for that technician/date. Attached here so job
+  // and technician cost rollups below use the corrected hours.
+  const rawEntries = timeEntries ?? [];
+  const effectiveHours = effectiveEntryHours(rawEntries, dayOverrides ?? []);
+  const timeEntriesEff = rawEntries.map((e, i) => ({ ...e, hours: effectiveHours[i] }));
+  function hoursOf(entry) { return entry.hours; }
 
   const invoiceIds = (invoices ?? []).map(i => i.id);
   const { data: payments } = invoiceIds.length
@@ -42,7 +47,7 @@ export default async function RentabilidadPage() {
   const lineItemsByJob = {};
   (lineItems ?? []).forEach(li => { (lineItemsByJob[li.job_id] ??= []).push(li); });
   const entriesByJob = {};
-  (timeEntries ?? []).forEach(e => { (entriesByJob[e.job_id] ??= []).push(e); });
+  timeEntriesEff.forEach(e => { (entriesByJob[e.job_id] ??= []).push(e); });
   const expensesByJob = {};
   (expenses ?? []).forEach(e => { (expensesByJob[e.job_id] ??= []).push(e); });
 
