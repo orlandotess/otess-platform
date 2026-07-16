@@ -6,6 +6,8 @@ import { supabase } from '../../../lib/supabase';
 import { EQUIPMENT_TYPES, getEquipmentType, EquipmentIcon } from '../../equipmentIcons';
 import { exportEquipmentListCSV } from '../../planoEquipmentCsv';
 import ClientCombobox from '../../facturas/nueva/ClientCombobox';
+import AOCCone from './AOCCone';
+import AOCPanel, { AOC_SUPPORTED_TYPES } from './AOCPanel';
 
 const FALLBACK_W = 1600;
 const FALLBACK_H = 1200;
@@ -19,6 +21,18 @@ const WHEEL_ZOOM_INTENSITY = 0.0018;
 
 const LAYER_COLORS = ['#2a4cb5', '#1a7a4a', '#e0972c', '#8e44ad', '#c0392b', '#0891b2', '#4b5563'];
 const NO_LAYER = '__none__';
+
+function getAOC(marker) {
+  const systemColor = getEquipmentType(marker.equipment_type)?.color || '#e0972c';
+  return {
+    visible: marker.aoc_visible ?? false,
+    direction: marker.aoc_direction ?? 0,
+    angle: marker.aoc_angle ?? 60,
+    radius: marker.aoc_radius ?? 80,
+    color: marker.aoc_color ?? systemColor,
+    opacity: marker.aoc_opacity ?? 0.5,
+  };
+}
 
 export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, initialLayers, initialCableTypes, customIcons, currentRole, allClients = [] }) {
   const router = useRouter();
@@ -460,6 +474,36 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       return;
     }
     if (oldPath) await supabase.storage.from('floor-plan-icons').remove([oldPath]);
+  }
+
+  async function handleAOCChange(markerId, updates) {
+    const previous = markerById(markerId);
+    setMarkers(prev => prev.map(m => {
+      if (m.id !== markerId) return m;
+      return {
+        ...m,
+        aoc_visible: updates.visible !== undefined ? updates.visible : m.aoc_visible,
+        aoc_direction: updates.direction !== undefined ? updates.direction : m.aoc_direction,
+        aoc_angle: updates.angle !== undefined ? updates.angle : m.aoc_angle,
+        aoc_radius: updates.radius !== undefined ? updates.radius : m.aoc_radius,
+        aoc_color: updates.color !== undefined ? updates.color : m.aoc_color,
+        aoc_opacity: updates.opacity !== undefined ? updates.opacity : m.aoc_opacity,
+      };
+    }));
+
+    const dbUpdates = {};
+    if (updates.visible !== undefined) dbUpdates.aoc_visible = updates.visible;
+    if (updates.direction !== undefined) dbUpdates.aoc_direction = updates.direction;
+    if (updates.angle !== undefined) dbUpdates.aoc_angle = updates.angle;
+    if (updates.radius !== undefined) dbUpdates.aoc_radius = updates.radius;
+    if (updates.color !== undefined) dbUpdates.aoc_color = updates.color;
+    if (updates.opacity !== undefined) dbUpdates.aoc_opacity = updates.opacity;
+
+    const { error } = await supabase.from('floor_plan_markers').update(dbUpdates).eq('id', markerId);
+    if (error && previous) {
+      setMarkers(prev => prev.map(m => m.id === markerId ? previous : m));
+      alert('No se pudo guardar el área de cobertura, se revirtió: ' + error.message);
+    }
   }
 
   async function deleteCable(id) {
@@ -1093,6 +1137,23 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             )}
 
             {visibleMarkers.map(m => {
+              if (!AOC_SUPPORTED_TYPES.has(m.equipment_type)) return null;
+              const aoc = getAOC(m);
+              if (!aoc.visible) return null;
+              return (
+                <AOCCone
+                  key={`aoc-${m.id}`}
+                  cx={m.pos_x * W}
+                  cy={m.pos_y * H}
+                  aoc={aoc}
+                  onChange={updates => handleAOCChange(m.id, updates)}
+                  svgScale={1 / view.zoom}
+                  selected={selectedMarkerId === m.id}
+                />
+              );
+            })}
+
+            {visibleMarkers.map(m => {
               const cx = m.pos_x * W, cy = m.pos_y * H;
               const size = iconSize * (m.icon_scale ?? 1);
               const customIcon = m.custom_icon_id ? customIconsState.find(ic => ic.id === m.custom_icon_id) : null;
@@ -1218,7 +1279,13 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   <input type="file" accept="image/*" hidden disabled={uploadingPhoto} onChange={e => handleMarkerPhotoUpload(selectedMarker.id, e.target.files?.[0])} />
                 </label>
               )}
-              <div style={{ display: 'flex', gap: 6 }}>
+              <AOCPanel
+                equipmentType={selectedMarker.equipment_type}
+                systemColor={getEquipmentType(selectedMarker.equipment_type)?.color}
+                aoc={getAOC(selectedMarker)}
+                onChange={updates => handleAOCChange(selectedMarker.id, updates)}
+              />
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                 <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', flex: 1 }}
                   onClick={() => { setMode({ type: 'cable' }); setCableDraft({ fromMarkerId: selectedMarker.id, points: [] }); setSelectedMarkerId(null); }}>
                   🔌 Cable
