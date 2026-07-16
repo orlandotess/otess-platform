@@ -409,7 +409,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   function adjustMarkerScale(id, delta) {
     const marker = markerById(id);
     const current = marker?.icon_scale ?? 1;
-    const next = Math.min(2, Math.max(0.5, Math.round((current + delta) * 100) / 100));
+    const next = Math.min(2, Math.max(0.25, Math.round((current + delta) * 100) / 100));
     if (next === current) return;
     setMarkers(prev => prev.map(m => m.id === id ? { ...m, icon_scale: next } : m));
     supabase.from('floor_plan_markers').update({ icon_scale: next }).eq('id', id).then(({ error }) => {
@@ -1185,7 +1185,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>Tamaño del ícono</span>
                 <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px', marginLeft: 'auto' }}
-                  disabled={(selectedMarker.icon_scale ?? 1) <= 0.5}
+                  disabled={(selectedMarker.icon_scale ?? 1) <= 0.25}
                   onClick={() => adjustMarkerScale(selectedMarker.id, -0.25)}>−</button>
                 <span style={{ fontSize: 12, fontWeight: 700, minWidth: 34, textAlign: 'center' }}>
                   {Math.round((selectedMarker.icon_scale ?? 1) * 100)}%
