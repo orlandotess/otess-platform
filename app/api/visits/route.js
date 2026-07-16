@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { getCurrentRole } from '../../../lib/supabase-server';
 
 export async function POST(req) {
+  const currentRole = await getCurrentRole();
+  if (!['admin', 'secretaria'].includes(currentRole)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
   const body = await req.json();
   const { request_id, technician_id, scheduled_at, duration_minutes } = body;
 
