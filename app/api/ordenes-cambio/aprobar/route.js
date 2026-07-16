@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
+import { formatDateTimePR } from '../../../../lib/datetimeLocal';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -41,7 +42,7 @@ export async function POST(request) {
         <div style="font-family:Arial,sans-serif;padding:20px">
           <p style="font-size:15px;color:#16223d"><strong>${order.clients?.name ?? 'Un cliente'}</strong> aprobó la orden de cambio <strong>${order.change_order_number}${order.title ? ` — ${order.title}` : ''}</strong>.</p>
           ${order.requires_signature ? `<p style="font-size:14px;color:#444">Firmado por: <strong>${signed_name.trim()}</strong></p>` : ''}
-          <p style="font-size:13px;color:#888">Fecha: ${new Date().toLocaleString('es-PR', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+          <p style="font-size:13px;color:#888">Fecha: ${formatDateTimePR(new Date(), { dateStyle: 'medium', timeStyle: 'short' })}</p>
           <a href="https://app.otesspr.com/ordenes-cambio/${order.id}" style="color:#e0972c;font-size:13px">Ver en el dashboard →</a>
         </div>
       `,

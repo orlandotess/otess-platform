@@ -8,6 +8,7 @@ import TicketActions from './TicketActions';
 import TechnicianAssign from './TechnicianAssign';
 import TicketReports from './TicketReports';
 import { formatDuration } from '../../../lib/formatDuration';
+import { formatDateTimePR } from '../../../lib/datetimeLocal';
 
 const statusLabel = { abierto: 'Abierto', en_progreso: 'En progreso', cerrado: 'Cerrado' };
 const statusCls = { abierto: 'badge-red', en_progreso: 'badge-blue', cerrado: 'badge-gray' };
@@ -95,7 +96,7 @@ export default async function BoletoDetailPage({ params }) {
               <p style={{ fontSize: 14, color: 'var(--muted)' }}>No se indicó contacto.</p>
             )}
             <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>
-              {ticket.source === 'email' ? '📧 Recibido por email' : '👤 Abierto por el equipo'} · {new Date(ticket.created_at).toLocaleString('es-PR', { dateStyle: 'medium', timeStyle: 'short' })}
+              {ticket.source === 'email' ? '📧 Recibido por email' : '👤 Abierto por el equipo'} · {formatDateTimePR(ticket.created_at, { dateStyle: 'medium', timeStyle: 'short' })}
             </p>
           </div>
 

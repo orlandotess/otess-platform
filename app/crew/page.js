@@ -6,6 +6,7 @@ import { buildMapsLinks, pickMapsLink } from '../../lib/mapsLinks';
 import { normalizeName } from '../../lib/normalizeName';
 import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
 import { computeHours } from '../../lib/hours';
+import { formatDatePR, formatDateTimePR, formatTimePR } from '../../lib/datetimeLocal';
 
 const ORANGE = '#E05C2A';
 const AMBER = '#e0972c';
@@ -1195,7 +1196,7 @@ export default function FieldApp() {
               <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>📍 {location}</div>
             )
           )}
-          {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>📅 {new Date(j.scheduled_start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>}
+          {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>📅 {formatDatePR(j.scheduled_start, { weekday: 'short', month: 'short', day: 'numeric' }, 'en-US')}</div>}
         </div>
         <span style={{ fontSize: 11, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 10px', borderRadius: 20, marginLeft: 10, whiteSpace: 'nowrap' }}>{SL[j.status]}</span>
       </div>
@@ -1467,8 +1468,8 @@ export default function FieldApp() {
                     <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < selectedDay.entries.length - 1 ? '1px solid #eee' : 'none' }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600 }}>
-                          {inTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' })}
-                          {outTime ? ' → ' + outTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' }) : ' → En progreso'}
+                          {formatTimePR(inTime, { hour: '2-digit', minute: '2-digit' })}
+                          {outTime ? ' → ' + formatTimePR(outTime, { hour: '2-digit', minute: '2-digit' }) : ' → En progreso'}
                         </div>
                         {e.job_id && <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>Con trabajo</div>}
                         {(e.lunch_minutes ?? 0) > 0 && <div style={{ fontSize: 11, color: ORANGE, marginTop: 2 }}>🍽️ Lunch -{(e.lunch_minutes / 60).toFixed(1)}h</div>}
@@ -1651,7 +1652,7 @@ export default function FieldApp() {
                 jobsForSelectedDay.map((j, i) => (
                   <div key={j._scheduleDayId ? `day-${j._scheduleDayId}` : `${j.id}-${i}`} onClick={() => openEntry(j)} style={{ display: 'flex', gap: 12, paddingBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, marginBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, borderBottom: i < jobsForSelectedDay.length - 1 ? '1px solid #eee' : 'none', cursor: 'pointer' }}>
                     <div style={{ width: 62, flexShrink: 0, fontSize: 13, fontWeight: 700, color: ORANGE }}>
-                      {new Date(j.scheduled_start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      {formatTimePR(j.scheduled_start, { hour: 'numeric', minute: '2-digit' }, 'en-US')}
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: 15 }}>{j.title}</div>
@@ -1796,7 +1797,7 @@ export default function FieldApp() {
                       <div key={j.id} onClick={() => { setClientDetail(null); openJobDetail(j); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < clientDetailJobs.length - 1 ? '1px solid #f0f0f0' : 'none', cursor: 'pointer' }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{j.title}</div>
-                          {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>{new Date(j.scheduled_start).toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
+                          {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>{formatDatePR(j.scheduled_start, { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 10, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 8px', borderRadius: 20 }}>{SL[j.status]}</span>
@@ -1847,7 +1848,7 @@ export default function FieldApp() {
                 {detailJob.scheduled_start && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>Fecha programada</div>
-                    <div style={{ fontSize: 14 }}>{new Date(detailJob.scheduled_start).toLocaleString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                    <div style={{ fontSize: 14 }}>{formatDateTimePR(detailJob.scheduled_start, { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                   </div>
                 )}
 
@@ -1999,7 +2000,7 @@ export default function FieldApp() {
                               <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? '#aaa' : '#333' }}>{item.description}</div>
                               {item.completed && item.completed_at && (
                                 <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                                  {new Date(item.completed_at).toLocaleDateString('es-PR')}
+                                  {formatDatePR(item.completed_at)}
                                 </div>
                               )}
                             </div>
@@ -2099,7 +2100,7 @@ export default function FieldApp() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                         <div style={{ fontSize: 11, color: '#aaa' }}>
                           {n.author_name && <>{n.author_name} · </>}
-                          {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                         {n.created_by === profileId && editingDetailNoteId !== n.id && (
                           <button onClick={() => { setEditingDetailNoteId(n.id); setEditingDetailNoteText(n.note ?? ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 14 }}>✏️</button>
@@ -2263,7 +2264,7 @@ export default function FieldApp() {
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{r.title}</div>
                     <div style={{ fontSize: 12, color: '#888', marginTop: 3 }}>
                       {(r.note_ids ?? []).length} nota{(r.note_ids ?? []).length === 1 ? '' : 's'} ·{' '}
-                      {r.sent_at ? `Enviado a ${r.sent_to} el ${new Date(r.sent_at).toLocaleDateString('es-PR')}` : 'No enviado'}
+                      {r.sent_at ? `Enviado a ${r.sent_to} el ${formatDatePR(r.sent_at)}` : 'No enviado'}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                       <a href={`/reporte/${r.id}`} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', background: '#f0f0f0', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#333', textDecoration: 'none' }}>👁 Ver</a>
@@ -2295,7 +2296,7 @@ export default function FieldApp() {
             {detailEntry.clients?.name && <div style={{ fontSize: 14, color: '#555', marginBottom: 6 }}>{detailEntry.clients.name}</div>}
             {detailEntry.scheduled_start && (
               <div style={{ fontSize: 14, color: '#555', marginBottom: 6 }}>
-                🕐 {new Date(detailEntry.scheduled_start).toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                🕐 {formatDateTimePR(detailEntry.scheduled_start, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }, 'en-US')}
               </div>
             )}
             {detailEntry._kind === 'event' && detailEntry._raw.address && (
@@ -2335,7 +2336,7 @@ export default function FieldApp() {
                           </div>
                         )}
                         <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                          {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                          {n.author_name ?? 'Alguien'} · {formatDateTimePR(n.created_at, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }, 'en-US')}
                         </div>
                       </div>
                       <button onClick={() => deleteDetailEntryNote(n)} title="Delete note"

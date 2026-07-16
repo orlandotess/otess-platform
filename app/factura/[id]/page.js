@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { fallbackLineItems } from '../../../lib/ivu';
+import { formatDateTimePR } from '../../../lib/datetimeLocal';
 
 export default async function FacturaPublica({ params }) {
   const { id } = params;
@@ -35,7 +36,7 @@ export default async function FacturaPublica({ params }) {
         html: `
           <div style="font-family:Arial,sans-serif;padding:20px">
             <p style="font-size:15px;color:#16223d"><strong>${inv.clients?.name ?? 'Un cliente'}</strong> abrió la factura <strong>${inv.invoice_number}</strong>.</p>
-            <p style="font-size:13px;color:#888">Fecha: ${new Date().toLocaleString('es-PR', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            <p style="font-size:13px;color:#888">Fecha: ${formatDateTimePR(new Date(), { dateStyle: 'medium', timeStyle: 'short' })}</p>
             <a href="https://app.otesspr.com/facturas/${id}" style="color:#e0972c;font-size:13px">Ver factura en el dashboard →</a>
           </div>
         `,

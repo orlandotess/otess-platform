@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { computeHours } from '../../lib/hours';
+import { formatTimePR, formatDatePR } from '../../lib/datetimeLocal';
 
 const OVERTIME_THRESHOLD = 40; // hours per week
 const OVERTIME_MULTIPLIER = 1.5;
@@ -51,8 +52,8 @@ function calcPay(regularHours, overtimeHours, hourlyRate) {
 
 const fmt = n => `$${Number(n).toFixed(2)}`;
 const fmtH = h => `${h.toFixed(2)}h`;
-const fmtTime = d => new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-const fmtDate = d => new Date(d).toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric' });
+const fmtTime = d => formatTimePR(d, { hour: '2-digit', minute: '2-digit' }, 'en-US');
+const fmtDate = d => formatDatePR(d, { weekday: 'short', month: 'short', day: 'numeric' });
 
 export default function PayrollClient({ technicians, entries, weekStart, weekEnd, weekLabel }) {
   const router = useRouter();

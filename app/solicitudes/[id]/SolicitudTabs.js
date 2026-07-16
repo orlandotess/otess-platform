@@ -4,7 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import LineItemRow from '../../LineItemRow';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
-import { isoToLocalInput, localInputToIso } from '../../../lib/datetimeLocal';
+import { isoToLocalInput, localInputToIso, formatDateTimePR } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 
 const statusOptions = [
@@ -380,7 +380,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
           ) : (
             <>
               <p style={{ fontSize: 14, marginBottom: 6 }}>
-                {solicitud.assessment_date ? new Date(solicitud.assessment_date).toLocaleString('es-PR') : 'Sin programar'}
+                {solicitud.assessment_date ? formatDateTimePR(solicitud.assessment_date) : 'Sin programar'}
               </p>
               {solicitud.assessment_instructions && <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>{solicitud.assessment_instructions}</p>}
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
@@ -538,7 +538,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
           {notesList.map(n => (
             <div key={n.id} style={{ padding: '10px 0', borderTop: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(n.created_at).toLocaleString('es-PR')}</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{formatDateTimePR(n.created_at)}</span>
                 <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>Eliminar</button>
               </div>
               {n.note && <p style={{ fontSize: 14, marginTop: 4, whiteSpace: 'pre-wrap' }}>{n.note}</p>}

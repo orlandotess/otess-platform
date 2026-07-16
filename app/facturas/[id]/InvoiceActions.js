@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import NuevaRetencionForm from '../../accounting/retenciones/NuevaRetencionForm';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
+import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 
 const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
 const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -336,7 +337,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
                       <input type="checkbox" checked={isSelected} onChange={() => toggleNoteSelection(n.id)} style={{ marginTop: 4 }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
-                          {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                         {n.signedUrls && n.signedUrls.length > 0 && (
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: n.note ? 8 : 0 }}>
@@ -443,7 +444,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
                       <div style={{ width: 140, height: 140, background: 'var(--surface-2)', borderRadius: 8 }} />
                     )}
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                      {new Date(p.created_at).toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {formatDatePR(p.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </div>
                     <button onClick={() => deleteCheckPhoto(p)} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, padding: '2px 6px' }}>🗑</button>
                   </div>

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../lib/supabase';
+import { formatDatePR, formatTimePR } from '../../lib/datetimeLocal';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
 
@@ -12,13 +13,11 @@ const statusBadge = {
 };
 
 function formatViewedAt(dateStr) {
-  const d = new Date(dateStr);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
+  const isToday = formatDatePR(dateStr, {}, 'en-CA') === formatDatePR(new Date(), {}, 'en-CA');
   if (isToday) {
-    return `hoy ${d.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' })}`;
+    return `hoy ${formatTimePR(dateStr, { hour: '2-digit', minute: '2-digit' })}`;
   }
-  return d.toLocaleDateString('es-PR', { month: 'short', day: 'numeric' });
+  return formatDatePR(dateStr, { month: 'short', day: 'numeric' });
 }
 
 export default async function EstimadosPage() {

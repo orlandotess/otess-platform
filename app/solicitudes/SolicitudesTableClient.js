@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import SearchBox from '../SearchBox';
 import { pickMapsLink } from '../../lib/mapsLinks';
+import { formatDatePR } from '../../lib/datetimeLocal';
 
 const statusBadge = {
   nueva:                { cls: 'badge-blue',  label: 'Nueva' },
@@ -132,7 +133,7 @@ export default function SolicitudesTableClient({ solicitudes }) {
                         {isUnscheduled(s) && <span className="badge badge-gray" style={{ marginLeft: 6 }}>Sin programar</span>}
                       </td>
                       <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                        {s.requested_on ? new Date(s.requested_on).toLocaleDateString('es-PR') : '—'}
+                        {s.requested_on ? formatDatePR(s.requested_on) : '—'}
                       </td>
                       <td><Link href={`/solicitudes/${s.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                     </tr>

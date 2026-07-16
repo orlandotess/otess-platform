@@ -5,6 +5,7 @@ import { supabaseServer as supabase } from '../../lib/supabase';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
 import { formatDuration, formatMs } from '../../lib/formatDuration';
+import { formatDatePR } from '../../lib/datetimeLocal';
 
 const statusBadge = {
   abierto:      { cls: 'badge-red',   label: 'Abierto' },
@@ -105,7 +106,7 @@ export default async function BoletosPage() {
                         <td style={{ fontSize: 13, color: t.technicians ? 'var(--text)' : 'var(--muted)' }}>{t.technicians?.name ?? '— Sin asignar —'}</td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{elapsed ?? '—'}</td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(t.created_at).toLocaleDateString('es-PR')}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(t.created_at)}</td>
                         <td><Link href={`/boletos/${t.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );

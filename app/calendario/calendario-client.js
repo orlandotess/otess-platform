@@ -3,7 +3,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
-import { isoToLocalInput, localInputToIso } from '../../lib/datetimeLocal';
+import { isoToLocalInput, localInputToIso, formatDateTimePR, formatTimePR } from '../../lib/datetimeLocal';
 import { pickMapsLink } from '../../lib/mapsLinks';
 import ClientCombobox from '../facturas/nueva/ClientCombobox';
 import QuickRescheduleModal from './QuickRescheduleModal';
@@ -151,7 +151,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   </div>
                 )}
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                  {n.author_name ?? 'Alguien'} · {new Date(n.created_at).toLocaleString('es-PR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {n.author_name ?? 'Alguien'} · {formatDateTimePR(n.created_at, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
               <button onClick={() => deleteEntryNote(kind, n)} title="Eliminar nota"
@@ -375,7 +375,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
 
   const today = new Date().toISOString().slice(0, 10);
   const fmtDate = d => d.toISOString().slice(0, 10);
-  const fmtTime = iso => new Date(iso).toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' });
+  const fmtTime = iso => formatTimePR(iso, { hour: '2-digit', minute: '2-digit' });
 
   const navLabel = view === 'year' ? String(year) :
     view === 'month' ? `${MONTHS[month]} ${year}` :
@@ -1107,8 +1107,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               {[
                 ['Estado', <span style={{ fontWeight: 600, color: STATUS_COLORS[selectedJob.status] }}>{STATUS_LABELS[selectedJob.status]}</span>],
                 ['Técnico', selectedJob.technicians?.name ?? '— Sin asignar —'],
-                ['Inicio', selectedJob.scheduled_start ? new Date(selectedJob.scheduled_start).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'],
-                ['Fin', selectedJob.scheduled_end ? new Date(selectedJob.scheduled_end).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'],
+                ['Inicio', selectedJob.scheduled_start ? formatDateTimePR(selectedJob.scheduled_start, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'],
+                ['Fin', selectedJob.scheduled_end ? formatDateTimePR(selectedJob.scheduled_end, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                   <span style={{ color: 'var(--muted)', fontSize: 13 }}>{label}</span>
@@ -1166,7 +1166,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               {[
                 ['Estado', VISIT_STATUS_LABELS[selectedVisit.status] ?? selectedVisit.status],
                 ['Técnico', selectedVisit.technicians?.name ?? '— Sin asignar —'],
-                ['Fecha/Hora', selectedVisit.scheduled_at ? new Date(selectedVisit.scheduled_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'],
+                ['Fecha/Hora', selectedVisit.scheduled_at ? formatDateTimePR(selectedVisit.scheduled_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'],
                 ['Duración', `${selectedVisit.duration_minutes ?? 60} min`],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
@@ -1198,8 +1198,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               {[
                 ['Técnicos', [selectedEvent.technicians?.name, ...(selectedEvent.calendar_event_technicians ?? []).map(et => et.technicians?.name)]
                   .filter(Boolean).join(', ') || '— Sin asignar —'],
-                ['Inicio', new Date(selectedEvent.start_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
-                ['Fin', new Date(selectedEvent.end_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
+                ['Inicio', formatDateTimePR(selectedEvent.start_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
+                ['Fin', formatDateTimePR(selectedEvent.end_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
                 ...(selectedEvent.address ? [['Dirección', (
                   <a href={pickMapsLink(selectedEvent.address)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--amber)', fontWeight: 600 }}>
                     📍 {selectedEvent.address}
@@ -1246,7 +1246,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               {[
                 ['Tipo', selectedTask.task_type === 'checklist' ? 'Checklist' : 'Recordatorio'],
                 ['Técnico', selectedTask.technicians?.name ?? '— Sin asignar —'],
-                ['Vence', new Date(selectedTask.due_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
+                ['Vence', formatDateTimePR(selectedTask.due_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
                 ...(selectedTask.address ? [['Dirección', (
                   <a href={pickMapsLink(selectedTask.address)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--amber)', fontWeight: 600 }}>
                     📍 {selectedTask.address}

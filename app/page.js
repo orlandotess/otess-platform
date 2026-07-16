@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../lib/supabase';
+import { formatDatePR } from '../lib/datetimeLocal';
 import Sidebar from './Sidebar';
 import Link from 'next/link';
 import DashboardCalendarWidget from './DashboardCalendarWidget';
@@ -177,7 +178,7 @@ export default async function Home() {
                         <td style={{ color: 'var(--muted)' }}>{j.clients?.name ?? '—'}</td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                          {j.scheduled_start ? new Date(j.scheduled_start).toLocaleDateString('es-PR') : '—'}
+                          {j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}
                         </td>
                         <td><Link href={`/trabajos/${j.id}`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>Ver →</Link></td>
                       </tr>

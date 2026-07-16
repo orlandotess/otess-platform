@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { normalizeName } from '../../../lib/normalizeName';
+import { formatDatePR } from '../../../lib/datetimeLocal';
 
 const roleLabel = { admin: 'Admin', tecnico: 'Técnico', vendedor: 'Vendedor', secretaria: 'Secretaría' };
 const roleBadge = { admin: 'badge-blue', tecnico: 'badge-amber', vendedor: 'badge-green', secretaria: 'badge-gray' };
@@ -210,7 +211,7 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
                     </span>
                   </td>
                   <td style={{ color: 'var(--muted)', fontSize: 12 }}>
-                    {new Date(p.created_at).toLocaleDateString('es-PR')}
+                    {formatDatePR(p.created_at)}
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

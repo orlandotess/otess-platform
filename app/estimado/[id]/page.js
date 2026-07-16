@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { formatDateTimePR } from '../../../lib/datetimeLocal';
 
 export default async function EstimaPublica({ params }) {
   const { id } = params;
@@ -32,7 +33,7 @@ export default async function EstimaPublica({ params }) {
         html: `
           <div style="font-family:Arial,sans-serif;padding:20px">
             <p style="font-size:15px;color:#16223d"><strong>${est.clients?.name ?? 'Un cliente'}</strong> abrió el estimado <strong>${est.estimate_number}</strong>.</p>
-            <p style="font-size:13px;color:#888">Fecha: ${new Date().toLocaleString('es-PR', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            <p style="font-size:13px;color:#888">Fecha: ${formatDateTimePR(new Date(), { dateStyle: 'medium', timeStyle: 'short' })}</p>
             <a href="https://app.otesspr.com/estimados/${id}" style="color:#e0972c;font-size:13px">Ver estimado en el dashboard →</a>
           </div>
         `,

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { formatTimePR, formatDatePR } from "../lib/datetimeLocal";
 
 const TECH_COLORS = [
   "#16223d", "#e0972c", "#27ae60", "#2a4cb5", "#e05c2a",
@@ -54,8 +55,8 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
     .filter(j => j.scheduled_start.slice(0, 10) >= today && j.status !== "cancelled" && j.status !== "completed")
     .slice(0, 6);
 
-  const fmtTime = iso => new Date(iso).toLocaleTimeString("es-PR", { hour: "2-digit", minute: "2-digit" });
-  const fmtDay = iso => new Date(iso).toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric" });
+  const fmtTime = iso => formatTimePR(iso, { hour: "2-digit", minute: "2-digit" });
+  const fmtDay = iso => formatDatePR(iso, { weekday: "short", month: "short", day: "numeric" });
 
   return (
     <div className="card" style={{ marginTop: 20 }}>

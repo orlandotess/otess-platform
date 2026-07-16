@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import Sidebar from '../../Sidebar';
 import ChangeOrderActions from './ChangeOrderActions';
 
@@ -138,7 +139,7 @@ export default async function OrdenCambioDetail({ params }) {
 
           {order.status === 'aprobada' && (
             <div style={{ marginTop: 20, padding: '14px 18px', background: 'var(--ok-tint)', borderRadius: 10, fontSize: 13, color: 'var(--ok)' }}>
-              Aprobada el {new Date(order.approved_at).toLocaleString('es-PR')}
+              Aprobada el {formatDateTimePR(order.approved_at)}
               {order.signed_name && <div style={{ marginTop: 4 }}>Firmada por <strong>{order.signed_name}</strong></div>}
             </div>
           )}

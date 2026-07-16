@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
+import { formatDatePR } from '../../lib/datetimeLocal';
 
 export default function InboxWidget({ notifications: initial }) {
   const [items, setItems] = useState(initial);
@@ -59,7 +60,7 @@ export default function InboxWidget({ notifications: initial }) {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
                   <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-                    {new Date(n.created_at).toLocaleDateString('es-PR', { month: 'short', day: 'numeric' })}
+                    {formatDatePR(n.created_at, { month: 'short', day: 'numeric' })}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {n.link && <Link href={n.link} onClick={e => e.stopPropagation()} style={{ fontSize: 11.5, color: 'var(--amber)', fontWeight: 600 }}>Ver →</Link>}

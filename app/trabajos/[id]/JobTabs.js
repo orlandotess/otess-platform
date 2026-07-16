@@ -8,7 +8,7 @@ import CableCalculator from '../../CableCalculator';
 import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
-import { isoToLocalInput, localInputToIso } from '../../../lib/datetimeLocal';
+import { isoToLocalInput, localInputToIso, formatDatePR, formatDateTimePR } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 import { computeHours } from '../../../lib/hours';
 
@@ -916,7 +916,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const scheduleDayGroups = (() => {
     const map = {};
     scheduleDays.forEach(d => {
-      const key = new Date(d.scheduled_start).toLocaleDateString('en-CA');
+      const key = formatDatePR(d.scheduled_start, {}, 'en-CA');
       if (!map[key]) map[key] = [];
       map[key].push(d);
     });
@@ -1228,13 +1228,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     {job.scheduled_start && (
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Inicio</div>
-                        <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_start).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                        <div style={{ fontSize: 14 }}>{new Date(job.scheduled_start).toLocaleString('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     )}
                     {job.scheduled_end && (
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Fin</div>
-                        <div style={{ fontSize: 14 }} suppressHydrationWarning>{new Date(job.scheduled_end).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                        <div style={{ fontSize: 14 }}>{new Date(job.scheduled_end).toLocaleString('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     )}
                     {!job.scheduled_start && !job.scheduled_end && (
@@ -1297,8 +1297,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   {scheduleDayGroups.map(group => (
                     <div key={group.key}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }} suppressHydrationWarning>
-                          {new Date(group.entries[0].scheduled_start).toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                          {formatDatePR(group.entries[0].scheduled_start, { weekday: 'short', month: 'short', day: 'numeric' })}
                         </div>
                         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(group.totalHours)} total</div>
                       </div>
@@ -1343,9 +1343,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                           ) : (
                             <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--surface-2)', borderRadius: 8 }}>
                               <div>
-                                <div style={{ fontSize: 13, fontWeight: 600 }} suppressHydrationWarning>
-                                  {new Date(d.scheduled_start).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}
-                                  {d.scheduled_end && ` – ${new Date(d.scheduled_end).toLocaleString('es-PR', { hour: '2-digit', minute: '2-digit' })}`}
+                                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                  {formatDateTimePR(d.scheduled_start, { hour: '2-digit', minute: '2-digit' })}
+                                  {d.scheduled_end && ` – ${formatDateTimePR(d.scheduled_end, { hour: '2-digit', minute: '2-digit' })}`}
                                   {d.scheduled_end && (
                                     computeHours(d.scheduled_start, d.scheduled_end, d.lunch_minutes).invalid
                                       ? <span style={{ color: 'var(--warn)', fontWeight: 700 }} title="Fin antes del inicio o almuerzo mayor al turno"> (⚠️ revisar)</span>
@@ -1767,11 +1767,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
           ) : sortedNotesList.map(n => (
             <div key={n.id} className="card" style={{ marginBottom: 12, ...(n.is_pinned ? { border: '1.5px solid var(--amber)', background: 'var(--amber-tint)' } : {}) }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: n.photo_url || n.note ? 10 : 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }}>
                   {n.is_pinned && <span title="Pineada">📌</span>}
                   {n.phase_number != null && <span style={{ background: 'var(--navy)', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>Fase {n.phase_number}</span>}
                   {n.author_name && <>{n.author_name} · </>}
-                  {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button onClick={() => toggleNotePin(n.id, n.is_pinned)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: n.is_pinned ? 'var(--amber)' : 'var(--muted)', fontSize: 15 }} title={n.is_pinned ? 'Despinear' : 'Pinear'}>
@@ -1862,7 +1862,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
               <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', margin: '0 0 4px' }}>{r.title}</p>
               <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
                 {(r.note_ids ?? []).length} nota{(r.note_ids ?? []).length === 1 ? '' : 's'} ·{' '}
-                {r.sent_at ? `Enviado a ${r.sent_to} el ${new Date(r.sent_at).toLocaleDateString('es-PR')}` : 'No enviado'}
+                {r.sent_at ? `Enviado a ${r.sent_to} el ${formatDatePR(r.sent_at)}` : 'No enviado'}
               </p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                 <a className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} href={`/reporte/${r.id}`} target="_blank" rel="noopener noreferrer">👁 Ver</a>
@@ -1981,8 +1981,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                         {item.description}
                       </div>
                       {item.completed && item.completed_at && (
-                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }} suppressHydrationWarning>
-                          Completado el {new Date(item.completed_at).toLocaleDateString('es-PR')}
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                          Completado el {formatDatePR(item.completed_at)}
                         </div>
                       )}
                     </div>

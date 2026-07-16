@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
+import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 import SearchBox from '../../SearchBox';
 
 const statusJob = {
@@ -823,7 +824,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       <tr key={it.key}>
                         <td style={{ fontWeight: 600 }}>{it.icon} {it.label}</td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                          {it.date ? new Date(it.date).toLocaleString('es-PR', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          {it.date ? formatDateTimePR(it.date, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{it.techs}</td>
                         <td>{it.href && <Link href={it.href} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link>}</td>
@@ -859,7 +860,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       <tr key={j.id}>
                         <td style={{ fontWeight: 600 }}>{j.title}</td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{j.scheduled_start ? new Date(j.scheduled_start).toLocaleDateString('es-PR') : '—'}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}</td>
                         <td><Link href={`/trabajos/${j.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
@@ -918,7 +919,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           <td style={{ fontWeight: 600 }}>{inv.invoice_number ?? '—'}</td>
                           <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                           <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
-                          <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(inv.created_at).toLocaleDateString('es-PR')}</td>
+                          <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(inv.created_at)}</td>
                           <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                         </tr>
                       );
@@ -1001,7 +1002,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           {row.href ? <Link href={row.href} style={{ color: 'inherit', textDecoration: 'none' }}>{row.item}</Link> : row.item}
                         </td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{row.appliedTo}</td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{row.date ? new Date(row.date).toLocaleDateString('es-PR') : '—'}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{row.date ? formatDatePR(row.date) : '—'}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700, color: row.amount < 0 ? 'var(--ok)' : 'inherit' }}>
                           {row.amount < 0 ? `-${fmt(Math.abs(row.amount))}` : fmt(row.amount)}
                         </td>
@@ -1049,7 +1050,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                         <td style={{ fontWeight: 600 }}>{p.title}</td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ fontWeight: 700 }}>{fmt(total)}</td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(p.created_at).toLocaleDateString('es-PR')}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(p.created_at)}</td>
                         <td><Link href={`/propuestas/${p.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
@@ -1087,7 +1088,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                         <td style={{ fontWeight: 600 }}>{t.subject}</td>
                         <td style={{ fontSize: 12, color: 'var(--muted)' }}>{t.source === 'email' ? '📧 Email' : '👤 Manual'}</td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{new Date(t.created_at).toLocaleDateString('es-PR')}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(t.created_at)}</td>
                         <td><Link href={`/boletos/${t.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
@@ -1125,7 +1126,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
                   {n.is_pinned && <span title="Pineada">📌</span>}
-                  {new Date(n.created_at).toLocaleString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button onClick={() => toggleInternalNotePin(n.id, n.is_pinned)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: n.is_pinned ? 'var(--amber)' : 'var(--muted)', fontSize: 15 }} title={n.is_pinned ? 'Despinear' : 'Pinear'}>

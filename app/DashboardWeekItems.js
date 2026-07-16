@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
-import { localInputToIso } from '../lib/datetimeLocal';
+import { localInputToIso, formatTimePR, formatDatePR } from '../lib/datetimeLocal';
 import QuickRescheduleModal from './calendario/QuickRescheduleModal';
 
 const STATUS_LABELS = {
@@ -15,8 +15,8 @@ const STATUS_BADGE_CLS = {
 };
 const ENTRY_TYPE_ICONS = { event: '📌', reminder: '🔔', checklist: '☑' };
 
-const fmtTime = iso => new Date(iso).toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' });
-const fmtDay = iso => new Date(iso).toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric' });
+const fmtTime = iso => formatTimePR(iso, { hour: '2-digit', minute: '2-digit' });
+const fmtDay = iso => formatDatePR(iso, { weekday: 'short', month: 'short', day: 'numeric' });
 
 export default function DashboardWeekItems({ jobs, visits, events, tasks, absences, techColors, canQuickReschedule }) {
   const router = useRouter();

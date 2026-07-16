@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import SearchBox from '../SearchBox';
 import { pickMapsLink } from '../../lib/mapsLinks';
+import { formatDatePR } from '../../lib/datetimeLocal';
 
 const statusBadge = {
   estimate:    { cls: 'badge-gray',  label: 'Estimado' },
@@ -70,7 +71,7 @@ export default function TrabajosTableClient({ jobs }) {
                     </td>
                     <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                      {j.scheduled_start ? new Date(j.scheduled_start).toLocaleDateString('es-PR') : '—'}
+                      {j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}
                     </td>
                     <td><Link href={`/trabajos/${j.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                   </tr>

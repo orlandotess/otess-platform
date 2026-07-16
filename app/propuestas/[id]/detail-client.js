@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
+import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 import ProposalDocument, { financialBreakdown, profitBreakdown } from '../ProposalDocument';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { exportProposalDataCSV } from '../../propuestaDataCsv';
@@ -462,12 +463,12 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
           )}
           {proposal.signed_name && (
             <div style={{ marginTop: proposal.approved_option_id ? 4 : 0 }}>
-              Firmada por <strong>{proposal.signed_name}</strong> el {new Date(proposal.signed_at).toLocaleString('es-PR')}
+              Firmada por <strong>{proposal.signed_name}</strong> el {formatDateTimePR(proposal.signed_at)}
             </div>
           )}
           {proposal.approved_at && (
             <div style={{ marginTop: 4, fontSize: 12, color: 'var(--ink-faint)' }}>
-              Aprobada el {new Date(proposal.approved_at).toLocaleString('es-PR')}
+              Aprobada el {formatDateTimePR(proposal.approved_at)}
             </div>
           )}
         </div>
@@ -491,8 +492,8 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                       <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.label}</div>
                       <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                         {fmt(amount)}
-                        {req?.status === 'pagado' && ` · Pagado el ${new Date(req.paid_at).toLocaleDateString('es-PR')}`}
-                        {req?.status === 'solicitado' && ` · Solicitado el ${new Date(req.requested_at).toLocaleDateString('es-PR')}`}
+                        {req?.status === 'pagado' && ` · Pagado el ${formatDatePR(req.paid_at)}`}
+                        {req?.status === 'solicitado' && ` · Solicitado el ${formatDatePR(req.requested_at)}`}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { computeHours } from '../../../lib/hours';
+import { formatTimePR } from '../../../lib/datetimeLocal';
 import SearchBox from '../../SearchBox';
 
 const DAYS = ['Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Lun', 'Mar'];
@@ -415,8 +416,8 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                           <div style={{ fontSize: 14, fontWeight: 600 }}>
-                            {inTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' })}
-                            {outTime ? ' → ' + outTime.toLocaleTimeString('es-PR', { hour: '2-digit', minute: '2-digit' }) : ' → En progreso ⏱'}
+                            {formatTimePR(inTime, { hour: '2-digit', minute: '2-digit' })}
+                            {outTime ? ' → ' + formatTimePR(outTime, { hour: '2-digit', minute: '2-digit' }) : ' → En progreso ⏱'}
                           </div>
                           {e.job_id && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Trabajo asociado</div>}
                           {(e.lunch_minutes ?? 0) > 0 && <div style={{ fontSize: 11, color: 'var(--warn)', marginTop: 2 }}>🍽️ Lunch -{(e.lunch_minutes / 60).toFixed(1)}h</div>}
