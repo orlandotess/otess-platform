@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 
 const operationsLinks = [
  { href: '/clientes',   label: 'Clientes',   icon: 'users' },
+ { href: '/solicitudes', label: 'Solicitudes', icon: 'inbox' },
  { href: '/trabajos',   label: 'Trabajos',   icon: 'bolt' },
  { href: '/boletos',    label: 'Boletos',    icon: 'ticket' },
  { href: '/calendario', label: 'Calendario', icon: 'calendar' },
@@ -75,6 +76,7 @@ const ICON_PATHS = {
   ticket: <><path d="M3 8 a2 2 0 0 1 2 -2 h14 a2 2 0 0 1 2 2 v2.5 a2 2 0 0 0 0 3 V16 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 v-2.5 a2 2 0 0 0 0 -3 z"/><line x1="14" y1="7" x2="14" y2="17" strokeDasharray="2.5 2.5"/></>,
   userOff: <><circle cx="10" cy="8" r="3.2"/><path d="M4 20 a 6 6 0 0 1 12 0"/><line x1="3" y1="3" x2="21" y2="21"/></>,
   box: <><path d="M3 8 L12 4 L21 8 L12 12 Z"/><path d="M3 8 V16 L12 20 V12"/><path d="M21 8 V16 L12 20"/></>,
+  inbox: <><path d="M3 12 h5 l2 3 h4 l2 -3 h5"/><path d="M5.5 5 h13 l2.5 7 v7 a1.5 1.5 0 0 1 -1.5 1.5 h-15 A1.5 1.5 0 0 1 3 19 v-7 z"/></>,
 };
 
 function NavIcon({ name }) {
