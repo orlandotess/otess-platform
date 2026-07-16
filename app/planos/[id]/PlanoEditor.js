@@ -17,12 +17,19 @@ const MAX_ZOOM = 8;
 const ZOOM_STEP = 1.4;
 const WHEEL_ZOOM_INTENSITY = 0.0018;
 
-export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, customIcons, currentRole, allClients = [] }) {
+const LAYER_COLORS = ['#2a4cb5', '#1a7a4a', '#e0972c', '#8e44ad', '#c0392b', '#0891b2', '#4b5563'];
+const NO_LAYER = '__none__';
+
+export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, initialLayers, initialCableTypes, customIcons, currentRole, allClients = [] }) {
   const router = useRouter();
   const wrapRef = useRef(null);
   const dragOriginRef = useRef(null);
   const labelOriginRef = useRef(null);
   const modelOriginRef = useRef(null);
+  const layerNameOriginRef = useRef(null);
+  const cableTypeNameOriginRef = useRef(null);
+  const cableLabelOriginRef = useRef(null);
+  const cableDescriptionOriginRef = useRef(null);
   const customIconsRef = useRef(customIcons);
 
   const W = plan.image_width || FALLBACK_W;
@@ -32,6 +39,18 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [planState, setPlanState] = useState(plan);
   const [markers, setMarkers] = useState(initialMarkers);
   const [cables, setCables] = useState(initialCables);
+  const [layers, setLayers] = useState(initialLayers);
+  const [activeLayerId, setActiveLayerId] = useState(null);
+  const [hiddenLayerIds, setHiddenLayerIds] = useState(() => new Set());
+  const [showLayersPanel, setShowLayersPanel] = useState(false);
+  const [newLayerName, setNewLayerName] = useState('');
+  const [savingLayer, setSavingLayer] = useState(false);
+  const [cableTypesState, setCableTypesState] = useState(initialCableTypes);
+  const [activeCableTypeId, setActiveCableTypeId] = useState(null);
+  const [showCableTypesPanel, setShowCableTypesPanel] = useState(false);
+  const [newCableTypeName, setNewCableTypeName] = useState('');
+  const [newCableTypeColor, setNewCableTypeColor] = useState('#2a4cb5');
+  const [savingCableType, setSavingCableType] = useState(false);
   const [customIconsState, setCustomIconsState] = useState(customIcons);
   const [imageUrlState, setImageUrlState] = useState(imageUrl);
   const [mode, setMode] = useState('select'); // 'select' | { type: 'place', equipmentKey, customIconId } | { type: 'cable' } | { type: 'scale' }
@@ -249,14 +268,14 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const tempId = `temp-${crypto.randomUUID()}`;
     const optimistic = {
       id: tempId, floor_plan_id: plan.id, equipment_type: mode.equipmentKey,
-      custom_icon_id: mode.customIconId || null, label: null,
+      custom_icon_id: mode.customIconId || null, label: null, layer_id: activeLayerId,
       pos_x: point.x, pos_y: point.y, sort_order: markers.length,
     };
     setMarkers(prev => [...prev, optimistic]);
     const { data, error } = await supabase.from('floor_plan_markers').insert([{
       floor_plan_id: plan.id, equipment_type: mode.equipmentKey,
       custom_icon_id: mode.customIconId || null, pos_x: point.x, pos_y: point.y,
-      sort_order: markers.length,
+      sort_order: markers.length, layer_id: activeLayerId,
     }]).select().single();
     if (error) {
       setMarkers(prev => prev.filter(m => m.id !== tempId));
@@ -270,7 +289,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     if (!cableDraft || cableDraft.fromMarkerId === toMarkerId) return;
     const { data, error } = await supabase.from('floor_plan_cables').insert([{
       floor_plan_id: plan.id, from_marker_id: cableDraft.fromMarkerId, to_marker_id: toMarkerId,
-      bend_points: cableDraft.points,
+      bend_points: cableDraft.points, layer_id: activeLayerId, cable_type_id: activeCableTypeId,
     }]).select().single();
     setCableDraft(null);
     if (error) { alert('No se pudo trazar el cable: ' + error.message); return; }
@@ -455,6 +474,192 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     }
   }
 
+  async function createLayer(e) {
+    e.preventDefault();
+    if (!newLayerName.trim()) return;
+    setSavingLayer(true);
+    const color = LAYER_COLORS[layers.length % LAYER_COLORS.length];
+    const { data, error } = await supabase.from('floor_plan_layers').insert([{
+      floor_plan_id: plan.id, name: newLayerName.trim(), color, sort_order: layers.length,
+    }]).select().single();
+    setSavingLayer(false);
+    if (error) { alert('No se pudo crear la capa: ' + error.message); return; }
+    setLayers(prev => [...prev, data]);
+    setActiveLayerId(data.id);
+    setNewLayerName('');
+  }
+
+  function updateLayerName(id, name) {
+    setLayers(prev => prev.map(l => l.id === id ? { ...l, name } : l));
+  }
+  async function commitLayerName(id, name) {
+    const original = layerNameOriginRef.current;
+    if (!name.trim()) {
+      setLayers(prev => prev.map(l => l.id === id ? { ...l, name: original ?? l.name } : l));
+      return;
+    }
+    const { error } = await supabase.from('floor_plan_layers').update({ name: name.trim() }).eq('id', id);
+    if (error) {
+      setLayers(prev => prev.map(l => l.id === id ? { ...l, name: original ?? l.name } : l));
+      alert('No se pudo renombrar la capa, se revirtió: ' + error.message);
+    }
+  }
+
+  async function deleteLayer(id) {
+    const layer = layers.find(l => l.id === id);
+    if (!layer || !confirm(`¿Eliminar la capa "${layer.name}"? Sus equipos y cables quedarán sin capa.`)) return;
+    setLayers(prev => prev.filter(l => l.id !== id));
+    setMarkers(prev => prev.map(m => m.layer_id === id ? { ...m, layer_id: null } : m));
+    setCables(prev => prev.map(c => c.layer_id === id ? { ...c, layer_id: null } : c));
+    setHiddenLayerIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+    if (activeLayerId === id) setActiveLayerId(null);
+    const { error } = await supabase.from('floor_plan_layers').delete().eq('id', id);
+    if (error) {
+      setLayers(prev => [...prev, layer].sort((a, b) => a.sort_order - b.sort_order));
+      alert('No se pudo eliminar la capa: ' + error.message);
+    }
+  }
+
+  async function moveLayer(id, direction) {
+    const idx = layers.findIndex(l => l.id === id);
+    const otherIdx = idx + direction;
+    if (idx === -1 || otherIdx < 0 || otherIdx >= layers.length) return;
+    const a = layers[idx], b = layers[otherIdx];
+    const reordered = [...layers];
+    reordered[idx] = { ...b, sort_order: a.sort_order };
+    reordered[otherIdx] = { ...a, sort_order: b.sort_order };
+    reordered.sort((x, y) => x.sort_order - y.sort_order);
+    setLayers(reordered);
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([
+      supabase.from('floor_plan_layers').update({ sort_order: a.sort_order }).eq('id', b.id),
+      supabase.from('floor_plan_layers').update({ sort_order: b.sort_order }).eq('id', a.id),
+    ]);
+    if (e1 || e2) {
+      setLayers(layers);
+      alert('No se pudo reordenar la capa, se revirtió.');
+    }
+  }
+
+  function toggleLayerVisibility(id) {
+    setHiddenLayerIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function updateMarkerLayer(id, layerId) {
+    const original = markerById(id)?.layer_id ?? null;
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, layer_id: layerId } : m));
+    supabase.from('floor_plan_markers').update({ layer_id: layerId }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setMarkers(prev => prev.map(m => m.id === id ? { ...m, layer_id: original } : m));
+        alert('No se pudo cambiar la capa, se revirtió: ' + error.message);
+      }
+    });
+  }
+
+  function updateCableLayer(id, layerId) {
+    const original = cables.find(c => c.id === id)?.layer_id ?? null;
+    setCables(prev => prev.map(c => c.id === id ? { ...c, layer_id: layerId } : c));
+    supabase.from('floor_plan_cables').update({ layer_id: layerId }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setCables(prev => prev.map(c => c.id === id ? { ...c, layer_id: original } : c));
+        alert('No se pudo cambiar la capa, se revirtió: ' + error.message);
+      }
+    });
+  }
+
+  async function createCableType(e) {
+    e.preventDefault();
+    if (!newCableTypeName.trim()) return;
+    setSavingCableType(true);
+    const { data, error } = await supabase.from('cable_types').insert([{
+      name: newCableTypeName.trim(), color: newCableTypeColor,
+    }]).select().single();
+    setSavingCableType(false);
+    if (error) { alert('No se pudo crear el tipo de cable: ' + error.message); return; }
+    setCableTypesState(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setActiveCableTypeId(data.id);
+    setNewCableTypeName('');
+    setNewCableTypeColor('#2a4cb5');
+  }
+
+  function updateCableTypeName(id, name) {
+    setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, name } : t));
+  }
+  async function commitCableTypeName(id, name) {
+    const original = cableTypeNameOriginRef.current;
+    if (!name.trim()) {
+      setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, name: original ?? t.name } : t));
+      return;
+    }
+    const { error } = await supabase.from('cable_types').update({ name: name.trim() }).eq('id', id);
+    if (error) {
+      setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, name: original ?? t.name } : t));
+      alert('No se pudo renombrar el tipo de cable, se revirtió: ' + error.message);
+    }
+  }
+
+  function updateCableTypeColor(id, color) {
+    const original = cableTypesState.find(t => t.id === id)?.color;
+    setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, color } : t));
+    supabase.from('cable_types').update({ color }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, color: original } : t));
+        alert('No se pudo cambiar el color, se revirtió: ' + error.message);
+      }
+    });
+  }
+
+  async function deleteCableType(id) {
+    const type = cableTypesState.find(t => t.id === id);
+    if (!type || !confirm(`¿Eliminar el tipo de cable "${type.name}"? Sus cables quedarán sin tipo.`)) return;
+    setCableTypesState(prev => prev.filter(t => t.id !== id));
+    setCables(prev => prev.map(c => c.cable_type_id === id ? { ...c, cable_type_id: null } : c));
+    if (activeCableTypeId === id) setActiveCableTypeId(null);
+    const { error } = await supabase.from('cable_types').delete().eq('id', id);
+    if (error) {
+      setCableTypesState(prev => [...prev, type].sort((a, b) => a.name.localeCompare(b.name)));
+      alert('No se pudo eliminar el tipo de cable: ' + error.message);
+    }
+  }
+
+  function updateCableLabel(id, label) {
+    setCables(prev => prev.map(c => c.id === id ? { ...c, label } : c));
+  }
+  async function commitCableLabel(id, label) {
+    const original = cableLabelOriginRef.current;
+    const { error } = await supabase.from('floor_plan_cables').update({ label: label || null }).eq('id', id);
+    if (error) {
+      setCables(prev => prev.map(c => c.id === id ? { ...c, label: original ?? null } : c));
+      alert('No se pudo guardar el título, se revirtió: ' + error.message);
+    }
+  }
+
+  function updateCableDescription(id, description) {
+    setCables(prev => prev.map(c => c.id === id ? { ...c, description } : c));
+  }
+  async function commitCableDescription(id, description) {
+    const original = cableDescriptionOriginRef.current;
+    const { error } = await supabase.from('floor_plan_cables').update({ description: description || null }).eq('id', id);
+    if (error) {
+      setCables(prev => prev.map(c => c.id === id ? { ...c, description: original ?? null } : c));
+      alert('No se pudo guardar la descripción, se revirtió: ' + error.message);
+    }
+  }
+
+  function updateCableType(id, cableTypeId) {
+    const original = cables.find(c => c.id === id)?.cable_type_id ?? null;
+    setCables(prev => prev.map(c => c.id === id ? { ...c, cable_type_id: cableTypeId } : c));
+    supabase.from('floor_plan_cables').update({ cable_type_id: cableTypeId }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setCables(prev => prev.map(c => c.id === id ? { ...c, cable_type_id: original } : c));
+        alert('No se pudo cambiar el tipo de cable, se revirtió: ' + error.message);
+      }
+    });
+  }
+
   async function handleIconUpload(e) {
     e.preventDefault();
     if (!iconName.trim() || !iconFile) return;
@@ -485,17 +690,29 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const selectedMarker = selectedMarkerId ? markerById(selectedMarkerId) : null;
   const selectedCable = selectedCableId ? cables.find(c => c.id === selectedCableId) : null;
 
+  const isLayerVisible = layerId => !hiddenLayerIds.has(layerId || NO_LAYER);
+  const visibleMarkers = markers.filter(m => isLayerVisible(m.layer_id));
+  const visibleCables = cables.filter(c => isLayerVisible(c.layer_id));
+
   const counts = [];
   for (const t of EQUIPMENT_TYPES) {
-    const n = markers.filter(m => m.equipment_type === t.key).length;
+    const n = visibleMarkers.filter(m => m.equipment_type === t.key).length;
     if (n > 0) counts.push({ key: t.key, label: t.label, count: n });
   }
   for (const ic of customIconsState) {
-    const n = markers.filter(m => m.custom_icon_id === ic.id).length;
+    const n = visibleMarkers.filter(m => m.custom_icon_id === ic.id).length;
     if (n > 0) counts.push({ key: ic.id, label: ic.name, count: n });
   }
-  const totalEquipment = markers.length;
-  const totalCables = cables.length;
+  const totalEquipment = visibleMarkers.length;
+  const totalCables = visibleCables.length;
+
+  const cableColor = cable => cableTypesState.find(t => t.id === cable.cable_type_id)?.color || '#2a4cb5';
+  const cableCounts = [];
+  for (const t of cableTypesState) {
+    const n = visibleCables.filter(c => c.cable_type_id === t.id).length;
+    if (n > 0) cableCounts.push({ key: t.id, label: t.name, color: t.color, count: n });
+  }
+  const untypedCableCount = visibleCables.filter(c => !c.cable_type_id).length;
 
   function cablePoints(cable) {
     const from = markerById(cable.from_marker_id);
@@ -597,7 +814,25 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         >
           🔌 Cable
         </button>
+        <button
+          onClick={() => setShowCableTypesPanel(s => !s)}
+          className="btn btn-ghost"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: showCableTypesPanel ? 'var(--info-tint)' : undefined, border: showCableTypesPanel ? '1.5px solid var(--navy)' : undefined }}
+        >
+          {activeCableTypeId && (
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: cableTypesState.find(t => t.id === activeCableTypeId)?.color, flexShrink: 0 }} />
+          )}
+          🎨 Tipos de cable {activeCableTypeId ? `· ${cableTypesState.find(t => t.id === activeCableTypeId)?.name || ''}` : ''}
+        </button>
         <button className="btn btn-ghost" onClick={() => setShowIconUpload(s => !s)}>+ Importar ícono</button>
+        <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
+        <button
+          onClick={() => setShowLayersPanel(s => !s)}
+          className="btn btn-ghost"
+          style={{ fontWeight: 700, background: showLayersPanel ? 'var(--info-tint)' : undefined, border: showLayersPanel ? '1.5px solid var(--navy)' : undefined }}
+        >
+          🗂️ Capas {activeLayerId ? `· ${layers.find(l => l.id === activeLayerId)?.name || ''}` : ''}
+        </button>
         <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
         <button
           onClick={() => { setMode({ type: 'scale' }); setScaleClickA(null); setScalePending(null); }}
@@ -650,6 +885,135 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         </form>
       )}
 
+      {showCableTypesPanel && (
+        <div className="card" style={{ padding: 12 }}>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+            Clic en un tipo para hacerlo el tipo activo — los nuevos cables se trazan con su color. Cambia el color con la muestra, o el nombre escribiendo directo.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div
+              onClick={() => setActiveCableTypeId(null)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
+                background: activeCableTypeId === null ? 'var(--info-tint)' : undefined,
+                border: activeCableTypeId === null ? '1.5px solid var(--navy)' : '1.5px solid transparent',
+              }}
+            >
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2a4cb5', flexShrink: 0 }} />
+              <span style={{ fontSize: 13, flex: 1, fontStyle: 'italic', color: 'var(--muted)' }}>Sin tipo</span>
+            </div>
+            {cableTypesState.map(t => (
+              <div
+                key={t.id}
+                onClick={() => setActiveCableTypeId(t.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
+                  background: activeCableTypeId === t.id ? 'var(--info-tint)' : undefined,
+                  border: activeCableTypeId === t.id ? '1.5px solid var(--navy)' : '1.5px solid transparent',
+                }}
+              >
+                <input
+                  type="color" value={t.color}
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => updateCableTypeColor(t.id, e.target.value)}
+                  style={{ width: 22, height: 22, padding: 0, border: 'none', borderRadius: 4, flexShrink: 0, cursor: 'pointer' }}
+                />
+                <input
+                  value={t.name}
+                  onFocus={() => { cableTypeNameOriginRef.current = t.name; }}
+                  onChange={e => updateCableTypeName(t.id, e.target.value)}
+                  onBlur={e => commitCableTypeName(t.id, e.target.value)}
+                  onClick={e => e.stopPropagation()}
+                  style={{ flex: 1, fontSize: 13, border: 'none', background: 'transparent', padding: '2px 4px' }}
+                />
+                <button type="button" className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 12, color: 'var(--warn)' }}
+                  onClick={e => { e.stopPropagation(); deleteCableType(t.id); }}>🗑</button>
+              </div>
+            ))}
+          </div>
+          <form onSubmit={createCableType} style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
+            <input
+              type="color" value={newCableTypeColor}
+              onChange={e => setNewCableTypeColor(e.target.value)}
+              style={{ width: 30, height: 30, padding: 0, border: 'none', borderRadius: 4, flexShrink: 0, cursor: 'pointer' }}
+            />
+            <input
+              value={newCableTypeName} onChange={e => setNewCableTypeName(e.target.value)}
+              placeholder="Nombre del nuevo tipo (ej: Cat6 Cable Blue)"
+              style={{ flex: 1, fontSize: 13 }}
+            />
+            <button type="submit" className="btn btn-primary" disabled={savingCableType || !newCableTypeName.trim()}>
+              {savingCableType ? 'Creando...' : '+ Nuevo tipo'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {showLayersPanel && (
+        <div className="card" style={{ padding: 12 }}>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+            Clic en una capa para hacerla la capa activa — los nuevos equipos y cables se colocan en ella. Usa el ojo para mostrar/ocultar (solo en esta sesión).
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div
+              onClick={() => setActiveLayerId(null)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
+                background: activeLayerId === null ? 'var(--info-tint)' : undefined,
+                border: activeLayerId === null ? '1.5px solid var(--navy)' : '1.5px solid transparent',
+              }}
+            >
+              <button type="button" onClick={e => { e.stopPropagation(); toggleLayerVisibility(NO_LAYER); }}
+                className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 13 }}>
+                {isLayerVisible(null) ? '👁️' : '🚫'}
+              </button>
+              <span style={{ fontSize: 13, flex: 1, fontStyle: 'italic', color: 'var(--muted)' }}>Sin capa</span>
+            </div>
+            {layers.map((l, i) => (
+              <div
+                key={l.id}
+                onClick={() => setActiveLayerId(l.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
+                  background: activeLayerId === l.id ? 'var(--info-tint)' : undefined,
+                  border: activeLayerId === l.id ? '1.5px solid var(--navy)' : '1.5px solid transparent',
+                }}
+              >
+                <button type="button" onClick={e => { e.stopPropagation(); toggleLayerVisibility(l.id); }}
+                  className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 13 }}>
+                  {isLayerVisible(l.id) ? '👁️' : '🚫'}
+                </button>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: l.color, flexShrink: 0 }} />
+                <input
+                  value={l.name}
+                  onFocus={() => { layerNameOriginRef.current = l.name; }}
+                  onChange={e => updateLayerName(l.id, e.target.value)}
+                  onBlur={e => commitLayerName(l.id, e.target.value)}
+                  onClick={e => e.stopPropagation()}
+                  style={{ flex: 1, fontSize: 13, border: 'none', background: 'transparent', padding: '2px 4px' }}
+                />
+                <button type="button" className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 11 }}
+                  disabled={i === 0} onClick={e => { e.stopPropagation(); moveLayer(l.id, -1); }}>↑</button>
+                <button type="button" className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 11 }}
+                  disabled={i === layers.length - 1} onClick={e => { e.stopPropagation(); moveLayer(l.id, 1); }}>↓</button>
+                <button type="button" className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 12, color: 'var(--warn)' }}
+                  onClick={e => { e.stopPropagation(); deleteLayer(l.id); }}>🗑</button>
+              </div>
+            ))}
+          </div>
+          <form onSubmit={createLayer} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <input
+              value={newLayerName} onChange={e => setNewLayerName(e.target.value)}
+              placeholder="Nombre de la nueva capa (ej: Cableado estructurado)"
+              style={{ flex: 1, fontSize: 13 }}
+            />
+            <button type="submit" className="btn btn-primary" disabled={savingLayer || !newLayerName.trim()}>
+              {savingLayer ? 'Creando...' : '+ Nueva capa'}
+            </button>
+          </form>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         {/* Canvas */}
         <div
@@ -672,7 +1036,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" style={{ display: 'block' }}>
             {imageUrlState && <image href={imageUrlState} x="0" y="0" width={W} height={H} preserveAspectRatio="xMidYMid meet" />}
 
-            {cables.map(c => {
+            {visibleCables.map(c => {
               const pts = cablePoints(c);
               if (!pts) return null;
               const from = markerById(c.from_marker_id);
@@ -685,14 +1049,14 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   <polyline
                     points={pts}
                     fill="none"
-                    stroke={selectedCableId === c.id ? 'var(--amber)' : '#2a4cb5'}
+                    stroke={selectedCableId === c.id ? 'var(--amber)' : cableColor(c)}
                     strokeWidth={selectedCableId === c.id ? W * 0.004 : W * 0.0025}
                     style={{ cursor: mode === 'select' ? 'pointer' : 'default' }}
                     onClick={e => { if (mode === 'select') { e.stopPropagation(); setSelectedCableId(c.id); setSelectedMarkerId(null); } }}
                   />
                   {feet != null && (
                     <text x={midX} y={midY} textAnchor="middle" dy={-iconSize * 0.15}
-                      style={{ fontSize: iconSize * 0.4, fontWeight: 700, fill: '#2a4cb5', paintOrder: 'stroke', stroke: '#fff', strokeWidth: iconSize * 0.08 }}>
+                      style={{ fontSize: iconSize * 0.4, fontWeight: 700, fill: cableColor(c), paintOrder: 'stroke', stroke: '#fff', strokeWidth: iconSize * 0.08 }}>
                       {feet.toFixed(1)} pies
                     </text>
                   )}
@@ -728,7 +1092,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               </>
             )}
 
-            {markers.map(m => {
+            {visibleMarkers.map(m => {
               const cx = m.pos_x * W, cy = m.pos_y * H;
               const size = iconSize * (m.icon_scale ?? 1);
               const customIcon = m.custom_icon_id ? customIconsState.find(ic => ic.id === m.custom_icon_id) : null;
@@ -810,6 +1174,14 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 placeholder="Modelo (ej: APC AR3100)"
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               />
+              <select
+                value={selectedMarker.layer_id || ''}
+                onChange={e => updateMarkerLayer(selectedMarker.id, e.target.value || null)}
+                style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
+              >
+                <option value="">Sin capa</option>
+                {layers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>Tamaño del ícono</span>
                 <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px', marginLeft: 'auto' }}
@@ -860,10 +1232,43 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           })()}
 
           {selectedCable && (
-            <div style={{ position: 'absolute', right: 10, bottom: 10, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5 }}>
+            <div style={{ position: 'absolute', right: 10, bottom: 10, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5, width: 220 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
                 {cableLengthFeet(selectedCable) != null ? `${cableLengthFeet(selectedCable).toFixed(1)} pies` : 'Sin escala definida'}
               </div>
+              <input
+                value={selectedCable.label || ''}
+                onFocus={() => { cableLabelOriginRef.current = selectedCable.label || ''; }}
+                onChange={e => updateCableLabel(selectedCable.id, e.target.value)}
+                onBlur={e => commitCableLabel(selectedCable.id, e.target.value)}
+                placeholder="Título (ej: Cam 3 a NVR)"
+                style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
+              />
+              <textarea
+                value={selectedCable.description || ''}
+                onFocus={() => { cableDescriptionOriginRef.current = selectedCable.description || ''; }}
+                onChange={e => updateCableDescription(selectedCable.id, e.target.value)}
+                onBlur={e => commitCableDescription(selectedCable.id, e.target.value)}
+                placeholder="Descripción (ej: corre por conduit detrás de recepción)"
+                rows={2}
+                style={{ width: '100%', marginBottom: 8, fontSize: 13, resize: 'vertical' }}
+              />
+              <select
+                value={selectedCable.layer_id || ''}
+                onChange={e => updateCableLayer(selectedCable.id, e.target.value || null)}
+                style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
+              >
+                <option value="">Sin capa</option>
+                {layers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+              <select
+                value={selectedCable.cable_type_id || ''}
+                onChange={e => updateCableType(selectedCable.id, e.target.value || null)}
+                style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
+              >
+                <option value="">Sin tipo de cable</option>
+                {cableTypesState.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
               <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', color: 'var(--warn)' }} onClick={() => deleteCable(selectedCable.id)}>
                 Eliminar cable
               </button>
@@ -904,10 +1309,28 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             <span>Cables trazados</span>
             <span>{totalCables}</span>
           </div>
+          {cableCounts.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+              {cableCounts.map(c => (
+                <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
+                  <span style={{ flex: 1 }}>{c.label}</span>
+                  <span style={{ fontWeight: 700 }}>{c.count}</span>
+                </div>
+              ))}
+              {untypedCableCount > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2a4cb5', flexShrink: 0 }} />
+                  <span style={{ flex: 1 }}>Sin tipo</span>
+                  <span style={{ fontWeight: 700 }}>{untypedCableCount}</span>
+                </div>
+              )}
+            </div>
+          )}
           {feetPerPixel && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginTop: 4, color: 'var(--ok)' }}>
               <span>Pietaje total</span>
-              <span>{cables.reduce((sum, c) => sum + (cableLengthFeet(c) || 0), 0).toFixed(1)} pies</span>
+              <span>{visibleCables.reduce((sum, c) => sum + (cableLengthFeet(c) || 0), 0).toFixed(1)} pies</span>
             </div>
           )}
           <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '8px 0' }} />
