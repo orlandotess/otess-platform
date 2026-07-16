@@ -81,15 +81,15 @@ export default function AddElementPanel({ elementTypes, customIcons, onSelectEle
                       key={el.id}
                       type="button"
                       onClick={() => onSelectElement(el.id)}
-                      title={el.name}
+                      title={el.is_path_tool ? `${el.name} — traza una línea entre dos equipos` : el.name}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                         padding: '8px 4px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)',
                         cursor: 'pointer', fontSize: 10.5, textAlign: 'center', lineHeight: 1.2,
                       }}
                     >
-                      <ElementIcon element={el} size={20} />
-                      <span>{el.name}</span>
+                      {el.is_path_tool ? <span style={{ fontSize: 20, lineHeight: 1 }}>🔗</span> : <ElementIcon element={el} size={20} />}
+                      <span>{el.name}{el.is_path_tool ? ' 🔗' : ''}</span>
                     </button>
                   ))}
                 </div>

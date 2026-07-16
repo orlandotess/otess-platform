@@ -675,6 +675,22 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     });
   }
 
+  // Path-tool catalog elements (Cable Path, Flex Cable Path — Infrastructure)
+  // aren't placed as markers — they arm the same cable-drawing tool as the
+  // 🔌 Cable button, switched to a cable type matching the element's own
+  // name (pre-seeded by migrations/2026-07-16d-cable-path-type.sql for
+  // Cable Path; created here as a fallback, and for any other path tool).
+  async function armPathTool(element) {
+    setMode({ type: 'cable' });
+    setCableDraft(null);
+    const existing = cableTypesState.find(t => t.name === element.name);
+    if (existing) { setActiveCableTypeId(existing.id); return; }
+    const { data, error } = await supabase.from('cable_types').insert([{ name: element.name, color: element.system_color }]).select().single();
+    if (error) { alert(`No se pudo preparar el tipo de cable "${element.name}": ` + error.message); return; }
+    setCableTypesState(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setActiveCableTypeId(data.id);
+  }
+
   async function createCableType(e) {
     e.preventDefault();
     if (!newCableTypeName.trim()) return;
@@ -952,7 +968,15 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         <AddElementPanel
           elementTypes={elementTypes}
           customIcons={customIconsState}
-          onSelectElement={elementId => { setMode({ type: 'place', elementId, customIconId: null }); setShowAddElementPanel(false); }}
+          onSelectElement={elementId => {
+            const element = elementTypes.find(et => et.id === elementId);
+            if (element?.is_path_tool) {
+              armPathTool(element);
+            } else {
+              setMode({ type: 'place', elementId, customIconId: null });
+            }
+            setShowAddElementPanel(false);
+          }}
           onSelectCustomIcon={customIconId => { setMode({ type: 'place', elementId: null, customIconId }); setShowAddElementPanel(false); }}
         />
       )}
