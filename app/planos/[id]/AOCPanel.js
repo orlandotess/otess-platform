@@ -1,15 +1,15 @@
 'use client';
 
-// Equipment types that support an Area-of-Coverage (FOV) cone.
-export const AOC_SUPPORTED_TYPES = new Set(['camera', 'access_point', 'motion_sensor']);
-
 /**
  * AOCPanel — controls section rendered inside the marker popup for elements
- * that support Area of Coverage (cameras, WAPs, motion sensors): toggle,
- * direction/angle/radius sliders, color override, opacity.
+ * that support Area of Coverage (cameras, WAPs, motion-type sensors): toggle,
+ * direction/angle/radius sliders, color override, opacity. `supported` is
+ * resolved by the caller (PlanoEditor's supportsAOC helper), which checks
+ * the element's `element_types.supports_aoc` flag, or the legacy 3-key set
+ * for markers placed before the "Add Element" catalog existed.
  */
-export default function AOCPanel({ equipmentType, systemColor, aoc, onChange }) {
-  if (!AOC_SUPPORTED_TYPES.has(equipmentType)) return null;
+export default function AOCPanel({ supported, systemColor, aoc, onChange }) {
+  if (!supported) return null;
 
   const displayColor = aoc.color ?? systemColor ?? '#e0972c';
 

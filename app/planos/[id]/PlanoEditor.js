@@ -3,11 +3,12 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
-import { EQUIPMENT_TYPES, getEquipmentType, EquipmentIcon } from '../../equipmentIcons';
+import { getEquipmentType, getElementIcon } from '../../equipmentIcons';
 import { exportEquipmentListCSV } from '../../planoEquipmentCsv';
 import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 import AOCCone from './AOCCone';
-import AOCPanel, { AOC_SUPPORTED_TYPES } from './AOCPanel';
+import AOCPanel from './AOCPanel';
+import AddElementPanel from './AddElementPanel';
 
 const FALLBACK_W = 1600;
 const FALLBACK_H = 1200;
@@ -22,8 +23,25 @@ const WHEEL_ZOOM_INTENSITY = 0.0018;
 const LAYER_COLORS = ['#2a4cb5', '#1a7a4a', '#e0972c', '#8e44ad', '#c0392b', '#0891b2', '#4b5563'];
 const NO_LAYER = '__none__';
 
-function getAOC(marker) {
-  const systemColor = getEquipmentType(marker.equipment_type)?.color || '#e0972c';
+// Markers placed before the "Add Element" catalog existed (migrations/2026-07-16b-element-catalog.sql)
+// have no element_id — this is the fallback set for gating their AOC cone.
+const LEGACY_AOC_TYPES = new Set(['camera', 'access_point', 'motion_sensor']);
+
+function getMarkerElement(marker, elementTypes) {
+  return marker.element_id ? elementTypes.find(et => et.id === marker.element_id) : null;
+}
+
+function getMarkerColor(marker, elementTypes) {
+  return getMarkerElement(marker, elementTypes)?.system_color || getEquipmentType(marker.equipment_type)?.color || '#16223d';
+}
+
+function supportsAOC(marker, elementTypes) {
+  const element = getMarkerElement(marker, elementTypes);
+  return element ? !!element.supports_aoc : LEGACY_AOC_TYPES.has(marker.equipment_type);
+}
+
+function getAOC(marker, elementTypes) {
+  const systemColor = getMarkerColor(marker, elementTypes) || '#e0972c';
   return {
     visible: marker.aoc_visible ?? false,
     direction: marker.aoc_direction ?? 0,
@@ -34,17 +52,21 @@ function getAOC(marker) {
   };
 }
 
-export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, initialLayers, initialCableTypes, customIcons, currentRole, allClients = [] }) {
+export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, initialLayers, initialCableTypes, initialElementTypes, customIcons, currentRole, allClients = [] }) {
   const router = useRouter();
   const wrapRef = useRef(null);
   const dragOriginRef = useRef(null);
   const labelOriginRef = useRef(null);
   const modelOriginRef = useRef(null);
+  const serialOriginRef = useRef(null);
+  const notesOriginRef = useRef(null);
   const layerNameOriginRef = useRef(null);
   const cableTypeNameOriginRef = useRef(null);
   const cableLabelOriginRef = useRef(null);
   const cableDescriptionOriginRef = useRef(null);
   const customIconsRef = useRef(customIcons);
+
+  const elementTypes = initialElementTypes || [];
 
   const W = plan.image_width || FALLBACK_W;
   const H = plan.image_height || FALLBACK_H;
@@ -67,7 +89,8 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [savingCableType, setSavingCableType] = useState(false);
   const [customIconsState, setCustomIconsState] = useState(customIcons);
   const [imageUrlState, setImageUrlState] = useState(imageUrl);
-  const [mode, setMode] = useState('select'); // 'select' | { type: 'place', equipmentKey, customIconId } | { type: 'cable' } | { type: 'scale' }
+  const [showAddElementPanel, setShowAddElementPanel] = useState(false);
+  const [mode, setMode] = useState('select'); // 'select' | { type: 'place', elementId, customIconId } | { type: 'cable' } | { type: 'scale' }
   const [selectedMarkerId, setSelectedMarkerId] = useState(null);
   const [selectedCableId, setSelectedCableId] = useState(null);
   const [cableDraft, setCableDraft] = useState(null); // { fromMarkerId, points: [{x,y}] }
@@ -281,13 +304,13 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     if (mode.type !== 'place') return;
     const tempId = `temp-${crypto.randomUUID()}`;
     const optimistic = {
-      id: tempId, floor_plan_id: plan.id, equipment_type: mode.equipmentKey,
+      id: tempId, floor_plan_id: plan.id, element_id: mode.elementId || null,
       custom_icon_id: mode.customIconId || null, label: null, layer_id: activeLayerId,
-      pos_x: point.x, pos_y: point.y, sort_order: markers.length,
+      pos_x: point.x, pos_y: point.y, sort_order: markers.length, quantity: 1,
     };
     setMarkers(prev => [...prev, optimistic]);
     const { data, error } = await supabase.from('floor_plan_markers').insert([{
-      floor_plan_id: plan.id, equipment_type: mode.equipmentKey,
+      floor_plan_id: plan.id, element_id: mode.elementId || null,
       custom_icon_id: mode.customIconId || null, pos_x: point.x, pos_y: point.y,
       sort_order: markers.length, layer_id: activeLayerId,
     }]).select().single();
@@ -444,6 +467,44 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       setMarkers(prev => prev.map(m => m.id === id ? { ...m, model: original ?? null } : m));
       alert('No se pudo guardar el modelo, se revirtió: ' + error.message);
     }
+  }
+
+  function updateMarkerSerial(id, serial_number) {
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, serial_number } : m));
+  }
+  async function commitMarkerSerial(id, serial_number) {
+    const original = serialOriginRef.current;
+    const { error } = await supabase.from('floor_plan_markers').update({ serial_number: serial_number || null }).eq('id', id);
+    if (error) {
+      setMarkers(prev => prev.map(m => m.id === id ? { ...m, serial_number: original ?? null } : m));
+      alert('No se pudo guardar el número de serie, se revirtió: ' + error.message);
+    }
+  }
+
+  function updateMarkerNotes(id, notes) {
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, notes } : m));
+  }
+  async function commitMarkerNotes(id, notes) {
+    const original = notesOriginRef.current;
+    const { error } = await supabase.from('floor_plan_markers').update({ notes: notes || null }).eq('id', id);
+    if (error) {
+      setMarkers(prev => prev.map(m => m.id === id ? { ...m, notes: original ?? null } : m));
+      alert('No se pudo guardar la nota, se revirtió: ' + error.message);
+    }
+  }
+
+  function adjustMarkerQuantity(id, delta) {
+    const marker = markerById(id);
+    const current = marker?.quantity ?? 1;
+    const next = Math.max(1, current + delta);
+    if (next === current) return;
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, quantity: next } : m));
+    supabase.from('floor_plan_markers').update({ quantity: next }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setMarkers(prev => prev.map(m => m.id === id ? { ...m, quantity: current } : m));
+        alert('No se pudo guardar la cantidad, se revirtió: ' + error.message);
+      }
+    });
   }
 
   async function handleMarkerPhotoUpload(markerId, file) {
@@ -739,9 +800,23 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const visibleCables = cables.filter(c => isLayerVisible(c.layer_id));
 
   const counts = [];
-  for (const t of EQUIPMENT_TYPES) {
-    const n = visibleMarkers.filter(m => m.equipment_type === t.key).length;
-    if (n > 0) counts.push({ key: t.key, label: t.label, count: n });
+  const elementQtyById = new Map();
+  const legacyQtyByKey = new Map();
+  for (const m of visibleMarkers) {
+    const qty = m.quantity ?? 1;
+    if (m.element_id) {
+      elementQtyById.set(m.element_id, (elementQtyById.get(m.element_id) || 0) + qty);
+    } else if (m.equipment_type) {
+      legacyQtyByKey.set(m.equipment_type, (legacyQtyByKey.get(m.equipment_type) || 0) + qty);
+    }
+  }
+  for (const [elementId, qty] of elementQtyById) {
+    const el = elementTypes.find(et => et.id === elementId);
+    if (el) counts.push({ key: `el-${elementId}`, label: el.name, count: qty });
+  }
+  for (const [key, qty] of legacyQtyByKey) {
+    const t = getEquipmentType(key);
+    if (t) counts.push({ key: `legacy-${key}`, label: t.label, count: qty });
   }
   for (const ic of customIconsState) {
     const n = visibleMarkers.filter(m => m.custom_icon_id === ic.id).length;
@@ -787,7 +862,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">Ver original</a>}
-          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, EQUIPMENT_TYPES, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name)}>⬇️ Exportar lista</button>
+          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name)}>⬇️ Exportar lista</button>
           {canDeletePlan && <button className="btn btn-ghost" disabled={deleting} onClick={handleDeletePlan} style={{ color: 'var(--warn)' }}>Eliminar plano</button>}
           <Link href="/planos" className="btn btn-ghost">← Volver</Link>
         </div>
@@ -822,35 +897,21 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         >
           🖱️ Seleccionar
         </button>
-        {EQUIPMENT_TYPES.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setMode({ type: 'place', equipmentKey: t.key, customIconId: null })}
-            className="btn btn-ghost"
-            title={t.label}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: mode !== 'select' && mode.type === 'place' && mode.equipmentKey === t.key ? 'var(--info-tint)' : undefined,
-              border: mode !== 'select' && mode.type === 'place' && mode.equipmentKey === t.key ? `1.5px solid ${t.color}` : undefined,
-            }}
-          >
-            <EquipmentIcon typeKey={t.key} size={16} /> {t.label}
-          </button>
-        ))}
-        {customIconsState.map(ic => (
-          <button
-            key={ic.id}
-            onClick={() => setMode({ type: 'place', equipmentKey: 'custom', customIconId: ic.id })}
-            className="btn btn-ghost"
-            title={ic.name}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: mode !== 'select' && mode.type === 'place' && mode.customIconId === ic.id ? 'var(--info-tint)' : undefined,
-            }}
-          >
-            {ic.url && <img src={ic.url} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />} {ic.name}
-          </button>
-        ))}
+        <button
+          onClick={() => setShowAddElementPanel(s => !s)}
+          className="btn btn-ghost"
+          style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, background: showAddElementPanel ? 'var(--info-tint)' : undefined, border: showAddElementPanel ? '1.5px solid var(--navy)' : undefined }}
+        >
+          ➕ Añadir elemento
+        </button>
+        {mode !== 'select' && mode.type === 'place' && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'var(--info-tint)', border: '1.5px solid var(--navy)', borderRadius: 6, padding: '4px 8px' }}>
+            Colocando: {mode.customIconId
+              ? customIconsState.find(ic => ic.id === mode.customIconId)?.name
+              : elementTypes.find(et => et.id === mode.elementId)?.name}
+            <button type="button" onClick={() => setMode('select')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0, lineHeight: 1 }}>×</button>
+          </span>
+        )}
         <button
           onClick={() => { setMode({ type: 'cable' }); setCableDraft(null); }}
           className="btn btn-ghost"
@@ -886,6 +947,15 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           📏 Escala {feetPerPixel ? '✓' : ''}
         </button>
       </div>
+
+      {showAddElementPanel && (
+        <AddElementPanel
+          elementTypes={elementTypes}
+          customIcons={customIconsState}
+          onSelectElement={elementId => { setMode({ type: 'place', elementId, customIconId: null }); setShowAddElementPanel(false); }}
+          onSelectCustomIcon={customIconId => { setMode({ type: 'place', elementId: null, customIconId }); setShowAddElementPanel(false); }}
+        />
+      )}
 
       {mode !== 'select' && mode.type === 'cable' && (
         <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: 'var(--amber-tint)' }}>
@@ -1137,8 +1207,8 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             )}
 
             {visibleMarkers.map(m => {
-              if (!AOC_SUPPORTED_TYPES.has(m.equipment_type)) return null;
-              const aoc = getAOC(m);
+              if (!supportsAOC(m, elementTypes)) return null;
+              const aoc = getAOC(m, elementTypes);
               if (!aoc.visible) return null;
               return (
                 <AOCCone
@@ -1157,6 +1227,8 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               const cx = m.pos_x * W, cy = m.pos_y * H;
               const size = iconSize * (m.icon_scale ?? 1);
               const customIcon = m.custom_icon_id ? customIconsState.find(ic => ic.id === m.custom_icon_id) : null;
+              const element = getMarkerElement(m, elementTypes);
+              const resolvedIcon = element ? getElementIcon(element) : null;
               const isSelected = selectedMarkerId === m.id;
               return (
                 <g
@@ -1169,6 +1241,10 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   <circle r={size * 0.75} fill="#fff" stroke={isSelected ? 'var(--amber)' : '#c7cbd4'} strokeWidth={isSelected ? size * 0.08 : size * 0.04} />
                   {customIcon?.url ? (
                     <image href={customIcon.url} x={-size / 2} y={-size / 2} width={size} height={size} preserveAspectRatio="xMidYMid meet" />
+                  ) : resolvedIcon ? (
+                    <svg x={-size / 2} y={-size / 2} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={resolvedIcon.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      {resolvedIcon.icon}
+                    </svg>
                   ) : (
                     <svg x={-size / 2} y={-size / 2} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={getEquipmentType(m.equipment_type)?.color || '#16223d'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       {getEquipmentType(m.equipment_type)?.icon}
@@ -1216,8 +1292,17 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5, width: 220,
               }}
             >
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 6 }}>
-                {customIconsState.find(ic => ic.id === selectedMarker.custom_icon_id)?.name || getEquipmentType(selectedMarker.equipment_type)?.label}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                {getMarkerElement(selectedMarker, elementTypes) && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: getMarkerElement(selectedMarker, elementTypes).system_color, borderRadius: 4, padding: '1px 5px' }}>
+                    {getMarkerElement(selectedMarker, elementTypes).system_abbr}
+                  </span>
+                )}
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>
+                  {customIconsState.find(ic => ic.id === selectedMarker.custom_icon_id)?.name
+                    || getMarkerElement(selectedMarker, elementTypes)?.name
+                    || getEquipmentType(selectedMarker.equipment_type)?.label}
+                </div>
               </div>
               <input
                 value={selectedMarker.label || ''}
@@ -1233,6 +1318,14 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 onChange={e => updateMarkerModel(selectedMarker.id, e.target.value)}
                 onBlur={e => commitMarkerModel(selectedMarker.id, e.target.value)}
                 placeholder="Modelo (ej: APC AR3100)"
+                style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
+              />
+              <input
+                value={selectedMarker.serial_number || ''}
+                onFocus={() => { serialOriginRef.current = selectedMarker.serial_number || ''; }}
+                onChange={e => updateMarkerSerial(selectedMarker.id, e.target.value)}
+                onBlur={e => commitMarkerSerial(selectedMarker.id, e.target.value)}
+                placeholder="N° de serie"
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               />
               <select
@@ -1254,6 +1347,17 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px' }}
                   disabled={(selectedMarker.icon_scale ?? 1) >= 2}
                   onClick={() => adjustMarkerScale(selectedMarker.id, 0.25)}>+</button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Cantidad</span>
+                <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px', marginLeft: 'auto' }}
+                  disabled={(selectedMarker.quantity ?? 1) <= 1}
+                  onClick={() => adjustMarkerQuantity(selectedMarker.id, -1)}>−</button>
+                <span style={{ fontSize: 12, fontWeight: 700, minWidth: 24, textAlign: 'center' }}>
+                  {selectedMarker.quantity ?? 1}
+                </span>
+                <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px' }}
+                  onClick={() => adjustMarkerQuantity(selectedMarker.id, 1)}>+</button>
               </div>
               {photoUrls[selectedMarker.id] ? (
                 <div style={{ marginBottom: 8 }}>
@@ -1279,10 +1383,19 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   <input type="file" accept="image/*" hidden disabled={uploadingPhoto} onChange={e => handleMarkerPhotoUpload(selectedMarker.id, e.target.files?.[0])} />
                 </label>
               )}
+              <textarea
+                value={selectedMarker.notes || ''}
+                onFocus={() => { notesOriginRef.current = selectedMarker.notes || ''; }}
+                onChange={e => updateMarkerNotes(selectedMarker.id, e.target.value)}
+                onBlur={e => commitMarkerNotes(selectedMarker.id, e.target.value)}
+                placeholder="Notas"
+                rows={2}
+                style={{ width: '100%', marginBottom: 8, fontSize: 13, resize: 'vertical' }}
+              />
               <AOCPanel
-                equipmentType={selectedMarker.equipment_type}
-                systemColor={getEquipmentType(selectedMarker.equipment_type)?.color}
-                aoc={getAOC(selectedMarker)}
+                supported={supportsAOC(selectedMarker, elementTypes)}
+                systemColor={getMarkerColor(selectedMarker, elementTypes)}
+                aoc={getAOC(selectedMarker, elementTypes)}
                 onChange={updates => handleAOCChange(selectedMarker.id, updates)}
               />
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>

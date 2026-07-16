@@ -121,3 +121,74 @@ export function EquipmentIcon({ typeKey, size = 24, color }) {
     </svg>
   );
 }
+
+// One fallback icon per Add Element category (see element_types table / the
+// "Add Element" catalog), keyed by system_abbr. Used for any catalog element
+// that doesn't reuse one of the hand-drawn EQUIPMENT_TYPES icons above via
+// its icon_key.
+export const CATEGORY_ICONS = {
+  VSS: <>
+    <circle cx="12" cy="12" r="8" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 4 V2" />
+  </>,
+  ACS: <>
+    <path d="M12 2 L20 5 V11 C20 16 16.5 20 12 22 C7.5 20 4 16 4 11 V5 Z" />
+    <rect x="9" y="11" width="6" height="5" rx="1" />
+    <path d="M10.5 11 V9.5 a1.5 1.5 0 0 1 3 0 V11" />
+  </>,
+  IDS: <>
+    <path d="M6 16 V11 a6 6 0 0 1 12 0 v5 l2 2.5 H4 Z" />
+    <path d="M10 19.5 a2 2 0 0 0 4 0" />
+  </>,
+  INFRA: <>
+    <circle cx="5" cy="6" r="2" />
+    <circle cx="19" cy="6" r="2" />
+    <circle cx="12" cy="18" r="2" />
+    <path d="M5 8 C5 14 8 14 12 16" />
+    <path d="M19 8 C19 14 16 14 12 16" />
+  </>,
+  IT: <>
+    <rect x="3" y="4" width="18" height="12" rx="1.5" />
+    <path d="M8 20 h8" />
+    <path d="M12 16 v4" />
+  </>,
+  AV: <>
+    <rect x="3" y="4" width="18" height="14" rx="1.5" />
+    <path d="M10 8.5 L15 11 L10 13.5 Z" />
+  </>,
+  COMM: <>
+    <path d="M12 21 V11" />
+    <path d="M8 8 a5.5 5.5 0 0 1 8 0" />
+    <path d="M5 5 a10 10 0 0 1 14 0" />
+    <circle cx="12" cy="11" r="1.4" fill="currentColor" stroke="none" />
+  </>,
+  BMS: <>
+    <circle cx="12" cy="13" r="7" />
+    <path d="M12 13 L15.5 9.5" />
+    <path d="M12 4 V6.5" />
+  </>,
+};
+
+// Resolves the icon/color to render for a catalog element (a row from
+// element_types): reuse the matching hand-drawn EQUIPMENT_TYPES icon when
+// the element has an icon_key, otherwise fall back to its category icon.
+export function getElementIcon(element) {
+  if (!element) return null;
+  if (element.icon_key) {
+    const legacy = getEquipmentType(element.icon_key);
+    if (legacy) return { icon: legacy.icon, color: element.system_color || legacy.color };
+  }
+  const icon = CATEGORY_ICONS[element.system_abbr];
+  return icon ? { icon, color: element.system_color } : null;
+}
+
+export function ElementIcon({ element, size = 24, color }) {
+  const resolved = getElementIcon(element);
+  if (!resolved) return null;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || resolved.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {resolved.icon}
+    </svg>
+  );
+}

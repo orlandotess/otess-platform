@@ -9,12 +9,13 @@ import PlanoEditor from './PlanoEditor';
 export default async function PlanoDetail({ params }) {
   const { id } = params;
 
-  const [{ data: plan }, { data: markers }, { data: cables }, { data: layers }, { data: cableTypes }, { data: customIcons }, { data: allClients }, currentRole] = await Promise.all([
+  const [{ data: plan }, { data: markers }, { data: cables }, { data: layers }, { data: cableTypes }, { data: elementTypes }, { data: customIcons }, { data: allClients }, currentRole] = await Promise.all([
     supabase.from('floor_plans').select('*, clients(name), jobs(title)').eq('id', id).single(),
     supabase.from('floor_plan_markers').select('*').eq('floor_plan_id', id).order('sort_order'),
     supabase.from('floor_plan_cables').select('*').eq('floor_plan_id', id),
     supabase.from('floor_plan_layers').select('*').eq('floor_plan_id', id).order('sort_order'),
     supabase.from('cable_types').select('*').order('name'),
+    supabase.from('element_types').select('*').eq('is_active', true).order('sort_order'),
     supabase.from('custom_equipment_icons').select('*').order('name'),
     supabase.from('clients').select('id, name').order('name'),
     getCurrentRole(),
@@ -52,6 +53,7 @@ export default async function PlanoDetail({ params }) {
           initialCables={cables ?? []}
           initialLayers={layers ?? []}
           initialCableTypes={cableTypes ?? []}
+          initialElementTypes={elementTypes ?? []}
           customIcons={customIconsWithUrls}
           currentRole={currentRole}
           allClients={allClients ?? []}
