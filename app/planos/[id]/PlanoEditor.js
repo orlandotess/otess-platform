@@ -416,6 +416,33 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     }
   }
 
+  async function duplicateMarker(id) {
+    const marker = markerById(id);
+    if (!marker) return;
+    const offset = 0.02;
+    const newPos = { x: Math.min(0.98, marker.pos_x + offset), y: Math.min(0.98, marker.pos_y + offset) };
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const clonedFields = {
+      element_id: marker.element_id, custom_icon_id: marker.custom_icon_id, equipment_type: marker.equipment_type,
+      model: marker.model, serial_number: marker.serial_number, notes: marker.notes, quantity: marker.quantity,
+      layer_id: marker.layer_id, icon_scale: marker.icon_scale,
+      aoc_visible: marker.aoc_visible, aoc_direction: marker.aoc_direction, aoc_angle: marker.aoc_angle,
+      aoc_radius: marker.aoc_radius, aoc_color: marker.aoc_color, aoc_opacity: marker.aoc_opacity,
+    };
+    const optimistic = { ...marker, ...clonedFields, id: tempId, pos_x: newPos.x, pos_y: newPos.y, label: null, sort_order: markers.length };
+    setMarkers(prev => [...prev, optimistic]);
+    const { data, error } = await supabase.from('floor_plan_markers').insert([{
+      floor_plan_id: plan.id, pos_x: newPos.x, pos_y: newPos.y, sort_order: markers.length, ...clonedFields,
+    }]).select().single();
+    if (error) {
+      setMarkers(prev => prev.filter(m => m.id !== tempId));
+      alert('No se pudo duplicar el equipo: ' + error.message);
+      return;
+    }
+    setMarkers(prev => prev.map(m => m.id === tempId ? data : m));
+    setSelectedMarkerId(data.id);
+  }
+
   async function deleteMarker(id) {
     if (!confirm('¿Eliminar este equipo del plano? También se eliminarán sus cables.')) return;
     const removedMarker = markers.find(m => m.id === id);
@@ -1310,7 +1337,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             )}
           </div>
 
-          {selectedMarker && selectedMarkerAOC?.visible && (
+          {selectedMarker && (
             <div
               onPointerDown={e => e.stopPropagation()}
               onClick={e => e.stopPropagation()}
@@ -1332,15 +1359,45 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   || getMarkerElement(selectedMarker, elementTypes)?.name
                   || getEquipmentType(selectedMarker.equipment_type)?.label}
               </span>
+
+              {selectedMarkerAOC && (
+                <>
+                  <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', flexShrink: 0 }} />
+                  <button
+                    type="button" title={selectedMarkerAOC.visible ? 'Ocultar área de cobertura' : 'Mostrar área de cobertura'}
+                    onClick={() => handleAOCChange(selectedMarker.id, { visible: !selectedMarkerAOC.visible })}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
+                  >
+                    {selectedMarkerAOC.visible ? '📐' : '🚫'}
+                  </button>
+                  {selectedMarkerAOC.visible && (
+                    <>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
+                        {Math.round(selectedMarkerAOC.direction)}°
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
+                        {feetPerPixel ? `${(selectedMarkerAOC.radius * feetPerPixel).toFixed(1)} ft` : `${Math.round(selectedMarkerAOC.radius)} u`}
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
+
               <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
-                {Math.round(selectedMarkerAOC.direction)}°
-              </span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
-                {feetPerPixel ? `${(selectedMarkerAOC.radius * feetPerPixel).toFixed(1)} ft` : `${Math.round(selectedMarkerAOC.radius)} u`}
-              </span>
               <button
-                type="button" onClick={() => setSelectedMarkerId(null)}
+                type="button" title="Duplicar equipo" onClick={() => duplicateMarker(selectedMarker.id)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
+              >
+                📋
+              </button>
+              <button
+                type="button" title="Eliminar equipo" onClick={() => deleteMarker(selectedMarker.id)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
+              >
+                🗑
+              </button>
+              <button
+                type="button" title="Cerrar" onClick={() => setSelectedMarkerId(null)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700, padding: '0 2px', flexShrink: 0 }}
               >
                 ✕
