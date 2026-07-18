@@ -810,6 +810,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const markerById = id => markers.find(m => m.id === id);
   const selectedMarker = selectedMarkerId ? markerById(selectedMarkerId) : null;
   const selectedCable = selectedCableId ? cables.find(c => c.id === selectedCableId) : null;
+  const selectedMarkerAOC = selectedMarker && supportsAOC(selectedMarker, elementTypes) ? getAOC(selectedMarker, elementTypes) : null;
 
   const isLayerVisible = layerId => !hiddenLayerIds.has(layerId || NO_LAYER);
   const visibleMarkers = markers.filter(m => isLayerVisible(m.layer_id));
@@ -1297,6 +1298,44 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               <button type="button" className="btn btn-ghost" style={{ padding: '4px 6px', fontSize: 10 }} onClick={resetZoom}>Ajustar</button>
             )}
           </div>
+
+          {selectedMarker && selectedMarkerAOC?.visible && (
+            <div
+              onPointerDown={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
+              onWheel={e => e.stopPropagation()}
+              style={{
+                position: 'absolute', left: 10, top: 10, zIndex: 6, display: 'flex', alignItems: 'center', gap: 8,
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 8px',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.12)', maxWidth: 'calc(100% - 20px)',
+              }}
+            >
+              {getMarkerElement(selectedMarker, elementTypes) && (
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: getMarkerElement(selectedMarker, elementTypes).system_color, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
+                  {getMarkerElement(selectedMarker, elementTypes).system_abbr}
+                </span>
+              )}
+              <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {selectedMarker.label
+                  || customIconsState.find(ic => ic.id === selectedMarker.custom_icon_id)?.name
+                  || getMarkerElement(selectedMarker, elementTypes)?.name
+                  || getEquipmentType(selectedMarker.equipment_type)?.label}
+              </span>
+              <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', flexShrink: 0 }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
+                {Math.round(selectedMarkerAOC.direction)}°
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
+                {feetPerPixel ? `${(selectedMarkerAOC.radius * feetPerPixel).toFixed(1)} ft` : `${Math.round(selectedMarkerAOC.radius)} u`}
+              </span>
+              <button
+                type="button" onClick={() => setSelectedMarkerId(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700, padding: '0 2px', flexShrink: 0 }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {selectedMarker && (() => {
             // Flip to the marker's other side / edge when it sits near the canvas
