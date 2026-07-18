@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 // AOC (Area of Coverage / FOV cone) geometry.
 // direction is measured directly in SVG angle terms: 0°=right/east, 90°=down/south
@@ -48,14 +48,22 @@ function edgePoints(cx, cy, direction, fovAngle, radius) {
  * handles, shown only when `selected` is true:
  *   ○ tip handle     → drag to rotate direction + change radius
  *   ◇ edge handles   → drag to widen/narrow the FOV angle
+ *
+ * Dragging tracks the pointer via window-level listeners (not just the
+ * small handle's own onPointerMove) because Safari/iOS has long-standing
+ * reliability issues with setPointerCapture on small SVG shapes — a fast
+ * finger drag can slip off the element before capture "sticks", silently
+ * dropping the gesture. setPointerCapture is still attempted (harmless,
+ * helps where it works), but the window listeners are what actually make
+ * the drag keep tracking.
  */
 export default function AOCCone({ cx, cy, aoc, onChange, svgScale = 1, selected = false }) {
-  if (!aoc.visible) return null;
+  const { direction, angle: fovAngle, radius, color, opacity, visible } = aoc;
 
-  const { direction, angle: fovAngle, radius, color, opacity } = aoc;
-
-  const dragging = useRef(null);
   const gRef = useRef(null);
+  const dragTypeRef = useRef(null);
+  const directionRef = useRef(direction);
+  useEffect(() => { directionRef.current = direction; }, [direction]);
 
   const toSVGPoint = useCallback(e => {
     const svgEl = gRef.current?.ownerSVGElement;
@@ -67,59 +75,58 @@ export default function AOCCone({ cx, cy, aoc, onChange, svgScale = 1, selected 
     return { x: svgPt.x, y: svgPt.y };
   }, []);
 
-  // ── Tip handle: controls direction + radius ──────────────────────────────
-  const onTipPointerDown = useCallback(e => {
-    e.stopPropagation();
-    dragging.current = 'tip';
-    e.target.setPointerCapture(e.pointerId);
-  }, []);
-
-  const onTipPointerMove = useCallback(e => {
-    if (dragging.current !== 'tip') return;
+  const handlePointerMove = useCallback(e => {
+    const type = dragTypeRef.current;
+    if (!type) return;
     const { x, y } = toSVGPoint(e);
     const dx = x - cx;
     const dy = y - cy;
-    const newRadius = Math.max(20, Math.sqrt(dx * dx + dy * dy));
-    const newDir = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
-    onChange({ direction: newDir, radius: newRadius });
+    if (type === 'tip') {
+      const newRadius = Math.max(20, Math.sqrt(dx * dx + dy * dy));
+      const newDir = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
+      onChange({ direction: newDir, radius: newRadius });
+    } else {
+      const ptrAngle = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
+      const delta = ((ptrAngle - directionRef.current + 180 + 360) % 360) - 180;
+      let newFov = Math.abs(delta) * 2;
+      newFov = Math.max(5, Math.min(360, newFov));
+      onChange({ angle: newFov });
+    }
   }, [cx, cy, onChange, toSVGPoint]);
 
-  const onTipPointerUp = useCallback(e => {
-    dragging.current = null;
-    e.target.releasePointerCapture(e.pointerId);
-  }, []);
+  const endDrag = useCallback(() => {
+    dragTypeRef.current = null;
+    window.removeEventListener('pointermove', handlePointerMove);
+    window.removeEventListener('pointerup', endDrag);
+    window.removeEventListener('pointercancel', endDrag);
+  }, [handlePointerMove]);
 
-  // ── Edge handles: control FOV angle ───────────────────────────────────────
-  const onEdgePointerDown = useCallback(side => e => {
+  const startDrag = useCallback(type => e => {
     e.stopPropagation();
-    dragging.current = side;
-    e.target.setPointerCapture(e.pointerId);
-  }, []);
+    dragTypeRef.current = type;
+    try { e.target.setPointerCapture(e.pointerId); } catch { /* best-effort only */ }
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+  }, [handlePointerMove, endDrag]);
 
-  const onEdgePointerMove = useCallback(side => e => {
-    if (dragging.current !== side) return;
-    const { x, y } = toSVGPoint(e);
-    const dx = x - cx;
-    const dy = y - cy;
-    const ptrAngle = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
-    const delta = ((ptrAngle - direction + 180 + 360) % 360) - 180;
-    let newFov = Math.abs(delta) * 2;
-    newFov = Math.max(5, Math.min(360, newFov));
-    onChange({ angle: newFov });
-  }, [cx, cy, direction, onChange, toSVGPoint]);
+  // Drop any in-progress drag if the component unmounts mid-gesture
+  // (e.g. the marker gets deselected or deleted while dragging).
+  useEffect(() => () => endDrag(), [endDrag]);
 
-  const onEdgePointerUp = useCallback(side => e => {
-    dragging.current = null;
-    e.target.releasePointerCapture(e.pointerId);
-  }, []);
+  if (!visible) return null;
 
   const path = conePath(cx, cy, direction, fovAngle, radius);
   const tip = tipPoint(cx, cy, direction, radius);
   const edges = edgePoints(cx, cy, direction, fovAngle, radius);
 
   // Handle display sizes stay ~constant on screen across zoom levels.
+  // The invisible touch targets are deliberately larger than the visible
+  // handle so a finger doesn't need pixel-perfect precision to grab one.
   const handleR = Math.max(8, 10 * svgScale);
-  const diamondSize = Math.max(7, 9 * svgScale);
+  const handleTouchR = Math.max(18, 22 * svgScale);
+  const diamondSize = Math.max(8, 10 * svgScale);
+  const diamondTouchR = Math.max(18, 22 * svgScale);
 
   function diamond(x, y) {
     return `${x},${y - diamondSize} ${x + diamondSize},${y} ${x},${y + diamondSize} ${x - diamondSize},${y}`;
@@ -145,32 +152,20 @@ export default function AOCCone({ cx, cy, aoc, onChange, svgScale = 1, selected 
             style={{ pointerEvents: 'none' }}
           />
 
-          <circle
-            cx={tip.x} cy={tip.y} r={handleR}
-            fill={color} stroke="white" strokeWidth={2}
-            style={{ cursor: 'grab' }}
-            onPointerDown={onTipPointerDown}
-            onPointerMove={onTipPointerMove}
-            onPointerUp={onTipPointerUp}
-          />
+          <g style={{ cursor: 'grab', touchAction: 'none' }} onPointerDown={startDrag('tip')}>
+            <circle cx={tip.x} cy={tip.y} r={handleTouchR} fill="transparent" />
+            <circle cx={tip.x} cy={tip.y} r={handleR} fill={color} stroke="white" strokeWidth={2} style={{ pointerEvents: 'none' }} />
+          </g>
 
-          <polygon
-            points={diamond(edges.left.x, edges.left.y)}
-            fill="white" stroke={color} strokeWidth={1.5}
-            style={{ cursor: 'ew-resize' }}
-            onPointerDown={onEdgePointerDown('left')}
-            onPointerMove={onEdgePointerMove('left')}
-            onPointerUp={onEdgePointerUp('left')}
-          />
+          <g style={{ cursor: 'ew-resize', touchAction: 'none' }} onPointerDown={startDrag('left')}>
+            <circle cx={edges.left.x} cy={edges.left.y} r={diamondTouchR} fill="transparent" />
+            <polygon points={diamond(edges.left.x, edges.left.y)} fill="white" stroke={color} strokeWidth={1.5} style={{ pointerEvents: 'none' }} />
+          </g>
 
-          <polygon
-            points={diamond(edges.right.x, edges.right.y)}
-            fill="white" stroke={color} strokeWidth={1.5}
-            style={{ cursor: 'ew-resize' }}
-            onPointerDown={onEdgePointerDown('right')}
-            onPointerMove={onEdgePointerMove('right')}
-            onPointerUp={onEdgePointerUp('right')}
-          />
+          <g style={{ cursor: 'ew-resize', touchAction: 'none' }} onPointerDown={startDrag('right')}>
+            <circle cx={edges.right.x} cy={edges.right.y} r={diamondTouchR} fill="transparent" />
+            <polygon points={diamond(edges.right.x, edges.right.y)} fill="white" stroke={color} strokeWidth={1.5} style={{ pointerEvents: 'none' }} />
+          </g>
         </>
       )}
     </g>
