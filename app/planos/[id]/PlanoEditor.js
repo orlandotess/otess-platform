@@ -906,6 +906,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       )}
 
       {/* Toolbar */}
+      <div style={{ position: 'relative' }}>
       <div className="card" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: 12 }}>
         <button
           onClick={() => { setMode('select'); setCableDraft(null); }}
@@ -965,67 +966,34 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         </button>
       </div>
 
-      {showAddElementPanel && (
-        <AddElementPanel
-          elementTypes={elementTypes}
-          customIcons={customIconsState}
-          onSelectElement={elementId => {
-            const element = elementTypes.find(et => et.id === elementId);
-            if (element?.is_path_tool) {
-              armPathTool(element);
-            } else {
-              setMode({ type: 'place', elementId, customIconId: null });
-            }
-            setShowAddElementPanel(false);
-          }}
-          onSelectCustomIcon={customIconId => { setMode({ type: 'place', elementId: null, customIconId }); setShowAddElementPanel(false); }}
+      {(showAddElementPanel || showCableTypesPanel || showLayersPanel) && (
+        <div
+          onClick={() => { setShowAddElementPanel(false); setShowCableTypesPanel(false); setShowLayersPanel(false); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 19 }}
         />
       )}
 
-      {mode !== 'select' && mode.type === 'cable' && (
-        <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: 'var(--amber-tint)' }}>
-          {!cableDraft
-            ? 'Clic en el equipo donde inicia el cable.'
-            : 'Clic en el plano para agregar quiebres, o clic en el equipo destino para terminar. Esc para cancelar.'}
-        </div>
-      )}
-
-      {mode !== 'select' && mode.type === 'scale' && !scalePending && (
-        <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: 'var(--ok-tint)' }}>
-          {!scaleClickA
-            ? 'Clic en el primer punto de una distancia conocida en el plano (ej: el ancho de una puerta).'
-            : 'Clic en el segundo punto de esa distancia. Esc para cancelar.'}
-        </div>
-      )}
-
-      {scalePending && (
-        <form onSubmit={saveScale} className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: 12, background: 'var(--ok-tint)' }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>¿Cuántos pies hay entre esos dos puntos?</span>
-          <input
-            autoFocus type="number" step="0.1" min="0.1" value={scaleFeetInput}
-            onChange={e => setScaleFeetInput(e.target.value)}
-            placeholder="Ej: 3 (ancho de puerta)"
-            style={{ width: 160 }}
+      {showAddElementPanel && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, width: 340, maxWidth: 'calc(100vw - 40px)', boxShadow: '0 8px 30px rgba(0,0,0,0.18)', borderRadius: 'var(--radius)' }}>
+          <AddElementPanel
+            elementTypes={elementTypes}
+            customIcons={customIconsState}
+            onSelectElement={elementId => {
+              const element = elementTypes.find(et => et.id === elementId);
+              if (element?.is_path_tool) {
+                armPathTool(element);
+              } else {
+                setMode({ type: 'place', elementId, customIconId: null });
+              }
+              setShowAddElementPanel(false);
+            }}
+            onSelectCustomIcon={customIconId => { setMode({ type: 'place', elementId: null, customIconId }); setShowAddElementPanel(false); }}
           />
-          <button type="submit" className="btn btn-primary" disabled={savingScale || !scaleFeetInput}>
-            {savingScale ? 'Guardando...' : 'Guardar escala'}
-          </button>
-          <button type="button" className="btn btn-ghost" onClick={() => { setScalePending(null); setScaleFeetInput(''); }}>Cancelar</button>
-        </form>
-      )}
-
-      {showIconUpload && (
-        <form onSubmit={handleIconUpload} className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: 12 }}>
-          <input value={iconName} onChange={e => setIconName(e.target.value)} placeholder="Nombre del equipo (ej: Cámara PTZ Hikvision)" style={{ flex: 1, minWidth: 220 }} />
-          <input type="file" accept="image/*" onChange={e => setIconFile(e.target.files?.[0] || null)} />
-          <button type="submit" className="btn btn-primary" disabled={uploadingIcon || !iconName.trim() || !iconFile}>
-            {uploadingIcon ? 'Subiendo...' : 'Subir ícono'}
-          </button>
-        </form>
+        </div>
       )}
 
       {showCableTypesPanel && (
-        <div className="card" style={{ padding: 12 }}>
+        <div className="card" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, width: 340, maxWidth: 'calc(100vw - 40px)', maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 8px 30px rgba(0,0,0,0.18)', padding: 12 }}>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
             Clic en un tipo para hacerlo el tipo activo — los nuevos cables se trazan con su color. Cambia el color con la muestra, o el nombre escribiendo directo.
           </p>
@@ -1089,7 +1057,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       )}
 
       {showLayersPanel && (
-        <div className="card" style={{ padding: 12 }}>
+        <div className="card" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, width: 340, maxWidth: 'calc(100vw - 40px)', maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 8px 30px rgba(0,0,0,0.18)', padding: 12 }}>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
             Clic en una capa para hacerla la capa activa — los nuevos equipos y cables se colocan en ella. Usa el ojo para mostrar/ocultar (solo en esta sesión).
           </p>
@@ -1151,6 +1119,49 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             </button>
           </form>
         </div>
+      )}
+      </div>
+
+      {mode !== 'select' && mode.type === 'cable' && (
+        <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: 'var(--amber-tint)' }}>
+          {!cableDraft
+            ? 'Clic en el equipo donde inicia el cable.'
+            : 'Clic en el plano para agregar quiebres, o clic en el equipo destino para terminar. Esc para cancelar.'}
+        </div>
+      )}
+
+      {mode !== 'select' && mode.type === 'scale' && !scalePending && (
+        <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: 'var(--ok-tint)' }}>
+          {!scaleClickA
+            ? 'Clic en el primer punto de una distancia conocida en el plano (ej: el ancho de una puerta).'
+            : 'Clic en el segundo punto de esa distancia. Esc para cancelar.'}
+        </div>
+      )}
+
+      {scalePending && (
+        <form onSubmit={saveScale} className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: 12, background: 'var(--ok-tint)' }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>¿Cuántos pies hay entre esos dos puntos?</span>
+          <input
+            autoFocus type="number" step="0.1" min="0.1" value={scaleFeetInput}
+            onChange={e => setScaleFeetInput(e.target.value)}
+            placeholder="Ej: 3 (ancho de puerta)"
+            style={{ width: 160 }}
+          />
+          <button type="submit" className="btn btn-primary" disabled={savingScale || !scaleFeetInput}>
+            {savingScale ? 'Guardando...' : 'Guardar escala'}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => { setScalePending(null); setScaleFeetInput(''); }}>Cancelar</button>
+        </form>
+      )}
+
+      {showIconUpload && (
+        <form onSubmit={handleIconUpload} className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: 12 }}>
+          <input value={iconName} onChange={e => setIconName(e.target.value)} placeholder="Nombre del equipo (ej: Cámara PTZ Hikvision)" style={{ flex: 1, minWidth: 220 }} />
+          <input type="file" accept="image/*" onChange={e => setIconFile(e.target.files?.[0] || null)} />
+          <button type="submit" className="btn btn-primary" disabled={uploadingIcon || !iconName.trim() || !iconFile}>
+            {uploadingIcon ? 'Subiendo...' : 'Subir ícono'}
+          </button>
+        </form>
       )}
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
