@@ -29,9 +29,9 @@ function conePath(cx, cy, direction, fovAngle, radius) {
   return `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`;
 }
 
-function tipPoint(cx, cy, direction, radius) {
+function pointAt(cx, cy, direction, dist) {
   const rad = deg2rad(direction);
-  return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
+  return { x: cx + dist * Math.cos(rad), y: cy + dist * Math.sin(rad) };
 }
 
 function edgePoints(cx, cy, direction, fovAngle, radius) {
@@ -44,10 +44,14 @@ function edgePoints(cx, cy, direction, fovAngle, radius) {
 }
 
 /**
- * AOCCone — renders a camera/AP Field-of-View cone in SVG with 3 interactive
+ * AOCCone — renders a camera/AP Field-of-View cone in SVG with 4 interactive
  * handles, shown only when `selected` is true:
- *   ○ tip handle     → drag to rotate direction + change radius
- *   ◇ edge handles   → drag to widen/narrow the FOV angle
+ *   ● radius handle (far tip)  → drag to extend/shrink the cone's length,
+ *                                 projected onto the current aim direction
+ *                                 so a slightly off-axis drag doesn't also
+ *                                 rotate it
+ *   ◎ rotate handle (mid-line) → drag to aim the cone (direction only)
+ *   ◇ edge handles             → drag to widen/narrow the FOV angle
  *
  * Dragging tracks the pointer via window-level listeners (not just the
  * small handle's own onPointerMove) because Safari/iOS has long-standing
@@ -81,10 +85,16 @@ export default function AOCCone({ cx, cy, aoc, onChange, svgScale = 1, selected 
     const { x, y } = toSVGPoint(e);
     const dx = x - cx;
     const dy = y - cy;
-    if (type === 'tip') {
-      const newRadius = Math.max(20, Math.sqrt(dx * dx + dy * dy));
+    if (type === 'radius') {
+      // Project the drag onto the current aim direction so moving off-axis
+      // (e.g. a finger that drifts sideways) only changes length, never
+      // silently rotates the cone.
+      const dirRad = deg2rad(directionRef.current);
+      const projected = dx * Math.cos(dirRad) + dy * Math.sin(dirRad);
+      onChange({ radius: Math.max(20, projected) });
+    } else if (type === 'rotate') {
       const newDir = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
-      onChange({ direction: newDir, radius: newRadius });
+      onChange({ direction: newDir });
     } else {
       const ptrAngle = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
       const delta = ((ptrAngle - directionRef.current + 180 + 360) % 360) - 180;
@@ -117,7 +127,8 @@ export default function AOCCone({ cx, cy, aoc, onChange, svgScale = 1, selected 
   if (!visible) return null;
 
   const path = conePath(cx, cy, direction, fovAngle, radius);
-  const tip = tipPoint(cx, cy, direction, radius);
+  const tip = pointAt(cx, cy, direction, radius);
+  const rotateHandlePos = pointAt(cx, cy, direction, Math.min(radius, Math.max(24, radius * 0.35)));
   const edges = edgePoints(cx, cy, direction, fovAngle, radius);
 
   // Handle display sizes stay ~constant on screen across zoom levels.
@@ -125,6 +136,8 @@ export default function AOCCone({ cx, cy, aoc, onChange, svgScale = 1, selected 
   // handle so a finger doesn't need pixel-perfect precision to grab one.
   const handleR = Math.max(8, 10 * svgScale);
   const handleTouchR = Math.max(18, 22 * svgScale);
+  const rotateR = Math.max(6, 7 * svgScale);
+  const rotateTouchR = Math.max(16, 20 * svgScale);
   const diamondSize = Math.max(8, 10 * svgScale);
   const diamondTouchR = Math.max(18, 22 * svgScale);
 
@@ -152,9 +165,16 @@ export default function AOCCone({ cx, cy, aoc, onChange, svgScale = 1, selected 
             style={{ pointerEvents: 'none' }}
           />
 
-          <g style={{ cursor: 'grab', touchAction: 'none' }} onPointerDown={startDrag('tip')}>
+          {/* Radius handle — drag along the aim direction to stretch/shrink the cone's length */}
+          <g style={{ cursor: 'grab', touchAction: 'none' }} onPointerDown={startDrag('radius')}>
             <circle cx={tip.x} cy={tip.y} r={handleTouchR} fill="transparent" />
             <circle cx={tip.x} cy={tip.y} r={handleR} fill={color} stroke="white" strokeWidth={2} style={{ pointerEvents: 'none' }} />
+          </g>
+
+          {/* Rotate handle — drag to aim the cone, radius stays put */}
+          <g style={{ cursor: 'grab', touchAction: 'none' }} onPointerDown={startDrag('rotate')}>
+            <circle cx={rotateHandlePos.x} cy={rotateHandlePos.y} r={rotateTouchR} fill="transparent" />
+            <circle cx={rotateHandlePos.x} cy={rotateHandlePos.y} r={rotateR} fill="white" stroke={color} strokeWidth={2} style={{ pointerEvents: 'none' }} />
           </g>
 
           <g style={{ cursor: 'ew-resize', touchAction: 'none' }} onPointerDown={startDrag('left')}>
