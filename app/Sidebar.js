@@ -4,20 +4,27 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 import { useState, useEffect } from 'react';
 
-const operationsLinks = [
+const ventasLinks = [
  { href: '/oportunidades', label: 'Oportunidades', icon: 'target' },
  { href: '/clientes',   label: 'Clientes',   icon: 'users' },
  { href: '/solicitudes', label: 'Solicitudes', icon: 'inbox' },
- { href: '/trabajos',   label: 'Trabajos',   icon: 'bolt' },
- { href: '/boletos',    label: 'Boletos',    icon: 'ticket' },
- { href: '/calendario', label: 'Calendario', icon: 'calendar' },
- { href: '/mantenimientos', label: 'Mantenimientos', icon: 'wrench' },
  { href: '/propuestas', label: 'Propuestas', icon: 'fileText' },
  { href: '/estimados', label: 'Estimados', icon: 'calculator' },
+];
+
+const campoLinks = [
+ { href: '/trabajos',   label: 'Trabajos',   icon: 'bolt' },
+ { href: '/calendario', label: 'Calendario', icon: 'calendar' },
+ { href: '/mantenimientos', label: 'Mantenimientos', icon: 'wrench' },
+ { href: '/boletos',    label: 'Boletos',    icon: 'ticket' },
  { href: '/crew',       label: 'Crew App',   icon: 'phone' },
+ { href: '/planos',   label: 'Planos',   icon: 'map' },
+ { href: '/admin/plantillas', label: 'Plantillas', icon: 'clipboard' },
+];
+
+const recursosLinks = [
  { href: '/catalogo', label: 'Labor & Productos', icon: 'toolbox' },
  { href: '/inventario', label: 'Inventario', icon: 'building' },
- { href: '/planos',   label: 'Planos',   icon: 'map' },
  { href: '/compras',  label: 'Compras',  icon: 'box' },
 ];
 
@@ -33,14 +40,15 @@ const accountingLinks = [
 ];
 
 const adminLinks = [
- { href: '/admin/plantillas', label: 'Plantillas', icon: 'clipboard' },
  { href: '/admin/usuarios', label: 'Usuarios', icon: 'user' },
  { href: '/admin/empresa', label: 'Empresa', icon: 'building' },
  { href: '/admin/ausencias', label: 'Ausencias', icon: 'userOff' },
 ];
 
 const sections = [
- { id: 'operations', label: 'Operaciones',   links: operationsLinks },
+ { id: 'ventas',     label: 'Ventas',        links: ventasLinks },
+ { id: 'campo',      label: 'Campo',         links: campoLinks },
+ { id: 'recursos',   label: 'Recursos',      links: recursosLinks },
  { id: 'accounting', label: 'Contabilidad',  links: accountingLinks },
  { id: 'admin',      label: 'Administración',links: adminLinks },
 ];
@@ -98,7 +106,7 @@ export default function Sidebar() {
  const [openSections, setOpenSections] = useState(() => {
    const state = {};
    for (const s of sections) {
-     state[s.id] = s.id === 'operations' || s.links.some(l => path.startsWith(l.href));
+     state[s.id] = s.id === 'campo' || s.links.some(l => path.startsWith(l.href));
    }
    return state;
  });
