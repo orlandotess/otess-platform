@@ -11,7 +11,7 @@ import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDatePR, formatDateTimePR } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
-import { computeHours } from '../../../lib/hours';
+import { computeHours, getJobScheduleWindow } from '../../../lib/hours';
 
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
@@ -929,12 +929,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   })();
   const primaryDateKey = job.scheduled_start ? formatDatePR(job.scheduled_start, {}, 'en-CA') : null;
   const additionalDaysCount = scheduleDayGroups.filter(g => g.key !== primaryDateKey).length;
-  const scheduleDaysTotalHours = scheduleDays.reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes), 0);
-  const primaryScheduleHours = hoursBetween(job.scheduled_start, job.scheduled_end);
-  // The primary scheduled_start/end is its own visit, separate from any "+ Añadir día"
-  // entries in job_schedule_days — both must be summed or a same-day second visit's
-  // hours go missing from the total.
-  const grandTotalHours = primaryScheduleHours + scheduleDaysTotalHours;
+  const scheduleWindow = getJobScheduleWindow(job, scheduleDays);
+  const primaryScheduleHours = scheduleWindow.primaryHours;
+  const grandTotalHours = scheduleWindow.totalHours;
   const hoursByTechForDays = (() => {
     const map = {};
     scheduleDays.forEach(d => {
@@ -1231,13 +1228,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     {job.scheduled_start && (
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Inicio</div>
-                        <div style={{ fontSize: 14 }}>{new Date(job.scheduled_start).toLocaleString('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                        <div style={{ fontSize: 14 }}>{new Date(scheduleWindow.start).toLocaleString('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     )}
                     {job.scheduled_end && (
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Fin</div>
-                        <div style={{ fontSize: 14 }}>{new Date(job.scheduled_end).toLocaleString('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                        <div style={{ fontSize: 14 }}>{new Date(scheduleWindow.end).toLocaleString('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     )}
                     {!job.scheduled_start && !job.scheduled_end && (
