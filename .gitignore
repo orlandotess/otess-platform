@@ -7,3 +7,4 @@ node_modules/
 /*.pdf
 .claude/
 scratchpad/
+.DS_Store
