@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import PhotoAnnotator from '../../PhotoAnnotator';
@@ -2037,8 +2038,25 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--amber)' }}>{fmt(profitability.pendiente)}</div>
               </div>
             </div>
-            {invoices.length === 0 && (
+            {invoices.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>Este trabajo aún no tiene facturas.</div>
+            ) : (
+              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {invoices.map(inv => {
+                  const invStatusLabel = { draft: 'Borrador', sent: 'Enviada', paid: 'Pagada', cancelled: 'Cancelada' };
+                  const invStatusCls = { draft: 'badge-gray', sent: 'badge-blue', paid: 'badge-green', cancelled: 'badge-red' };
+                  return (
+                    <Link key={inv.id} href={`/facturas/${inv.id}`}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{inv.invoice_number}</span>
+                        <span className={`badge ${invStatusCls[inv.status] ?? 'badge-gray'}`} style={{ fontSize: 10 }}>{invStatusLabel[inv.status] ?? inv.status}</span>
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{fmt(inv.total)}</span>
+                    </Link>
+                  );
+                })}
+              </div>
             )}
           </div>
 

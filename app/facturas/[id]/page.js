@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { fallbackLineItems } from '../../../lib/ivu';
 import Sidebar from '../../Sidebar';
@@ -77,26 +78,33 @@ export default async function FacturaDetail({ params }) {
               {isOverdue ? 'Vencida' : statusLabel[inv.status]}
             </span>
           </div>
-          <InvoiceActions
-            invoiceId={id}
-            status={inv.status}
-            balance={balance}
-            invoiceNumber={inv.invoice_number}
-            clientName={inv.clients?.name}
-            clientCompany={inv.clients?.company}
-            billTo={inv.bill_to ?? 'person'}
-            clientProperties={clientProperties}
-            propertyId={inv.property_id ?? null}
-            terms={inv.terms ?? ''}
-            jobId={inv.job_id ?? null}
-            attachedNoteIds={inv.attached_note_ids ?? []}
-            internalNotes={inv.internal_notes ?? ''}
-            internalAttachments={internalAttachments ?? []}
-            clientId={inv.client_id ?? null}
-            subtotalLabor={inv.subtotal_labor ?? 0}
-            existingRetenciones={invoiceRetenciones ?? []}
-            issuedAt={inv.issued_at ?? null}
-          />
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            {inv.job_id && (
+              <Link href={`/trabajos/${inv.job_id}`} className="btn btn-ghost">
+                🔧 Ver trabajo{inv.jobs?.title ? `: ${inv.jobs.title}` : ''}
+              </Link>
+            )}
+            <InvoiceActions
+              invoiceId={id}
+              status={inv.status}
+              balance={balance}
+              invoiceNumber={inv.invoice_number}
+              clientName={inv.clients?.name}
+              clientCompany={inv.clients?.company}
+              billTo={inv.bill_to ?? 'person'}
+              clientProperties={clientProperties}
+              propertyId={inv.property_id ?? null}
+              terms={inv.terms ?? ''}
+              jobId={inv.job_id ?? null}
+              attachedNoteIds={inv.attached_note_ids ?? []}
+              internalNotes={inv.internal_notes ?? ''}
+              internalAttachments={internalAttachments ?? []}
+              clientId={inv.client_id ?? null}
+              subtotalLabor={inv.subtotal_labor ?? 0}
+              existingRetenciones={invoiceRetenciones ?? []}
+              issuedAt={inv.issued_at ?? null}
+            />
+          </div>
         </div>
 
         <div className="card" id="invoice-doc" style={{ marginBottom: 20 }}>
