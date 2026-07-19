@@ -929,10 +929,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   })();
   const scheduleDaysTotalHours = scheduleDays.reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes), 0);
   const primaryScheduleHours = hoursBetween(job.scheduled_start, job.scheduled_end);
-  // Once individual work days exist, they're the source of truth for hours worked —
-  // the primary start/end becomes just the job's overall window (which can legitimately
-  // span multiple calendar days) and must not be added on top, or hours get double-counted.
-  const grandTotalHours = scheduleDays.length > 0 ? scheduleDaysTotalHours : primaryScheduleHours;
+  // The primary scheduled_start/end is its own visit, separate from any "+ Añadir día"
+  // entries in job_schedule_days — both must be summed or a same-day second visit's
+  // hours go missing from the total.
+  const grandTotalHours = primaryScheduleHours + scheduleDaysTotalHours;
   const hoursByTechForDays = (() => {
     const map = {};
     scheduleDays.forEach(d => {
@@ -1251,7 +1251,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     ) : scheduleDays.length > 0 ? (
                       <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
                         <span style={{ fontSize: 13 }}>🗓️</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>Ventana del trabajo</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(primaryScheduleHours)} (primera visita)</span>
                       </div>
                     ) : (
                       <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
