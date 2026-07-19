@@ -6,7 +6,11 @@ import Sidebar from "../Sidebar";
 import CatalogoClient from "./CatalogoClient";
 
 export default async function CatalogoPage() {
-  const { data: items } = await supabase.from("catalog_items").select("*").order("item_code");
+  const [{ data: items }, { data: locations }, { data: locationStock }] = await Promise.all([
+    supabase.from("catalog_items").select("*").order("item_code"),
+    supabase.from("locations").select("id, parent_id, name, type, is_active").eq("is_active", true).order("name"),
+    supabase.from("location_stock").select("location_id, catalog_item_id, quantity"),
+  ]);
 
   return (
     <div className="admin-shell">
@@ -15,7 +19,7 @@ export default async function CatalogoPage() {
         <div className="page-header">
           <div className="page-title">Labor & Productos</div>
         </div>
-        <CatalogoClient items={items ?? []} />
+        <CatalogoClient items={items ?? []} locations={locations ?? []} locationStock={locationStock ?? []} />
       </main>
     </div>
   );

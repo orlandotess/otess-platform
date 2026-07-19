@@ -16,6 +16,7 @@ const operationsLinks = [
  { href: '/estimados', label: 'Estimados', icon: 'calculator' },
  { href: '/crew',       label: 'Crew App',   icon: 'phone' },
  { href: '/catalogo', label: 'Labor & Productos', icon: 'toolbox' },
+ { href: '/inventario', label: 'Inventario', icon: 'building' },
  { href: '/planos',   label: 'Planos',   icon: 'map' },
  { href: '/compras',  label: 'Compras',  icon: 'box' },
 ];

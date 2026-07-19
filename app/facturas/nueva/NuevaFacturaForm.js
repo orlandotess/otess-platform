@@ -184,11 +184,13 @@ export default function NuevaFactura() {
     }
 
     for (const li of lineItems.filter(li => li.type === 'product' && li.catalog_item_id)) {
+      const cat = catalogItems.find(c => c.id === li.catalog_item_id);
       await supabase.rpc('adjust_catalog_stock', {
         p_catalog_item_id: li.catalog_item_id,
         p_delta: -li.quantity,
         p_invoice_id: invoice.id,
         p_reason: 'invoice_created',
+        p_location_id: cat?.default_location_id ?? null,
       });
     }
 

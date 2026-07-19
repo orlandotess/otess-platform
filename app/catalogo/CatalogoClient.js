@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { supabase } from "../../lib/supabase";
 
 const TYPE_META = {
@@ -8,7 +8,9 @@ const TYPE_META = {
   catalog_view: { label: "Catálogo", icon: "🗂️", color: "#0e8f7a" },
 };
 
-export default function CatalogoClient({ items: initial }) {
+const LOCATION_ICONS = { warehouse: "🏢", site: "📍", van: "🚐", zone: "🗂️", shelf: "📚", bin: "🗃️" };
+
+export default function CatalogoClient({ items: initial, locations = [], locationStock = [] }) {
   const [items, setItems] = useState(initial);
   const [tab, setTab] = useState("labor");
   const [editingId, setEditingId] = useState(null);
@@ -16,7 +18,7 @@ export default function CatalogoClient({ items: initial }) {
   const [editPhotoFile, setEditPhotoFile] = useState(null);
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [newItem, setNewItem] = useState({ item_code: "", description: "", price: "", msrp: "", supplier_price: "", vendor: "", stock_quantity: "" });
+  const [newItem, setNewItem] = useState({ item_code: "", description: "", price: "", msrp: "", supplier_price: "", vendor: "", stock_quantity: "", default_location_id: "" });
   const [newPhotoFile, setNewPhotoFile] = useState(null);
   const [newPhotoPreview, setNewPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -29,6 +31,35 @@ export default function CatalogoClient({ items: initial }) {
 
   const dataType = tab === "catalog_view" ? "product" : tab;
   const isCardView = tab === "catalog_view";
+
+  const locationsById = useMemo(() => {
+    const map = {};
+    for (const l of locations) map[l.id] = l;
+    return map;
+  }, [locations]);
+
+  // Lista plana e indentada de ubicaciones activas, para el selector "Ubicación".
+  const flatLocationOptions = useMemo(() => {
+    const childrenOf = {};
+    for (const l of locations) {
+      const key = l.parent_id ?? "__root__";
+      if (!childrenOf[key]) childrenOf[key] = [];
+      childrenOf[key].push(l);
+    }
+    const out = [];
+    function walk(parentKey, depth) {
+      for (const l of [...(childrenOf[parentKey] ?? [])].sort((a, b) => a.name.localeCompare(b.name))) {
+        out.push({ id: l.id, label: `${"—".repeat(depth)} ${LOCATION_ICONS[l.type] ?? ""} ${l.name}`.trim() });
+        walk(l.id, depth + 1);
+      }
+    }
+    walk("__root__", 0);
+    return out;
+  }, [locations]);
+
+  function locationBreakdown(itemId) {
+    return locationStock.filter(s => s.catalog_item_id === itemId && s.quantity !== 0);
+  }
 
   const counts = { labor: items.filter(i => i.type === "labor").length, product: items.filter(i => i.type === "product").length };
   counts.catalog_view = counts.product;
@@ -54,7 +85,7 @@ export default function CatalogoClient({ items: initial }) {
 
   function startEdit(item) {
     setEditingId(item.id);
-    setEditForm({ item_code: item.item_code, description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "" });
+    setEditForm({ item_code: item.item_code, description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "" });
     setEditPhotoFile(null);
     setEditPhotoPreview(item.photo_url ? signedUrls[item.photo_url] ?? null : null);
   }
@@ -79,6 +110,7 @@ export default function CatalogoClient({ items: initial }) {
     };
     if (dataType === "product") {
       payload.stock_quantity = editForm.stock_quantity !== "" ? parseFloat(editForm.stock_quantity) : null;
+      payload.default_location_id = editForm.default_location_id || null;
     }
     if (editPhotoFile) {
       const path = await uploadPhoto(editPhotoFile);
@@ -112,10 +144,11 @@ export default function CatalogoClient({ items: initial }) {
       supplier_price: newItem.supplier_price !== "" ? parseFloat(newItem.supplier_price) : null,
       vendor: newItem.vendor.trim() || null,
       stock_quantity: dataType === "product" && newItem.stock_quantity !== "" ? parseFloat(newItem.stock_quantity) : null,
+      default_location_id: dataType === "product" ? (newItem.default_location_id || null) : null,
       photo_url,
     }]).select().single();
     if (data) setItems(prev => [...prev, data]);
-    setNewItem({ item_code: "", description: "", price: "", msrp: "", supplier_price: "", vendor: "", stock_quantity: "" });
+    setNewItem({ item_code: "", description: "", price: "", msrp: "", supplier_price: "", vendor: "", stock_quantity: "", default_location_id: "" });
     setNewPhotoFile(null);
     setNewPhotoPreview(null);
     setAdding(false);
@@ -231,7 +264,7 @@ export default function CatalogoClient({ items: initial }) {
                 if (f) { setNewPhotoFile(f); setNewPhotoPreview(URL.createObjectURL(f)); }
               }} />
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: dataType === "product" ? "140px 1fr 90px 90px 90px 110px 80px" : "140px 1fr 90px", gap: 8, alignItems: "center", flex: 1 }}>
+            <div style={{ display: "grid", gridTemplateColumns: dataType === "product" ? "140px 1fr 90px 90px 90px 110px 80px 150px" : "140px 1fr 90px", gap: 8, alignItems: "center", flex: 1 }}>
               <input value={newItem.item_code} onChange={e => setNewItem(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "monospace" }} />
               <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
               {dataType === "product" && (
@@ -246,6 +279,12 @@ export default function CatalogoClient({ items: initial }) {
               )}
               {dataType === "product" && (
                 <input type="number" value={newItem.stock_quantity} onChange={e => setNewItem(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--navy)" }} title="Cantidad en inventario" />
+              )}
+              {dataType === "product" && (
+                <select value={newItem.default_location_id} onChange={e => setNewItem(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} title="Ubicación de origen">
+                  <option value="">Sin ubicación</option>
+                  {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
               )}
             </div>
           </div>
@@ -294,6 +333,12 @@ export default function CatalogoClient({ items: initial }) {
                     {item.type === "product" && (
                       <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)" }} title="Cantidad en inventario" />
                     )}
+                    {item.type === "product" && (
+                      <select value={editForm.default_location_id} onChange={e => setEditForm(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} title="Ubicación de origen">
+                        <option value="">Sin ubicación</option>
+                        {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                      </select>
+                    )}
                     <div style={{ display: "flex", gap: 6 }}>
                       <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px", flex: 1, justifyContent: "center" }}>💾 Guardar</button>
                       <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>✕</button>
@@ -320,6 +365,11 @@ export default function CatalogoClient({ items: initial }) {
                       {item.type === "product" && item.vendor && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>🏪 {item.vendor}</div>}
                       {item.type === "product" && item.stock_quantity != null && (
                         <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700, marginTop: 2 }}>📦 Stock: {item.stock_quantity}</div>
+                      )}
+                      {item.type === "product" && locationBreakdown(item.id).length > 0 && (
+                        <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+                          {locationBreakdown(item.id).map(s => `${LOCATION_ICONS[locationsById[s.location_id]?.type] ?? "📍"} ${locationsById[s.location_id]?.name ?? "?"}: ${s.quantity}`).join(" · ")}
+                        </div>
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
@@ -373,6 +423,12 @@ export default function CatalogoClient({ items: initial }) {
                     {item.type === "product" && (
                       <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)", textAlign: "right", width: "100%", marginTop: 3 }} title="Cantidad en inventario" />
                     )}
+                    {item.type === "product" && (
+                      <select value={editForm.default_location_id} onChange={e => setEditForm(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, width: "100%", marginTop: 3 }} title="Ubicación de origen">
+                        <option value="">Sin ubicación</option>
+                        {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                      </select>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -390,6 +446,11 @@ export default function CatalogoClient({ items: initial }) {
                     {item.type === "product" && item.vendor && <div style={{ fontSize: 11, color: "var(--muted)" }}>🏪 {item.vendor}</div>}
                     {item.type === "product" && item.stock_quantity != null && (
                       <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700 }}>📦 Stock: {item.stock_quantity}</div>
+                    )}
+                    {item.type === "product" && locationBreakdown(item.id).length > 0 && (
+                      <div style={{ fontSize: 10, color: "var(--muted)" }}>
+                        {locationBreakdown(item.id).map(s => `${LOCATION_ICONS[locationsById[s.location_id]?.type] ?? "📍"} ${locationsById[s.location_id]?.name ?? "?"}: ${s.quantity}`).join(" · ")}
+                      </div>
                     )}
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0, width: 110 }}>

@@ -64,13 +64,14 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   }
 
   async function restoreInventoryForInvoice(reason) {
-    const { data: lineItems } = await supabase.from('invoice_line_items').select('catalog_item_id, quantity, type').eq('invoice_id', invoiceId);
+    const { data: lineItems } = await supabase.from('invoice_line_items').select('catalog_item_id, quantity, type, catalog_items(default_location_id)').eq('invoice_id', invoiceId);
     for (const li of (lineItems ?? []).filter(li => li.type === 'product' && li.catalog_item_id)) {
       await supabase.rpc('adjust_catalog_stock', {
         p_catalog_item_id: li.catalog_item_id,
         p_delta: li.quantity,
         p_invoice_id: invoiceId,
         p_reason: reason,
+        p_location_id: li.catalog_items?.default_location_id ?? null,
       });
     }
   }
