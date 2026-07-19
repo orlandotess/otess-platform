@@ -352,6 +352,18 @@ export default function FieldApp() {
   const [savingNewClient, setSavingNewClient] = useState(false);
   const [newClientError, setNewClientError] = useState('');
 
+  // Inventario state — reads locations/location_stock directly (RLS grants tecnico select),
+  // writes go through adjust_catalog_stock (security definer), so no write policy is needed.
+  const [invLoaded, setInvLoaded] = useState(false);
+  const [invLocations, setInvLocations] = useState([]);
+  const [invStock, setInvStock] = useState([]);
+  const [invProducts, setInvProducts] = useState([]);
+  const [invLocationId, setInvLocationId] = useState('');
+  const [invSearch, setInvSearch] = useState('');
+  const [showInvAdjust, setShowInvAdjust] = useState(false);
+  const [invAdjustForm, setInvAdjustForm] = useState({ catalog_item_id: '', delta: '', reason: '' });
+  const [invSaving, setInvSaving] = useState(false);
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { window.location.replace('/login'); return; }
@@ -1190,6 +1202,62 @@ export default function FieldApp() {
     openClientDetail(client);
   }
 
+  // Inventario: cargado una sola vez al abrir el tab (locations rara vez cambian en el turno).
+  useEffect(() => {
+    if (tab !== 'inventario' || invLoaded) return;
+    (async () => {
+      const [{ data: locs }, { data: stockRows }, { data: prods }] = await Promise.all([
+        supabase.from('locations').select('*').eq('is_active', true).order('name'),
+        supabase.from('location_stock').select('*, catalog_items(item_code, description)'),
+        supabase.from('catalog_items').select('id, item_code, description').eq('type', 'product').order('item_code'),
+      ]);
+      setInvLocations(locs ?? []);
+      setInvStock(stockRows ?? []);
+      setInvProducts(prods ?? []);
+      setInvLoaded(true);
+    })();
+  }, [tab, invLoaded]);
+
+  const invLocById = Object.fromEntries(invLocations.map(l => [l.id, l]));
+  const INV_TYPE_ICON = { warehouse: '🏢', site: '📍', van: '🚐', zone: '🗂️', shelf: '📚', bin: '🗃️' };
+  function invPathLabel(loc) {
+    const parts = [];
+    let cur = loc;
+    while (cur) { parts.unshift(cur.name); cur = cur.parent_id ? invLocById[cur.parent_id] : null; }
+    return parts.join(' › ');
+  }
+  const invLocOptions = [...invLocations]
+    .map(l => ({ id: l.id, label: `${INV_TYPE_ICON[l.type] ?? ''} ${invPathLabel(l)}`.trim() }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const invSearchTerm = invSearch.trim().toLowerCase();
+  const invSelectedStock = invStock.filter(s => s.location_id === invLocationId
+    && (!invSearchTerm || s.catalog_items?.description?.toLowerCase().includes(invSearchTerm) || s.catalog_items?.item_code?.toLowerCase().includes(invSearchTerm)));
+
+  async function invAdjustStock() {
+    const delta = parseFloat(invAdjustForm.delta);
+    if (!invAdjustForm.catalog_item_id || !delta || !invLocationId) return;
+    setInvSaving(true);
+    const { error } = await supabase.rpc('adjust_catalog_stock', {
+      p_catalog_item_id: invAdjustForm.catalog_item_id,
+      p_delta: delta,
+      p_invoice_id: null,
+      p_reason: invAdjustForm.reason.trim() || 'ajuste_tecnico',
+      p_location_id: invLocationId,
+    });
+    setInvSaving(false);
+    if (error) { alert('Error: ' + error.message); return; }
+    setInvStock(prev => {
+      const idx = prev.findIndex(s => s.location_id === invLocationId && s.catalog_item_id === invAdjustForm.catalog_item_id);
+      if (idx === -1) {
+        const prod = invProducts.find(p => p.id === invAdjustForm.catalog_item_id);
+        return [...prev, { id: `tmp-${Date.now()}`, location_id: invLocationId, catalog_item_id: invAdjustForm.catalog_item_id, quantity: delta, catalog_items: prod ? { item_code: prod.item_code, description: prod.description } : null }];
+      }
+      return prev.map((s, i) => i === idx ? { ...s, quantity: s.quantity + delta } : s);
+    });
+    setShowInvAdjust(false);
+    setInvAdjustForm({ catalog_item_id: '', delta: '', reason: '' });
+  }
+
   const fmtE = s => String(Math.floor(s / 3600)).padStart(2, '0') + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
   const fmtH = es => (es.reduce((a, e) => a + (e.clocked_out_at ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours : 0), 0)).toFixed(1) + 'h';
   // Job the technician is currently clocked into, used to skip the "select job" step in the FAB
@@ -1756,6 +1824,59 @@ export default function FieldApp() {
                 ))
               )}
             </div>
+          </div>
+        )}
+
+        {tab === 'inventario' && (
+          <div>
+            <div style={{ padding: '20px 20px 16px' }}>
+              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 14 }}>Inventario</div>
+              <select
+                value={invLocationId}
+                onChange={e => setInvLocationId(e.target.value)}
+                style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: 'none', fontSize: 15, background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: 10 }}
+              >
+                <option value="">Selecciona una ubicación...</option>
+                {invLocOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+              {invLocationId && (
+                <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                  <span>🔍</span>
+                  <input
+                    value={invSearch}
+                    onChange={e => setInvSearch(e.target.value)}
+                    placeholder="Buscar producto..."
+                    style={{ border: 'none', background: 'none', fontSize: 15, outline: 'none', width: '100%' }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {!invLoaded ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Cargando...</div>
+            ) : !invLocationId ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#aaa' }}>Elige una ubicación para ver su stock.</div>
+            ) : (
+              <div style={card}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>STOCK ({invSelectedStock.length})</div>
+                  <button onClick={() => setShowInvAdjust(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Ajustar</button>
+                </div>
+                {invSelectedStock.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin productos en esta ubicación.</div>
+                ) : (
+                  invSelectedStock.map((s, idx) => (
+                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: idx < invSelectedStock.length - 1 ? '1px solid #eee' : 'none' }}>
+                      <div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 11, color: AMBER }}>{s.catalog_items?.item_code}</div>
+                        <div style={{ fontSize: 14 }}>{s.catalog_items?.description}</div>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: s.quantity <= 0 ? '#b52a2a' : '#16223d' }}>{s.quantity}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2515,6 +2636,7 @@ export default function FieldApp() {
           <div style={{ position: 'fixed', bottom: 156, right: 20, zIndex: 99, background: '#fff', borderRadius: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', overflow: 'hidden', minWidth: 190 }}>
             <button style={menuItem} onClick={() => { setShowMenu(false); if (tab === 'clientes') { setShowNewClient(true); } else { setShowFab(true); } }}>➕ Nuevo</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setTab('clientes'); }}>👥 Clientes</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setTab('inventario'); }}>📦 Inventario</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setRefreshing(true); window.location.reload(); }}>🔄 Actualizar</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); window.location.href = '/'; }}>🏢 Panel de oficina</button>
             <button style={{ ...menuItem, borderBottom: 'none', color: '#b52a2a' }} onClick={() => { setShowMenu(false); handleLogout(); }}>🚪 Salir</button>
@@ -2657,6 +2779,32 @@ export default function FieldApp() {
                   <button onClick={() => { setFabSelectedJob(null); setShowJobPhoto(false); }} style={{ marginTop: 10, width: '100%', padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                 </div>
             }
+          </div>
+        </div>
+      )}
+
+      {showInvAdjust && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setShowInvAdjust(false)}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📦 Ajustar stock — {invLocById[invLocationId]?.name}</div>
+              <button onClick={() => setShowInvAdjust(false)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+            </div>
+            <select value={invAdjustForm.catalog_item_id} onChange={e => setInvAdjustForm(f => ({ ...f, catalog_item_id: e.target.value }))}
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
+              <option value="">Selecciona un producto...</option>
+              {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+            </select>
+            <input type="number" value={invAdjustForm.delta} onChange={e => setInvAdjustForm(f => ({ ...f, delta: e.target.value }))} placeholder="Cantidad (negativo para restar)"
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+            <input value={invAdjustForm.reason} onChange={e => setInvAdjustForm(f => ({ ...f, reason: e.target.value }))} placeholder="Motivo (opcional) — Ej: usado en trabajo"
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowInvAdjust(false)} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={invAdjustStock} disabled={invSaving || !invAdjustForm.catalog_item_id || !invAdjustForm.delta} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                {invSaving ? 'Guardando...' : 'Ajustar'}
+              </button>
+            </div>
           </div>
         </div>
       )}
