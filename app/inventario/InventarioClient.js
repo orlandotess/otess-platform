@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
+import BarcodeScanner from "../BarcodeScanner";
 
 const TYPE_META = {
   warehouse: { label: "Almacén", icon: "🏢" },
@@ -31,6 +32,7 @@ export default function InventarioClient({ locations: initialLocations, location
   const [savingUnit, setSavingUnit] = useState(false);
   const [unitError, setUnitError] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [showUnitScanner, setShowUnitScanner] = useState(false);
 
   const [addForm, setAddForm] = useState({ name: "", type: "warehouse", code: "", parent_id: "" });
   const [bulkForm, setBulkForm] = useState({ prefix: "Estante", type: "shelf", parent_id: "", start: 1, end: 5, codePrefix: "" });
@@ -521,7 +523,10 @@ export default function InventarioClient({ locations: initialLocations, location
             </select>
           </Field>
           <Field label="Serial number">
-            <input value={unitForm.serial_number} onChange={e => setUnitForm(f => ({ ...f, serial_number: e.target.value }))} style={inputStyle} />
+            <div style={{ display: "flex", gap: 6 }}>
+              <input value={unitForm.serial_number} onChange={e => setUnitForm(f => ({ ...f, serial_number: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
+              <button type="button" onClick={() => setShowUnitScanner(true)} title="Escanear código de barra" className="btn btn-ghost" style={{ padding: "0 14px" }}>📷</button>
+            </div>
           </Field>
           <Field label="Notas (opcional)">
             <input value={unitForm.notes} onChange={e => setUnitForm(f => ({ ...f, notes: e.target.value }))} style={inputStyle} />
@@ -546,6 +551,13 @@ export default function InventarioClient({ locations: initialLocations, location
           <button onClick={() => setLightboxUrl(null)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 24, borderRadius: "50%", width: 40, height: 40, cursor: "pointer" }}>✕</button>
           <img src={lightboxUrl} alt="equipo" onClick={e => e.stopPropagation()} style={{ maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain", borderRadius: 8 }} />
         </div>
+      )}
+
+      {showUnitScanner && (
+        <BarcodeScanner
+          onScan={code => { setUnitForm(f => ({ ...f, serial_number: code })); setShowUnitScanner(false); }}
+          onClose={() => setShowUnitScanner(false)}
+        />
       )}
 
       {/* Modal: Transferir Stock */}

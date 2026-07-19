@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import PhotoAnnotator from '../PhotoAnnotator';
+import BarcodeScanner from '../BarcodeScanner';
 import { buildMapsLinks, pickMapsLink } from '../../lib/mapsLinks';
 import { normalizeName } from '../../lib/normalizeName';
 import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
@@ -373,6 +374,7 @@ export default function FieldApp() {
   const [invUnitUploadProgress, setInvUnitUploadProgress] = useState(0);
   const [invSavingUnit, setInvSavingUnit] = useState(false);
   const [invUnitError, setInvUnitError] = useState('');
+  const [showInvScanner, setShowInvScanner] = useState(false);
   const fileRefInvUnit = useRef();
 
   useEffect(() => {
@@ -2921,8 +2923,12 @@ export default function FieldApp() {
               <option value="">Selecciona un producto...</option>
               {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
             </select>
-            <input value={invUnitForm.serial_number} onChange={e => setInvUnitForm(f => ({ ...f, serial_number: e.target.value }))} placeholder="Serial number"
-              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              <input value={invUnitForm.serial_number} onChange={e => setInvUnitForm(f => ({ ...f, serial_number: e.target.value }))} placeholder="Serial number"
+                style={{ flex: 1, padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+              <button type="button" onClick={() => setShowInvScanner(true)} title="Escanear código de barra"
+                style={{ padding: '0 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontSize: 16, cursor: 'pointer' }}>📷</button>
+            </div>
             <input value={invUnitForm.notes} onChange={e => setInvUnitForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notas (opcional)"
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
 
@@ -2947,6 +2953,13 @@ export default function FieldApp() {
             </div>
           </div>
         </div>
+      )}
+
+      {showInvScanner && (
+        <BarcodeScanner
+          onScan={code => { setInvUnitForm(f => ({ ...f, serial_number: code })); setShowInvScanner(false); }}
+          onClose={() => setShowInvScanner(false)}
+        />
       )}
 
       {showJobExpense && (
