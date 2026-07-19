@@ -378,6 +378,10 @@ export default function FieldApp() {
   const [invSavingUnit, setInvSavingUnit] = useState(false);
   const [invUnitError, setInvUnitError] = useState('');
   const [showInvScanner, setShowInvScanner] = useState(false);
+  const [showInvNewProduct, setShowInvNewProduct] = useState(false);
+  const [invNewProductForm, setInvNewProductForm] = useState({ item_code: '', description: '', price: '' });
+  const [savingInvNewProduct, setSavingInvNewProduct] = useState(false);
+  const [invNewProductError, setInvNewProductError] = useState('');
   const fileRefInvUnit = useRef();
 
   useEffect(() => {
@@ -1294,6 +1298,32 @@ export default function FieldApp() {
     setInvUnitPhotoPreview(null);
     setInvUnitUploadProgress(0);
     setInvUnitError('');
+    setShowInvNewProduct(false);
+    setInvNewProductForm({ item_code: '', description: '', price: '' });
+    setInvNewProductError('');
+  }
+
+  // Crear un producto de catálogo al vuelo desde Agregar Equipo, mismo insert que usa
+  // app/catalogo/CatalogoClient.js::addItem, para no obligar al técnico a ir primero a Catálogo.
+  async function createInvProduct() {
+    if (!invNewProductForm.item_code.trim() || !invNewProductForm.description.trim()) {
+      setInvNewProductError('Escribe el nombre y la descripción.');
+      return;
+    }
+    setSavingInvNewProduct(true);
+    setInvNewProductError('');
+    const { data, error } = await supabase.from('catalog_items').insert([{
+      type: 'product',
+      item_code: invNewProductForm.item_code.trim(),
+      description: invNewProductForm.description.trim(),
+      price: parseFloat(invNewProductForm.price) || 0,
+    }]).select('id, item_code, description').single();
+    setSavingInvNewProduct(false);
+    if (error) { setInvNewProductError('No se pudo crear el producto. Intenta de nuevo.'); return; }
+    setInvProducts(prev => [...prev, data].sort((a, b) => a.item_code.localeCompare(b.item_code)));
+    setInvUnitForm(f => ({ ...f, catalog_item_id: data.id }));
+    setShowInvNewProduct(false);
+    setInvNewProductForm({ item_code: '', description: '', price: '' });
   }
 
   async function invAddUnit() {
@@ -2966,11 +2996,37 @@ export default function FieldApp() {
               <div style={{ fontWeight: 800, fontSize: 18 }}>📦 Agregar equipo — {invLocById[invLocationId]?.name}</div>
               <button onClick={closeInvAddUnitModal} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
-            <select value={invUnitForm.catalog_item_id} onChange={e => setInvUnitForm(f => ({ ...f, catalog_item_id: e.target.value }))}
-              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
-              <option value="">Selecciona un producto...</option>
-              {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
-            </select>
+            {!showInvNewProduct ? (
+              <>
+                <select value={invUnitForm.catalog_item_id} onChange={e => setInvUnitForm(f => ({ ...f, catalog_item_id: e.target.value }))}
+                  style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
+                  <option value="">Selecciona un producto...</option>
+                  {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+                </select>
+                <button type="button" onClick={() => setShowInvNewProduct(true)}
+                  style={{ background: 'none', border: 'none', color: ORANGE, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, marginBottom: 12 }}>
+                  + ¿No está en la lista? Crear producto nuevo
+                </button>
+              </>
+            ) : (
+              <div style={{ background: '#f6f7fa', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Nuevo producto</div>
+                <input value={invNewProductForm.item_code} onChange={e => setInvNewProductForm(f => ({ ...f, item_code: e.target.value }))} placeholder="Nombre / Código"
+                  style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+                <input value={invNewProductForm.description} onChange={e => setInvNewProductForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción"
+                  style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+                <input type="number" step="0.01" value={invNewProductForm.price} onChange={e => setInvNewProductForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio (opcional)"
+                  style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+                {invNewProductError && <p style={{ color: '#b52a2a', fontSize: 12, marginBottom: 8 }}>{invNewProductError}</p>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => { setShowInvNewProduct(false); setInvNewProductError(''); }} style={{ flex: 1, padding: 10, background: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                  <button type="button" onClick={createInvProduct} disabled={savingInvNewProduct || !invNewProductForm.item_code.trim() || !invNewProductForm.description.trim()}
+                    style={{ flex: 1, padding: 10, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                    {savingInvNewProduct ? 'Creando...' : 'Crear producto'}
+                  </button>
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
               <input value={invUnitForm.serial_number} onChange={e => setInvUnitForm(f => ({ ...f, serial_number: e.target.value }))} placeholder="Serial number"
                 style={{ flex: 1, padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />

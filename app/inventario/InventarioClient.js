@@ -12,9 +12,10 @@ const TYPE_META = {
   bin: { label: "Bin", icon: "🗃️" },
 };
 
-export default function InventarioClient({ locations: initialLocations, locationStock: initialStock, products, locationStockUnits: initialUnits }) {
+export default function InventarioClient({ locations: initialLocations, locationStock: initialStock, products: initialProducts, locationStockUnits: initialUnits }) {
   const [locations, setLocations] = useState(initialLocations);
   const [stock, setStock] = useState(initialStock);
+  const [products, setProducts] = useState(initialProducts);
   const [units, setUnits] = useState(initialUnits ?? []);
   const [view, setView] = useState("tree");
   const [selectedId, setSelectedId] = useState(null);
@@ -35,6 +36,10 @@ export default function InventarioClient({ locations: initialLocations, location
   const [unitError, setUnitError] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState(null);
   const [showUnitScanner, setShowUnitScanner] = useState(false);
+  const [showNewProduct, setShowNewProduct] = useState(false);
+  const [newProductForm, setNewProductForm] = useState({ item_code: "", description: "", price: "" });
+  const [savingNewProduct, setSavingNewProduct] = useState(false);
+  const [newProductError, setNewProductError] = useState("");
 
   const [addForm, setAddForm] = useState({ name: "", type: "warehouse", code: "", parent_id: "" });
   const [bulkForm, setBulkForm] = useState({ prefix: "Estante", type: "shelf", parent_id: "", start: 1, end: 5, codePrefix: "" });
@@ -115,6 +120,32 @@ export default function InventarioClient({ locations: initialLocations, location
     setUnitPhotoFile(null);
     setUnitPhotoPreview(null);
     setUnitError("");
+    setShowNewProduct(false);
+    setNewProductForm({ item_code: "", description: "", price: "" });
+    setNewProductError("");
+  }
+
+  // Crear un producto de catálogo al vuelo desde Agregar Equipo, mismo insert que
+  // app/catalogo/CatalogoClient.js::addItem, para no forzar el viaje a Catálogo primero.
+  async function createProduct() {
+    if (!newProductForm.item_code.trim() || !newProductForm.description.trim()) {
+      setNewProductError("Escribe el nombre y la descripción.");
+      return;
+    }
+    setSavingNewProduct(true);
+    setNewProductError("");
+    const { data, error } = await supabase.from("catalog_items").insert([{
+      type: "product",
+      item_code: newProductForm.item_code.trim(),
+      description: newProductForm.description.trim(),
+      price: parseFloat(newProductForm.price) || 0,
+    }]).select("id, item_code, description").single();
+    setSavingNewProduct(false);
+    if (error) { setNewProductError("No se pudo crear el producto. Intenta de nuevo."); return; }
+    setProducts(prev => [...prev, data].sort((a, b) => a.item_code.localeCompare(b.item_code)));
+    setUnitForm(f => ({ ...f, catalog_item_id: data.id }));
+    setShowNewProduct(false);
+    setNewProductForm({ item_code: "", description: "", price: "" });
   }
 
   async function addUnit() {
@@ -545,10 +576,31 @@ export default function InventarioClient({ locations: initialLocations, location
       {showAddUnitModal && selected && (
         <Modal title={`+ Agregar Equipo en ${selected.name}`} onClose={closeAddUnitModal}>
           <Field label="Producto">
-            <select value={unitForm.catalog_item_id} onChange={e => setUnitForm(f => ({ ...f, catalog_item_id: e.target.value }))} style={inputStyle}>
-              <option value="">Selecciona un producto...</option>
-              {products.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
-            </select>
+            {!showNewProduct ? (
+              <>
+                <select value={unitForm.catalog_item_id} onChange={e => setUnitForm(f => ({ ...f, catalog_item_id: e.target.value }))} style={inputStyle}>
+                  <option value="">Selecciona un producto...</option>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+                </select>
+                <button type="button" onClick={() => setShowNewProduct(true)}
+                  style={{ background: "none", border: "none", color: "var(--amber)", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "6px 0 0" }}>
+                  + ¿No está en la lista? Crear producto nuevo
+                </button>
+              </>
+            ) : (
+              <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: 10 }}>
+                <input value={newProductForm.item_code} onChange={e => setNewProductForm(f => ({ ...f, item_code: e.target.value }))} placeholder="Nombre / Código" style={{ ...inputStyle, marginBottom: 8 }} />
+                <input value={newProductForm.description} onChange={e => setNewProductForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ ...inputStyle, marginBottom: 8 }} />
+                <input type="number" step="0.01" value={newProductForm.price} onChange={e => setNewProductForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio (opcional)" style={{ ...inputStyle, marginBottom: 8 }} />
+                {newProductError && <p style={{ fontSize: 12, color: "var(--warn)", marginBottom: 8 }}>{newProductError}</p>}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setShowNewProduct(false); setNewProductError(""); }}>Cancelar</button>
+                  <button type="button" className="btn btn-primary" style={{ flex: 1 }} disabled={savingNewProduct || !newProductForm.item_code.trim() || !newProductForm.description.trim()} onClick={createProduct}>
+                    {savingNewProduct ? "Creando..." : "Crear producto"}
+                  </button>
+                </div>
+              </div>
+            )}
           </Field>
           <Field label="Serial number">
             <div style={{ display: "flex", gap: 6 }}>
