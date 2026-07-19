@@ -10,6 +10,7 @@ const operationsLinks = [
  { href: '/trabajos',   label: 'Trabajos',   icon: 'bolt' },
  { href: '/boletos',    label: 'Boletos',    icon: 'ticket' },
  { href: '/calendario', label: 'Calendario', icon: 'calendar' },
+ { href: '/mantenimientos', label: 'Mantenimientos', icon: 'wrench' },
  { href: '/propuestas', label: 'Propuestas', icon: 'fileText' },
  { href: '/estimados', label: 'Estimados', icon: 'calculator' },
  { href: '/crew',       label: 'Crew App',   icon: 'phone' },
@@ -77,6 +78,7 @@ const ICON_PATHS = {
   userOff: <><circle cx="10" cy="8" r="3.2"/><path d="M4 20 a 6 6 0 0 1 12 0"/><line x1="3" y1="3" x2="21" y2="21"/></>,
   box: <><path d="M3 8 L12 4 L21 8 L12 12 Z"/><path d="M3 8 V16 L12 20 V12"/><path d="M21 8 V16 L12 20"/></>,
   inbox: <><path d="M3 12 h5 l2 3 h4 l2 -3 h5"/><path d="M5.5 5 h13 l2.5 7 v7 a1.5 1.5 0 0 1 -1.5 1.5 h-15 A1.5 1.5 0 0 1 3 19 v-7 z"/></>,
+  wrench: <path d="M20.5 6.5 a4.5 4.5 0 0 1 -6 4.2 L6 19 a2 2 0 0 1 -2.8 -2.8 l8.3 -8.5 a4.5 4.5 0 0 1 4.2 -6 l-3 3 l0.6 2.4 l2.4 0.6 z" fill="none"/>,
 };
 
 function NavIcon({ name }) {

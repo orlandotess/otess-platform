@@ -56,12 +56,12 @@ export default async function CalendarioPage({ searchParams }) {
 
   const { data: calendarEvents } = await supabase
     .from('calendar_events')
-    .select('id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name), technicians(name), calendar_event_technicians(technician_id, technicians(name))')
+    .select('id, title, notes, address, property_name, start_at, end_at, client_id, technician_id, clients(name), technicians(name), calendar_event_technicians(technician_id, technicians(name))')
     .order('start_at');
 
   const { data: tasksRaw } = await supabase
     .from('tasks')
-    .select('id, task_type, title, notes, address, due_at, client_id, technician_id, completed, clients(name), technicians(name), task_items(id, text, done, sort_order, attachments)')
+    .select('id, task_type, title, notes, address, due_at, client_id, technician_id, completed, clients(name), technicians(name), task_items(id, text, done, sort_order, attachments), task_technicians(technician_id, technicians(name))')
     .order('due_at');
 
   // Resolve a signed URL (1h) for each stored attachment path so images/videos can render inline.

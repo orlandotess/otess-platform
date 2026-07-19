@@ -55,6 +55,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const [lightbox, setLightbox] = useState(null); // { items: [{url, isVideo}], index }
   const [addToJobModal, setAddToJobModal] = useState(false);
   const [addedToJob, setAddedToJob] = useState(false);
+  const [reportModal, setReportModal] = useState(null); // { task }
+  const [savingReport, setSavingReport] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reschedulingJob, setReschedulingJob] = useState(false);
   const [rescheduleForm, setRescheduleForm] = useState({ start: '', end: '' });
@@ -424,13 +426,14 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     }
   }
 
-  async function handleCreateEvent({ title, dateStr, startTime, endTime, technicianIds, clientId, notes, address }) {
+  async function handleCreateEvent({ title, dateStr, startTime, endTime, technicianIds, clientId, notes, address, propertyName }) {
     setSaving(true);
     try {
       const { data: event, error } = await supabase.from('calendar_events').insert({
         title,
         notes: notes || null,
         address: address || null,
+        property_name: propertyName || null,
         start_at: new Date(`${dateStr}T${startTime}:00`).toISOString(),
         end_at: new Date(`${dateStr}T${endTime}:00`).toISOString(),
         technician_id: technicianIds[0] ?? null,
@@ -475,13 +478,14 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     }
   }
 
-  async function handleUpdateEvent({ id, title, dateStr, startTime, endTime, technicianIds, clientId, notes, address }) {
+  async function handleUpdateEvent({ id, title, dateStr, startTime, endTime, technicianIds, clientId, notes, address, propertyName }) {
     setSaving(true);
     try {
       const { error } = await supabase.from('calendar_events').update({
         title,
         notes: notes || null,
         address: address || null,
+        property_name: propertyName || null,
         start_at: new Date(`${dateStr}T${startTime}:00`).toISOString(),
         end_at: new Date(`${dateStr}T${endTime}:00`).toISOString(),
         technician_id: technicianIds[0] ?? null,
@@ -674,6 +678,37 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     setAddToJobModal(false);
     setAddedToJob(true);
     setTimeout(() => setAddedToJob(false), 2500);
+  }
+
+  // If a report already exists for this visit, just reopen it instead of
+  // creating a duplicate — the checklist/notes/photos in the report page
+  // are read live from the task, so there's never a reason for more than
+  // one report per visit.
+  async function openReportForTask(task) {
+    const { data: existing } = await supabase.from('maintenance_reports').select('id').eq('task_id', task.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (existing) {
+      window.open(`/reporte-mantenimiento/${existing.id}`, '_blank');
+      return;
+    }
+    setReportModal({ task });
+  }
+
+  async function createMaintenanceReport(form) {
+    setSavingReport(true);
+    const { data, error } = await supabase.from('maintenance_reports').insert([{
+      task_id: form.task.id,
+      title: form.title.trim(),
+      visit_date: form.visitDate || null,
+      personnel: form.personnel.trim() || null,
+      summary: form.summary.trim() || null,
+      observations: form.observations.trim() || null,
+      recommendations: form.recommendations.trim() || null,
+      prepared_by: form.preparedBy.trim() || null,
+    }]).select().single();
+    setSavingReport(false);
+    if (error) { alert(error.message); return; }
+    setReportModal(null);
+    window.open(`/reporte-mantenimiento/${data.id}`, '_blank');
   }
 
   return (
@@ -1202,7 +1237,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 ['Fin', formatDateTimePR(selectedEvent.end_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
                 ...(selectedEvent.address ? [['Dirección', (
                   <a href={pickMapsLink(selectedEvent.address)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--amber)', fontWeight: 600 }}>
-                    📍 {selectedEvent.address}
+                    📍 {selectedEvent.property_name || selectedEvent.address}
                   </a>
                 )]] : []),
                 ['Notas', selectedEvent.notes || '—'],
@@ -1245,7 +1280,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             <div style={{ display: 'grid', gap: 0, marginBottom: 16 }}>
               {[
                 ['Tipo', selectedTask.task_type === 'checklist' ? 'Checklist' : 'Recordatorio'],
-                ['Técnico', selectedTask.technicians?.name ?? '— Sin asignar —'],
+                ['Técnicos', [selectedTask.technicians?.name, ...(selectedTask.task_technicians ?? []).map(tt => tt.technicians?.name)]
+                  .filter(Boolean).join(', ') || '— Sin asignar —'],
                 ['Vence', formatDateTimePR(selectedTask.due_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
                 ...(selectedTask.address ? [['Dirección', (
                   <a href={pickMapsLink(selectedTask.address)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--amber)', fontWeight: 600 }}>
@@ -1275,6 +1311,12 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               </div>
             )}
             {renderEntryNotes('task', taskNotes)}
+            {selectedTask.task_type === 'checklist' && (
+              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                onClick={() => openReportForTask(selectedTask)}>
+                📄 Generar reporte
+              </button>
+            )}
             {selectedTask.client_id && (
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
                 onClick={() => setAddToJobModal(true)}>
@@ -1333,6 +1375,17 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           saving={saving}
           onClose={() => setAbsenceModal(false)}
           onSubmit={handleCreateAbsence}
+        />
+      )}
+
+      {/* Generate a maintenance visit report from a checklist task */}
+      {reportModal && (
+        <MaintenanceReportModal
+          task={reportModal.task}
+          currentUserName={currentUserName}
+          saving={savingReport}
+          onClose={() => setReportModal(null)}
+          onSubmit={createMaintenanceReport}
         />
       )}
 
@@ -1463,6 +1516,7 @@ function EventModal({ data, technicians, clients, clientProperties, saving, onCl
   const [propertyId, setPropertyId] = useState('');
   const [notes, setNotes] = useState(editing?.notes ?? '');
   const [address, setAddress] = useState(editing?.address ?? '');
+  const [propertyName, setPropertyName] = useState(editing?.property_name ?? '');
 
   const canSubmit = title.trim() && dateStr && startTime && endTime;
 
@@ -1476,6 +1530,7 @@ function EventModal({ data, technicians, clients, clientProperties, saving, onCl
     setPropertyId(id);
     const p = clientProps.find(p => p.id === id);
     if (p) setAddress([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '));
+    setPropertyName(p?.name ?? '');
   }
 
   return (
@@ -1537,7 +1592,7 @@ function EventModal({ data, technicians, clients, clientProperties, saving, onCl
                 ))}
               </select>
             )}
-            <input value={address} onChange={e => setAddress(e.target.value)} className="input" style={{ width: '100%' }} placeholder="Ej. 123 Calle Sol, San Juan, PR" />
+            <input value={address} onChange={e => { setAddress(e.target.value); setPropertyName(''); }} className="input" style={{ width: '100%' }} placeholder="Ej. 123 Calle Sol, San Juan, PR" />
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Notas</label>
@@ -1547,7 +1602,7 @@ function EventModal({ data, technicians, clients, clientProperties, saving, onCl
 
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!canSubmit || saving}
-          onClick={() => onSubmit({ id: editing?.id, title: title.trim(), dateStr, startTime, endTime, technicianIds, clientId, notes, address: address.trim() })}>
+          onClick={() => onSubmit({ id: editing?.id, title: title.trim(), dateStr, startTime, endTime, technicianIds, clientId, notes, address: address.trim(), propertyName: propertyName || null })}>
           {saving ? 'Guardando...' : (editing ? 'Guardar cambios' : 'Crear evento')}
         </button>
       </div>
@@ -1900,6 +1955,69 @@ function AttachmentLightbox({ item, startIndex, onClose }) {
           ›
         </button>
       )}
+    </div>
+  );
+}
+
+function MaintenanceReportModal({ task, currentUserName, saving, onClose, onSubmit }) {
+  const technicianNames = [task.technicians?.name, ...(task.task_technicians ?? []).map(tt => tt.technicians?.name)].filter(Boolean).join(', ');
+  const [title, setTitle] = useState(task.title);
+  const [visitDate, setVisitDate] = useState((task.due_at || '').slice(0, 10));
+  const [personnel, setPersonnel] = useState(technicianNames);
+  const [preparedBy, setPreparedBy] = useState(currentUserName || '');
+  const [summary, setSummary] = useState('');
+  const [observations, setObservations] = useState('');
+  const [recommendations, setRecommendations] = useState('');
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}
+      onClick={onClose}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 460, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📄 Generar reporte de visita</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
+        </div>
+        <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 16 }}>
+          El checklist y las notas/fotos de esta visita se incluyen automáticamente. Estos campos son opcionales.
+        </p>
+        <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Título</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} className="input" style={{ width: '100%' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Fecha de visita</label>
+              <input type="date" value={visitDate} onChange={e => setVisitDate(e.target.value)} className="input" style={{ width: '100%' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Preparado por</label>
+              <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} className="input" style={{ width: '100%' }} />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Personal presente</label>
+            <input value={personnel} onChange={e => setPersonnel(e.target.value)} className="input" style={{ width: '100%' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Resumen (opcional)</label>
+            <textarea value={summary} onChange={e => setSummary(e.target.value)} className="input" style={{ width: '100%', minHeight: 60 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Observaciones (opcional)</label>
+            <textarea value={observations} onChange={e => setObservations(e.target.value)} className="input" style={{ width: '100%', minHeight: 50 }} placeholder="Una por línea" />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Recomendaciones (opcional)</label>
+            <textarea value={recommendations} onChange={e => setRecommendations(e.target.value)} className="input" style={{ width: '100%', minHeight: 50 }} placeholder="Una por línea" />
+          </div>
+        </div>
+        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+          disabled={!title.trim() || saving}
+          onClick={() => onSubmit({ task, title, visitDate, personnel, preparedBy, summary, observations, recommendations })}>
+          {saving ? 'Generando...' : 'Generar reporte'}
+        </button>
+      </div>
     </div>
   );
 }

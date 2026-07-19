@@ -244,6 +244,8 @@ export default function FieldApp() {
   const [newEntryNotePhotos, setNewEntryNotePhotos] = useState([]); // [{file, previewUrl}]
   const [savingEntryNote, setSavingEntryNote] = useState(false);
   const entryNotePhotoInputRef = useRef(null);
+  const [maintReportModal, setMaintReportModal] = useState(null); // { task }
+  const [savingMaintReport, setSavingMaintReport] = useState(false);
 
   async function resolveNotePhotoUrls(notes) {
     return Promise.all(notes.map(async n => ({
@@ -296,6 +298,33 @@ export default function FieldApp() {
     if (error) { alert(error.message); return; }
     if (note.photo_urls?.length) await supabase.storage.from('Job-photos').remove(note.photo_urls);
     setDetailEntryNotes(prev => prev.filter(n => n.id !== note.id));
+  }
+
+  // One report per visit — the checklist/notes/photos are read live from the
+  // task on the report page itself, so reopen the existing one instead of
+  // letting a tech generate duplicates.
+  async function openMaintenanceReport(task) {
+    const { data: existing } = await supabase.from('maintenance_reports').select('id').eq('task_id', task.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (existing) {
+      window.open(`/reporte-mantenimiento/${existing.id}`, '_blank');
+      return;
+    }
+    setMaintReportModal({ task });
+  }
+
+  async function createMaintenanceReport(form) {
+    setSavingMaintReport(true);
+    const { data, error } = await supabase.from('maintenance_reports').insert([{
+      task_id: form.task.id,
+      title: form.title.trim(),
+      visit_date: form.visitDate || null,
+      personnel: form.personnel.trim() || null,
+      prepared_by: form.preparedBy.trim() || null,
+    }]).select().single();
+    setSavingMaintReport(false);
+    if (error) { alert(error.message); return; }
+    setMaintReportModal(null);
+    window.open(`/reporte-mantenimiento/${data.id}`, '_blank');
   }
 
   async function toggleDetailTaskItem(item) {
@@ -389,10 +418,11 @@ export default function FieldApp() {
   // jobs (a direct technician_id column, plus a junction table for calendar_events' multi-tech
   // assignment) so the tech's schedule shows everything, not just jobs.
   async function loadTechScheduleExtras() {
-    const [{ data: eventsDirect }, { data: eventsViaJunction }, { data: tasksData }, { data: visitsData }] = await Promise.all([
+    const [{ data: eventsDirect }, { data: eventsViaJunction }, { data: tasksDirect }, { data: tasksViaJunction }, { data: visitsData }] = await Promise.all([
       supabase.from('calendar_events').select('id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name)').eq('technician_id', techId),
       supabase.from('calendar_event_technicians').select('calendar_events(id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name))').eq('technician_id', techId),
       supabase.from('tasks').select('id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name), task_items(id, text, done, sort_order)').eq('technician_id', techId),
+      supabase.from('task_technicians').select('tasks(id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name), task_items(id, text, done, sort_order))').eq('technician_id', techId),
       supabase.from('visits').select('id, request_id, scheduled_at, duration_minutes, status, requests(title, clients(name))').eq('technician_id', techId),
     ]);
     const seen = new Set();
@@ -400,8 +430,15 @@ export default function FieldApp() {
     const addEvent = e => { if (e && !seen.has(e.id)) { seen.add(e.id); events.push(e); } };
     (eventsDirect ?? []).forEach(addEvent);
     (eventsViaJunction ?? []).forEach(row => addEvent(row.calendar_events));
+
+    const seenTasks = new Set();
+    const tasks = [];
+    const addTask = t => { if (t && !seenTasks.has(t.id)) { seenTasks.add(t.id); tasks.push(t); } };
+    (tasksDirect ?? []).forEach(addTask);
+    (tasksViaJunction ?? []).forEach(row => addTask(row.tasks));
+
     setTechEvents(events);
-    setTechTasks(tasksData ?? []);
+    setTechTasks(tasks);
     setTechVisits(visitsData ?? []);
   }
 
@@ -2374,6 +2411,13 @@ export default function FieldApp() {
                 </div>
               </div>
             )}
+            {detailEntry._kind === 'task' && detailEntry._raw.task_type === 'checklist' && (
+              <button
+                onClick={() => openMaintenanceReport(detailEntry._raw)}
+                style={{ marginTop: 16, width: '100%', background: '#fff', color: ORANGE, border: `1.5px solid ${ORANGE}`, borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                📄 Generate report
+              </button>
+            )}
             {detailEntry._kind === 'task' && (
               <button
                 onClick={async () => {
@@ -2381,11 +2425,23 @@ export default function FieldApp() {
                   setDetailEntry(null);
                   loadTechScheduleExtras();
                 }}
-                style={{ marginTop: 16, width: '100%', background: detailEntry._raw.completed ? '#eee' : ORANGE, color: detailEntry._raw.completed ? '#333' : '#fff', border: 'none', borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                style={{ marginTop: 8, width: '100%', background: detailEntry._raw.completed ? '#eee' : ORANGE, color: detailEntry._raw.completed ? '#333' : '#fff', border: 'none', borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                 {detailEntry._raw.completed ? 'Mark as pending' : 'Mark as done'}
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {maintReportModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 1100 }} onClick={() => setMaintReportModal(null)}>
+          <MaintenanceReportForm
+            task={maintReportModal.task}
+            techName={techName}
+            saving={savingMaintReport}
+            onCancel={() => setMaintReportModal(null)}
+            onSubmit={createMaintenanceReport}
+          />
         </div>
       )}
 
@@ -2802,6 +2858,48 @@ export default function FieldApp() {
         <NavI tab="calendar" icon="calendar" label="Calendar" />
         <NavI tab="projects" icon="projects" label="Projects" />
       </nav>
+    </div>
+  );
+}
+
+function MaintenanceReportForm({ task, techName, saving, onCancel, onSubmit }) {
+  const technicianNames = [task.technicians?.name, ...(task.task_technicians ?? []).map(tt => tt.technicians?.name)].filter(Boolean).join(', ');
+  const [title, setTitle] = useState(task.title);
+  const [visitDate, setVisitDate] = useState((task.due_at || '').slice(0, 10));
+  const [personnel, setPersonnel] = useState(technicianNames);
+  const [preparedBy, setPreparedBy] = useState(techName ?? '');
+
+  return (
+    <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px calc(24px + env(safe-area-inset-bottom,0px))', width: '100%', maxWidth: 430, margin: '0 auto' }} onClick={e => e.stopPropagation()}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 18 }}>📄 Generate report</div>
+        <button onClick={onCancel} style={{ background: 'none', border: 'none', fontSize: 20, color: '#888', cursor: 'pointer' }}>×</button>
+      </div>
+      <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>The checklist and notes/photos from this visit are included automatically.</p>
+      <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>Title</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>Visit date</label>
+          <input type="date" value={visitDate} onChange={e => setVisitDate(e.target.value)} style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>Personnel present</label>
+          <input value={personnel} onChange={e => setPersonnel(e.target.value)} style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>Prepared by</label>
+          <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+        </div>
+      </div>
+      <button
+        disabled={!title.trim() || saving}
+        onClick={() => onSubmit({ task, title, visitDate, personnel, preparedBy })}
+        style={{ width: '100%', background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+        {saving ? 'Generating...' : 'Generate report'}
+      </button>
     </div>
   );
 }
