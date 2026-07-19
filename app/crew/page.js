@@ -360,7 +360,10 @@ export default function FieldApp() {
   const [invStock, setInvStock] = useState([]);
   const [invProducts, setInvProducts] = useState([]);
   const [invLocationId, setInvLocationId] = useState('');
-  const [invSearch, setInvSearch] = useState('');
+  const [invLocationQuery, setInvLocationQuery] = useState('');
+  const [invLocationOpen, setInvLocationOpen] = useState(false);
+  const [invStockSearch, setInvStockSearch] = useState('');
+  const [invUnitSearch, setInvUnitSearch] = useState('');
   const [showInvAdjust, setShowInvAdjust] = useState(false);
   const [invAdjustForm, setInvAdjustForm] = useState({ catalog_item_id: '', delta: '', reason: '' });
   const [invSaving, setInvSaving] = useState(false);
@@ -1254,11 +1257,29 @@ export default function FieldApp() {
   const invLocOptions = [...invLocations]
     .map(l => ({ id: l.id, label: `${INV_TYPE_ICON[l.type] ?? ''} ${invPathLabel(l)}`.trim() }))
     .sort((a, b) => a.label.localeCompare(b.label));
-  const invSearchTerm = invSearch.trim().toLowerCase();
+  const invLocationQueryTerm = invLocationQuery.trim().toLowerCase();
+  const invLocationResults = invLocationQueryTerm
+    ? invLocOptions.filter(o => o.label.toLowerCase().includes(invLocationQueryTerm))
+    : invLocOptions;
+  const invSelectedLocation = invLocOptions.find(o => o.id === invLocationId) ?? null;
+
+  function selectInvLocation(loc) {
+    setInvLocationId(loc.id);
+    setInvLocationQuery('');
+    setInvLocationOpen(false);
+  }
+
+  function clearInvLocation() {
+    setInvLocationId('');
+    setInvLocationQuery('');
+  }
+
+  const invStockSearchTerm = invStockSearch.trim().toLowerCase();
   const invSelectedStock = invStock.filter(s => s.location_id === invLocationId
-    && (!invSearchTerm || s.catalog_items?.description?.toLowerCase().includes(invSearchTerm) || s.catalog_items?.item_code?.toLowerCase().includes(invSearchTerm)));
+    && (!invStockSearchTerm || s.catalog_items?.description?.toLowerCase().includes(invStockSearchTerm) || s.catalog_items?.item_code?.toLowerCase().includes(invStockSearchTerm)));
+  const invUnitSearchTerm = invUnitSearch.trim().toLowerCase();
   const invSelectedUnits = invUnits.filter(u => u.location_id === invLocationId
-    && (!invSearchTerm || u.catalog_items?.description?.toLowerCase().includes(invSearchTerm) || u.catalog_items?.item_code?.toLowerCase().includes(invSearchTerm) || u.serial_number.toLowerCase().includes(invSearchTerm)));
+    && (!invUnitSearchTerm || u.catalog_items?.description?.toLowerCase().includes(invUnitSearchTerm) || u.catalog_items?.item_code?.toLowerCase().includes(invUnitSearchTerm) || u.serial_number.toLowerCase().includes(invUnitSearchTerm)));
 
   function handleInvUnitPhotoSelect(file) {
     if (!file) return;
@@ -1905,25 +1926,40 @@ export default function FieldApp() {
           <div>
             <div style={{ padding: '20px 20px 16px' }}>
               <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 14 }}>Inventario</div>
-              <select
-                value={invLocationId}
-                onChange={e => setInvLocationId(e.target.value)}
-                style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: 'none', fontSize: 15, background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: 10 }}
-              >
-                <option value="">Selecciona una ubicación...</option>
-                {invLocOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
-              {invLocationId && (
-                <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                  <span>🔍</span>
-                  <input
-                    value={invSearch}
-                    onChange={e => setInvSearch(e.target.value)}
-                    placeholder="Buscar producto..."
-                    style={{ border: 'none', background: 'none', fontSize: 15, outline: 'none', width: '100%' }}
-                  />
-                </div>
-              )}
+              <div style={{ position: 'relative' }}>
+                {invLocationId && !invLocationOpen ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div onClick={() => setInvLocationOpen(true)} style={{ flex: 1, background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 15 }}>
+                      {invSelectedLocation?.label ?? 'Ubicación'}
+                    </div>
+                    <button onClick={clearInvLocation} style={{ background: '#fff', border: 'none', borderRadius: 12, width: 44, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 15, color: '#888' }}>✕</button>
+                  </div>
+                ) : (
+                  <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    <span>🔍</span>
+                    <input
+                      autoFocus={invLocationOpen}
+                      value={invLocationQuery}
+                      onChange={e => setInvLocationQuery(e.target.value)}
+                      onFocus={() => setInvLocationOpen(true)}
+                      placeholder="Buscar ubicación..."
+                      style={{ border: 'none', background: 'none', fontSize: 15, outline: 'none', width: '100%' }}
+                    />
+                  </div>
+                )}
+                {invLocationOpen && (
+                  <>
+                    <div onClick={() => setInvLocationOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 11, maxHeight: 280, overflowY: 'auto' }}>
+                      {invLocationResults.length === 0 ? (
+                        <div style={{ padding: '14px', color: '#aaa', fontSize: 13 }}>Sin resultados.</div>
+                      ) : invLocationResults.map(o => (
+                        <div key={o.id} onClick={() => selectInvLocation(o)} style={{ padding: '12px 14px', borderBottom: '1px solid #eee', cursor: 'pointer', fontSize: 14 }}>{o.label}</div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {!invLoaded ? (
@@ -1936,6 +1972,12 @@ export default function FieldApp() {
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>STOCK ({invSelectedStock.length})</div>
                   <button onClick={() => setShowInvAdjust(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Ajustar</button>
                 </div>
+                <input
+                  value={invStockSearch}
+                  onChange={e => setInvStockSearch(e.target.value)}
+                  placeholder="Buscar producto..."
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #eee', borderRadius: 8, fontSize: 13, outline: 'none', marginBottom: 10 }}
+                />
                 {invSelectedStock.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin productos en esta ubicación.</div>
                 ) : (
@@ -1958,6 +2000,12 @@ export default function FieldApp() {
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>EQUIPO ({invSelectedUnits.length})</div>
                   <button onClick={() => setShowInvAddUnit(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Agregar equipo</button>
                 </div>
+                <input
+                  value={invUnitSearch}
+                  onChange={e => setInvUnitSearch(e.target.value)}
+                  placeholder="Buscar equipo (serial, descripción)..."
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #eee', borderRadius: 8, fontSize: 13, outline: 'none', marginBottom: 10 }}
+                />
                 {invSelectedUnits.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin equipo registrado en esta ubicación.</div>
                 ) : (

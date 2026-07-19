@@ -18,6 +18,8 @@ export default function InventarioClient({ locations: initialLocations, location
   const [units, setUnits] = useState(initialUnits ?? []);
   const [view, setView] = useState("tree");
   const [selectedId, setSelectedId] = useState(null);
+  const [locationQuery, setLocationQuery] = useState("");
+  const [unitSearch, setUnitSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [expanded, setExpanded] = useState({});
   const [showAddModal, setShowAddModal] = useState(false);
@@ -103,7 +105,9 @@ export default function InventarioClient({ locations: initialLocations, location
   const selected = selectedId ? byId[selectedId] : null;
   const selectedChildren = selectedId ? (childrenOf[selectedId] ?? []) : [];
   const selectedStock = selectedId ? stock.filter(s => s.location_id === selectedId) : [];
-  const selectedUnits = selectedId ? units.filter(u => u.location_id === selectedId) : [];
+  const unitSearchTerm = unitSearch.trim().toLowerCase();
+  const selectedUnits = selectedId ? units.filter(u => u.location_id === selectedId
+    && (!unitSearchTerm || u.serial_number.toLowerCase().includes(unitSearchTerm) || u.catalog_items?.description?.toLowerCase().includes(unitSearchTerm) || u.catalog_items?.item_code?.toLowerCase().includes(unitSearchTerm))) : [];
 
   function closeAddUnitModal() {
     setShowAddUnitModal(false);
@@ -306,6 +310,21 @@ export default function InventarioClient({ locations: initialLocations, location
 
   const roots = [...(childrenOf["__root__"] ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   const tableRows = [...visibleLocations].sort((a, b) => a.name.localeCompare(b.name));
+  const locationQueryTerm = locationQuery.trim().toLowerCase();
+  const filteredTableRows = locationQueryTerm
+    ? tableRows.filter(l => l.name.toLowerCase().includes(locationQueryTerm) || l.code?.toLowerCase().includes(locationQueryTerm))
+    : tableRows;
+
+  function LocationRow({ l }) {
+    const path = pathTo(l.id);
+    return (
+      <div onClick={() => setSelectedId(l.id)}
+        style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer", background: selectedId === l.id ? "var(--surface-2)" : "transparent", opacity: l.is_active ? 1 : 0.5 }}>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{TYPE_META[l.type]?.icon} {l.name} {l.code && <span style={{ fontSize: 11, color: "var(--muted)", fontFamily: "monospace" }}>{l.code}</span>}</div>
+        <div style={{ fontSize: 11, color: "var(--muted)" }}>{path.map(p => p.name).join(" › ")}</div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -328,22 +347,25 @@ export default function InventarioClient({ locations: initialLocations, location
         {/* Jerarquía */}
         <div style={{ background: "var(--surface)", borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: 10 }}>
           <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)", padding: "6px 10px 10px" }}>Jerarquía de Ubicaciones</div>
+          <input
+            value={locationQuery}
+            onChange={e => setLocationQuery(e.target.value)}
+            placeholder="🔍 Buscar ubicación..."
+            style={{ width: "100%", padding: "8px 10px", marginBottom: 8, border: "1.5px solid var(--border)", borderRadius: 8, fontSize: 13 }}
+          />
           {roots.length === 0 ? (
             <div className="empty"><p>Sin ubicaciones aún. Crea la primera con "+ Nueva Ubicación".</p></div>
+          ) : locationQueryTerm ? (
+            filteredTableRows.length === 0 ? (
+              <div className="empty"><p>Sin resultados.</p></div>
+            ) : (
+              <div>{filteredTableRows.map(l => <LocationRow key={l.id} l={l} />)}</div>
+            )
           ) : view === "tree" ? (
             roots.map(l => <LocationNode key={l.id} loc={l} depth={0} />)
           ) : (
             <div>
-              {tableRows.map(l => {
-                const path = pathTo(l.id);
-                return (
-                  <div key={l.id} onClick={() => setSelectedId(l.id)}
-                    style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer", background: selectedId === l.id ? "var(--surface-2)" : "transparent", opacity: l.is_active ? 1 : 0.5 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{TYPE_META[l.type]?.icon} {l.name} {l.code && <span style={{ fontSize: 11, color: "var(--muted)", fontFamily: "monospace" }}>{l.code}</span>}</div>
-                    <div style={{ fontSize: 11, color: "var(--muted)" }}>{path.map(p => p.name).join(" › ")}</div>
-                  </div>
-                );
-              })}
+              {tableRows.map(l => <LocationRow key={l.id} l={l} />)}
             </div>
           )}
         </div>
@@ -411,6 +433,12 @@ export default function InventarioClient({ locations: initialLocations, location
 
               <div style={{ marginTop: 20 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>EQUIPO SERIALIZADO ({selectedUnits.length})</div>
+                <input
+                  value={unitSearch}
+                  onChange={e => setUnitSearch(e.target.value)}
+                  placeholder="🔍 Buscar equipo (serial, descripción)..."
+                  style={{ width: "100%", padding: "8px 10px", marginBottom: 8, border: "1.5px solid var(--border)", borderRadius: 8, fontSize: 13 }}
+                />
                 {selectedUnits.length === 0 ? (
                   <p style={{ fontSize: 13, color: "var(--muted)" }}>Sin equipo registrado aquí todavía.</p>
                 ) : (
