@@ -1406,21 +1406,23 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           )}
 
           {selectedMarker && (() => {
-            // Popup width shrinks to fit narrow canvases (mobile/split-screen
-            // tablet) instead of a fixed 220px that can overflow past the
-            // wrap's edge. Left/top are computed directly (not via a
-            // transform offset) and then clamped into [0, wrap width/height]
-            // so the panel never spills outside the visible canvas no matter
-            // where the marker sits or how narrow the screen is.
+            // Popup always sits above the marker's icon (centered over it,
+            // like a callout) — its height just shrinks to fit whatever
+            // room is available above rather than flipping below, so its
+            // position stays predictable. Width shrinks to fit narrow
+            // canvases (mobile/split-screen tablet) instead of a fixed
+            // 220px that can overflow past the wrap's edge, and left/top
+            // are clamped into the wrap's actual bounds so the panel never
+            // spills outside the visible canvas.
             const popupWidth = Math.min(220, Math.max(180, rectSize.width - 24));
-            const popupMaxHeight = Math.max(200, rectSize.height - 24);
+            const popupMaxHeight = Math.min(400, Math.max(160, rectSize.height - 24));
             const markerLeft = view.pan.x + selectedMarker.pos_x * rectSize.width * view.zoom;
             const markerTop = view.pan.y + selectedMarker.pos_y * rectSize.height * view.zoom;
-            const flipX = markerLeft + 16 + popupWidth > rectSize.width;
-            const rawLeft = flipX ? markerLeft - 16 - popupWidth : markerLeft + 16;
+            const gap = 14;
+            const height = Math.max(100, Math.min(popupMaxHeight, markerTop - gap - 8));
+            const top = Math.max(8, markerTop - gap - height);
+            const rawLeft = markerLeft - popupWidth / 2;
             const left = Math.max(8, Math.min(rawLeft, rectSize.width - popupWidth - 8));
-            const rawTop = markerTop - popupMaxHeight / 2;
-            const top = Math.max(8, Math.min(rawTop, rectSize.height - popupMaxHeight - 8));
             return (
             <div
               onPointerDown={e => e.stopPropagation()}
@@ -1429,7 +1431,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 position: 'absolute', left, top,
                 background: 'var(--surface)', border: '1.5px solid var(--border)',
                 borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5,
-                width: popupWidth, maxHeight: popupMaxHeight, overflowY: 'auto',
+                width: popupWidth, maxHeight: height, overflowY: 'auto',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
