@@ -927,6 +927,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       totalHours: map[key].reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes), 0),
     }));
   })();
+  const primaryDateKey = job.scheduled_start ? formatDatePR(job.scheduled_start, {}, 'en-CA') : null;
+  const additionalDaysCount = scheduleDayGroups.filter(g => g.key !== primaryDateKey).length;
   const scheduleDaysTotalHours = scheduleDays.reduce((sum, d) => sum + hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes), 0);
   const primaryScheduleHours = hoursBetween(job.scheduled_start, job.scheduled_end);
   // The primary scheduled_start/end is its own visit, separate from any "+ Añadir día"
@@ -1262,10 +1264,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   )}
                   {scheduleDays.length > 0 && (
                     <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
-                        <span style={{ fontSize: 13 }}>📅</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{scheduleDayGroups.length} {scheduleDayGroups.length === 1 ? 'día adicional' : 'días adicionales'}</span>
-                      </div>
+                      {additionalDaysCount > 0 && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                          <span style={{ fontSize: 13 }}>📅</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{additionalDaysCount} {additionalDaysCount === 1 ? 'día adicional' : 'días adicionales'}</span>
+                        </div>
+                      )}
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
                         <span style={{ fontSize: 13 }}>⏱</span>
                         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(grandTotalHours)} en total</span>
