@@ -65,13 +65,13 @@ async function runDigest() {
 
   const [{ data: jobs }, { data: visits }, { data: calendarEvents }, { data: tasks }, { data: technicians }, { data: profiles }] = await Promise.all([
     supabase.from('jobs')
-      .select('id, title, status, scheduled_start, technician_id, street, city, clients(name), job_technicians(technician_id)')
+      .select('id, title, status, scheduled_start, technician_id, street, city, property_name, clients(name), job_technicians(technician_id)')
       .gte('scheduled_start', start).lt('scheduled_start', end),
     supabase.from('visits')
       .select('id, technician_id, scheduled_at, requests(title, clients(name))')
       .gte('scheduled_at', start).lt('scheduled_at', end),
     supabase.from('calendar_events')
-      .select('id, title, address, start_at, technician_id, clients(name), calendar_event_technicians(technician_id)')
+      .select('id, title, address, property_name, start_at, technician_id, clients(name), calendar_event_technicians(technician_id)')
       .gte('start_at', start).lt('start_at', end),
     supabase.from('tasks')
       .select('id, task_type, title, due_at, technician_id, clients(name)')
@@ -99,7 +99,8 @@ async function runDigest() {
   };
 
   for (const j of jobs ?? []) {
-    const item = { time: j.scheduled_start, title: j.title, subtitle: [j.clients?.name, [j.street, j.city].filter(Boolean).join(', ')].filter(Boolean).join(' — ') };
+    const location = j.property_name || [j.street, j.city].filter(Boolean).join(', ');
+    const item = { time: j.scheduled_start, title: j.title, subtitle: [j.clients?.name, location].filter(Boolean).join(' — ') };
     distribute(item, techIdsFor(j.technician_id, j.job_technicians));
   }
   for (const v of visits ?? []) {
@@ -107,7 +108,7 @@ async function runDigest() {
     distribute(item, techIdsFor(v.technician_id, []));
   }
   for (const e of calendarEvents ?? []) {
-    const item = { time: e.start_at, title: e.title, subtitle: [e.clients?.name, e.address].filter(Boolean).join(' — ') };
+    const item = { time: e.start_at, title: e.title, subtitle: [e.clients?.name, e.property_name || e.address].filter(Boolean).join(' — ') };
     distribute(item, techIdsFor(e.technician_id, e.calendar_event_technicians));
   }
   for (const t of tasks ?? []) {
