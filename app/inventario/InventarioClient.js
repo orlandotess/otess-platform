@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 
 const TYPE_META = {
@@ -11,9 +11,10 @@ const TYPE_META = {
   bin: { label: "Bin", icon: "🗃️" },
 };
 
-export default function InventarioClient({ locations: initialLocations, locationStock: initialStock, products }) {
+export default function InventarioClient({ locations: initialLocations, locationStock: initialStock, products, locationStockUnits: initialUnits }) {
   const [locations, setLocations] = useState(initialLocations);
   const [stock, setStock] = useState(initialStock);
+  const [units, setUnits] = useState(initialUnits ?? []);
   const [view, setView] = useState("tree");
   const [selectedId, setSelectedId] = useState(null);
   const [showInactive, setShowInactive] = useState(false);
@@ -26,11 +27,31 @@ export default function InventarioClient({ locations: initialLocations, location
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showAddUnitModal, setShowAddUnitModal] = useState(false);
+  const [savingUnit, setSavingUnit] = useState(false);
+  const [unitError, setUnitError] = useState("");
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   const [addForm, setAddForm] = useState({ name: "", type: "warehouse", code: "", parent_id: "" });
   const [bulkForm, setBulkForm] = useState({ prefix: "Estante", type: "shelf", parent_id: "", start: 1, end: 5, codePrefix: "" });
   const [adjustForm, setAdjustForm] = useState({ catalog_item_id: "", delta: "", reason: "" });
   const [transferForm, setTransferForm] = useState({ catalog_item_id: "", to_location_id: "", quantity: "", reason: "" });
+  const [unitForm, setUnitForm] = useState({ catalog_item_id: "", serial_number: "", notes: "" });
+  const [unitPhotoFile, setUnitPhotoFile] = useState(null);
+  const [unitPhotoPreview, setUnitPhotoPreview] = useState(null);
+
+  // Resuelve las URLs firmadas de las fotos una sola vez al montar (misma bucket privado Job-photos que usa Crew App).
+  useEffect(() => {
+    if (!initialUnits?.some(u => u.photo_path)) return;
+    (async () => {
+      const withUrls = await Promise.all(initialUnits.map(async u => ({
+        ...u,
+        photo_signed_url: u.photo_path ? (await supabase.storage.from("Job-photos").createSignedUrl(u.photo_path, 3600)).data?.signedUrl ?? null : null,
+      })));
+      setUnits(withUrls);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const visibleLocations = showInactive ? locations : locations.filter(l => l.is_active);
 
@@ -80,6 +101,49 @@ export default function InventarioClient({ locations: initialLocations, location
   const selected = selectedId ? byId[selectedId] : null;
   const selectedChildren = selectedId ? (childrenOf[selectedId] ?? []) : [];
   const selectedStock = selectedId ? stock.filter(s => s.location_id === selectedId) : [];
+  const selectedUnits = selectedId ? units.filter(u => u.location_id === selectedId) : [];
+
+  function closeAddUnitModal() {
+    setShowAddUnitModal(false);
+    setUnitForm({ catalog_item_id: "", serial_number: "", notes: "" });
+    setUnitPhotoFile(null);
+    setUnitPhotoPreview(null);
+    setUnitError("");
+  }
+
+  async function addUnit() {
+    if (!unitForm.catalog_item_id || !unitForm.serial_number.trim() || !selectedId) return;
+    setSavingUnit(true);
+    setUnitError("");
+    let photo_path = null;
+    if (unitPhotoFile) {
+      const ext = unitPhotoFile.name.split(".").pop();
+      photo_path = `inventory/${unitForm.catalog_item_id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("Job-photos").upload(photo_path, unitPhotoFile);
+      if (upErr) { setSavingUnit(false); setUnitError("No se pudo subir la foto. Intenta de nuevo."); return; }
+    }
+    const { data, error } = await supabase.from("location_stock_units").insert([{
+      location_id: selectedId,
+      catalog_item_id: unitForm.catalog_item_id,
+      serial_number: unitForm.serial_number.trim(),
+      photo_path,
+      notes: unitForm.notes.trim() || null,
+    }]).select("*, catalog_items(item_code, description)").single();
+    setSavingUnit(false);
+    if (error) {
+      setUnitError(error.code === "23505" ? "Ese serial number ya existe en el sistema." : "Error: " + error.message);
+      return;
+    }
+    const photo_signed_url = photo_path ? (await supabase.storage.from("Job-photos").createSignedUrl(photo_path, 3600)).data?.signedUrl ?? null : null;
+    setUnits(prev => [{ ...data, photo_signed_url }, ...prev]);
+    closeAddUnitModal();
+  }
+
+  async function deleteUnit(unit) {
+    if (!confirm(`¿Eliminar el equipo con serial "${unit.serial_number}"? Esto no se puede deshacer.`)) return;
+    await supabase.from("location_stock_units").delete().eq("id", unit.id);
+    setUnits(prev => prev.filter(u => u.id !== unit.id));
+  }
 
   async function addLocation() {
     if (!addForm.name.trim()) return;
@@ -308,6 +372,7 @@ export default function InventarioClient({ locations: initialLocations, location
                 <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => setShowAdjustModal(true)}>+ Ajustar Stock</button>
                 <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowTransferModal(true)}>⇄ Transferir</button>
                 <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={openHistory}>🕒 Historial</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowAddUnitModal(true)}>+ Agregar Equipo</button>
               </div>
 
               {selectedChildren.length > 0 && (
@@ -336,6 +401,32 @@ export default function InventarioClient({ locations: initialLocations, location
                           <div style={{ fontSize: 13 }}>{s.catalog_items?.description}</div>
                         </div>
                         <div style={{ fontWeight: 700, color: s.quantity <= 0 ? "var(--warn)" : "var(--navy)" }}>{s.quantity}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginTop: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>EQUIPO SERIALIZADO ({selectedUnits.length})</div>
+                {selectedUnits.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "var(--muted)" }}>Sin equipo registrado aquí todavía.</p>
+                ) : (
+                  <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+                    {selectedUnits.map((u, idx) => (
+                      <div key={u.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "10px 14px", borderBottom: idx < selectedUnits.length - 1 ? "1px solid var(--border)" : "none" }}>
+                        {u.photo_signed_url ? (
+                          <img src={u.photo_signed_url} alt={u.serial_number} onClick={() => setLightboxUrl(u.photo_signed_url)}
+                            style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8, cursor: "zoom-in", flexShrink: 0 }} />
+                        ) : (
+                          <div style={{ width: 44, height: 44, borderRadius: 8, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📦</div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13 }}>{u.catalog_items?.description}</div>
+                          <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--amber)" }}>SN: {u.serial_number}</div>
+                          {u.notes && <div style={{ fontSize: 11, color: "var(--muted)" }}>{u.notes}</div>}
+                        </div>
+                        <button onClick={() => deleteUnit(u)} style={{ background: "none", border: "none", color: "var(--warn)", cursor: "pointer", fontSize: 13, flexShrink: 0 }}>🗑</button>
                       </div>
                     ))}
                   </div>
@@ -418,6 +509,43 @@ export default function InventarioClient({ locations: initialLocations, location
           </Field>
           <ModalActions onCancel={() => setShowAdjustModal(false)} onConfirm={adjustStock} saving={saving} label="Ajustar" />
         </Modal>
+      )}
+
+      {/* Modal: Agregar Equipo (serializado) */}
+      {showAddUnitModal && selected && (
+        <Modal title={`+ Agregar Equipo en ${selected.name}`} onClose={closeAddUnitModal}>
+          <Field label="Producto">
+            <select value={unitForm.catalog_item_id} onChange={e => setUnitForm(f => ({ ...f, catalog_item_id: e.target.value }))} style={inputStyle}>
+              <option value="">Selecciona un producto...</option>
+              {products.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+            </select>
+          </Field>
+          <Field label="Serial number">
+            <input value={unitForm.serial_number} onChange={e => setUnitForm(f => ({ ...f, serial_number: e.target.value }))} style={inputStyle} />
+          </Field>
+          <Field label="Notas (opcional)">
+            <input value={unitForm.notes} onChange={e => setUnitForm(f => ({ ...f, notes: e.target.value }))} style={inputStyle} />
+          </Field>
+          <Field label="Foto (opcional)">
+            {unitPhotoPreview && <img src={unitPhotoPreview} alt="preview" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, marginBottom: 8, display: "block" }} />}
+            <input type="file" accept="image/*" onChange={e => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setUnitPhotoFile(file);
+              setUnitPhotoPreview(URL.createObjectURL(file));
+            }} style={inputStyle} />
+          </Field>
+          {unitError && <p style={{ fontSize: 12, color: "var(--warn)" }}>{unitError}</p>}
+          <ModalActions onCancel={closeAddUnitModal} onConfirm={addUnit} saving={savingUnit} label="Guardar" />
+        </Modal>
+      )}
+
+      {/* Lightbox: foto de equipo a pantalla completa */}
+      {lightboxUrl && (
+        <div onClick={() => setLightboxUrl(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, cursor: "zoom-out" }}>
+          <button onClick={() => setLightboxUrl(null)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 24, borderRadius: "50%", width: 40, height: 40, cursor: "pointer" }}>✕</button>
+          <img src={lightboxUrl} alt="equipo" onClick={e => e.stopPropagation()} style={{ maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain", borderRadius: 8 }} />
+        </div>
       )}
 
       {/* Modal: Transferir Stock */}

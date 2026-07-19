@@ -364,6 +364,17 @@ export default function FieldApp() {
   const [invAdjustForm, setInvAdjustForm] = useState({ catalog_item_id: '', delta: '', reason: '' });
   const [invSaving, setInvSaving] = useState(false);
 
+  // Inventario: equipo serializado (foto + serial por unidad, no por cantidad)
+  const [invUnits, setInvUnits] = useState([]);
+  const [showInvAddUnit, setShowInvAddUnit] = useState(false);
+  const [invUnitForm, setInvUnitForm] = useState({ catalog_item_id: '', serial_number: '', notes: '' });
+  const [invUnitPhotoFile, setInvUnitPhotoFile] = useState(null);
+  const [invUnitPhotoPreview, setInvUnitPhotoPreview] = useState(null);
+  const [invUnitUploadProgress, setInvUnitUploadProgress] = useState(0);
+  const [invSavingUnit, setInvSavingUnit] = useState(false);
+  const [invUnitError, setInvUnitError] = useState('');
+  const fileRefInvUnit = useRef();
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { window.location.replace('/login'); return; }
@@ -1206,14 +1217,17 @@ export default function FieldApp() {
   useEffect(() => {
     if (tab !== 'inventario' || invLoaded) return;
     (async () => {
-      const [{ data: locs }, { data: stockRows }, { data: prods }] = await Promise.all([
+      const [{ data: locs }, { data: stockRows }, { data: prods }, { data: unitRows }] = await Promise.all([
         supabase.from('locations').select('*').eq('is_active', true).order('name'),
         supabase.from('location_stock').select('*, catalog_items(item_code, description)'),
         supabase.from('catalog_items').select('id, item_code, description').eq('type', 'product').order('item_code'),
+        supabase.from('location_stock_units').select('*, catalog_items(item_code, description)').order('created_at', { ascending: false }),
       ]);
       setInvLocations(locs ?? []);
       setInvStock(stockRows ?? []);
       setInvProducts(prods ?? []);
+      const unitsWithUrls = await Promise.all((unitRows ?? []).map(async u => ({ ...u, photo_signed_url: u.photo_path ? await getSignedUrl(u.photo_path) : null })));
+      setInvUnits(unitsWithUrls);
       const savedLocationId = localStorage.getItem('otess-crew-inv-location');
       if (savedLocationId && (locs ?? []).some(l => l.id === savedLocationId)) {
         setInvLocationId(savedLocationId);
@@ -1241,6 +1255,55 @@ export default function FieldApp() {
   const invSearchTerm = invSearch.trim().toLowerCase();
   const invSelectedStock = invStock.filter(s => s.location_id === invLocationId
     && (!invSearchTerm || s.catalog_items?.description?.toLowerCase().includes(invSearchTerm) || s.catalog_items?.item_code?.toLowerCase().includes(invSearchTerm)));
+  const invSelectedUnits = invUnits.filter(u => u.location_id === invLocationId
+    && (!invSearchTerm || u.catalog_items?.description?.toLowerCase().includes(invSearchTerm) || u.catalog_items?.item_code?.toLowerCase().includes(invSearchTerm) || u.serial_number.toLowerCase().includes(invSearchTerm)));
+
+  function handleInvUnitPhotoSelect(file) {
+    if (!file) return;
+    setInvUnitPhotoFile(file);
+    setInvUnitPhotoPreview(URL.createObjectURL(file));
+  }
+
+  function closeInvAddUnitModal() {
+    setShowInvAddUnit(false);
+    setInvUnitForm({ catalog_item_id: '', serial_number: '', notes: '' });
+    setInvUnitPhotoFile(null);
+    setInvUnitPhotoPreview(null);
+    setInvUnitUploadProgress(0);
+    setInvUnitError('');
+  }
+
+  async function invAddUnit() {
+    if (!invUnitForm.catalog_item_id || !invUnitForm.serial_number.trim() || !invLocationId) {
+      setInvUnitError('Selecciona un producto y escribe el serial number.');
+      return;
+    }
+    setInvSavingUnit(true);
+    setInvUnitError('');
+    let photo_path = null;
+    if (invUnitPhotoFile) {
+      const ext = invUnitPhotoFile.name.split('.').pop();
+      photo_path = `inventory/${invUnitForm.catalog_item_id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await uploadFileWithProgress('Job-photos', photo_path, invUnitPhotoFile, setInvUnitUploadProgress);
+      if (upErr) { setInvSavingUnit(false); setInvUnitError('No se pudo subir la foto. Intenta de nuevo.'); return; }
+    }
+    const { data, error } = await supabase.from('location_stock_units').insert([{
+      location_id: invLocationId,
+      catalog_item_id: invUnitForm.catalog_item_id,
+      serial_number: invUnitForm.serial_number.trim(),
+      photo_path,
+      notes: invUnitForm.notes.trim() || null,
+      created_by: profileId,
+    }]).select('*, catalog_items(item_code, description)').single();
+    setInvSavingUnit(false);
+    if (error) {
+      setInvUnitError(error.code === '23505' ? 'Ese serial number ya existe en el sistema.' : 'No se pudo guardar. Intenta de nuevo.');
+      return;
+    }
+    const photo_signed_url = photo_path ? await getSignedUrl(photo_path) : null;
+    setInvUnits(prev => [{ ...data, photo_signed_url }, ...prev]);
+    closeInvAddUnitModal();
+  }
 
   async function invAdjustStock() {
     const delta = parseFloat(invAdjustForm.delta);
@@ -1881,6 +1944,34 @@ export default function FieldApp() {
                         <div style={{ fontSize: 14 }}>{s.catalog_items?.description}</div>
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 15, color: s.quantity <= 0 ? '#b52a2a' : '#16223d' }}>{s.quantity}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {invLoaded && invLocationId && (
+              <div style={card}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>EQUIPO ({invSelectedUnits.length})</div>
+                  <button onClick={() => setShowInvAddUnit(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Agregar equipo</button>
+                </div>
+                {invSelectedUnits.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin equipo registrado en esta ubicación.</div>
+                ) : (
+                  invSelectedUnits.map((u, idx) => (
+                    <div key={u.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: idx < invSelectedUnits.length - 1 ? '1px solid #eee' : 'none' }}>
+                      {u.photo_signed_url ? (
+                        <img src={u.photo_signed_url} alt={u.serial_number} onClick={() => setLightbox({ urls: [u.photo_signed_url], index: 0 })}
+                          style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in', flexShrink: 0 }} />
+                      ) : (
+                        <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📦</div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>{u.catalog_items?.description}</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 12, color: AMBER }}>SN: {u.serial_number}</div>
+                        {u.notes && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{u.notes}</div>}
+                      </div>
                     </div>
                   ))
                 )}
@@ -2812,6 +2903,46 @@ export default function FieldApp() {
               <button onClick={() => setShowInvAdjust(false)} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
               <button onClick={invAdjustStock} disabled={invSaving || !invAdjustForm.catalog_item_id || !invAdjustForm.delta} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
                 {invSaving ? 'Guardando...' : 'Ajustar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInvAddUnit && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={closeInvAddUnitModal}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📦 Agregar equipo — {invLocById[invLocationId]?.name}</div>
+              <button onClick={closeInvAddUnitModal} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+            </div>
+            <select value={invUnitForm.catalog_item_id} onChange={e => setInvUnitForm(f => ({ ...f, catalog_item_id: e.target.value }))}
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
+              <option value="">Selecciona un producto...</option>
+              {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+            </select>
+            <input value={invUnitForm.serial_number} onChange={e => setInvUnitForm(f => ({ ...f, serial_number: e.target.value }))} placeholder="Serial number"
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+            <input value={invUnitForm.notes} onChange={e => setInvUnitForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notas (opcional)"
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+
+            {invUnitPhotoPreview ? (
+              <img src={invUnitPhotoPreview} alt="preview" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+            ) : null}
+            <input ref={fileRefInvUnit} type="file" accept="image/*" onChange={e => handleInvUnitPhotoSelect(e.target.files?.[0])} style={{ display: 'none' }} />
+            <button type="button" onClick={() => fileRefInvUnit.current?.click()} style={{ width: '100%', padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>
+              📷 {invUnitPhotoFile ? 'Cambiar foto' : 'Agregar foto'}
+            </button>
+            {invSavingUnit && invUnitPhotoFile && (
+              <div style={{ background: '#e5e7eb', borderRadius: 20, height: 8, overflow: 'hidden', marginBottom: 8 }}>
+                <div style={{ background: ORANGE, height: '100%', width: `${invUnitUploadProgress}%`, transition: 'width 0.2s' }} />
+              </div>
+            )}
+            {invUnitError && <p style={{ color: '#b52a2a', fontSize: 13, marginBottom: 8 }}>{invUnitError}</p>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button onClick={closeInvAddUnitModal} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={invAddUnit} disabled={invSavingUnit || !invUnitForm.catalog_item_id || !invUnitForm.serial_number.trim()} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                {invSavingUnit ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
           </div>
