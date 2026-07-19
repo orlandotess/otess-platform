@@ -1214,9 +1214,18 @@ export default function FieldApp() {
       setInvLocations(locs ?? []);
       setInvStock(stockRows ?? []);
       setInvProducts(prods ?? []);
+      const savedLocationId = localStorage.getItem('otess-crew-inv-location');
+      if (savedLocationId && (locs ?? []).some(l => l.id === savedLocationId)) {
+        setInvLocationId(savedLocationId);
+      }
       setInvLoaded(true);
     })();
   }, [tab, invLoaded]);
+
+  // Recuerda la última ubicación elegida entre visitas al tab (y entre sesiones).
+  useEffect(() => {
+    if (invLocationId) localStorage.setItem('otess-crew-inv-location', invLocationId);
+  }, [invLocationId]);
 
   const invLocById = Object.fromEntries(invLocations.map(l => [l.id, l]));
   const INV_TYPE_ICON = { warehouse: '🏢', site: '📍', van: '🚐', zone: '🗂️', shelf: '📚', bin: '🗃️' };
