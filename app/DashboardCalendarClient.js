@@ -13,7 +13,14 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
 
   const techColors = useMemo(() => {
     const map = {};
-    techs.forEach((t, i) => { map[t.id] = TECH_COLORS[i % TECH_COLORS.length]; });
+    // Hashed by ID rather than array index so a technician keeps the same color
+    // even after others are added/removed/reordered in the technicians table.
+    techs.forEach((t) => {
+      let hash = 0;
+      const id = String(t.id);
+      for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+      map[t.id] = TECH_COLORS[hash % TECH_COLORS.length];
+    });
     return map;
   }, [techs]);
 

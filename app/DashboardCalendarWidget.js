@@ -73,7 +73,14 @@ export default async function DashboardCalendarWidget() {
   const allAbsences = absences ?? [];
 
   const techColors = {};
-  techs.forEach((t, i) => { techColors[t.id] = TECH_COLORS[i % TECH_COLORS.length]; });
+  // Hashed by ID rather than array index so a technician keeps the same color
+  // even after others are added/removed/reordered in the technicians table.
+  techs.forEach((t) => {
+    let hash = 0;
+    const id = String(t.id);
+    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+    techColors[t.id] = TECH_COLORS[hash % TECH_COLORS.length];
+  });
 
   const today = now.toISOString().slice(0, 10);
   const inWeek = dateStr => dateStr && dateStr <= weekEnd && dateStr >= weekStart;
