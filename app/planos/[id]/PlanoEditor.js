@@ -1337,115 +1337,92 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             )}
           </div>
 
-          {selectedMarker && (
+          {selectedMarker && (() => {
+            // The whole marker panel — quick-action header plus every
+            // editable field — lives fixed at the top-left of the canvas
+            // (same spot regardless of zoom/pan), like System Surveyor's
+            // element toolbar. It does NOT track the marker's position on
+            // the plan; that tracking behavior was confusing (position
+            // changed depending on where the marker sat, could overlap it,
+            // and moved every time you scrolled/zoomed). A fixed spot is
+            // predictable: it's always in the same place when you have a
+            // marker selected. Width/height still adapt to the canvas size
+            // so it never overflows on a narrow or short viewport.
+            const panelWidth = Math.min(260, Math.max(200, rectSize.width - 20));
+            const panelMaxHeight = Math.max(200, rectSize.height - 20);
+            return (
             <div
               onPointerDown={e => e.stopPropagation()}
               onClick={e => e.stopPropagation()}
               onWheel={e => e.stopPropagation()}
               style={{
-                position: 'absolute', left: 10, top: 10, zIndex: 6, display: 'flex', alignItems: 'center', gap: 8,
-                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 8px',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.12)', maxWidth: 'calc(100% - 20px)',
+                position: 'absolute', left: 10, top: 10, zIndex: 6,
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+                boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
+                width: panelWidth, maxHeight: panelMaxHeight, overflowY: 'auto',
               }}
             >
-              {getMarkerElement(selectedMarker, elementTypes) && (
-                <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: getMarkerElement(selectedMarker, elementTypes).system_color, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
-                  {getMarkerElement(selectedMarker, elementTypes).system_abbr}
-                </span>
-              )}
-              <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {selectedMarker.label
-                  || customIconsState.find(ic => ic.id === selectedMarker.custom_icon_id)?.name
-                  || getMarkerElement(selectedMarker, elementTypes)?.name
-                  || getEquipmentType(selectedMarker.equipment_type)?.label}
-              </span>
-
-              {selectedMarkerAOC && (
-                <>
-                  <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', flexShrink: 0 }} />
-                  <button
-                    type="button" title={selectedMarkerAOC.visible ? 'Ocultar área de cobertura' : 'Mostrar área de cobertura'}
-                    onClick={() => handleAOCChange(selectedMarker.id, { visible: !selectedMarkerAOC.visible })}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
-                  >
-                    {selectedMarkerAOC.visible ? '📐' : '🚫'}
-                  </button>
-                  {selectedMarkerAOC.visible && (
-                    <>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
-                        {Math.round(selectedMarkerAOC.direction)}°
-                      </span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
-                        {feetPerPixel ? `${(selectedMarkerAOC.radius * feetPerPixel).toFixed(1)} ft` : `${Math.round(selectedMarkerAOC.radius)} u`}
-                      </span>
-                    </>
-                  )}
-                </>
-              )}
-
-              <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', flexShrink: 0 }} />
-              <button
-                type="button" title="Duplicar equipo" onClick={() => duplicateMarker(selectedMarker.id)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
-              >
-                📋
-              </button>
-              <button
-                type="button" title="Eliminar equipo" onClick={() => deleteMarker(selectedMarker.id)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
-              >
-                🗑
-              </button>
-              <button
-                type="button" title="Cerrar" onClick={() => setSelectedMarkerId(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700, padding: '0 2px', flexShrink: 0 }}
-              >
-                ✕
-              </button>
-            </div>
-          )}
-
-          {selectedMarker && (() => {
-            // Popup always sits above the marker's icon (centered over it,
-            // like a callout) — its height just shrinks to fit whatever
-            // room is available above rather than flipping below, so its
-            // position stays predictable. Width shrinks to fit narrow
-            // canvases (mobile/split-screen tablet) instead of a fixed
-            // 220px that can overflow past the wrap's edge, and left/top
-            // are clamped into the wrap's actual bounds so the panel never
-            // spills outside the visible canvas.
-            const popupWidth = Math.min(220, Math.max(180, rectSize.width - 24));
-            const popupMaxHeight = Math.min(400, Math.max(160, rectSize.height - 24));
-            const markerLeft = view.pan.x + selectedMarker.pos_x * rectSize.width * view.zoom;
-            const markerTop = view.pan.y + selectedMarker.pos_y * rectSize.height * view.zoom;
-            const gap = 14;
-            const height = Math.max(100, Math.min(popupMaxHeight, markerTop - gap - 8));
-            const top = Math.max(8, markerTop - gap - height);
-            const rawLeft = markerLeft - popupWidth / 2;
-            const left = Math.max(8, Math.min(rawLeft, rectSize.width - popupWidth - 8));
-            return (
-            <div
-              onPointerDown={e => e.stopPropagation()}
-              onClick={e => e.stopPropagation()}
-              style={{
-                position: 'absolute', left, top,
-                background: 'var(--surface)', border: '1.5px solid var(--border)',
-                borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5,
-                width: popupWidth, maxHeight: height, overflowY: 'auto',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <div style={{
+                position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', gap: 8,
+                background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '6px 8px',
+              }}>
                 {getMarkerElement(selectedMarker, elementTypes) && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: getMarkerElement(selectedMarker, elementTypes).system_color, borderRadius: 4, padding: '1px 5px' }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: getMarkerElement(selectedMarker, elementTypes).system_color, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
                     {getMarkerElement(selectedMarker, elementTypes).system_abbr}
                   </span>
                 )}
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>
-                  {customIconsState.find(ic => ic.id === selectedMarker.custom_icon_id)?.name
+                <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {selectedMarker.label
+                    || customIconsState.find(ic => ic.id === selectedMarker.custom_icon_id)?.name
                     || getMarkerElement(selectedMarker, elementTypes)?.name
                     || getEquipmentType(selectedMarker.equipment_type)?.label}
-                </div>
+                </span>
+
+                {selectedMarkerAOC && (
+                  <>
+                    <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', flexShrink: 0 }} />
+                    <button
+                      type="button" title={selectedMarkerAOC.visible ? 'Ocultar área de cobertura' : 'Mostrar área de cobertura'}
+                      onClick={() => handleAOCChange(selectedMarker.id, { visible: !selectedMarkerAOC.visible })}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
+                    >
+                      {selectedMarkerAOC.visible ? '📐' : '🚫'}
+                    </button>
+                    {selectedMarkerAOC.visible && (
+                      <>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
+                          {Math.round(selectedMarkerAOC.direction)}°
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
+                          {feetPerPixel ? `${(selectedMarkerAOC.radius * feetPerPixel).toFixed(1)} ft` : `${Math.round(selectedMarkerAOC.radius)} u`}
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
+
+                <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', flexShrink: 0 }} />
+                <button
+                  type="button" title="Duplicar equipo" onClick={() => duplicateMarker(selectedMarker.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
+                >
+                  📋
+                </button>
+                <button
+                  type="button" title="Eliminar equipo" onClick={() => deleteMarker(selectedMarker.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
+                >
+                  🗑
+                </button>
+                <button
+                  type="button" title="Cerrar" onClick={() => setSelectedMarkerId(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700, padding: '0 2px', flexShrink: 0 }}
+                >
+                  ✕
+                </button>
               </div>
+
+              <div style={{ padding: 10 }}>
               <input
                 value={selectedMarker.label || ''}
                 onFocus={() => { labelOriginRef.current = selectedMarker.label || ''; }}
@@ -1540,14 +1517,10 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 aoc={getAOC(selectedMarker, elementTypes)}
                 onChange={updates => handleAOCChange(selectedMarker.id, updates)}
               />
-              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', flex: 1 }}
-                  onClick={() => { setMode({ type: 'cable' }); setCableDraft({ fromMarkerId: selectedMarker.id, points: [] }); setSelectedMarkerId(null); }}>
-                  🔌 Cable
-                </button>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', color: 'var(--warn)' }} onClick={() => deleteMarker(selectedMarker.id)}>
-                  Eliminar
-                </button>
+              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', width: '100%', marginTop: 8 }}
+                onClick={() => { setMode({ type: 'cable' }); setCableDraft({ fromMarkerId: selectedMarker.id, points: [] }); setSelectedMarkerId(null); }}>
+                🔌 Cable
+              </button>
               </div>
             </div>
             );
