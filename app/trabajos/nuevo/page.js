@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../../Sidebar';
 import LineItemRow from '../../LineItemRow';
 import CableCalculator from '../../CableCalculator';
@@ -11,7 +11,17 @@ import { localInputToIso } from '../../../lib/datetimeLocal';
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
 export default function NuevoTrabajo() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40 }}>Cargando...</div>}>
+      <NuevoTrabajoForm />
+    </Suspense>
+  );
+}
+
+function NuevoTrabajoForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const clientParam = searchParams.get('client');
   const [catalogItems, setCatalogItems] = useState([]);
   const [clients, setClients] = useState([]);
   const [properties, setProperties] = useState([]);
@@ -40,6 +50,14 @@ export default function NuevoTrabajo() {
     supabase.from('clients').select('id, name, client_type, company, report_name_source').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
+
+  useEffect(() => {
+    if (!clientParam || !clients.length) return;
+    const match = clients.find(c => c.id === clientParam);
+    if (match) {
+      setForm(f => (f.client_id ? f : { ...f, client_id: match.id, bill_to: match.report_name_source === 'company' ? 'company' : 'person' }));
+    }
+  }, [clientParam, clients]);
 
   function handleDescriptionSelect(idx, value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
