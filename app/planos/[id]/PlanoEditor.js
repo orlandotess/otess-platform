@@ -1406,21 +1406,30 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           )}
 
           {selectedMarker && (() => {
-            // Flip to the marker's other side / edge when it sits near the canvas
-            // boundary, so the panel doesn't get clipped by the wrap's overflow:hidden.
-            const flipX = selectedMarker.pos_x > 0.6;
-            const xOffset = flipX ? 'calc(-100% - 16px)' : '16px';
-            const yOffset = selectedMarker.pos_y < 0.25 ? '0%' : selectedMarker.pos_y > 0.75 ? '-100%' : '-50%';
+            // Popup width shrinks to fit narrow canvases (mobile/split-screen
+            // tablet) instead of a fixed 220px that can overflow past the
+            // wrap's edge. Left/top are computed directly (not via a
+            // transform offset) and then clamped into [0, wrap width/height]
+            // so the panel never spills outside the visible canvas no matter
+            // where the marker sits or how narrow the screen is.
+            const popupWidth = Math.min(220, Math.max(180, rectSize.width - 24));
+            const popupMaxHeight = Math.max(200, rectSize.height - 24);
             const markerLeft = view.pan.x + selectedMarker.pos_x * rectSize.width * view.zoom;
             const markerTop = view.pan.y + selectedMarker.pos_y * rectSize.height * view.zoom;
+            const flipX = markerLeft + 16 + popupWidth > rectSize.width;
+            const rawLeft = flipX ? markerLeft - 16 - popupWidth : markerLeft + 16;
+            const left = Math.max(8, Math.min(rawLeft, rectSize.width - popupWidth - 8));
+            const rawTop = markerTop - popupMaxHeight / 2;
+            const top = Math.max(8, Math.min(rawTop, rectSize.height - popupMaxHeight - 8));
             return (
             <div
               onPointerDown={e => e.stopPropagation()}
               onClick={e => e.stopPropagation()}
               style={{
-                position: 'absolute', left: markerLeft, top: markerTop,
-                transform: `translate(${xOffset}, ${yOffset})`, background: 'var(--surface)', border: '1.5px solid var(--border)',
-                borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5, width: 220,
+                position: 'absolute', left, top,
+                background: 'var(--surface)', border: '1.5px solid var(--border)',
+                borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5,
+                width: popupWidth, maxHeight: popupMaxHeight, overflowY: 'auto',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
