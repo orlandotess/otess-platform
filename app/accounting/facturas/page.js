@@ -69,10 +69,21 @@ export default async function AccountingFacturas({ searchParams }) {
   const invs = invoices ?? [];
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  const invoiceIds = invs.map(i => i.id);
+  const { data: paymentsData } = invoiceIds.length
+    ? await supabase.from('payments').select('invoice_id, amount').in('invoice_id', invoiceIds)
+    : { data: [] };
+  const collectedByInvoice = {};
+  (paymentsData ?? []).forEach(p => {
+    collectedByInvoice[p.invoice_id] = (collectedByInvoice[p.invoice_id] ?? 0) + Number(p.amount ?? 0);
+  });
+
   const totalFacturado = invs.reduce((a, i) => a + Number(i.total ?? 0), 0);
-  const totalCobrado = invs.filter(i => i.status === 'paid').reduce((a, i) => a + Number(i.total ?? 0), 0);
-  const totalPendiente = invs.filter(i => i.status === 'sent').reduce((a, i) => a + Number(i.total ?? 0), 0);
-  const totalVencido = invs.filter(i => i.status === 'sent' && i.due_at && i.due_at < today).reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const totalCobrado = invs.reduce((a, i) => a + (collectedByInvoice[i.id] ?? 0), 0);
+  const totalPendiente = invs.filter(i => i.status === 'sent')
+    .reduce((a, i) => a + Number(i.total ?? 0) - (collectedByInvoice[i.id] ?? 0), 0);
+  const totalVencido = invs.filter(i => i.status === 'sent' && i.due_at && i.due_at < today)
+    .reduce((a, i) => a + Number(i.total ?? 0) - (collectedByInvoice[i.id] ?? 0), 0);
   const totalIVU = invs.reduce((a, i) => a + Number(i.tax_products ?? 0) + Number(i.tax_labor ?? 0), 0);
 
   const years = [currentYear, currentYear - 1, currentYear - 2];
