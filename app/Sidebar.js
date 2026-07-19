@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useState, useEffect } from 'react';
 
 const operationsLinks = [
+ { href: '/oportunidades', label: 'Oportunidades', icon: 'target' },
  { href: '/clientes',   label: 'Clientes',   icon: 'users' },
  { href: '/solicitudes', label: 'Solicitudes', icon: 'inbox' },
  { href: '/trabajos',   label: 'Trabajos',   icon: 'bolt' },
@@ -79,6 +80,7 @@ const ICON_PATHS = {
   box: <><path d="M3 8 L12 4 L21 8 L12 12 Z"/><path d="M3 8 V16 L12 20 V12"/><path d="M21 8 V16 L12 20"/></>,
   inbox: <><path d="M3 12 h5 l2 3 h4 l2 -3 h5"/><path d="M5.5 5 h13 l2.5 7 v7 a1.5 1.5 0 0 1 -1.5 1.5 h-15 A1.5 1.5 0 0 1 3 19 v-7 z"/></>,
   wrench: <path d="M20.5 6.5 a4.5 4.5 0 0 1 -6 4.2 L6 19 a2 2 0 0 1 -2.8 -2.8 l8.3 -8.5 a4.5 4.5 0 0 1 4.2 -6 l-3 3 l0.6 2.4 l2.4 0.6 z" fill="none"/>,
+  target: <><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.8"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></>,
 };
 
 function NavIcon({ name }) {
