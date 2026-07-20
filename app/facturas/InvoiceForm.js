@@ -1,10 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Sidebar from '../../Sidebar';
-import ClientCombobox from './ClientCombobox';
-import LineItemRow from '../../LineItemRow';
+import Sidebar from '../Sidebar';
+import ClientCombobox from './nueva/ClientCombobox';
+import LineItemRow from '../LineItemRow';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
@@ -16,22 +16,46 @@ const TERMS_TEMPLATES = [
   { key: 'standard', label: 'Garantía estándar', text: DEFAULT_TERMS },
 ];
 
-export default function NuevaFactura() {
+export default function InvoiceForm({ initialData = null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobIdParam = searchParams.get('job');
+  const isEdit = !!initialData;
 
   const [clients, setClients] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(initialData ? {
+    client_id: initialData.invoice.client_id ?? '', job_id: initialData.invoice.job_id ?? '',
+    notes: initialData.invoice.notes ?? '', work_description: initialData.invoice.work_description ?? '',
+    bill_to: initialData.invoice.bill_to ?? 'person', terms: initialData.invoice.terms ?? DEFAULT_TERMS,
+    issued_at: initialData.invoice.issued_at ?? new Date().toISOString().split('T')[0],
+    due_at: initialData.invoice.due_at ?? new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+  } : {
     client_id: '', job_id: '', notes: '', work_description: '', bill_to: 'person', terms: DEFAULT_TERMS,
     issued_at: new Date().toISOString().split('T')[0],
     due_at: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
-  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const [items, setItems] = useState(
+    initialData?.items?.length
+      ? initialData.items.map(li => ({
+          type: li.type, description: li.description, quantity: li.quantity, unit_price: li.unit_price,
+          msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
+          catalog_item_id: li.catalog_item_id ?? null,
+          photoFile: null, photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
+        }))
+      : [{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Product quantities this invoice already had reserved before this edit —
+  // used so the stock-shortage check compares against what would be available
+  // after this invoice's old deduction is restored, not the currently-reduced stock.
+  const oldQtyByCatalogId = (initialData?.items ?? []).reduce((m, li) => {
+    if (li.type === 'product' && li.catalog_item_id) m[li.catalog_item_id] = (m[li.catalog_item_id] ?? 0) + Number(li.quantity ?? 0);
+    return m;
+  }, {});
 
   useEffect(() => {
     supabase.from('clients').select('id, name, company, client_type, report_name_source').order('name').then(({ data }) => setClients(data ?? []));
@@ -40,7 +64,7 @@ export default function NuevaFactura() {
   }, []);
 
   useEffect(() => {
-    if (jobIdParam && jobs.length) {
+    if (!isEdit && jobIdParam && jobs.length) {
       const job = jobs.find(j => j.id === jobIdParam);
       if (job) {
         setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id, bill_to: job.bill_to ?? 'person', work_description: job.description ?? '' }));
@@ -110,8 +134,9 @@ export default function NuevaFactura() {
     const shortages = items.filter(i => i.type === 'product' && i.catalog_item_id).map(i => {
       const cat = catalogItems.find(c => c.id === i.catalog_item_id);
       const requested = parseFloat(i.quantity) || 0;
-      return cat && cat.stock_quantity != null && requested > cat.stock_quantity
-        ? `${cat.description}: pedido ${requested}, disponible ${cat.stock_quantity}`
+      const available = cat?.stock_quantity != null ? cat.stock_quantity + (oldQtyByCatalogId[i.catalog_item_id] ?? 0) : null;
+      return cat && available != null && requested > available
+        ? `${cat.description}: pedido ${requested}, disponible ${available}`
         : null;
     }).filter(Boolean);
     if (shortages.length && !confirm(`Stock insuficiente para:\n${shortages.join('\n')}\n\n¿Guardar la factura de todas formas?`)) {
@@ -120,36 +145,77 @@ export default function NuevaFactura() {
 
     setSaving(true); setError('');
 
-    const { data: allInvoices } = await supabase.from('invoices').select('invoice_number');
-    let maxNum = 999;
-    (allInvoices ?? []).forEach(inv => {
-      const match = inv.invoice_number?.match(/^INV-(\d+)$/);
-      if (match) {
-        const n = parseInt(match[1]);
-        if (n > maxNum) maxNum = n;
+    let invoice;
+    if (isEdit) {
+      const { data: current } = await supabase.from('invoices').select('status').eq('id', initialData.invoice.id).single();
+      if (!current || !['draft', 'sent'].includes(current.status)) {
+        setError('Esta factura ya no se puede editar (fue pagada o cancelada).');
+        setSaving(false);
+        return;
       }
-    });
-    const invoiceNumber = `INV-${maxNum + 1}`;
+      const { data: updated, error: err } = await supabase.from('invoices').update({
+        client_id: form.client_id,
+        job_id: form.job_id || null,
+        notes: form.notes || null,
+        work_description: form.work_description || null,
+        terms: form.terms || null,
+        issued_at: form.issued_at,
+        due_at: form.due_at,
+        bill_to: form.bill_to,
+        subtotal_products: t.subProd,
+        tax_products: t.taxProd,
+        subtotal_labor: t.subLabor,
+        tax_labor: t.taxLabor,
+        total: t.total,
+      }).eq('id', initialData.invoice.id).select().single();
+      if (err) { setError(err.message); setSaving(false); return; }
+      invoice = updated;
 
-    const { data: invoice, error: err } = await supabase.from('invoices').insert([{
-      invoice_number: invoiceNumber,
-      client_id: form.client_id,
-      job_id: form.job_id || null,
-      notes: form.notes || null,
-      work_description: form.work_description || null,
-      terms: form.terms || null,
-      issued_at: form.issued_at,
-      due_at: form.due_at,
-      status: 'draft',
-      bill_to: form.bill_to,
-      subtotal_products: t.subProd,
-      tax_products: t.taxProd,
-      subtotal_labor: t.subLabor,
-      tax_labor: t.taxLabor,
-      total: t.total,
-    }]).select().single();
+      // Restore stock this invoice previously reserved before wiping its old lines —
+      // the deduction below re-applies it against the edited quantities.
+      const { data: oldLineItems } = await supabase.from('invoice_line_items').select('catalog_item_id, quantity, type, catalog_items(default_location_id)').eq('invoice_id', invoice.id);
+      for (const li of (oldLineItems ?? []).filter(li => li.type === 'product' && li.catalog_item_id)) {
+        await supabase.rpc('adjust_catalog_stock', {
+          p_catalog_item_id: li.catalog_item_id,
+          p_delta: li.quantity,
+          p_invoice_id: invoice.id,
+          p_reason: 'invoice_edited',
+          p_location_id: li.catalog_items?.default_location_id ?? null,
+        });
+      }
+      await supabase.from('invoice_line_items').delete().eq('invoice_id', invoice.id);
+    } else {
+      const { data: allInvoices } = await supabase.from('invoices').select('invoice_number');
+      let maxNum = 999;
+      (allInvoices ?? []).forEach(inv => {
+        const match = inv.invoice_number?.match(/^INV-(\d+)$/);
+        if (match) {
+          const n = parseInt(match[1]);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+      const invoiceNumber = `INV-${maxNum + 1}`;
 
-    if (err) { setError(err.message); setSaving(false); return; }
+      const { data: created, error: err } = await supabase.from('invoices').insert([{
+        invoice_number: invoiceNumber,
+        client_id: form.client_id,
+        job_id: form.job_id || null,
+        notes: form.notes || null,
+        work_description: form.work_description || null,
+        terms: form.terms || null,
+        issued_at: form.issued_at,
+        due_at: form.due_at,
+        status: 'draft',
+        bill_to: form.bill_to,
+        subtotal_products: t.subProd,
+        tax_products: t.taxProd,
+        subtotal_labor: t.subLabor,
+        tax_labor: t.taxLabor,
+        total: t.total,
+      }]).select().single();
+      if (err) { setError(err.message); setSaving(false); return; }
+      invoice = created;
+    }
 
     const lineItems = [];
     let sortOrder = 0;
@@ -178,7 +244,7 @@ export default function NuevaFactura() {
 
     const { error: liErr } = await supabase.from('invoice_line_items').insert(lineItems);
     if (liErr) {
-      setError(`La factura ${invoiceNumber} se creó pero no se pudieron guardar sus líneas: ${liErr.message}. Ábrela y agrégalas manualmente.`);
+      setError(`La factura ${invoice.invoice_number} se guardó pero no se pudieron guardar sus líneas: ${liErr.message}. Ábrela y agrégalas manualmente.`);
       setSaving(false);
       return;
     }
@@ -189,7 +255,7 @@ export default function NuevaFactura() {
         p_catalog_item_id: li.catalog_item_id,
         p_delta: -li.quantity,
         p_invoice_id: invoice.id,
-        p_reason: 'invoice_created',
+        p_reason: isEdit ? 'invoice_edited' : 'invoice_created',
         p_location_id: cat?.default_location_id ?? null,
       });
     }
@@ -201,7 +267,7 @@ export default function NuevaFactura() {
     <div className="admin-shell ds-facturas">
       <Sidebar />
       <main className="main-content">
-        <div className="page-header"><div className="page-title">Nueva factura</div></div>
+        <div className="page-header"><div className="page-title">{isEdit ? `Editar factura ${initialData.invoice.invoice_number}` : 'Nueva factura'}</div></div>
         <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {error && <p style={{ color: 'var(--warn)', fontSize: 14 }}>{error}</p>}
@@ -347,7 +413,7 @@ export default function NuevaFactura() {
               </div>
             </div>
             <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
-              {saving ? 'Guardando...' : '💾 Guardar factura'}
+              {saving ? 'Guardando...' : isEdit ? '💾 Guardar cambios' : '💾 Guardar factura'}
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>Cancelar</button>
           </div>

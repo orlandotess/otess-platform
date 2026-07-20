@@ -272,6 +272,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   }
 
   const moreItems = [
+    ['draft', 'sent'].includes(status) && { key: 'items', label: '🧾 Editar líneas de factura', onClick: () => router.push(`/facturas/${invoiceId}/editar`) },
     { key: 'number', label: '✏️ Editar # de factura', onClick: () => { setNewNumber(invoiceNumber); setShowEditNumber(true); } },
     clientCompany && { key: 'billto', label: '👤 Facturar a', onClick: () => setShowEditBillTo(true) },
     clientProperties.length > 0 && { key: 'property', label: '🏠 Propiedad', onClick: () => setShowEditProperty(true) },
