@@ -1,10 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
+import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 import SearchBox from '../../SearchBox';
 
 const statusJob = {
@@ -229,16 +230,64 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
   const [savingInternalNote, setSavingInternalNote] = useState(false);
   const [editingInternalNoteId, setEditingInternalNoteId] = useState(null);
   const [editingInternalNoteText, setEditingInternalNoteText] = useState('');
+  const [pendingNotePhotos, setPendingNotePhotos] = useState([]);
+  const [pendingNotePhotoPreviews, setPendingNotePhotoPreviews] = useState([]);
+  const [uploadingNotePhoto, setUploadingNotePhoto] = useState(false);
+  const [noteUploadProgress, setNoteUploadProgress] = useState({});
+  const [noteLightbox, setNoteLightbox] = useState(null); // { urls, index }
+  const noteFileRef = useRef(null);
 
   const sortedInternalNotes = [...internalNotes].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0));
 
+  function handleNotePhotoSelect(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setPendingNotePhotos(prev => [...prev, ...files]);
+    setPendingNotePhotoPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
+  }
+
   async function addInternalNote(e) {
     e.preventDefault();
-    if (!newInternalNote.trim()) return;
+    if (!newInternalNote.trim() && pendingNotePhotos.length === 0) return;
     setSavingInternalNote(true);
-    const { data } = await supabase.from('client_notes').insert([{ client_id: client.id, note: newInternalNote.trim() }]).select().single();
-    if (data) setInternalNotes(prev => [data, ...prev]);
+
+    const uploadedPaths = [];
+    if (pendingNotePhotos.length > 0) {
+      setUploadingNotePhoto(true);
+      for (let i = 0; i < pendingNotePhotos.length; i++) {
+        const file = pendingNotePhotos[i];
+        const ext = file.name.split('.').pop();
+        const path = `client-notes/${client.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+        const { error } = await uploadFileWithProgress('Job-photos', path, file, pct => {
+          setNoteUploadProgress(prev => ({ ...prev, [i]: pct }));
+        });
+        if (!error) uploadedPaths.push(path);
+      }
+      setUploadingNotePhoto(false);
+    }
+
+    const { data } = await supabase.from('client_notes').insert([{
+      client_id: client.id,
+      note: newInternalNote.trim() || null,
+      photo_url: uploadedPaths[0] ?? null,
+      photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
+    }]).select().single();
+
+    if (data) {
+      const signedUrls = await Promise.all(uploadedPaths.map(async p => {
+        const { data: signed } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
+        return signed?.signedUrl ?? null;
+      }));
+      setInternalNotes(prev => [{
+        ...data,
+        photo_urls: uploadedPaths.length > 0 ? signedUrls : null,
+        photo_url: signedUrls[0] ?? null,
+      }, ...prev]);
+    }
     setNewInternalNote('');
+    setPendingNotePhotos([]);
+    setPendingNotePhotoPreviews([]);
+    setNoteUploadProgress({});
     setSavingInternalNote(false);
   }
 
@@ -248,8 +297,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
   }
 
   async function saveInternalNoteEdit(noteId) {
-    const text = editingInternalNoteText.trim();
-    if (!text) return;
+    const text = editingInternalNoteText.trim() || null;
     await supabase.from('client_notes').update({ note: text }).eq('id', noteId);
     setInternalNotes(prev => prev.map(n => n.id === noteId ? { ...n, note: text } : n));
     setEditingInternalNoteId(null);
@@ -1113,9 +1161,39 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                 rows={3}
                 style={{ width: '100%', padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 10 }}
               />
-              <button type="submit" className="btn btn-primary" disabled={savingInternalNote || !newInternalNote.trim()}>
-                {savingInternalNote ? 'Guardando...' : '💾 Guardar nota'}
-              </button>
+              {pendingNotePhotoPreviews.length > 0 && (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                  {pendingNotePhotoPreviews.map((preview, idx) => (
+                    <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
+                      {pendingNotePhotos[idx]?.type?.startsWith('video') ? (
+                        <video src={preview} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
+                      ) : (
+                        <img src={preview} alt="preview" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8 }} />
+                      )}
+                      {uploadingNotePhoto ? (
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', borderRadius: '0 0 8px 8px', padding: '3px 5px' }}>
+                          <div style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 20, height: 4, overflow: 'hidden' }}>
+                            <div style={{ background: 'var(--amber)', height: '100%', width: `${noteUploadProgress[idx] ?? 0}%`, transition: 'width 0.2s' }} />
+                          </div>
+                        </div>
+                      ) : (
+                        <button type="button" onClick={() => {
+                          setPendingNotePhotos(prev => prev.filter((_, i) => i !== idx));
+                          setPendingNotePhotoPreviews(prev => prev.filter((_, i) => i !== idx));
+                        }}
+                          style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', fontSize: 12 }}>×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input ref={noteFileRef} type="file" accept="image/*,video/*,application/pdf" multiple onChange={handleNotePhotoSelect} style={{ display: 'none' }} />
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" className="btn btn-ghost" onClick={() => noteFileRef.current?.click()}>📷 Foto{pendingNotePhotos.length > 0 ? ` (${pendingNotePhotos.length})` : ''}</button>
+                <button type="submit" className="btn btn-primary" disabled={savingInternalNote || uploadingNotePhoto || (!newInternalNote.trim() && pendingNotePhotos.length === 0)}>
+                  {uploadingNotePhoto ? 'Subiendo...' : savingInternalNote ? 'Guardando...' : '💾 Guardar nota'}
+                </button>
+              </div>
             </form>
           </div>
 
@@ -1138,6 +1216,41 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                   <button onClick={() => deleteInternalNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
                 </div>
               </div>
+              {n.photo_urls && n.photo_urls.length > 1 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: n.photo_urls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: n.note ? 10 : 0 }}>
+                  {n.photo_urls.map((url, idx) => {
+                    const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                    const isPdf = /\.pdf(\?|$)/i.test(url);
+                    if (isPdf) return (
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 130, background: 'var(--surface-2)', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)' }}>
+                        <span style={{ fontSize: 32 }}>📄</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Ver PDF</span>
+                      </a>
+                    );
+                    return isVideo ? (
+                      <video key={idx} src={url} controls style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
+                    ) : (
+                      <img key={idx} src={url} alt="foto nota" onClick={() => setNoteLightbox({ urls: n.photo_urls, index: idx })}
+                        style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
+                    );
+                  })}
+                </div>
+              ) : n.photo_url && (() => {
+                const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(n.photo_url);
+                const isPdf = /\.pdf(\?|$)/i.test(n.photo_url);
+                if (isPdf) return (
+                  <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: 'var(--surface-2)', borderRadius: 10, textDecoration: 'none', border: '1.5px solid var(--border)', marginBottom: n.note ? 10 : 0 }}>
+                    <span style={{ fontSize: 28 }}>📄</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)' }}>Ver documento PDF</span>
+                  </a>
+                );
+                return isVideo ? (
+                  <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 10, marginBottom: n.note ? 10 : 0, background: '#000' }} />
+                ) : (
+                  <img src={n.photo_url} alt="foto nota" onClick={() => setNoteLightbox({ urls: [n.photo_url], index: 0 })}
+                    style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0, cursor: 'zoom-in' }} />
+                );
+              })()}
               {editingInternalNoteId === n.id ? (
                 <div>
                   <textarea autoFocus value={editingInternalNoteText} onChange={e => setEditingInternalNoteText(e.target.value)} rows={3}
@@ -1147,9 +1260,29 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     <button className="btn btn-ghost" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => { setEditingInternalNoteId(null); setEditingInternalNoteText(''); }}>Cancelar</button>
                   </div>
                 </div>
-              ) : <p style={{ fontSize: 14, color: 'var(--text)', margin: 0, whiteSpace: 'pre-wrap' }}>{n.note}</p>}
+              ) : n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0, whiteSpace: 'pre-wrap' }}>{n.note}</p>}
             </div>
           ))}
+
+          {noteLightbox && (
+            <div onClick={() => setNoteLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, cursor: 'zoom-out' }}>
+              <button onClick={() => setNoteLightbox(null)} style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 28, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>×</button>
+              {noteLightbox.urls.length > 1 && (
+                <div style={{ position: 'absolute', top: 24, left: '50%', transform: 'translateX(-50%)', color: '#fff', fontSize: 14, fontWeight: 600, background: 'rgba(255,255,255,0.15)', padding: '4px 14px', borderRadius: 20 }}>
+                  {noteLightbox.index + 1} / {noteLightbox.urls.length}
+                </div>
+              )}
+              {noteLightbox.urls.length > 1 && noteLightbox.index > 0 && (
+                <button onClick={e => { e.stopPropagation(); setNoteLightbox(l => ({ ...l, index: l.index - 1 })); }}
+                  style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 26, borderRadius: '50%', width: 48, height: 48, cursor: 'pointer', zIndex: 2 }}>‹</button>
+              )}
+              <img src={noteLightbox.urls[noteLightbox.index]} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} />
+              {noteLightbox.urls.length > 1 && noteLightbox.index < noteLightbox.urls.length - 1 && (
+                <button onClick={e => { e.stopPropagation(); setNoteLightbox(l => ({ ...l, index: l.index + 1 })); }}
+                  style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 26, borderRadius: '50%', width: 48, height: 48, cursor: 'pointer', zIndex: 2 }}>›</button>
+              )}
+            </div>
+          )}
         </div>
       )}
 

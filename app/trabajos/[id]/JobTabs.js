@@ -35,7 +35,7 @@ const expenseCategories = [
   { value: 'otro', label: 'Otro' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
@@ -929,6 +929,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   })();
   const primaryDateKey = job.scheduled_start ? formatDatePR(job.scheduled_start, {}, 'en-CA') : null;
   const additionalDaysCount = scheduleDayGroups.filter(g => g.key !== primaryDateKey).length;
+  const totalDaysCount = (primaryDateKey ? 1 : 0) + additionalDaysCount;
   const scheduleWindow = getJobScheduleWindow(job, scheduleDays);
   const primaryScheduleHours = scheduleWindow.primaryHours;
   const grandTotalHours = scheduleWindow.totalHours;
@@ -956,6 +957,47 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
 
   return (
     <div>
+      {pinnedClientNotes.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          {pinnedClientNotes.map(n => (
+            <div key={n.id} className="card" style={{ marginBottom: 10, border: '1.5px solid var(--amber)', background: 'var(--amber-tint)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--navy)', fontWeight: 700, marginBottom: n.note || n.photo_url ? 8 : 0 }}>
+                <span title="Pineada por el cliente">📌</span> Nota del cliente
+              </div>
+              {n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0, whiteSpace: 'pre-wrap', marginBottom: n.photo_url ? 10 : 0 }}>{n.note}</p>}
+              {n.photo_urls && n.photo_urls.length > 1 ? (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {n.photo_urls.map((url, idx) => {
+                    const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                    const isPdf = /\.pdf(\?|$)/i.test(url);
+                    if (isPdf) return (
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--surface)', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)', fontSize: 12, fontWeight: 600, color: 'var(--navy)' }}>📄 PDF</a>
+                    );
+                    return isVideo ? (
+                      <video key={idx} src={url} controls style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
+                    ) : (
+                      <img key={idx} src={url} alt="foto nota cliente" onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: null })}
+                        style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
+                    );
+                  })}
+                </div>
+              ) : n.photo_url && (() => {
+                const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(n.photo_url);
+                const isPdf = /\.pdf(\?|$)/i.test(n.photo_url);
+                if (isPdf) return (
+                  <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--surface)', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)', fontSize: 12, fontWeight: 600, color: 'var(--navy)', width: 'fit-content' }}>📄 Ver PDF</a>
+                );
+                return isVideo ? (
+                  <video src={n.photo_url} controls style={{ maxWidth: 260, maxHeight: 160, borderRadius: 8, background: '#000' }} />
+                ) : (
+                  <img src={n.photo_url} alt="foto nota cliente" onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: null })}
+                    style={{ maxWidth: 260, maxHeight: 160, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
+                );
+              })()}
+            </div>
+          ))}
+        </div>
+      )}
       <div style={{ display: 'flex', borderBottom: '1.5px solid var(--border)', marginBottom: 20, background: 'var(--surface)', borderRadius: '12px 12px 0 0', padding: '0 8px' }}>
         <button style={tabStyle('info')} onClick={() => setTab('info')}>📋 Info</button>
         <button style={tabStyle('notes')} onClick={() => setTab('notes')}>
@@ -1247,31 +1289,34 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                         <span style={{ fontSize: 13 }}>⚠️</span>
                         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--warn)' }}>Fin antes del inicio — revisa las fechas</span>
                       </div>
-                    ) : scheduleDays.length > 0 ? (
-                      <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
-                        <span style={{ fontSize: 13 }}>🗓️</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(primaryScheduleHours)} (primera visita)</span>
-                      </div>
                     ) : (
-                      <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
-                        <span style={{ fontSize: 13 }}>⏱</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(primaryScheduleHours)} de trabajo</span>
+                      <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                          <span style={{ fontSize: 13 }}>{scheduleDays.length > 0 ? '🗓️' : '⏱'}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(primaryScheduleHours)} {scheduleDays.length > 0 ? '(primera visita)' : 'de trabajo'}</span>
+                        </div>
+                        {scheduleDays.length > 0 && (
+                          <>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                              <span style={{ fontSize: 13 }}>⏱</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(grandTotalHours)} en total</span>
+                            </div>
+                            {additionalDaysCount > 0 && (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                                <span style={{ fontSize: 13 }}>📅</span>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{additionalDaysCount} {additionalDaysCount === 1 ? 'día adicional' : 'días adicionales'}</span>
+                              </div>
+                            )}
+                            {totalDaysCount > 0 && (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
+                                <span style={{ fontSize: 13 }}>📆</span>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{totalDaysCount} {totalDaysCount === 1 ? 'día en total' : 'días en total'}</span>
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     )
-                  )}
-                  {scheduleDays.length > 0 && (
-                    <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {additionalDaysCount > 0 && (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
-                          <span style={{ fontSize: 13 }}>📅</span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{additionalDaysCount} {additionalDaysCount === 1 ? 'día adicional' : 'días adicionales'}</span>
-                        </div>
-                      )}
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
-                        <span style={{ fontSize: 13 }}>⏱</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(grandTotalHours)} en total</span>
-                      </div>
-                    </div>
                   )}
                 </div>
               )}

@@ -53,12 +53,13 @@ export default async function TrabajoDetail({ params }) {
   // Full lists (not just the one linked via property_id/contact_id) so the
   // job editor can offer a searchable selector over all of the client's
   // properties/contacts, not just the one currently assigned.
-  const [{ data: clientProperties }, { data: clientContacts }] = job.client_id
+  const [{ data: clientProperties }, { data: clientContacts }, { data: pinnedClientNotes }] = job.client_id
     ? await Promise.all([
         supabase.from('client_properties').select('*').eq('client_id', job.client_id).order('is_primary', { ascending: false }),
         supabase.from('client_contacts').select('*').eq('client_id', job.client_id).order('is_primary', { ascending: false }),
+        supabase.from('client_notes').select('*').eq('client_id', job.client_id).eq('is_pinned', true).order('created_at', { ascending: false }),
       ])
-    : [{ data: [] }, { data: [] }];
+    : [{ data: [] }, { data: [] }, { data: [] }];
 
   // Generate signed URLs for notes with photos (1 hour expiry)
   async function signPath(rawPath) {
@@ -96,6 +97,17 @@ export default async function TrabajoDetail({ params }) {
 
   const expensesWithSignedUrls = await Promise.all(
     (expenses ?? []).map(async (exp) => ({ ...exp, receipt_signed_url: await signPath(exp.receipt_url) }))
+  );
+
+  const pinnedClientNotesWithSignedUrls = await Promise.all(
+    (pinnedClientNotes ?? []).map(async (note) => {
+      if (note.photo_urls && note.photo_urls.length > 0) {
+        const signedUrls = await Promise.all(note.photo_urls.map(p => signPath(p)));
+        return { ...note, photo_urls: signedUrls.filter(Boolean), photo_url: signedUrls[0] ?? null };
+      }
+      if (!note.photo_url) return note;
+      return { ...note, photo_url: await signPath(note.photo_url) };
+    })
   );
 
   const planosWithThumbs = await Promise.all(
@@ -161,6 +173,7 @@ export default async function TrabajoDetail({ params }) {
           timeEntries={jobTimeEntries ?? []}
           reports={jobReports ?? []}
           planos={planosWithThumbs}
+          pinnedClientNotes={pinnedClientNotesWithSignedUrls}
         />
       </main>
     </div>

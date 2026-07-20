@@ -41,6 +41,25 @@ export default async function ClienteDetailPage({ params }) {
     supabase.from('tasks').select('id, task_type, title, notes, due_at, technician_id, completed, technicians(name)').eq('client_id', id),
   ]);
 
+  // Generate signed URLs for internal notes with photos (1 hour expiry) — same
+  // 'Job-photos' bucket and pattern used for job_notes on the trabajo page.
+  async function signPath(rawPath) {
+    if (!rawPath) return null;
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(rawPath, 3600);
+    return data?.signedUrl ?? null;
+  }
+
+  const internalNotesWithSignedUrls = await Promise.all(
+    (internalNotes ?? []).map(async (note) => {
+      if (note.photo_urls && note.photo_urls.length > 0) {
+        const signedUrls = await Promise.all(note.photo_urls.map(p => signPath(p)));
+        return { ...note, photo_urls: signedUrls.filter(Boolean), photo_url: signedUrls[0] ?? null };
+      }
+      if (!note.photo_url) return note;
+      return { ...note, photo_url: await signPath(note.photo_url) };
+    })
+  );
+
   const paymentsByInvoice = {};
   (payments ?? []).forEach(p => { paymentsByInvoice[p.invoice_id] = (paymentsByInvoice[p.invoice_id] ?? 0) + Number(p.amount ?? 0); });
   const retenidoByInvoice = {};
@@ -108,7 +127,7 @@ export default async function ClienteDetailPage({ params }) {
           properties={properties ?? []}
           contacts={contacts ?? []}
           proposals={proposals ?? []}
-          internalNotes={internalNotes ?? []}
+          internalNotes={internalNotesWithSignedUrls}
           serviceTickets={serviceTickets ?? []}
           currentRole={currentRole}
           invoiceReconciliation={{ cobrado, netoEsperado, varianza, hasVarianza, totalRetenido, balanceDeCuenta }}
