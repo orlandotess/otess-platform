@@ -551,6 +551,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [editingItemText, setEditingItemText] = useState('');
   const [dragItem, setDragItem] = useState(null);
   const [dragOverGroup, setDragOverGroup] = useState(null);
+  const [dragGroup, setDragGroup] = useState(null);
 
   const groupedMap = {};
   checklistItems.forEach(i => {
@@ -901,6 +902,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     const placeholders = checklistItems.filter(i => i.__placeholder);
     setChecklistItems([...reordered, ...placeholders]);
     await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order, group_name: u.group_name }).eq('id', u.id)));
+  }
+
+  async function reorderGroups(draggedGroupKey, targetGroupKey) {
+    if (draggedGroupKey === targetGroupKey) return;
+    const order = Object.keys(groupedMap);
+    const fromIdx = order.indexOf(draggedGroupKey);
+    const toIdx = order.indexOf(targetGroupKey);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const newOrder = [...order];
+    const [moved] = newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, moved);
+    const reordered = newOrder.flatMap(g => groupedMap[g].filter(i => !i.__placeholder)).map((it, idx) => ({ ...it, sort_order: idx }));
+    const placeholders = checklistItems.filter(i => i.__placeholder);
+    setChecklistItems([...reordered, ...placeholders]);
+    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order }).eq('id', u.id)));
   }
 
   async function applyTemplate(template) {
@@ -2055,12 +2071,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             const realItems = groupItems.filter(i => !i.__placeholder);
             return (
               <div key={groupKey} className="card"
-                onDragOver={e => { e.preventDefault(); if (dragItem) setDragOverGroup(groupKey); }}
+                onDragOver={e => { e.preventDefault(); if (dragItem || dragGroup) setDragOverGroup(groupKey); }}
                 onDragLeave={() => setDragOverGroup(prev => prev === groupKey ? null : prev)}
-                onDrop={e => { e.preventDefault(); if (dragItem) reorderItems(groupKey, dragItem.id, null); setDragItem(null); setDragOverGroup(null); }}
+                onDrop={e => {
+                  e.preventDefault();
+                  if (dragItem) reorderItems(groupKey, dragItem.id, null);
+                  else if (dragGroup) reorderGroups(dragGroup, groupKey);
+                  setDragItem(null); setDragGroup(null); setDragOverGroup(null);
+                }}
                 style={{ marginBottom: 16, outline: dragOverGroup === groupKey ? '2px dashed var(--amber)' : 'none', outlineOffset: 2 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>
+                <div draggable
+                  onDragStart={() => setDragGroup(groupKey)}
+                  onDragEnd={() => { setDragGroup(null); setDragOverGroup(null); }}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, cursor: 'grab', opacity: dragGroup === groupKey ? 0.4 : 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: 'var(--muted)', fontSize: 14 }}>⠿</span>
                     {groupName ?? 'General'}
                   </div>
                   <div style={{ position: 'relative' }}>
@@ -2082,8 +2107,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   <div key={item.id}
                     draggable={editingItemId !== item.id}
                     onDragStart={() => setDragItem({ id: item.id, groupKey })}
-                    onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragItem) setDragOverGroup(groupKey); }}
-                    onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragItem) reorderItems(groupKey, dragItem.id, item.id); setDragItem(null); setDragOverGroup(null); }}
+                    onDragOver={e => { if (!dragItem) return; e.preventDefault(); e.stopPropagation(); setDragOverGroup(groupKey); }}
+                    onDrop={e => { if (!dragItem) return; e.preventDefault(); e.stopPropagation(); reorderItems(groupKey, dragItem.id, item.id); setDragItem(null); setDragOverGroup(null); }}
                     onDragEnd={() => { setDragItem(null); setDragOverGroup(null); }}
                     style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', opacity: dragItem?.id === item.id ? 0.4 : 1 }}>
                     <span style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 14, marginTop: 3, flexShrink: 0 }}>⠿</span>

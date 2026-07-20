@@ -199,6 +199,7 @@ export default function FieldApp() {
   const [editingCheckItemText, setEditingCheckItemText] = useState('');
   const [dragCheckItem, setDragCheckItem] = useState(null);
   const [dragOverArea, setDragOverArea] = useState(null);
+  const [dragArea, setDragArea] = useState(null);
   const [detailExpenses, setDetailExpenses] = useState([]);
   const [showDetailExpenseForm, setShowDetailExpenseForm] = useState(false);
   const [detailExpenseForm, setDetailExpenseForm] = useState(blankExpenseForm());
@@ -1224,6 +1225,27 @@ export default function FieldApp() {
     const placeholders = detailChecklist.filter(i => i.__placeholder);
     setDetailChecklist([...reordered, ...placeholders]);
     await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order, group_name: u.group_name }).eq('id', u.id)));
+  }
+
+  async function reorderAreas(draggedGroupKey, targetGroupKey) {
+    if (draggedGroupKey === targetGroupKey) return;
+    const groupedMap = {};
+    detailChecklist.forEach(i => {
+      const g = i.group_name || '__none__';
+      if (!groupedMap[g]) groupedMap[g] = [];
+      groupedMap[g].push(i);
+    });
+    const order = Object.keys(groupedMap);
+    const fromIdx = order.indexOf(draggedGroupKey);
+    const toIdx = order.indexOf(targetGroupKey);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const newOrder = [...order];
+    const [moved] = newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, moved);
+    const reordered = newOrder.flatMap(g => groupedMap[g].filter(i => !i.__placeholder)).map((it, idx) => ({ ...it, sort_order: idx }));
+    const placeholders = detailChecklist.filter(i => i.__placeholder);
+    setDetailChecklist([...reordered, ...placeholders]);
+    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order }).eq('id', u.id)));
   }
 
   // Clientes search (shows full list by default, filters as you type)
@@ -2372,13 +2394,22 @@ export default function FieldApp() {
                       const realItems = items.filter(i => !i.__placeholder);
                       return (
                       <div key={groupKey}
-                        onDragOver={e => { e.preventDefault(); if (dragCheckItem) setDragOverArea(groupKey); }}
+                        onDragOver={e => { e.preventDefault(); if (dragCheckItem || dragArea) setDragOverArea(groupKey); }}
                         onDragLeave={() => setDragOverArea(prev => prev === groupKey ? null : prev)}
-                        onDrop={e => { e.preventDefault(); if (dragCheckItem) reorderCheckItems(groupKey, dragCheckItem.id, null); setDragCheckItem(null); setDragOverArea(null); }}
+                        onDrop={e => {
+                          e.preventDefault();
+                          if (dragCheckItem) reorderCheckItems(groupKey, dragCheckItem.id, null);
+                          else if (dragArea) reorderAreas(dragArea, groupKey);
+                          setDragCheckItem(null); setDragArea(null); setDragOverArea(null);
+                        }}
                         style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', outline: dragOverArea === groupKey ? `2px dashed ${ORANGE}` : 'none', outlineOffset: 2 }}>
                         {groupName && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, color: ORANGE, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          <div draggable
+                            onDragStart={() => setDragArea(groupKey)}
+                            onDragEnd={() => { setDragArea(null); setDragOverArea(null); }}
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #eee', cursor: 'grab', opacity: dragArea === groupKey ? 0.4 : 1 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: ORANGE, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ color: '#ccc', fontSize: 13 }}>⠿</span>
                               📁 {groupName}
                             </div>
                             <div style={{ position: 'relative' }}>
@@ -2400,8 +2431,8 @@ export default function FieldApp() {
                           <div key={item.id}
                             draggable={editingCheckItemId !== item.id}
                             onDragStart={() => setDragCheckItem({ id: item.id, groupKey })}
-                            onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragCheckItem) setDragOverArea(groupKey); }}
-                            onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragCheckItem) reorderCheckItems(groupKey, dragCheckItem.id, item.id); setDragCheckItem(null); setDragOverArea(null); }}
+                            onDragOver={e => { if (!dragCheckItem) return; e.preventDefault(); e.stopPropagation(); setDragOverArea(groupKey); }}
+                            onDrop={e => { if (!dragCheckItem) return; e.preventDefault(); e.stopPropagation(); reorderCheckItems(groupKey, dragCheckItem.id, item.id); setDragCheckItem(null); setDragOverArea(null); }}
                             onDragEnd={() => { setDragCheckItem(null); setDragOverArea(null); }}
                             style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid #eee', opacity: dragCheckItem?.id === item.id ? 0.4 : 1 }}>
                             <span style={{ cursor: 'grab', color: '#ccc', fontSize: 14, flexShrink: 0 }}>⠿</span>
