@@ -550,6 +550,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [editingItemId, setEditingItemId] = useState(null);
   const [editingItemText, setEditingItemText] = useState('');
   const [dragItem, setDragItem] = useState(null);
+  const [dragOverGroup, setDragOverGroup] = useState(null);
 
   const groupedMap = {};
   checklistItems.forEach(i => {
@@ -876,23 +877,30 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     if (data) setChecklistItems(prev => [...prev, data]);
   }
 
-  async function reorderItems(groupKey, draggedId, targetId) {
-    if (draggedId === targetId) return;
-    const groups = Object.entries(groupedMap).map(([gKey, items]) => {
-      const real = items.filter(i => !i.__placeholder);
-      if (gKey !== groupKey) return real;
-      const fromIdx = real.findIndex(i => i.id === draggedId);
-      const toIdx = real.findIndex(i => i.id === targetId);
-      if (fromIdx === -1 || toIdx === -1) return real;
-      const copy = [...real];
-      const [moved] = copy.splice(fromIdx, 1);
-      copy.splice(toIdx, 0, moved);
-      return copy;
+  async function reorderItems(targetGroupKey, draggedId, targetItemId) {
+    if (draggedId === targetItemId) return;
+    const allReal = checklistItems.filter(i => !i.__placeholder);
+    const dragged = allReal.find(i => i.id === draggedId);
+    if (!dragged) return;
+    const targetGroupName = targetGroupKey === '__none__' ? null : targetGroupKey;
+    const groupOrder = [];
+    const groupsMap = {};
+    allReal.forEach(i => {
+      if (i.id === draggedId) return;
+      const g = i.group_name || '__none__';
+      if (!groupsMap[g]) { groupsMap[g] = []; groupOrder.push(g); }
+      groupsMap[g].push(i);
     });
-    const reordered = groups.flat().map((it, idx) => ({ ...it, sort_order: idx }));
+    if (!groupsMap[targetGroupKey]) { groupsMap[targetGroupKey] = []; groupOrder.push(targetGroupKey); }
+    const targetArr = groupsMap[targetGroupKey];
+    const insertAt = targetItemId ? targetArr.findIndex(i => i.id === targetItemId) : targetArr.length;
+    const movedItem = { ...dragged, group_name: targetGroupName };
+    if (insertAt === -1) targetArr.push(movedItem);
+    else targetArr.splice(insertAt, 0, movedItem);
+    const reordered = groupOrder.flatMap(g => groupsMap[g]).map((it, idx) => ({ ...it, sort_order: idx }));
     const placeholders = checklistItems.filter(i => i.__placeholder);
     setChecklistItems([...reordered, ...placeholders]);
-    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order }).eq('id', u.id)));
+    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order, group_name: u.group_name }).eq('id', u.id)));
   }
 
   async function applyTemplate(template) {
@@ -2046,7 +2054,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
             const groupName = groupKey === '__none__' ? null : groupKey;
             const realItems = groupItems.filter(i => !i.__placeholder);
             return (
-              <div key={groupKey} className="card" style={{ marginBottom: 16 }}>
+              <div key={groupKey} className="card"
+                onDragOver={e => { e.preventDefault(); if (dragItem) setDragOverGroup(groupKey); }}
+                onDragLeave={() => setDragOverGroup(prev => prev === groupKey ? null : prev)}
+                onDrop={e => { e.preventDefault(); if (dragItem) reorderItems(groupKey, dragItem.id, null); setDragItem(null); setDragOverGroup(null); }}
+                style={{ marginBottom: 16, outline: dragOverGroup === groupKey ? '2px dashed var(--amber)' : 'none', outlineOffset: 2 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>
                     {groupName ?? 'General'}
@@ -2070,9 +2082,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   <div key={item.id}
                     draggable={editingItemId !== item.id}
                     onDragStart={() => setDragItem({ id: item.id, groupKey })}
-                    onDragOver={e => e.preventDefault()}
-                    onDrop={e => { e.preventDefault(); if (dragItem && dragItem.groupKey === groupKey) reorderItems(groupKey, dragItem.id, item.id); setDragItem(null); }}
-                    onDragEnd={() => setDragItem(null)}
+                    onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragItem) setDragOverGroup(groupKey); }}
+                    onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragItem) reorderItems(groupKey, dragItem.id, item.id); setDragItem(null); setDragOverGroup(null); }}
+                    onDragEnd={() => { setDragItem(null); setDragOverGroup(null); }}
                     style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', opacity: dragItem?.id === item.id ? 0.4 : 1 }}>
                     <span style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 14, marginTop: 3, flexShrink: 0 }}>⠿</span>
                     <div onClick={() => toggleItem(item.id, item.completed)}

@@ -198,6 +198,7 @@ export default function FieldApp() {
   const [editingCheckItemId, setEditingCheckItemId] = useState(null);
   const [editingCheckItemText, setEditingCheckItemText] = useState('');
   const [dragCheckItem, setDragCheckItem] = useState(null);
+  const [dragOverArea, setDragOverArea] = useState(null);
   const [detailExpenses, setDetailExpenses] = useState([]);
   const [showDetailExpenseForm, setShowDetailExpenseForm] = useState(false);
   const [detailExpenseForm, setDetailExpenseForm] = useState(blankExpenseForm());
@@ -1199,29 +1200,30 @@ export default function FieldApp() {
     if (data) setDetailChecklist(prev => [...prev, data]);
   }
 
-  async function reorderCheckItems(groupKey, draggedId, targetId) {
-    if (draggedId === targetId) return;
-    const groupedMap = {};
-    detailChecklist.forEach(i => {
+  async function reorderCheckItems(targetGroupKey, draggedId, targetItemId) {
+    if (draggedId === targetItemId) return;
+    const allReal = detailChecklist.filter(i => !i.__placeholder);
+    const dragged = allReal.find(i => i.id === draggedId);
+    if (!dragged) return;
+    const targetGroupName = targetGroupKey === '__none__' ? null : targetGroupKey;
+    const groupOrder = [];
+    const groupsMap = {};
+    allReal.forEach(i => {
+      if (i.id === draggedId) return;
       const g = i.group_name || '__none__';
-      if (!groupedMap[g]) groupedMap[g] = [];
-      groupedMap[g].push(i);
+      if (!groupsMap[g]) { groupsMap[g] = []; groupOrder.push(g); }
+      groupsMap[g].push(i);
     });
-    const groups = Object.entries(groupedMap).map(([gKey, items]) => {
-      const real = items.filter(i => !i.__placeholder);
-      if (gKey !== groupKey) return real;
-      const fromIdx = real.findIndex(i => i.id === draggedId);
-      const toIdx = real.findIndex(i => i.id === targetId);
-      if (fromIdx === -1 || toIdx === -1) return real;
-      const copy = [...real];
-      const [moved] = copy.splice(fromIdx, 1);
-      copy.splice(toIdx, 0, moved);
-      return copy;
-    });
-    const reordered = groups.flat().map((it, idx) => ({ ...it, sort_order: idx }));
+    if (!groupsMap[targetGroupKey]) { groupsMap[targetGroupKey] = []; groupOrder.push(targetGroupKey); }
+    const targetArr = groupsMap[targetGroupKey];
+    const insertAt = targetItemId ? targetArr.findIndex(i => i.id === targetItemId) : targetArr.length;
+    const movedItem = { ...dragged, group_name: targetGroupName };
+    if (insertAt === -1) targetArr.push(movedItem);
+    else targetArr.splice(insertAt, 0, movedItem);
+    const reordered = groupOrder.flatMap(g => groupsMap[g]).map((it, idx) => ({ ...it, sort_order: idx }));
     const placeholders = detailChecklist.filter(i => i.__placeholder);
     setDetailChecklist([...reordered, ...placeholders]);
-    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order }).eq('id', u.id)));
+    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order, group_name: u.group_name }).eq('id', u.id)));
   }
 
   // Clientes search (shows full list by default, filters as you type)
@@ -2369,7 +2371,11 @@ export default function FieldApp() {
                       const groupName = groupKey === '__none__' ? null : groupKey;
                       const realItems = items.filter(i => !i.__placeholder);
                       return (
-                      <div key={groupKey} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                      <div key={groupKey}
+                        onDragOver={e => { e.preventDefault(); if (dragCheckItem) setDragOverArea(groupKey); }}
+                        onDragLeave={() => setDragOverArea(prev => prev === groupKey ? null : prev)}
+                        onDrop={e => { e.preventDefault(); if (dragCheckItem) reorderCheckItems(groupKey, dragCheckItem.id, null); setDragCheckItem(null); setDragOverArea(null); }}
+                        style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', outline: dragOverArea === groupKey ? `2px dashed ${ORANGE}` : 'none', outlineOffset: 2 }}>
                         {groupName && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
                             <div style={{ fontWeight: 700, fontSize: 13, color: ORANGE, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -2394,9 +2400,9 @@ export default function FieldApp() {
                           <div key={item.id}
                             draggable={editingCheckItemId !== item.id}
                             onDragStart={() => setDragCheckItem({ id: item.id, groupKey })}
-                            onDragOver={e => e.preventDefault()}
-                            onDrop={e => { e.preventDefault(); if (dragCheckItem && dragCheckItem.groupKey === groupKey) reorderCheckItems(groupKey, dragCheckItem.id, item.id); setDragCheckItem(null); }}
-                            onDragEnd={() => setDragCheckItem(null)}
+                            onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragCheckItem) setDragOverArea(groupKey); }}
+                            onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragCheckItem) reorderCheckItems(groupKey, dragCheckItem.id, item.id); setDragCheckItem(null); setDragOverArea(null); }}
+                            onDragEnd={() => { setDragCheckItem(null); setDragOverArea(null); }}
                             style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid #eee', opacity: dragCheckItem?.id === item.id ? 0.4 : 1 }}>
                             <span style={{ cursor: 'grab', color: '#ccc', fontSize: 14, flexShrink: 0 }}>⠿</span>
                             <div onClick={() => toggleCheckItem(item)} style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #dde1e7', background: item.completed ? '#1a7a4a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}>
