@@ -23,10 +23,15 @@ export async function GET(req) {
     technicianId = tech.id;
   }
 
-  const [{ data: jobs }, { data: visits }, { data: calendarEvents }, { data: tasks }] = await Promise.all([
+  const [{ data: jobs }, { data: jobScheduleDays }, { data: visits }, { data: calendarEvents }, { data: tasks }] = await Promise.all([
     supabase.from('jobs')
       .select('id, title, status, scheduled_start, scheduled_end, technician_id, clients(name), job_technicians(technician_id)')
       .not('scheduled_start', 'is', null),
+    // Extra visits added via "+ Añadir día" on a job — separate from the job's
+    // own scheduled_start/end, so they need their own events or a technician's
+    // synced phone calendar silently misses those visits entirely.
+    supabase.from('job_schedule_days')
+      .select('id, scheduled_start, scheduled_end, technician_id, jobs(title, status, clients(name))'),
     supabase.from('visits')
       .select('id, technician_id, scheduled_at, duration_minutes, status, requests(title, clients(name))'),
     supabase.from('calendar_events')
@@ -53,6 +58,22 @@ export async function GET(req) {
       startInputType: 'utc',
       startOutputType: 'utc',
       end: toUTCArray(j.scheduled_end ?? addMinutes(j.scheduled_start, 60)),
+      endInputType: 'utc',
+      endOutputType: 'utc',
+    });
+  }
+
+  for (const d of jobScheduleDays ?? []) {
+    if (technicianId && d.technician_id !== technicianId) continue;
+    if (!d.scheduled_start || !d.scheduled_end) continue;
+    icsEvents.push({
+      uid: `job-day-${d.id}@otesspr.com`,
+      title: d.jobs?.title ?? 'Trabajo',
+      description: [d.jobs?.clients?.name, d.jobs?.status].filter(Boolean).join(' — '),
+      start: toUTCArray(d.scheduled_start),
+      startInputType: 'utc',
+      startOutputType: 'utc',
+      end: toUTCArray(d.scheduled_end),
       endInputType: 'utc',
       endOutputType: 'utc',
     });

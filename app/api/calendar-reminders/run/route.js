@@ -63,9 +63,15 @@ async function runDigest() {
   const { start, end } = dayBoundsPR(today);
   const dateLabel = new Intl.DateTimeFormat('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${today}T12:00:00-04:00`));
 
-  const [{ data: jobs }, { data: visits }, { data: calendarEvents }, { data: tasks }, { data: technicians }, { data: profiles }] = await Promise.all([
+  const [{ data: jobs }, { data: jobScheduleDays }, { data: visits }, { data: calendarEvents }, { data: tasks }, { data: technicians }, { data: profiles }] = await Promise.all([
     supabase.from('jobs')
       .select('id, title, status, scheduled_start, technician_id, street, city, property_name, clients(name), job_technicians(technician_id)')
+      .gte('scheduled_start', start).lt('scheduled_start', end),
+    // Extra visits added via "+ Añadir día" — a job whose only visit today
+    // lives here (not on jobs.scheduled_start) would otherwise never appear
+    // in anyone's digest.
+    supabase.from('job_schedule_days')
+      .select('id, scheduled_start, technician_id, jobs(title, property_name, street, city, clients(name))')
       .gte('scheduled_start', start).lt('scheduled_start', end),
     supabase.from('visits')
       .select('id, technician_id, scheduled_at, requests(title, clients(name))')
@@ -102,6 +108,12 @@ async function runDigest() {
     const location = j.property_name || [j.street, j.city].filter(Boolean).join(', ');
     const item = { time: j.scheduled_start, title: j.title, subtitle: [j.clients?.name, location].filter(Boolean).join(' — ') };
     distribute(item, techIdsFor(j.technician_id, j.job_technicians));
+  }
+  for (const d of jobScheduleDays ?? []) {
+    if (!d.jobs) continue;
+    const location = d.jobs.property_name || [d.jobs.street, d.jobs.city].filter(Boolean).join(', ');
+    const item = { time: d.scheduled_start, title: d.jobs.title, subtitle: [d.jobs.clients?.name, location].filter(Boolean).join(' — ') };
+    distribute(item, techIdsFor(d.technician_id, []));
   }
   for (const v of visits ?? []) {
     const item = { time: v.scheduled_at, title: v.requests?.title ?? 'Visita', subtitle: v.requests?.clients?.name };
