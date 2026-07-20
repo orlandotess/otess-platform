@@ -95,6 +95,10 @@ export default async function TrabajoDetail({ params }) {
     (items ?? []).map(async (item) => ({ ...item, photo_signed_url: await signPath(item.photo_url) }))
   );
 
+  const checklistWithSignedUrls = await Promise.all(
+    (checklist ?? []).map(async (item) => ({ ...item, photo_signed_url: await signPath(item.photo_url) }))
+  );
+
   const expensesWithSignedUrls = await Promise.all(
     (expenses ?? []).map(async (exp) => ({ ...exp, receipt_signed_url: await signPath(exp.receipt_url) }))
   );
@@ -159,7 +163,7 @@ export default async function TrabajoDetail({ params }) {
           items={itemsWithSignedUrls}
           technicians={assignableTechnicians}
           notes={notesWithSignedUrls}
-          checklist={checklist ?? []}
+          checklist={checklistWithSignedUrls}
           templates={templates ?? []}
           clientType={clientType}
           totals={{ subProd, taxProd, subLabor, taxLabor, total }}

@@ -8,6 +8,7 @@ import { normalizeName } from '../../lib/normalizeName';
 import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
 import { computeHours } from '../../lib/hours';
 import { formatDatePR, formatDateTimePR, formatTimePR } from '../../lib/datetimeLocal';
+import { useJobChecklist } from '../../lib/useJobChecklist';
 
 const ORANGE = '#E05C2A';
 const AMBER = '#e0972c';
@@ -178,7 +179,29 @@ export default function FieldApp() {
   const [detailJob, setDetailJob] = useState(null);
   const [detailTab, setDetailTab] = useState('info');
   const [detailNotes, setDetailNotes] = useState([]);
-  const [detailChecklist, setDetailChecklist] = useState([]);
+  // Checklist ("áreas") — shared with the admin job page via useJobChecklist
+  // so the two never drift out of sync. jobId is undefined until a job is
+  // opened; nothing checklist-related renders before then.
+  const {
+    checklistItems: detailChecklist, setChecklistItems: setDetailChecklist,
+    groupedMap, childrenByParent,
+    completedCount, realCount: realChecklistCount, progress,
+    newGroupName: newAreaName, setNewGroupName: setNewAreaName, addingGroup: addingArea, setAddingGroup: setAddingArea, addGroup: addArea,
+    groupMenuOpen: areaMenuOpen, setGroupMenuOpen: setAreaMenuOpen, renameGroup: renameArea, deleteGroup: deleteArea,
+    dragGroup: dragArea, setDragGroup: setDragArea, dragOverGroup: dragOverArea, setDragOverGroup: setDragOverArea, reorderGroups: reorderAreas,
+    newItemText: newAreaItemText, setNewItemText: setNewAreaItemText, addingItemGroup: addingItemArea, setAddingItemGroup: setAddingItemArea, addItemToGroup: addItemToArea,
+    itemMenuOpen: checkItemMenuOpen, setItemMenuOpen: setCheckItemMenuOpen,
+    editingItemId: editingCheckItemId, setEditingItemId: setEditingCheckItemId, editingItemText: editingCheckItemText, setEditingItemText: setEditingCheckItemText,
+    startEditItem: startEditCheckItem, saveEditItem: saveEditCheckItem,
+    toggleItem, deleteItem: deleteCheckItem, duplicateItem: duplicateCheckItem,
+    dragItem: dragCheckItem, setDragItem: setDragCheckItem, reorderItems: reorderCheckItems,
+    itemPhotoInputRef: checkItemPhotoInputRef, pendingPhotoItemId: pendingCheckPhotoItemId, uploadingItemPhotoId: uploadingCheckItemPhotoId,
+    triggerItemPhotoUpload: triggerCheckItemPhotoUpload, handleItemPhotoFile: handleCheckItemPhotoFile, removeItemPhoto: removeCheckItemPhoto,
+    expandedItems, setExpandedItems, toggleExpand,
+    addingSubItemFor, setAddingSubItemFor, newSubItemText, setNewSubItemText, addSubItem,
+    dragSubItem, setDragSubItem, reorderSubItems,
+  } = useJobChecklist(detailJob?.id, []);
+  function toggleCheckItem(item) { return toggleItem(item.id, item.completed); }
   const [detailPlanos, setDetailPlanos] = useState([]);
   const [detailNoteText, setDetailNoteText] = useState('');
   const [detailPhotos, setDetailPhotos] = useState([]);
@@ -189,17 +212,6 @@ export default function FieldApp() {
   const [editingDetailNoteId, setEditingDetailNoteId] = useState(null);
   const [editingDetailNoteText, setEditingDetailNoteText] = useState('');
   const [newCheckItem, setNewCheckItem] = useState('');
-  const [addingArea, setAddingArea] = useState(false);
-  const [newAreaName, setNewAreaName] = useState('');
-  const [addingItemArea, setAddingItemArea] = useState(null);
-  const [newAreaItemText, setNewAreaItemText] = useState({});
-  const [areaMenuOpen, setAreaMenuOpen] = useState(null);
-  const [checkItemMenuOpen, setCheckItemMenuOpen] = useState(null);
-  const [editingCheckItemId, setEditingCheckItemId] = useState(null);
-  const [editingCheckItemText, setEditingCheckItemText] = useState('');
-  const [dragCheckItem, setDragCheckItem] = useState(null);
-  const [dragOverArea, setDragOverArea] = useState(null);
-  const [dragArea, setDragArea] = useState(null);
   const [detailExpenses, setDetailExpenses] = useState([]);
   const [showDetailExpenseForm, setShowDetailExpenseForm] = useState(false);
   const [detailExpenseForm, setDetailExpenseForm] = useState(blankExpenseForm());
@@ -590,7 +602,10 @@ export default function FieldApp() {
       return { ...n, photo_url: signedUrl, raw_photo_url: n.photo_url };
     }));
     setDetailNotes(notesWithUrls);
-    setDetailChecklist(checklist ?? []);
+    const checklistWithUrls = await Promise.all(
+      (checklist ?? []).map(async i => ({ ...i, photo_signed_url: i.photo_url ? await getSignedUrl(i.photo_url) : null }))
+    );
+    setDetailChecklist(checklistWithUrls);
   }
 
   function openNewReport() {
@@ -1104,12 +1119,6 @@ export default function FieldApp() {
     setAnnotatingExisting(null);
   }
 
-  async function toggleCheckItem(item) {
-    const completed = !item.completed;
-    await supabase.from('job_checklist_items').update({ completed, completed_at: completed ? new Date().toISOString() : null }).eq('id', item.id);
-    setDetailChecklist(prev => prev.map(i => i.id === item.id ? { ...i, completed } : i));
-  }
-
   async function addCheckItem(e) {
     e.preventDefault();
     if (!newCheckItem.trim()) return;
@@ -1118,134 +1127,6 @@ export default function FieldApp() {
     }]).select().single();
     if (data) setDetailChecklist(prev => [...prev, data]);
     setNewCheckItem('');
-  }
-
-  function addArea() {
-    if (!newAreaName.trim()) return;
-    setAddingArea(false);
-    setDetailChecklist(prev => [...prev, {
-      id: '__placeholder__' + Date.now(),
-      job_id: detailJob.id,
-      description: '',
-      group_name: newAreaName.trim(),
-      completed: false,
-      sort_order: prev.length,
-      __placeholder: true,
-    }]);
-    setNewAreaName('');
-  }
-
-  async function addItemToArea(groupName) {
-    const key = groupName ?? '__none__';
-    const text = newAreaItemText[key] ?? '';
-    if (!text.trim()) return;
-    const { data } = await supabase.from('job_checklist_items').insert([{
-      job_id: detailJob.id,
-      description: text.trim(),
-      sort_order: detailChecklist.filter(i => !i.__placeholder).length,
-      group_name: groupName || null,
-    }]).select().single();
-    if (data) setDetailChecklist(prev => [
-      ...prev.filter(i => !(i.__placeholder && i.group_name === groupName)),
-      data,
-    ]);
-    setNewAreaItemText(prev => ({ ...prev, [key]: '' }));
-    setAddingItemArea(null);
-  }
-
-  async function renameArea(oldName) {
-    const newName = prompt(`Renombrar área "${oldName}":`, oldName);
-    if (!newName || newName === oldName) return;
-    await supabase.from('job_checklist_items').update({ group_name: newName })
-      .eq('job_id', detailJob.id).eq('group_name', oldName);
-    setDetailChecklist(prev => prev.map(i => i.group_name === oldName ? { ...i, group_name: newName } : i));
-    setAreaMenuOpen(null);
-  }
-
-  async function deleteArea(groupName) {
-    if (!confirm(`¿Eliminar el área "${groupName}" y todos sus ítems?`)) return;
-    await supabase.from('job_checklist_items').delete().eq('job_id', detailJob.id).eq('group_name', groupName);
-    setDetailChecklist(prev => prev.filter(i => i.group_name !== groupName));
-    setAreaMenuOpen(null);
-  }
-
-  async function deleteCheckItem(itemId) {
-    setCheckItemMenuOpen(null);
-    await supabase.from('job_checklist_items').delete().eq('id', itemId);
-    setDetailChecklist(prev => prev.filter(i => i.id !== itemId));
-  }
-
-  function startEditCheckItem(item) {
-    setEditingCheckItemId(item.id);
-    setEditingCheckItemText(item.description);
-    setCheckItemMenuOpen(null);
-  }
-
-  async function saveEditCheckItem(itemId) {
-    const text = editingCheckItemText.trim();
-    setEditingCheckItemId(null);
-    if (!text) return;
-    await supabase.from('job_checklist_items').update({ description: text }).eq('id', itemId);
-    setDetailChecklist(prev => prev.map(i => i.id === itemId ? { ...i, description: text } : i));
-  }
-
-  async function duplicateCheckItem(item) {
-    setCheckItemMenuOpen(null);
-    const { data } = await supabase.from('job_checklist_items').insert([{
-      job_id: detailJob.id,
-      description: item.description,
-      group_name: item.group_name,
-      sort_order: detailChecklist.filter(i => !i.__placeholder).length,
-      completed: false,
-    }]).select().single();
-    if (data) setDetailChecklist(prev => [...prev, data]);
-  }
-
-  async function reorderCheckItems(targetGroupKey, draggedId, targetItemId) {
-    if (draggedId === targetItemId) return;
-    const allReal = detailChecklist.filter(i => !i.__placeholder);
-    const dragged = allReal.find(i => i.id === draggedId);
-    if (!dragged) return;
-    const targetGroupName = targetGroupKey === '__none__' ? null : targetGroupKey;
-    const groupOrder = [];
-    const groupsMap = {};
-    allReal.forEach(i => {
-      if (i.id === draggedId) return;
-      const g = i.group_name || '__none__';
-      if (!groupsMap[g]) { groupsMap[g] = []; groupOrder.push(g); }
-      groupsMap[g].push(i);
-    });
-    if (!groupsMap[targetGroupKey]) { groupsMap[targetGroupKey] = []; groupOrder.push(targetGroupKey); }
-    const targetArr = groupsMap[targetGroupKey];
-    const insertAt = targetItemId ? targetArr.findIndex(i => i.id === targetItemId) : targetArr.length;
-    const movedItem = { ...dragged, group_name: targetGroupName };
-    if (insertAt === -1) targetArr.push(movedItem);
-    else targetArr.splice(insertAt, 0, movedItem);
-    const reordered = groupOrder.flatMap(g => groupsMap[g]).map((it, idx) => ({ ...it, sort_order: idx }));
-    const placeholders = detailChecklist.filter(i => i.__placeholder);
-    setDetailChecklist([...reordered, ...placeholders]);
-    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order, group_name: u.group_name }).eq('id', u.id)));
-  }
-
-  async function reorderAreas(draggedGroupKey, targetGroupKey) {
-    if (draggedGroupKey === targetGroupKey) return;
-    const groupedMap = {};
-    detailChecklist.forEach(i => {
-      const g = i.group_name || '__none__';
-      if (!groupedMap[g]) groupedMap[g] = [];
-      groupedMap[g].push(i);
-    });
-    const order = Object.keys(groupedMap);
-    const fromIdx = order.indexOf(draggedGroupKey);
-    const toIdx = order.indexOf(targetGroupKey);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const newOrder = [...order];
-    const [moved] = newOrder.splice(fromIdx, 1);
-    newOrder.splice(toIdx, 0, moved);
-    const reordered = newOrder.flatMap(g => groupedMap[g].filter(i => !i.__placeholder)).map((it, idx) => ({ ...it, sort_order: idx }));
-    const placeholders = detailChecklist.filter(i => i.__placeholder);
-    setDetailChecklist([...reordered, ...placeholders]);
-    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order }).eq('id', u.id)));
   }
 
   // Clientes search (shows full list by default, filters as you type)
@@ -1520,9 +1401,6 @@ export default function FieldApp() {
 
   const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const totalDetailExpenses = detailExpenses.reduce((a, e) => a + Number(e.amount ?? 0), 0);
-  const realChecklistCount = detailChecklist.filter(i => !i.__placeholder).length;
-  const completedCount = detailChecklist.filter(i => i.completed && !i.__placeholder).length;
-  const progress = realChecklistCount > 0 ? Math.round((completedCount / realChecklistCount) * 100) : 0;
 
   // Calendar helpers: build the week (Sun-Sat) for the current offset
   function getWeekDays(offset) {
@@ -2348,6 +2226,7 @@ export default function FieldApp() {
             {/* CHECKLIST TAB */}
             {detailTab === 'checklist' && (
               <div>
+                <input ref={checkItemPhotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCheckItemPhotoFile} />
                 {realChecklistCount > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -2383,12 +2262,6 @@ export default function FieldApp() {
                 {detailChecklist.length === 0
                   ? <div style={{ background: '#fff', borderRadius: 14, padding: '32px 18px', textAlign: 'center', color: '#aaa', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>Sin ítems.</div>
                   : (() => {
-                    const groupedMap = {};
-                    detailChecklist.forEach(i => {
-                      const g = i.group_name || '__none__';
-                      if (!groupedMap[g]) groupedMap[g] = [];
-                      groupedMap[g].push(i);
-                    });
                     return Object.entries(groupedMap).map(([groupKey, items]) => {
                       const groupName = groupKey === '__none__' ? null : groupKey;
                       const realItems = items.filter(i => !i.__placeholder);
@@ -2427,56 +2300,147 @@ export default function FieldApp() {
                             </div>
                           </div>
                         )}
-                        {realItems.map(item => (
-                          <div key={item.id}
-                            draggable={editingCheckItemId !== item.id}
-                            onDragStart={() => setDragCheckItem({ id: item.id, groupKey })}
-                            onDragOver={e => { if (!dragCheckItem) return; e.preventDefault(); e.stopPropagation(); setDragOverArea(groupKey); }}
-                            onDrop={e => { if (!dragCheckItem) return; e.preventDefault(); e.stopPropagation(); reorderCheckItems(groupKey, dragCheckItem.id, item.id); setDragCheckItem(null); setDragOverArea(null); }}
-                            onDragEnd={() => { setDragCheckItem(null); setDragOverArea(null); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid #eee', opacity: dragCheckItem?.id === item.id ? 0.4 : 1 }}>
-                            <span style={{ cursor: 'grab', color: '#ccc', fontSize: 14, flexShrink: 0 }}>⠿</span>
-                            <div onClick={() => toggleCheckItem(item)} style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #dde1e7', background: item.completed ? '#1a7a4a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}>
-                              {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
-                            </div>
-                            <div style={{ flex: 1 }} onClick={() => editingCheckItemId !== item.id && toggleCheckItem(item)}>
-                              {editingCheckItemId === item.id ? (
-                                <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
-                                  <input autoFocus value={editingCheckItemText} onChange={e => setEditingCheckItemText(e.target.value)}
-                                    onKeyDown={e => { if (e.key === 'Enter') saveEditCheckItem(item.id); if (e.key === 'Escape') setEditingCheckItemId(null); }}
-                                    style={{ flex: 1, padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-                                  <button onClick={() => saveEditCheckItem(item.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Guardar</button>
-                                  <button onClick={() => setEditingCheckItemId(null)} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: '#888' }}>×</button>
-                                </div>
-                              ) : (
-                                <>
-                                  <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? '#aaa' : '#333' }}>{item.description}</div>
-                                  {item.completed && item.completed_at && (
-                                    <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                                      {formatDatePR(item.completed_at)}
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                            {editingCheckItemId !== item.id && (
-                              <div style={{ position: 'relative' }}>
-                                <button onClick={() => setCheckItemMenuOpen(checkItemMenuOpen === item.id ? null : item.id)}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
-                                {checkItemMenuOpen === item.id && (
+                        {realItems.map(item => {
+                          const children = childrenByParent[item.id] ?? [];
+                          const expanded = !!expandedItems[item.id];
+                          return (
+                          <div key={item.id}>
+                            <div
+                              draggable={editingCheckItemId !== item.id}
+                              onDragStart={() => setDragCheckItem({ id: item.id, groupKey })}
+                              onDragOver={e => { if (!dragCheckItem) return; e.preventDefault(); e.stopPropagation(); setDragOverArea(groupKey); }}
+                              onDrop={e => { if (!dragCheckItem) return; e.preventDefault(); e.stopPropagation(); reorderCheckItems(groupKey, dragCheckItem.id, item.id); setDragCheckItem(null); setDragOverArea(null); }}
+                              onDragEnd={() => { setDragCheckItem(null); setDragOverArea(null); }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid #eee', opacity: dragCheckItem?.id === item.id ? 0.4 : 1 }}>
+                              <span style={{ cursor: 'grab', color: '#ccc', fontSize: 14, flexShrink: 0 }}>⠿</span>
+                              {children.length > 0 ? (
+                                <button onClick={() => toggleExpand(item.id)}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 12, padding: 0, flexShrink: 0, width: 14 }}>{expanded ? '▾' : '▸'}</button>
+                              ) : <span style={{ width: 14, flexShrink: 0 }} />}
+                              <div onClick={() => toggleCheckItem(item)} style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #dde1e7', background: item.completed ? '#1a7a4a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}>
+                                {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
+                              </div>
+                              <div style={{ flex: 1 }} onClick={() => editingCheckItemId !== item.id && toggleCheckItem(item)}>
+                                {editingCheckItemId === item.id ? (
+                                  <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
+                                    <input autoFocus value={editingCheckItemText} onChange={e => setEditingCheckItemText(e.target.value)}
+                                      onKeyDown={e => { if (e.key === 'Enter') saveEditCheckItem(item.id); if (e.key === 'Escape') setEditingCheckItemId(null); }}
+                                      style={{ flex: 1, padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                                    <button onClick={() => saveEditCheckItem(item.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Guardar</button>
+                                    <button onClick={() => setEditingCheckItemId(null)} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: '#888' }}>×</button>
+                                  </div>
+                                ) : (
                                   <>
-                                    <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setCheckItemMenuOpen(null)} />
-                                    <div style={{ position: 'absolute', right: 0, top: 24, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #eee', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
-                                      <button onClick={() => startEditCheckItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
-                                      <button onClick={() => duplicateCheckItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
-                                      <button onClick={() => deleteCheckItem(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 Eliminar</button>
+                                    <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? '#aaa' : '#333' }}>
+                                      {item.description}
+                                      {children.length > 0 && (
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: '#aaa', marginLeft: 6 }}>
+                                          ({children.filter(c => c.completed).length}/{children.length})
+                                        </span>
+                                      )}
                                     </div>
+                                    {item.completed && item.completed_at && (
+                                      <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+                                        {formatDatePR(item.completed_at)}
+                                      </div>
+                                    )}
                                   </>
                                 )}
                               </div>
+                              {uploadingCheckItemPhotoId === item.id && (
+                                <span style={{ fontSize: 11, color: '#aaa' }}>Subiendo...</span>
+                              )}
+                              {item.photo_signed_url && editingCheckItemId !== item.id && (
+                                <img src={item.photo_signed_url} onClick={e => { e.stopPropagation(); setLightbox({ urls: [item.photo_signed_url], index: 0 }); }}
+                                  style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+                              )}
+                              {editingCheckItemId !== item.id && (
+                                <div style={{ position: 'relative' }}>
+                                  <button onClick={() => setCheckItemMenuOpen(checkItemMenuOpen === item.id ? null : item.id)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
+                                  {checkItemMenuOpen === item.id && (
+                                    <>
+                                      <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setCheckItemMenuOpen(null)} />
+                                      <div style={{ position: 'absolute', right: 0, top: 24, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #eee', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
+                                        <button onClick={() => startEditCheckItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
+                                        <button onClick={() => duplicateCheckItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
+                                        {!item.parent_item_id && (
+                                          <button onClick={() => { setAddingSubItemFor(item.id); setCheckItemMenuOpen(null); setExpandedItems(prev => ({ ...prev, [item.id]: true })); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>➕ Agregar sub-tarea</button>
+                                        )}
+                                        <button onClick={() => triggerCheckItemPhotoUpload(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {item.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
+                                        {item.photo_signed_url && <button onClick={() => removeCheckItemPhoto(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
+                                        <button onClick={() => deleteCheckItem(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 Eliminar</button>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {expanded && children.map(sub => (
+                              <div key={sub.id}
+                                draggable={editingCheckItemId !== sub.id}
+                                onDragStart={() => setDragSubItem({ id: sub.id, parentId: item.id })}
+                                onDragOver={e => { if (!dragSubItem) return; e.preventDefault(); e.stopPropagation(); }}
+                                onDrop={e => { if (!dragSubItem) return; e.preventDefault(); e.stopPropagation(); reorderSubItems(item.id, dragSubItem.id, sub.id); setDragSubItem(null); }}
+                                onDragEnd={() => setDragSubItem(null)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', marginLeft: 36, borderBottom: '1px solid #eee', opacity: dragSubItem?.id === sub.id ? 0.4 : 1 }}>
+                                <span style={{ cursor: 'grab', color: '#ccc', fontSize: 13, flexShrink: 0 }}>⠿</span>
+                                <div onClick={() => toggleCheckItem(sub)} style={{ width: 20, height: 20, borderRadius: '50%', border: sub.completed ? 'none' : '2px solid #dde1e7', background: sub.completed ? '#1a7a4a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}>
+                                  {sub.completed && <span style={{ color: '#fff', fontSize: 12, fontWeight: 900 }}>✓</span>}
+                                </div>
+                                <div style={{ flex: 1 }} onClick={() => editingCheckItemId !== sub.id && toggleCheckItem(sub)}>
+                                  {editingCheckItemId === sub.id ? (
+                                    <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
+                                      <input autoFocus value={editingCheckItemText} onChange={e => setEditingCheckItemText(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter') saveEditCheckItem(sub.id); if (e.key === 'Escape') setEditingCheckItemId(null); }}
+                                        style={{ flex: 1, padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                                      <button onClick={() => saveEditCheckItem(sub.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Guardar</button>
+                                      <button onClick={() => setEditingCheckItemId(null)} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: '#888' }}>×</button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontSize: 13, fontWeight: 500, textDecoration: sub.completed ? 'line-through' : 'none', color: sub.completed ? '#aaa' : '#333' }}>{sub.description}</div>
+                                  )}
+                                </div>
+                                {sub.photo_signed_url && editingCheckItemId !== sub.id && (
+                                  <img src={sub.photo_signed_url} onClick={e => { e.stopPropagation(); setLightbox({ urls: [sub.photo_signed_url], index: 0 }); }}
+                                    style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+                                )}
+                                {editingCheckItemId !== sub.id && (
+                                  <div style={{ position: 'relative' }}>
+                                    <button onClick={() => setCheckItemMenuOpen(checkItemMenuOpen === sub.id ? null : sub.id)}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 16, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
+                                    {checkItemMenuOpen === sub.id && (
+                                      <>
+                                        <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setCheckItemMenuOpen(null)} />
+                                        <div style={{ position: 'absolute', right: 0, top: 24, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #eee', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
+                                          <button onClick={() => startEditCheckItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
+                                          <button onClick={() => duplicateCheckItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
+                                          <button onClick={() => triggerCheckItemPhotoUpload(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {sub.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
+                                          {sub.photo_signed_url && <button onClick={() => removeCheckItemPhoto(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
+                                          <button onClick={() => deleteCheckItem(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 Eliminar</button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+
+                            {expanded && addingSubItemFor === item.id && (
+                              <div style={{ display: 'flex', gap: 8, marginLeft: 36, padding: '10px 0' }}>
+                                <input autoFocus value={newSubItemText[item.id] ?? ''}
+                                  onChange={e => setNewSubItemText(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === 'Enter') addSubItem(item); if (e.key === 'Escape') setAddingSubItemFor(null); }}
+                                  placeholder="Descripción de la sub-tarea..."
+                                  style={{ flex: 1, padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+                                <button onClick={() => addSubItem(item)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontWeight: 700, cursor: 'pointer' }}>+</button>
+                                <button onClick={() => setAddingSubItemFor(null)} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 8, padding: '6px 12px', fontWeight: 700, cursor: 'pointer', color: '#888' }}>×</button>
+                              </div>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                         {groupName && (
                           addingItemArea === groupKey ? (
                             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

@@ -12,6 +12,7 @@ import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDatePR, formatDateTimePR } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 import { computeHours, getJobScheduleWindow } from '../../../lib/hours';
+import { useJobChecklist } from '../../../lib/useJobChecklist';
 
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
@@ -537,77 +538,28 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [annotatingIdx, setAnnotatingIdx] = useState(null);
   const [annotatingExisting, setAnnotatingExisting] = useState(null);
 
-  // Checklist state
-  const [checklistItems, setChecklistItems] = useState(checklist);
+  // Checklist state — shared with Crew App via useJobChecklist so the two
+  // never drift out of sync (add/edit/delete/reorder/sub-items all live there).
+  const {
+    checklistItems, setChecklistItems,
+    groupedMap, childrenByParent,
+    completedCount, realCount, progress,
+    newGroupName, setNewGroupName, addingGroup, setAddingGroup, addGroup,
+    groupMenuOpen, setGroupMenuOpen, renameGroup, deleteGroup,
+    dragGroup, setDragGroup, dragOverGroup, setDragOverGroup, reorderGroups,
+    newItemText, setNewItemText, addingItemGroup, setAddingItemGroup, addItemToGroup,
+    itemMenuOpen, setItemMenuOpen,
+    editingItemId, setEditingItemId, editingItemText, setEditingItemText, startEditItem, saveEditItem,
+    toggleItem, deleteItem, duplicateItem,
+    dragItem, setDragItem, reorderItems,
+    itemPhotoInputRef, pendingPhotoItemId, uploadingItemPhotoId,
+    triggerItemPhotoUpload, handleItemPhotoFile, removeItemPhoto,
+    expandedItems, setExpandedItems, toggleExpand,
+    addingSubItemFor, setAddingSubItemFor, newSubItemText, setNewSubItemText, addSubItem,
+    dragSubItem, setDragSubItem, reorderSubItems,
+  } = useJobChecklist(job.id, checklist);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [newGroupName, setNewGroupName] = useState('');
-  const [addingGroup, setAddingGroup] = useState(false);
-  const [groupMenuOpen, setGroupMenuOpen] = useState(null);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(null);
-  const [newItemText, setNewItemText] = useState({});
-  const [addingItemGroup, setAddingItemGroup] = useState(null);
-  const [itemMenuOpen, setItemMenuOpen] = useState(null);
-  const [editingItemId, setEditingItemId] = useState(null);
-  const [editingItemText, setEditingItemText] = useState('');
-  const [dragItem, setDragItem] = useState(null);
-  const [dragOverGroup, setDragOverGroup] = useState(null);
-  const [dragGroup, setDragGroup] = useState(null);
-
-  const groupedMap = {};
-  checklistItems.forEach(i => {
-    const g = i.group_name || '__none__';
-    if (!groupedMap[g]) groupedMap[g] = [];
-    groupedMap[g].push(i);
-  });
-
-  async function addGroup() {
-    if (!newGroupName.trim()) return;
-    setAddingGroup(false);
-    setChecklistItems(prev => [...prev, {
-      id: '__placeholder__' + Date.now(),
-      job_id: job.id,
-      description: '',
-      group_name: newGroupName.trim(),
-      completed: false,
-      sort_order: prev.length,
-      __placeholder: true,
-    }]);
-    setNewGroupName('');
-  }
-
-  async function addItemToGroup(groupName) {
-    const key = groupName ?? '__none__';
-    const text = newItemText[key] ?? '';
-    if (!text.trim()) return;
-    const { data } = await supabase.from('job_checklist_items').insert([{
-      job_id: job.id,
-      description: text.trim(),
-      sort_order: checklistItems.filter(i => !i.__placeholder).length,
-      group_name: groupName || null,
-    }]).select().single();
-    if (data) setChecklistItems(prev => [
-      ...prev.filter(i => !(i.__placeholder && i.group_name === groupName)),
-      data,
-    ]);
-    setNewItemText(prev => ({ ...prev, [key]: '' }));
-    setAddingItemGroup(null);
-  }
-
-  async function renameGroup(oldName) {
-    const newName = prompt(`Renombrar grupo "${oldName}":`, oldName);
-    if (!newName || newName === oldName) return;
-    await supabase.from('job_checklist_items').update({ group_name: newName })
-      .eq('job_id', job.id).eq('group_name', oldName);
-    setChecklistItems(prev => prev.map(i => i.group_name === oldName ? { ...i, group_name: newName } : i));
-    setGroupMenuOpen(null);
-  }
-
-  async function deleteGroup(groupName) {
-    if (!confirm(`¿Eliminar el grupo "${groupName}" y todos sus ítems?`)) return;
-    await supabase.from('job_checklist_items').delete().eq('job_id', job.id).eq('group_name', groupName);
-    setChecklistItems(prev => prev.filter(i => i.group_name !== groupName));
-    setGroupMenuOpen(null);
-  }
 
   async function updateStatus(val) {
     setStatus(val);
@@ -839,86 +791,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     }
   }
 
-  async function toggleItem(itemId, completed) {
-    await supabase.from('job_checklist_items').update({
-      completed: !completed,
-      completed_at: !completed ? new Date().toISOString() : null,
-    }).eq('id', itemId);
-    setChecklistItems(prev => prev.map(i => i.id === itemId ? { ...i, completed: !completed } : i));
-  }
-
-  async function deleteItem(itemId) {
-    await supabase.from('job_checklist_items').delete().eq('id', itemId);
-    setChecklistItems(prev => prev.filter(i => i.id !== itemId));
-  }
-
-  function startEditItem(item) {
-    setEditingItemId(item.id);
-    setEditingItemText(item.description);
-    setItemMenuOpen(null);
-  }
-
-  async function saveEditItem(itemId) {
-    const text = editingItemText.trim();
-    setEditingItemId(null);
-    if (!text) return;
-    await supabase.from('job_checklist_items').update({ description: text }).eq('id', itemId);
-    setChecklistItems(prev => prev.map(i => i.id === itemId ? { ...i, description: text } : i));
-  }
-
-  async function duplicateItem(item) {
-    setItemMenuOpen(null);
-    const { data } = await supabase.from('job_checklist_items').insert([{
-      job_id: job.id,
-      description: item.description,
-      group_name: item.group_name,
-      sort_order: checklistItems.filter(i => !i.__placeholder).length,
-      completed: false,
-    }]).select().single();
-    if (data) setChecklistItems(prev => [...prev, data]);
-  }
-
-  async function reorderItems(targetGroupKey, draggedId, targetItemId) {
-    if (draggedId === targetItemId) return;
-    const allReal = checklistItems.filter(i => !i.__placeholder);
-    const dragged = allReal.find(i => i.id === draggedId);
-    if (!dragged) return;
-    const targetGroupName = targetGroupKey === '__none__' ? null : targetGroupKey;
-    const groupOrder = [];
-    const groupsMap = {};
-    allReal.forEach(i => {
-      if (i.id === draggedId) return;
-      const g = i.group_name || '__none__';
-      if (!groupsMap[g]) { groupsMap[g] = []; groupOrder.push(g); }
-      groupsMap[g].push(i);
-    });
-    if (!groupsMap[targetGroupKey]) { groupsMap[targetGroupKey] = []; groupOrder.push(targetGroupKey); }
-    const targetArr = groupsMap[targetGroupKey];
-    const insertAt = targetItemId ? targetArr.findIndex(i => i.id === targetItemId) : targetArr.length;
-    const movedItem = { ...dragged, group_name: targetGroupName };
-    if (insertAt === -1) targetArr.push(movedItem);
-    else targetArr.splice(insertAt, 0, movedItem);
-    const reordered = groupOrder.flatMap(g => groupsMap[g]).map((it, idx) => ({ ...it, sort_order: idx }));
-    const placeholders = checklistItems.filter(i => i.__placeholder);
-    setChecklistItems([...reordered, ...placeholders]);
-    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order, group_name: u.group_name }).eq('id', u.id)));
-  }
-
-  async function reorderGroups(draggedGroupKey, targetGroupKey) {
-    if (draggedGroupKey === targetGroupKey) return;
-    const order = Object.keys(groupedMap);
-    const fromIdx = order.indexOf(draggedGroupKey);
-    const toIdx = order.indexOf(targetGroupKey);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const newOrder = [...order];
-    const [moved] = newOrder.splice(fromIdx, 1);
-    newOrder.splice(toIdx, 0, moved);
-    const reordered = newOrder.flatMap(g => groupedMap[g].filter(i => !i.__placeholder)).map((it, idx) => ({ ...it, sort_order: idx }));
-    const placeholders = checklistItems.filter(i => i.__placeholder);
-    setChecklistItems([...reordered, ...placeholders]);
-    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order }).eq('id', u.id)));
-  }
-
   async function applyTemplate(template) {
     const its = template.checklist_template_items?.sort((a, b) => a.sort_order - b.sort_order) ?? [];
     const toInsert = its.map((it, idx) => ({
@@ -1016,10 +888,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   })();
 
   const sortedNotesList = [...notesList].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0));
-
-  const completedCount = checklistItems.filter(i => i.completed && !i.__placeholder).length;
-  const realCount = checklistItems.filter(i => !i.__placeholder).length;
-  const progress = realCount > 0 ? Math.round((completedCount / realCount) * 100) : 0;
 
   const tabStyle = (t) => ({
     padding: '10px 20px', fontWeight: tab === t ? 700 : 500,
@@ -1998,6 +1866,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       {/* ─── CHECKLIST TAB ─── */}
       {tab === 'checklist' && (
         <div style={{ maxWidth: 700 }}>
+          <input ref={itemPhotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleItemPhotoFile} />
           {realCount > 0 && (
             <div className="card" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -2103,59 +1972,152 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                   </div>
                 </div>
 
-                {realItems.map(item => (
-                  <div key={item.id}
-                    draggable={editingItemId !== item.id}
-                    onDragStart={() => setDragItem({ id: item.id, groupKey })}
-                    onDragOver={e => { if (!dragItem) return; e.preventDefault(); e.stopPropagation(); setDragOverGroup(groupKey); }}
-                    onDrop={e => { if (!dragItem) return; e.preventDefault(); e.stopPropagation(); reorderItems(groupKey, dragItem.id, item.id); setDragItem(null); setDragOverGroup(null); }}
-                    onDragEnd={() => { setDragItem(null); setDragOverGroup(null); }}
-                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', opacity: dragItem?.id === item.id ? 0.4 : 1 }}>
-                    <span style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 14, marginTop: 3, flexShrink: 0 }}>⠿</span>
-                    <div onClick={() => toggleItem(item.id, item.completed)}
-                      style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid var(--line-strong)', background: item.completed ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
-                      {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      {editingItemId === item.id ? (
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <input autoFocus value={editingItemText} onChange={e => setEditingItemText(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') saveEditItem(item.id); if (e.key === 'Escape') setEditingItemId(null); }}
-                            style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-                          <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => saveEditItem(item.id)}>Guardar</button>
-                          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setEditingItemId(null)}>Cancelar</button>
-                        </div>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--muted)' : 'var(--text)' }}>
-                            {item.description}
+                {realItems.map(item => {
+                  const children = childrenByParent[item.id] ?? [];
+                  const expanded = !!expandedItems[item.id];
+                  return (
+                  <div key={item.id}>
+                    <div
+                      draggable={editingItemId !== item.id}
+                      onDragStart={() => setDragItem({ id: item.id, groupKey })}
+                      onDragOver={e => { if (!dragItem) return; e.preventDefault(); e.stopPropagation(); setDragOverGroup(groupKey); }}
+                      onDrop={e => { if (!dragItem) return; e.preventDefault(); e.stopPropagation(); reorderItems(groupKey, dragItem.id, item.id); setDragItem(null); setDragOverGroup(null); }}
+                      onDragEnd={() => { setDragItem(null); setDragOverGroup(null); }}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', opacity: dragItem?.id === item.id ? 0.4 : 1 }}>
+                      <span style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 14, marginTop: 3, flexShrink: 0 }}>⠿</span>
+                      {children.length > 0 ? (
+                        <button onClick={() => toggleExpand(item.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12, padding: 0, marginTop: 4, flexShrink: 0, width: 14 }}
+                          title={expanded ? 'Colapsar' : 'Expandir'}>{expanded ? '▾' : '▸'}</button>
+                      ) : <span style={{ width: 14, flexShrink: 0 }} />}
+                      <div onClick={() => toggleItem(item.id, item.completed)}
+                        style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid var(--line-strong)', background: item.completed ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
+                        {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        {editingItemId === item.id ? (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <input autoFocus value={editingItemText} onChange={e => setEditingItemText(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') saveEditItem(item.id); if (e.key === 'Escape') setEditingItemId(null); }}
+                              style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                            <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => saveEditItem(item.id)}>Guardar</button>
+                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setEditingItemId(null)}>Cancelar</button>
                           </div>
-                          {item.completed && item.completed_at && (
-                            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                              Completado el {formatDatePR(item.completed_at)}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                    {editingItemId !== item.id && (
-                      <div style={{ position: 'relative' }}>
-                        <button onClick={() => setItemMenuOpen(itemMenuOpen === item.id ? null : item.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
-                        {itemMenuOpen === item.id && (
+                        ) : (
                           <>
-                            <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setItemMenuOpen(null)} />
-                            <div style={{ position: 'absolute', right: 0, top: 24, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
-                              <button onClick={() => startEditItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
-                              <button onClick={() => duplicateItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
-                              <button onClick={() => { deleteItem(item.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar</button>
+                            <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--muted)' : 'var(--text)' }}>
+                              {item.description}
+                              {children.length > 0 && (
+                                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginLeft: 6 }}>
+                                  ({children.filter(c => c.completed).length}/{children.length})
+                                </span>
+                              )}
                             </div>
+                            {item.completed && item.completed_at && (
+                              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                                Completado el {formatDatePR(item.completed_at)}
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
+                      {uploadingItemPhotoId === item.id && (
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Subiendo...</span>
+                      )}
+                      {item.photo_signed_url && editingItemId !== item.id && (
+                        <img src={item.photo_signed_url} onClick={() => setLightbox({ urls: [item.photo_signed_url], index: 0, noteId: null })}
+                          style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+                      )}
+                      {editingItemId !== item.id && (
+                        <div style={{ position: 'relative' }}>
+                          <button onClick={() => setItemMenuOpen(itemMenuOpen === item.id ? null : item.id)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
+                          {itemMenuOpen === item.id && (
+                            <>
+                              <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setItemMenuOpen(null)} />
+                              <div style={{ position: 'absolute', right: 0, top: 24, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
+                                <button onClick={() => startEditItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
+                                <button onClick={() => duplicateItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
+                                {!item.parent_item_id && (
+                                  <button onClick={() => { setAddingSubItemFor(item.id); setItemMenuOpen(null); setExpandedItems(prev => ({ ...prev, [item.id]: true })); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>➕ Agregar sub-tarea</button>
+                                )}
+                                <button onClick={() => triggerItemPhotoUpload(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {item.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
+                                {item.photo_signed_url && <button onClick={() => removeItemPhoto(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
+                                <button onClick={() => { deleteItem(item.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar</button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {expanded && children.map(sub => (
+                      <div key={sub.id}
+                        draggable={editingItemId !== sub.id}
+                        onDragStart={() => setDragSubItem({ id: sub.id, parentId: item.id })}
+                        onDragOver={e => { if (!dragSubItem) return; e.preventDefault(); e.stopPropagation(); }}
+                        onDrop={e => { if (!dragSubItem) return; e.preventDefault(); e.stopPropagation(); reorderSubItems(item.id, dragSubItem.id, sub.id); setDragSubItem(null); }}
+                        onDragEnd={() => setDragSubItem(null)}
+                        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', marginLeft: 40, borderBottom: '1px solid var(--border)', opacity: dragSubItem?.id === sub.id ? 0.4 : 1 }}>
+                        <span style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 13, marginTop: 3, flexShrink: 0 }}>⠿</span>
+                        <div onClick={() => toggleItem(sub.id, sub.completed)}
+                          style={{ width: 20, height: 20, borderRadius: '50%', border: sub.completed ? 'none' : '2px solid var(--line-strong)', background: sub.completed ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
+                          {sub.completed && <span style={{ color: '#fff', fontSize: 12, fontWeight: 900 }}>✓</span>}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          {editingItemId === sub.id ? (
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <input autoFocus value={editingItemText} onChange={e => setEditingItemText(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') saveEditItem(sub.id); if (e.key === 'Escape') setEditingItemId(null); }}
+                                style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                              <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => saveEditItem(sub.id)}>Guardar</button>
+                              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setEditingItemId(null)}>Cancelar</button>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 13, fontWeight: 500, textDecoration: sub.completed ? 'line-through' : 'none', color: sub.completed ? 'var(--muted)' : 'var(--text)' }}>
+                              {sub.description}
+                            </div>
+                          )}
+                        </div>
+                        {sub.photo_signed_url && editingItemId !== sub.id && (
+                          <img src={sub.photo_signed_url} onClick={() => setLightbox({ urls: [sub.photo_signed_url], index: 0, noteId: null })}
+                            style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+                        )}
+                        {editingItemId !== sub.id && (
+                          <div style={{ position: 'relative' }}>
+                            <button onClick={() => setItemMenuOpen(itemMenuOpen === sub.id ? null : sub.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
+                            {itemMenuOpen === sub.id && (
+                              <>
+                                <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setItemMenuOpen(null)} />
+                                <div style={{ position: 'absolute', right: 0, top: 24, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
+                                  <button onClick={() => startEditItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
+                                  <button onClick={() => duplicateItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
+                                  <button onClick={() => triggerItemPhotoUpload(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {sub.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
+                                  {sub.photo_signed_url && <button onClick={() => removeItemPhoto(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
+                                  <button onClick={() => { deleteItem(sub.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar</button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {expanded && addingSubItemFor === item.id && (
+                      <div style={{ display: 'flex', gap: 8, marginLeft: 40, padding: '8px 0' }}>
+                        <input autoFocus value={newSubItemText[item.id] ?? ''}
+                          onChange={e => setNewSubItemText(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') addSubItem(item); if (e.key === 'Escape') setAddingSubItemFor(null); }}
+                          placeholder="Descripción de la sub-tarea..."
+                          style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                        <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => addSubItem(item)}>Agregar</button>
+                        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setAddingSubItemFor(null)}>×</button>
+                      </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
 
                 {addingItemGroup === groupKey ? (
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
