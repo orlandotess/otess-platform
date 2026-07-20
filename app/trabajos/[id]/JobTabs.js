@@ -546,6 +546,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   const [templateMenuOpen, setTemplateMenuOpen] = useState(null);
   const [newItemText, setNewItemText] = useState({});
   const [addingItemGroup, setAddingItemGroup] = useState(null);
+  const [itemMenuOpen, setItemMenuOpen] = useState(null);
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editingItemText, setEditingItemText] = useState('');
+  const [dragItem, setDragItem] = useState(null);
 
   const groupedMap = {};
   checklistItems.forEach(i => {
@@ -844,6 +848,51 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
   async function deleteItem(itemId) {
     await supabase.from('job_checklist_items').delete().eq('id', itemId);
     setChecklistItems(prev => prev.filter(i => i.id !== itemId));
+  }
+
+  function startEditItem(item) {
+    setEditingItemId(item.id);
+    setEditingItemText(item.description);
+    setItemMenuOpen(null);
+  }
+
+  async function saveEditItem(itemId) {
+    const text = editingItemText.trim();
+    setEditingItemId(null);
+    if (!text) return;
+    await supabase.from('job_checklist_items').update({ description: text }).eq('id', itemId);
+    setChecklistItems(prev => prev.map(i => i.id === itemId ? { ...i, description: text } : i));
+  }
+
+  async function duplicateItem(item) {
+    setItemMenuOpen(null);
+    const { data } = await supabase.from('job_checklist_items').insert([{
+      job_id: job.id,
+      description: item.description,
+      group_name: item.group_name,
+      sort_order: checklistItems.filter(i => !i.__placeholder).length,
+      completed: false,
+    }]).select().single();
+    if (data) setChecklistItems(prev => [...prev, data]);
+  }
+
+  async function reorderItems(groupKey, draggedId, targetId) {
+    if (draggedId === targetId) return;
+    const groups = Object.entries(groupedMap).map(([gKey, items]) => {
+      const real = items.filter(i => !i.__placeholder);
+      if (gKey !== groupKey) return real;
+      const fromIdx = real.findIndex(i => i.id === draggedId);
+      const toIdx = real.findIndex(i => i.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return real;
+      const copy = [...real];
+      const [moved] = copy.splice(fromIdx, 1);
+      copy.splice(toIdx, 0, moved);
+      return copy;
+    });
+    const reordered = groups.flat().map((it, idx) => ({ ...it, sort_order: idx }));
+    const placeholders = checklistItems.filter(i => i.__placeholder);
+    setChecklistItems([...reordered, ...placeholders]);
+    await Promise.all(reordered.map(u => supabase.from('job_checklist_items').update({ sort_order: u.sort_order }).eq('id', u.id)));
   }
 
   async function applyTemplate(template) {
@@ -2018,22 +2067,56 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                 </div>
 
                 {realItems.map(item => (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                  <div key={item.id}
+                    draggable={editingItemId !== item.id}
+                    onDragStart={() => setDragItem({ id: item.id, groupKey })}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => { e.preventDefault(); if (dragItem && dragItem.groupKey === groupKey) reorderItems(groupKey, dragItem.id, item.id); setDragItem(null); }}
+                    onDragEnd={() => setDragItem(null)}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', opacity: dragItem?.id === item.id ? 0.4 : 1 }}>
+                    <span style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 14, marginTop: 3, flexShrink: 0 }}>⠿</span>
                     <div onClick={() => toggleItem(item.id, item.completed)}
                       style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid var(--line-strong)', background: item.completed ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
                       {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--muted)' : 'var(--text)' }}>
-                        {item.description}
-                      </div>
-                      {item.completed && item.completed_at && (
-                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                          Completado el {formatDatePR(item.completed_at)}
+                      {editingItemId === item.id ? (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <input autoFocus value={editingItemText} onChange={e => setEditingItemText(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveEditItem(item.id); if (e.key === 'Escape') setEditingItemId(null); }}
+                            style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                          <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => saveEditItem(item.id)}>Guardar</button>
+                          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setEditingItemId(null)}>Cancelar</button>
                         </div>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--muted)' : 'var(--text)' }}>
+                            {item.description}
+                          </div>
+                          {item.completed && item.completed_at && (
+                            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                              Completado el {formatDatePR(item.completed_at)}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
-                    <button onClick={() => deleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, marginTop: 2 }}>×</button>
+                    {editingItemId !== item.id && (
+                      <div style={{ position: 'relative' }}>
+                        <button onClick={() => setItemMenuOpen(itemMenuOpen === item.id ? null : item.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
+                        {itemMenuOpen === item.id && (
+                          <>
+                            <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setItemMenuOpen(null)} />
+                            <div style={{ position: 'absolute', right: 0, top: 24, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
+                              <button onClick={() => startEditItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
+                              <button onClick={() => duplicateItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
+                              <button onClick={() => { deleteItem(item.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar</button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
 
