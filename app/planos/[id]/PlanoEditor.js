@@ -86,6 +86,8 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [showCableTypesPanel, setShowCableTypesPanel] = useState(false);
   const [newCableTypeName, setNewCableTypeName] = useState('');
   const [newCableTypeColor, setNewCableTypeColor] = useState('#2a4cb5');
+  const [newCableTypeWidth, setNewCableTypeWidth] = useState(1);
+  const [newCableTypeDash, setNewCableTypeDash] = useState('solid');
   const [savingCableType, setSavingCableType] = useState(false);
   const [customIconsState, setCustomIconsState] = useState(customIcons);
   const [imageUrlState, setImageUrlState] = useState(imageUrl);
@@ -724,6 +726,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     setSavingCableType(true);
     const { data, error } = await supabase.from('cable_types').insert([{
       name: newCableTypeName.trim(), color: newCableTypeColor,
+      line_width: newCableTypeWidth, dash_style: newCableTypeDash,
     }]).select().single();
     setSavingCableType(false);
     if (error) { alert('No se pudo crear el tipo de cable: ' + error.message); return; }
@@ -731,6 +734,8 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     setActiveCableTypeId(data.id);
     setNewCableTypeName('');
     setNewCableTypeColor('#2a4cb5');
+    setNewCableTypeWidth(1);
+    setNewCableTypeDash('solid');
   }
 
   function updateCableTypeName(id, name) {
@@ -756,6 +761,28 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       if (error) {
         setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, color: original } : t));
         alert('No se pudo cambiar el color, se revirtió: ' + error.message);
+      }
+    });
+  }
+
+  function updateCableTypeWidth(id, lineWidth) {
+    const original = cableTypesState.find(t => t.id === id)?.line_width;
+    setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, line_width: lineWidth } : t));
+    supabase.from('cable_types').update({ line_width: lineWidth }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, line_width: original } : t));
+        alert('No se pudo cambiar el grosor, se revirtió: ' + error.message);
+      }
+    });
+  }
+
+  function updateCableTypeDash(id, dashStyle) {
+    const original = cableTypesState.find(t => t.id === id)?.dash_style;
+    setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, dash_style: dashStyle } : t));
+    supabase.from('cable_types').update({ dash_style: dashStyle }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, dash_style: original } : t));
+        alert('No se pudo cambiar el patrón, se revirtió: ' + error.message);
       }
     });
   }
@@ -870,6 +897,13 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const totalCables = visibleCables.length;
 
   const cableColor = cable => cableTypesState.find(t => t.id === cable.cable_type_id)?.color || '#2a4cb5';
+  const cableWidth = cable => cableTypesState.find(t => t.id === cable.cable_type_id)?.line_width || 1;
+  const cableDashArray = cable => {
+    const style = cableTypesState.find(t => t.id === cable.cable_type_id)?.dash_style;
+    if (style === 'dashed') return `${W * 0.006},${W * 0.004}`;
+    if (style === 'dotted') return `${W * 0.0015},${W * 0.003}`;
+    return undefined;
+  };
   const cableCounts = [];
   for (const t of cableTypesState) {
     const n = visibleCables.filter(c => c.cable_type_id === t.id).length;
@@ -1022,7 +1056,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       {showCableTypesPanel && (
         <div className="card" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, width: 340, maxWidth: 'calc(100vw - 40px)', maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 8px 30px rgba(0,0,0,0.18)', padding: 12 }}>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
-            Clic en un tipo para hacerlo el tipo activo — los nuevos cables se trazan con su color. Cambia el color con la muestra, o el nombre escribiendo directo.
+            Clic en un tipo para hacerlo el tipo activo — los nuevos cables se trazan con su color. Cambia el color, nombre, grosor o patrón de línea directo aquí.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div
@@ -1041,41 +1075,79 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 key={t.id}
                 onClick={() => setActiveCableTypeId(t.id)}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
                   background: activeCableTypeId === t.id ? 'var(--info-tint)' : undefined,
                   border: activeCableTypeId === t.id ? '1.5px solid var(--navy)' : '1.5px solid transparent',
                 }}
               >
-                <input
-                  type="color" value={t.color}
-                  onClick={e => e.stopPropagation()}
-                  onChange={e => updateCableTypeColor(t.id, e.target.value)}
-                  style={{ width: 22, height: 22, padding: 0, border: 'none', borderRadius: 4, flexShrink: 0, cursor: 'pointer' }}
-                />
-                <input
-                  value={t.name}
-                  onFocus={() => { cableTypeNameOriginRef.current = t.name; }}
-                  onChange={e => updateCableTypeName(t.id, e.target.value)}
-                  onBlur={e => commitCableTypeName(t.id, e.target.value)}
-                  onClick={e => e.stopPropagation()}
-                  style={{ flex: 1, fontSize: 13, border: 'none', background: 'transparent', padding: '2px 4px' }}
-                />
-                <button type="button" className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 12, color: 'var(--warn)' }}
-                  onClick={e => { e.stopPropagation(); deleteCableType(t.id); }}>🗑</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="color" value={t.color}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => updateCableTypeColor(t.id, e.target.value)}
+                    style={{ width: 22, height: 22, padding: 0, border: 'none', borderRadius: 4, flexShrink: 0, cursor: 'pointer' }}
+                  />
+                  <input
+                    value={t.name}
+                    onFocus={() => { cableTypeNameOriginRef.current = t.name; }}
+                    onChange={e => updateCableTypeName(t.id, e.target.value)}
+                    onBlur={e => commitCableTypeName(t.id, e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    style={{ flex: 1, fontSize: 13, border: 'none', background: 'transparent', padding: '2px 4px' }}
+                  />
+                  <button type="button" className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 12, color: 'var(--warn)' }}
+                    onClick={e => { e.stopPropagation(); deleteCableType(t.id); }}>🗑</button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 30 }} onClick={e => e.stopPropagation()}>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>Grosor</span>
+                  <input
+                    type="range" min="0.5" max="4" step="0.25"
+                    value={t.line_width ?? 1}
+                    onChange={e => updateCableTypeWidth(t.id, parseFloat(e.target.value))}
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--muted)', width: 28, textAlign: 'right', flexShrink: 0 }}>{(t.line_width ?? 1).toFixed(2)}x</span>
+                  <select
+                    value={t.dash_style || 'solid'}
+                    onChange={e => updateCableTypeDash(t.id, e.target.value)}
+                    style={{ fontSize: 11, flexShrink: 0 }}
+                  >
+                    <option value="solid">Sólido</option>
+                    <option value="dashed">Guiones</option>
+                    <option value="dotted">Punteado</option>
+                  </select>
+                </div>
               </div>
             ))}
           </div>
-          <form onSubmit={createCableType} style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
-            <input
-              type="color" value={newCableTypeColor}
-              onChange={e => setNewCableTypeColor(e.target.value)}
-              style={{ width: 30, height: 30, padding: 0, border: 'none', borderRadius: 4, flexShrink: 0, cursor: 'pointer' }}
-            />
-            <input
-              value={newCableTypeName} onChange={e => setNewCableTypeName(e.target.value)}
-              placeholder="Nombre del nuevo tipo (ej: Cat6 Cable Blue)"
-              style={{ flex: 1, fontSize: 13 }}
-            />
+          <form onSubmit={createCableType} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="color" value={newCableTypeColor}
+                onChange={e => setNewCableTypeColor(e.target.value)}
+                style={{ width: 30, height: 30, padding: 0, border: 'none', borderRadius: 4, flexShrink: 0, cursor: 'pointer' }}
+              />
+              <input
+                value={newCableTypeName} onChange={e => setNewCableTypeName(e.target.value)}
+                placeholder="Nombre del nuevo tipo (ej: Cat6 Cable Blue)"
+                style={{ flex: 1, fontSize: 13 }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>Grosor</span>
+              <input
+                type="range" min="0.5" max="4" step="0.25"
+                value={newCableTypeWidth}
+                onChange={e => setNewCableTypeWidth(parseFloat(e.target.value))}
+                style={{ flex: 1 }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--muted)', width: 28, textAlign: 'right', flexShrink: 0 }}>{newCableTypeWidth.toFixed(2)}x</span>
+              <select value={newCableTypeDash} onChange={e => setNewCableTypeDash(e.target.value)} style={{ fontSize: 11, flexShrink: 0 }}>
+                <option value="solid">Sólido</option>
+                <option value="dashed">Guiones</option>
+                <option value="dotted">Punteado</option>
+              </select>
+            </div>
             <button type="submit" className="btn btn-primary" disabled={savingCableType || !newCableTypeName.trim()}>
               {savingCableType ? 'Creando...' : '+ Nuevo tipo'}
             </button>
@@ -1227,13 +1299,28 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                     points={pts}
                     fill="none"
                     stroke={selectedCableId === c.id ? 'var(--amber)' : cableColor(c)}
-                    strokeWidth={selectedCableId === c.id ? W * 0.004 : W * 0.0025}
+                    strokeWidth={(selectedCableId === c.id ? W * 0.004 : W * 0.0025) * cableWidth(c)}
+                    strokeDasharray={selectedCableId === c.id ? undefined : cableDashArray(c)}
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  {/* Wider invisible line on top — makes thin/zoomed-out cables much easier to click than the visible stroke alone. */}
+                  <polyline
+                    points={pts}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={W * 0.012}
                     style={{ cursor: mode === 'select' ? 'pointer' : 'default' }}
                     onClick={e => { if (mode === 'select') { e.stopPropagation(); setSelectedCableId(c.id); setSelectedMarkerId(null); } }}
                   />
+                  {c.label && (
+                    <text x={midX} y={midY} textAnchor="middle" dy={feet != null ? -iconSize * 0.55 : -iconSize * 0.15}
+                      style={{ fontSize: iconSize * 0.4, fontWeight: 700, fill: cableColor(c), paintOrder: 'stroke', stroke: '#fff', strokeWidth: iconSize * 0.08 }}>
+                      {c.label}
+                    </text>
+                  )}
                   {feet != null && (
                     <text x={midX} y={midY} textAnchor="middle" dy={-iconSize * 0.15}
-                      style={{ fontSize: iconSize * 0.4, fontWeight: 700, fill: cableColor(c), paintOrder: 'stroke', stroke: '#fff', strokeWidth: iconSize * 0.08 }}>
+                      style={{ fontSize: iconSize * 0.35, fontWeight: 600, fill: cableColor(c), paintOrder: 'stroke', stroke: '#fff', strokeWidth: iconSize * 0.07 }}>
                       {feet.toFixed(1)} pies
                     </text>
                   )}
