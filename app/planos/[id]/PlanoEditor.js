@@ -454,7 +454,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const clonedFields = {
       element_id: marker.element_id, custom_icon_id: marker.custom_icon_id, equipment_type: marker.equipment_type,
       model: marker.model, serial_number: marker.serial_number, notes: marker.notes, quantity: marker.quantity,
-      layer_id: marker.layer_id, icon_scale: marker.icon_scale,
+      layer_id: marker.layer_id, icon_scale: marker.icon_scale, custom_color: marker.custom_color,
       aoc_visible: marker.aoc_visible, aoc_direction: marker.aoc_direction, aoc_angle: marker.aoc_angle,
       aoc_radius: marker.aoc_radius, aoc_color: marker.aoc_color, aoc_opacity: marker.aoc_opacity,
     };
@@ -509,6 +509,17 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       if (error) {
         setMarkers(prev => prev.map(m => m.id === id ? { ...m, icon_scale: current } : m));
         alert('No se pudo guardar el tamaño, se revirtió: ' + error.message);
+      }
+    });
+  }
+
+  function updateMarkerColor(id, custom_color) {
+    const original = markerById(id)?.custom_color ?? null;
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, custom_color } : m));
+    supabase.from('floor_plan_markers').update({ custom_color }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setMarkers(prev => prev.map(m => m.id === id ? { ...m, custom_color: original } : m));
+        alert('No se pudo cambiar el color, se revirtió: ' + error.message);
       }
     });
   }
@@ -1416,7 +1427,9 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   onPointerDown={e => handleMarkerPointerDown(e, m)}
                   style={{ cursor: mode === 'select' ? 'grab' : 'pointer' }}
                 >
-                  <circle r={size * 0.75} fill="#fff" stroke={isSelected ? 'var(--amber)' : '#c7cbd4'} strokeWidth={isSelected ? size * 0.08 : size * 0.04} />
+                  <circle r={size * 0.75} fill="#fff"
+                    stroke={isSelected ? 'var(--amber)' : m.custom_color || '#c7cbd4'}
+                    strokeWidth={isSelected || m.custom_color ? size * 0.08 : size * 0.04} />
                   {customIcon?.url ? (
                     <image href={customIcon.url} x={-size / 2} y={-size / 2} width={size} height={size} preserveAspectRatio="xMidYMid meet" />
                   ) : resolvedIcon ? (
@@ -1581,6 +1594,18 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px' }}
                   disabled={(selectedMarker.icon_scale ?? 1) >= 2}
                   onClick={() => adjustMarkerScale(selectedMarker.id, 0.25)}>+</button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Color</span>
+                <input
+                  type="color" value={selectedMarker.custom_color || getMarkerColor(selectedMarker, elementTypes)}
+                  onChange={e => updateMarkerColor(selectedMarker.id, e.target.value)}
+                  style={{ width: 26, height: 26, padding: 0, border: 'none', borderRadius: 4, marginLeft: 'auto', cursor: 'pointer' }}
+                />
+                {selectedMarker.custom_color && (
+                  <button className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px' }}
+                    onClick={() => updateMarkerColor(selectedMarker.id, null)}>Restablecer</button>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>Cantidad</span>
