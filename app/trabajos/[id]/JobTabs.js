@@ -36,7 +36,7 @@ const expenseCategories = [
   { value: 'otro', label: 'Otro' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, checklistAreas = [], templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
@@ -547,6 +547,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     newGroupName, setNewGroupName, addingGroup, setAddingGroup, addGroup,
     groupMenuOpen, setGroupMenuOpen, renameGroup, deleteGroup, duplicateGroup,
     dragGroup, setDragGroup, dragOverGroup, setDragOverGroup, reorderGroups,
+    areaPhotos, areaPhotoInputRef, pendingPhotoAreaKey, uploadingAreaPhotoKey,
+    triggerAreaPhotoUpload, handleAreaPhotoFile, removeAreaPhoto,
     newItemText, setNewItemText, addingItemGroup, setAddingItemGroup, addItemToGroup,
     itemMenuOpen, setItemMenuOpen,
     editingItemId, setEditingItemId, editingItemText, setEditingItemText, startEditItem, saveEditItem,
@@ -558,7 +560,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     addingSubItemFor, setAddingSubItemFor, newSubItemText, setNewSubItemText, addSubItem,
     dragSubItem, setDragSubItem, reorderSubItems,
     assigningTechFor, setAssigningTechFor, assignItemTechnician,
-  } = useJobChecklist(job.id, checklist);
+  } = useJobChecklist(job.id, checklist, checklistAreas);
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(null);
 
@@ -1868,6 +1870,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
       {tab === 'checklist' && (
         <div style={{ maxWidth: 700 }}>
           <input ref={itemPhotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleItemPhotoFile} />
+          <input ref={areaPhotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAreaPhotoFile} />
           {realCount > 0 && (
             <div className="card" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -1958,19 +1961,30 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                     <span style={{ color: 'var(--muted)', fontSize: 14 }}>⠿</span>
                     {groupName ?? 'General'}
                   </div>
-                  <div style={{ position: 'relative' }}>
-                    <button onClick={() => setGroupMenuOpen(groupMenuOpen === groupKey ? null : groupKey)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
-                    {groupMenuOpen === groupKey && (
-                      <>
-                        <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setGroupMenuOpen(null)} />
-                        <div style={{ position: 'absolute', right: 0, top: 28, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
-                          <button onClick={() => renameGroup(groupName ?? 'General')} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
-                          <button onClick={() => duplicateGroup(groupKey)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>⧉ Duplicar grupo</button>
-                          {groupName && <button onClick={() => deleteGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar grupo</button>}
-                        </div>
-                      </>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {uploadingAreaPhotoKey === groupKey && (
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>Subiendo...</span>
                     )}
+                    {groupName && areaPhotos[groupName]?.photo_signed_url && (
+                      <img src={areaPhotos[groupName].photo_signed_url} onClick={() => setLightbox({ urls: [areaPhotos[groupName].photo_signed_url], index: 0, noteId: null })}
+                        style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+                    )}
+                    <div style={{ position: 'relative' }}>
+                      <button onClick={() => setGroupMenuOpen(groupMenuOpen === groupKey ? null : groupKey)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
+                      {groupMenuOpen === groupKey && (
+                        <>
+                          <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setGroupMenuOpen(null)} />
+                          <div style={{ position: 'absolute', right: 0, top: 28, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
+                            <button onClick={() => renameGroup(groupName ?? 'General')} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
+                            <button onClick={() => duplicateGroup(groupKey)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>⧉ Duplicar grupo</button>
+                            {groupName && <button onClick={() => triggerAreaPhotoUpload(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {areaPhotos[groupName]?.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>}
+                            {groupName && areaPhotos[groupName]?.photo_signed_url && <button onClick={() => removeAreaPhoto(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
+                            {groupName && <button onClick={() => deleteGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar grupo</button>}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 

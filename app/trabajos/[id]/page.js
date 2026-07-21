@@ -17,12 +17,13 @@ const statusBadge = {
 export default async function TrabajoDetail({ params }) {
   const { id } = params;
 
-  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }, { data: planos }] = await Promise.all([
+  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: checklistAreas }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }, { data: planos }] = await Promise.all([
     supabase.from('jobs').select('*, clients(name, email, phone, client_type, company), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
     supabase.from('job_line_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('technicians').select('*').order('name'),
     supabase.from('job_notes').select('*').eq('job_id', id).order('created_at', { ascending: false }),
     supabase.from('job_checklist_items').select('*').eq('job_id', id).order('sort_order'),
+    supabase.from('job_checklist_areas').select('*').eq('job_id', id),
     supabase.from('checklist_templates').select('*, checklist_template_items(*)').order('name'),
     supabase.from('job_technicians').select('*, technicians(name)').eq('job_id', id),
     supabase.from('job_schedule_days').select('*, technicians(name)').eq('job_id', id).order('scheduled_start'),
@@ -99,6 +100,10 @@ export default async function TrabajoDetail({ params }) {
     (checklist ?? []).map(async (item) => ({ ...item, photo_signed_url: await signPath(item.photo_url) }))
   );
 
+  const checklistAreasWithSignedUrls = await Promise.all(
+    (checklistAreas ?? []).map(async (area) => ({ ...area, photo_signed_url: await signPath(area.photo_url) }))
+  );
+
   const expensesWithSignedUrls = await Promise.all(
     (expenses ?? []).map(async (exp) => ({ ...exp, receipt_signed_url: await signPath(exp.receipt_url) }))
   );
@@ -164,6 +169,7 @@ export default async function TrabajoDetail({ params }) {
           technicians={assignableTechnicians}
           notes={notesWithSignedUrls}
           checklist={checklistWithSignedUrls}
+          checklistAreas={checklistAreasWithSignedUrls}
           templates={templates ?? []}
           clientType={clientType}
           totals={{ subProd, taxProd, subLabor, taxLabor, total }}

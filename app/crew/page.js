@@ -189,6 +189,8 @@ export default function FieldApp() {
     newGroupName: newAreaName, setNewGroupName: setNewAreaName, addingGroup: addingArea, setAddingGroup: setAddingArea, addGroup: addArea,
     groupMenuOpen: areaMenuOpen, setGroupMenuOpen: setAreaMenuOpen, renameGroup: renameArea, deleteGroup: deleteArea, duplicateGroup: duplicateArea,
     dragGroup: dragArea, setDragGroup: setDragArea, dragOverGroup: dragOverArea, setDragOverGroup: setDragOverArea, reorderGroups: reorderAreas,
+    areaPhotos, setAreaPhotos, areaPhotoInputRef, pendingPhotoAreaKey, uploadingAreaPhotoKey,
+    triggerAreaPhotoUpload, handleAreaPhotoFile, removeAreaPhoto,
     newItemText: newAreaItemText, setNewItemText: setNewAreaItemText, addingItemGroup: addingItemArea, setAddingItemGroup: setAddingItemArea, addItemToGroup: addItemToArea,
     itemMenuOpen: checkItemMenuOpen, setItemMenuOpen: setCheckItemMenuOpen,
     editingItemId: editingCheckItemId, setEditingItemId: setEditingCheckItemId, editingItemText: editingCheckItemText, setEditingItemText: setEditingCheckItemText,
@@ -575,9 +577,10 @@ export default function FieldApp() {
     setDetailReports([]);
     setDetailClientContacts([]);
     setShowDetailExpenseForm(false);
-    const [{ data: notes }, { data: checklist }, { data: jobExpenses }, { data: planos }, { data: reports }, { data: contacts }] = await Promise.all([
+    const [{ data: notes }, { data: checklist }, { data: checklistAreas }, { data: jobExpenses }, { data: planos }, { data: reports }, { data: contacts }] = await Promise.all([
       supabase.from('job_notes').select('*').eq('job_id', job.id).order('created_at', { ascending: false }),
       supabase.from('job_checklist_items').select('*, technicians(name)').eq('job_id', job.id).order('sort_order'),
+      supabase.from('job_checklist_areas').select('*').eq('job_id', job.id),
       supabase.from('expenses').select('*').eq('job_id', job.id).order('expense_date', { ascending: false }),
       supabase.from('floor_plans').select('id, name, rendered_image_path').eq('job_id', job.id).order('updated_at', { ascending: false }),
       supabase.from('job_reports').select('*').eq('job_id', job.id).order('created_at', { ascending: false }),
@@ -606,6 +609,14 @@ export default function FieldApp() {
       (checklist ?? []).map(async i => ({ ...i, photo_signed_url: i.photo_url ? await getSignedUrl(i.photo_url) : null }))
     );
     setDetailChecklist(checklistWithUrls);
+    const areasWithUrls = await Promise.all(
+      (checklistAreas ?? []).map(async a => ({ ...a, photo_signed_url: a.photo_url ? await getSignedUrl(a.photo_url) : null }))
+    );
+    setAreaPhotos(() => {
+      const map = {};
+      areasWithUrls.forEach(a => { map[a.group_name] = { photo_url: a.photo_url, photo_signed_url: a.photo_signed_url ?? null }; });
+      return map;
+    });
   }
 
   function openNewReport() {
@@ -2227,6 +2238,7 @@ export default function FieldApp() {
             {detailTab === 'checklist' && (
               <div>
                 <input ref={checkItemPhotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCheckItemPhotoFile} />
+                <input ref={areaPhotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAreaPhotoFile} />
                 {realChecklistCount > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -2285,6 +2297,15 @@ export default function FieldApp() {
                               <span style={{ color: '#ccc', fontSize: 13 }}>⠿</span>
                               📁 {groupName}
                             </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              {uploadingAreaPhotoKey === groupKey && (
+                                <span style={{ fontSize: 11, color: '#aaa' }}>Subiendo...</span>
+                              )}
+                              {areaPhotos[groupName]?.photo_signed_url && (
+                                <img src={areaPhotos[groupName].photo_signed_url}
+                                  onClick={e => { e.stopPropagation(); setLightbox({ urls: [areaPhotos[groupName].photo_signed_url], index: 0 }); }}
+                                  style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+                              )}
                             <div style={{ position: 'relative' }}>
                               <button onClick={() => setAreaMenuOpen(areaMenuOpen === groupKey ? null : groupKey)}
                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
@@ -2294,10 +2315,13 @@ export default function FieldApp() {
                                   <div style={{ position: 'absolute', right: 0, top: 28, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #eee', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
                                     <button onClick={() => renameArea(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
                                     <button onClick={() => duplicateArea(groupKey)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>⧉ Duplicar área</button>
+                                    <button onClick={() => triggerAreaPhotoUpload(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {areaPhotos[groupName]?.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
+                                    {areaPhotos[groupName]?.photo_signed_url && <button onClick={() => removeAreaPhoto(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
                                     <button onClick={() => deleteArea(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 Eliminar área</button>
                                   </div>
                                 </>
                               )}
+                            </div>
                             </div>
                           </div>
                         )}
