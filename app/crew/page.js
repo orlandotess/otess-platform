@@ -187,7 +187,7 @@ export default function FieldApp() {
     groupedMap, childrenByParent,
     completedCount, realCount: realChecklistCount, progress,
     newGroupName: newAreaName, setNewGroupName: setNewAreaName, addingGroup: addingArea, setAddingGroup: setAddingArea, addGroup: addArea,
-    groupMenuOpen: areaMenuOpen, setGroupMenuOpen: setAreaMenuOpen, renameGroup: renameArea, deleteGroup: deleteArea,
+    groupMenuOpen: areaMenuOpen, setGroupMenuOpen: setAreaMenuOpen, renameGroup: renameArea, deleteGroup: deleteArea, duplicateGroup: duplicateArea,
     dragGroup: dragArea, setDragGroup: setDragArea, dragOverGroup: dragOverArea, setDragOverGroup: setDragOverArea, reorderGroups: reorderAreas,
     newItemText: newAreaItemText, setNewItemText: setNewAreaItemText, addingItemGroup: addingItemArea, setAddingItemGroup: setAddingItemArea, addItemToGroup: addItemToArea,
     itemMenuOpen: checkItemMenuOpen, setItemMenuOpen: setCheckItemMenuOpen,
@@ -2293,6 +2293,7 @@ export default function FieldApp() {
                                   <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setAreaMenuOpen(null)} />
                                   <div style={{ position: 'absolute', right: 0, top: 28, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #eee', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
                                     <button onClick={() => renameArea(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
+                                    <button onClick={() => duplicateArea(groupKey)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>⧉ Duplicar área</button>
                                     <button onClick={() => deleteArea(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 Eliminar área</button>
                                   </div>
                                 </>

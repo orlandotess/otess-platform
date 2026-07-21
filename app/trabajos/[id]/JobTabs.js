@@ -545,7 +545,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     groupedMap, childrenByParent,
     completedCount, realCount, progress,
     newGroupName, setNewGroupName, addingGroup, setAddingGroup, addGroup,
-    groupMenuOpen, setGroupMenuOpen, renameGroup, deleteGroup,
+    groupMenuOpen, setGroupMenuOpen, renameGroup, deleteGroup, duplicateGroup,
     dragGroup, setDragGroup, dragOverGroup, setDragOverGroup, reorderGroups,
     newItemText, setNewItemText, addingItemGroup, setAddingItemGroup, addItemToGroup,
     itemMenuOpen, setItemMenuOpen,
@@ -1966,6 +1966,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                         <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setGroupMenuOpen(null)} />
                         <div style={{ position: 'absolute', right: 0, top: 28, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
                           <button onClick={() => renameGroup(groupName ?? 'General')} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
+                          <button onClick={() => duplicateGroup(groupKey)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>⧉ Duplicar grupo</button>
                           {groupName && <button onClick={() => deleteGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar grupo</button>}
                         </div>
                       </>
