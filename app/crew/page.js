@@ -206,6 +206,8 @@ export default function FieldApp() {
   function toggleCheckItem(item) { return toggleItem(item.id, item.completed); }
   const [detailPlanos, setDetailPlanos] = useState([]);
   const [detailNoteText, setDetailNoteText] = useState('');
+  const [detailNoteTitle, setDetailNoteTitle] = useState('');
+  const [detailNotePhase, setDetailNotePhase] = useState('');
   const [detailPhotos, setDetailPhotos] = useState([]);
   const [detailPhotoPreviews, setDetailPhotoPreviews] = useState([]);
   const [savingDetailNote, setSavingDetailNote] = useState(false);
@@ -213,6 +215,8 @@ export default function FieldApp() {
   const [detailNoteError, setDetailNoteError] = useState('');
   const [editingDetailNoteId, setEditingDetailNoteId] = useState(null);
   const [editingDetailNoteText, setEditingDetailNoteText] = useState('');
+  const [editingDetailNoteTitle, setEditingDetailNoteTitle] = useState('');
+  const [editingDetailNotePhase, setEditingDetailNotePhase] = useState('');
   const [newCheckItem, setNewCheckItem] = useState('');
   const [detailExpenses, setDetailExpenses] = useState([]);
   const [showDetailExpenseForm, setShowDetailExpenseForm] = useState(false);
@@ -1072,6 +1076,8 @@ export default function FieldApp() {
     const { data: note } = await supabase.from('job_notes').insert([{
       job_id: detailJob.id,
       note: detailNoteText.trim() || null,
+      title: detailNoteTitle.trim() || null,
+      phase_number: detailNotePhase !== '' ? parseInt(detailNotePhase, 10) : null,
       photo_url: uploadedPaths[0] ?? null,
       photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
       created_by: profileId,
@@ -1091,15 +1097,19 @@ export default function FieldApp() {
       setDetailNoteError(`No se pudo subir: ${failedNames.join(', ')}. La nota se guardó, intenta subir el archivo de nuevo.`);
     }
 
-    setDetailNoteText(''); setDetailPhotos([]); setDetailPhotoPreviews([]); setDetailUploadProgress({}); setSavingDetailNote(false);
+    setDetailNoteText(''); setDetailNoteTitle(''); setDetailNotePhase(''); setDetailPhotos([]); setDetailPhotoPreviews([]); setDetailUploadProgress({}); setSavingDetailNote(false);
   }
 
   async function saveDetailNoteEdit(noteId) {
     const text = editingDetailNoteText.trim() || null;
-    const { error } = await supabase.from('job_notes').update({ note: text }).eq('id', noteId);
-    if (!error) setDetailNotes(prev => prev.map(n => n.id === noteId ? { ...n, note: text } : n));
+    const title = editingDetailNoteTitle.trim() || null;
+    const phase_number = editingDetailNotePhase !== '' ? parseInt(editingDetailNotePhase, 10) : null;
+    const { error } = await supabase.from('job_notes').update({ note: text, title, phase_number }).eq('id', noteId);
+    if (!error) setDetailNotes(prev => prev.map(n => n.id === noteId ? { ...n, note: text, title, phase_number } : n));
     setEditingDetailNoteId(null);
     setEditingDetailNoteText('');
+    setEditingDetailNoteTitle('');
+    setEditingDetailNotePhase('');
   }
 
   function handleAnnotateSave(blob) {
@@ -2509,6 +2519,12 @@ export default function FieldApp() {
               <div>
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   <form onSubmit={saveDetailNote}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                      <input value={detailNoteTitle} onChange={e => setDetailNoteTitle(e.target.value)} placeholder="Título (opcional)"
+                        style={{ flex: 1, padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontWeight: 600, outline: 'none' }} />
+                      <input type="number" value={detailNotePhase} onChange={e => setDetailNotePhase(e.target.value)} placeholder="Fase #"
+                        style={{ width: 90, padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, outline: 'none' }} />
+                    </div>
                     <textarea value={detailNoteText} onChange={e => setDetailNoteText(e.target.value)} placeholder="Escribe una nota..." rows={3}
                       style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', marginBottom: 8 }} />
                     {detailPhotoPreviews.length > 0 && (
@@ -2570,12 +2586,13 @@ export default function FieldApp() {
                   : detailNotes.map(n => (
                     <div key={n.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                        <div style={{ fontSize: 11, color: '#aaa' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#aaa' }}>
+                          {n.phase_number != null && <span style={{ background: '#1e293b', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>Fase {n.phase_number}</span>}
                           {n.author_name && <>{n.author_name} · </>}
                           {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                         {n.created_by === profileId && editingDetailNoteId !== n.id && (
-                          <button onClick={() => { setEditingDetailNoteId(n.id); setEditingDetailNoteText(n.note ?? ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 14 }}>✏️</button>
+                          <button onClick={() => { setEditingDetailNoteId(n.id); setEditingDetailNoteText(n.note ?? ''); setEditingDetailNoteTitle(n.title ?? ''); setEditingDetailNotePhase(n.phase_number != null ? String(n.phase_number) : ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 14 }}>✏️</button>
                         )}
                       </div>
                       {n.photo_urls && n.photo_urls.length > 1 ? (
@@ -2615,14 +2632,25 @@ export default function FieldApp() {
                       })()}
                       {editingDetailNoteId === n.id ? (
                         <div>
+                          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                            <input value={editingDetailNoteTitle} onChange={e => setEditingDetailNoteTitle(e.target.value)} placeholder="Título (opcional)"
+                              style={{ flex: 1, padding: 8, border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, fontWeight: 600, outline: 'none' }} />
+                            <input type="number" value={editingDetailNotePhase} onChange={e => setEditingDetailNotePhase(e.target.value)} placeholder="Fase #"
+                              style={{ width: 80, padding: 8, border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none' }} />
+                          </div>
                           <textarea autoFocus value={editingDetailNoteText} onChange={e => setEditingDetailNoteText(e.target.value)} rows={3}
                             style={{ width: '100%', padding: 8, border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', marginBottom: 8 }} />
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button type="button" onClick={() => saveDetailNoteEdit(n.id)} style={{ padding: '6px 14px', background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Guardar</button>
-                            <button type="button" onClick={() => { setEditingDetailNoteId(null); setEditingDetailNoteText(''); }} style={{ padding: '6px 14px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                            <button type="button" onClick={() => { setEditingDetailNoteId(null); setEditingDetailNoteText(''); setEditingDetailNoteTitle(''); setEditingDetailNotePhase(''); }} style={{ padding: '6px 14px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
                           </div>
                         </div>
-                      ) : n.note && <p style={{ fontSize: 14, margin: 0, whiteSpace: 'pre-wrap' }}>{n.note}</p>}
+                      ) : (
+                        <>
+                          {n.title && <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '0 0 4px' }}>{n.title}</p>}
+                          {n.note && <p style={{ fontSize: 14, margin: 0, whiteSpace: 'pre-wrap' }}>{n.note}</p>}
+                        </>
+                      )}
                     </div>
                   ))
                 }
