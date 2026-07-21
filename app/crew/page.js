@@ -2315,8 +2315,8 @@ export default function FieldApp() {
                               <span style={{ cursor: 'grab', color: '#ccc', fontSize: 14, flexShrink: 0 }}>⠿</span>
                               {children.length > 0 ? (
                                 <button onClick={() => toggleExpand(item.id)}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 12, padding: 0, flexShrink: 0, width: 14 }}>{expanded ? '▾' : '▸'}</button>
-                              ) : <span style={{ width: 14, flexShrink: 0 }} />}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 20, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, width: 28, height: 28 }}>{expanded ? '▾' : '▸'}</button>
+                              ) : <span style={{ width: 28, flexShrink: 0 }} />}
                               <div onClick={() => toggleCheckItem(item)} style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid #dde1e7', background: item.completed ? '#1a7a4a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}>
                                 {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
                               </div>

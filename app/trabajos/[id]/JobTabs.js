@@ -1987,9 +1987,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                       <span style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 14, marginTop: 3, flexShrink: 0 }}>⠿</span>
                       {children.length > 0 ? (
                         <button onClick={() => toggleExpand(item.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12, padding: 0, marginTop: 4, flexShrink: 0, width: 14 }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, width: 22, height: 22 }}
                           title={expanded ? 'Colapsar' : 'Expandir'}>{expanded ? '▾' : '▸'}</button>
-                      ) : <span style={{ width: 14, flexShrink: 0 }} />}
+                      ) : <span style={{ width: 22, flexShrink: 0 }} />}
                       <div onClick={() => toggleItem(item.id, item.completed)}
                         style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid var(--line-strong)', background: item.completed ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
                         {item.completed && <span style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>✓</span>}
