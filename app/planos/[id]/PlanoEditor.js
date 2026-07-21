@@ -120,6 +120,8 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [rectSize, setRectSize] = useState({ width: 0, height: 0 });
   const panRef = useRef({ dragging: false, moved: false, startX: 0, startY: 0, startPan: { x: 0, y: 0 } });
   const suppressClickRef = useRef(false);
+  const activePointersRef = useRef(new Map()); // touch pointerId -> {x, y}, for pinch-to-zoom
+  const pinchRef = useRef(null); // { lastDist } while 2 touch pointers are down
 
   const canDeletePlan = currentRole === 'admin' || currentRole === 'secretaria';
 
@@ -298,6 +300,16 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }
 
   function handleWrapPointerDown(e) {
+    if (e.pointerType === 'touch') {
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (activePointersRef.current.size === 2) {
+        panRef.current.dragging = false; // hand off from single-finger pan to pinch
+        const [p1, p2] = [...activePointersRef.current.values()];
+        pinchRef.current = { lastDist: Math.hypot(p1.x - p2.x, p1.y - p2.y) };
+        return;
+      }
+    }
+    if (activePointersRef.current.size >= 2) return; // a pinch is already in progress
     if (view.zoom <= MIN_ZOOM) return;
     panRef.current = { dragging: true, moved: false, startX: e.clientX, startY: e.clientY, startPan: view.pan };
   }
@@ -377,6 +389,17 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }
 
   function handleWrapPointerMove(e) {
+    if (e.pointerType === 'touch' && activePointersRef.current.has(e.pointerId)) {
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+    if (pinchRef.current && activePointersRef.current.size === 2) {
+      const [p1, p2] = [...activePointersRef.current.values()];
+      const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      const factor = dist / pinchRef.current.lastDist;
+      pinchRef.current.lastDist = dist;
+      applyZoomAt((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, factor);
+      return;
+    }
     if (panRef.current.dragging) {
       const dx = e.clientX - panRef.current.startX;
       const dy = e.clientY - panRef.current.startY;
@@ -397,7 +420,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     }
   }
 
-  async function handleWrapPointerUp() {
+  async function handleWrapPointerUp(e) {
+    if (e && e.pointerType === 'touch') {
+      activePointersRef.current.delete(e.pointerId);
+      if (activePointersRef.current.size < 2) pinchRef.current = null;
+    }
     if (panRef.current.dragging) {
       if (panRef.current.moved) suppressClickRef.current = true;
       panRef.current.dragging = false;
@@ -1271,6 +1298,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           onPointerDown={handleWrapPointerDown}
           onPointerMove={handleWrapPointerMove}
           onPointerUp={handleWrapPointerUp}
+          onPointerCancel={handleWrapPointerUp}
           onWheel={handleWheel}
           onDragStart={e => e.preventDefault()}
           style={{
