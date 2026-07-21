@@ -980,7 +980,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">Ver original</a>}
           <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name)}>⬇️ Exportar lista</button>
           {canDeletePlan && <button className="btn btn-ghost" disabled={deleting} onClick={handleDeletePlan} style={{ color: 'var(--warn)' }}>Eliminar plano</button>}
-          <Link href="/planos" className="btn btn-ghost">← Volver</Link>
+          <Link href={currentRole === 'tecnico' ? '/crew' : '/planos'} className="btn btn-ghost">← Volver</Link>
         </div>
       </div>
 

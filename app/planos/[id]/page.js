@@ -21,13 +21,15 @@ export default async function PlanoDetail({ params }) {
     getCurrentRole(),
   ]);
 
+  const isTech = currentRole === 'tecnico';
+
   if (!plan) return (
     <div className="admin-shell">
-      <Sidebar />
-      <main className="main-content">
+      {!isTech && <Sidebar />}
+      <main className="main-content" style={isTech ? { marginLeft: 0 } : undefined}>
         <div className="page-header">
           <div className="page-title">Plano no encontrado</div>
-          <Link href="/planos" className="btn btn-ghost">← Volver</Link>
+          <Link href={isTech ? '/crew' : '/planos'} className="btn btn-ghost">← Volver</Link>
         </div>
       </main>
     </div>
@@ -43,8 +45,8 @@ export default async function PlanoDetail({ params }) {
 
   return (
     <div className="admin-shell">
-      <Sidebar />
-      <main className="main-content" style={{ maxWidth: 'none' }}>
+      {!isTech && <Sidebar />}
+      <main className="main-content" style={{ maxWidth: 'none', ...(isTech ? { marginLeft: 0 } : {}) }}>
         <PlanoEditor
           plan={plan}
           imageUrl={imageSigned?.signedUrl ?? null}
