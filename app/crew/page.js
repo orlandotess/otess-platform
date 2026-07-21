@@ -577,7 +577,7 @@ export default function FieldApp() {
     setShowDetailExpenseForm(false);
     const [{ data: notes }, { data: checklist }, { data: jobExpenses }, { data: planos }, { data: reports }, { data: contacts }] = await Promise.all([
       supabase.from('job_notes').select('*').eq('job_id', job.id).order('created_at', { ascending: false }),
-      supabase.from('job_checklist_items').select('*').eq('job_id', job.id).order('sort_order'),
+      supabase.from('job_checklist_items').select('*, technicians(name)').eq('job_id', job.id).order('sort_order'),
       supabase.from('expenses').select('*').eq('job_id', job.id).order('expense_date', { ascending: false }),
       supabase.from('floor_plans').select('id, name, rendered_image_path').eq('job_id', job.id).order('updated_at', { ascending: false }),
       supabase.from('job_reports').select('*').eq('job_id', job.id).order('created_at', { ascending: false }),
@@ -2344,6 +2344,11 @@ export default function FieldApp() {
                                         {formatDatePR(item.completed_at)}
                                       </div>
                                     )}
+                                    {item.assigned_technician_id && (
+                                      <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+                                        🧑‍🔧 {item.technicians?.name ?? 'Técnico'}
+                                      </div>
+                                    )}
                                   </>
                                 )}
                               </div>
@@ -2399,7 +2404,14 @@ export default function FieldApp() {
                                       <button onClick={() => setEditingCheckItemId(null)} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: '#888' }}>×</button>
                                     </div>
                                   ) : (
-                                    <div style={{ fontSize: 13, fontWeight: 500, textDecoration: sub.completed ? 'line-through' : 'none', color: sub.completed ? '#aaa' : '#333' }}>{sub.description}</div>
+                                    <>
+                                      <div style={{ fontSize: 13, fontWeight: 500, textDecoration: sub.completed ? 'line-through' : 'none', color: sub.completed ? '#aaa' : '#333' }}>{sub.description}</div>
+                                      {sub.assigned_technician_id && (
+                                        <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+                                          🧑‍🔧 {sub.technicians?.name ?? 'Técnico'}
+                                        </div>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                                 {sub.photo_signed_url && editingCheckItemId !== sub.id && (

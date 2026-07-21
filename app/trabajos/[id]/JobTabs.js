@@ -557,6 +557,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
     expandedItems, setExpandedItems, toggleExpand,
     addingSubItemFor, setAddingSubItemFor, newSubItemText, setNewSubItemText, addSubItem,
     dragSubItem, setDragSubItem, reorderSubItems,
+    assigningTechFor, setAssigningTechFor, assignItemTechnician,
   } = useJobChecklist(job.id, checklist);
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(null);
@@ -2018,7 +2019,23 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                                 Completado el {formatDatePR(item.completed_at)}
                               </div>
                             )}
+                            {item.assigned_technician_id && (
+                              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                                🧑‍🔧 {assignedTechs.find(at => at.technician_id === item.assigned_technician_id)?.technicians?.name ?? 'Técnico'}
+                              </div>
+                            )}
                           </>
+                        )}
+                        {assigningTechFor === item.id && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
+                            <select autoFocus value={item.assigned_technician_id ?? ''}
+                              onChange={e => assignItemTechnician(item.id, e.target.value || null)}
+                              style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}>
+                              <option value="">Sin asignar</option>
+                              {assignedTechs.map(at => <option key={at.technician_id} value={at.technician_id}>{at.technicians?.name}</option>)}
+                            </select>
+                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setAssigningTechFor(null)}>×</button>
+                          </div>
                         )}
                       </div>
                       {uploadingItemPhotoId === item.id && (
@@ -2041,6 +2058,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                                 {!item.parent_item_id && (
                                   <button onClick={() => { setAddingSubItemFor(item.id); setItemMenuOpen(null); setExpandedItems(prev => ({ ...prev, [item.id]: true })); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>➕ Agregar sub-tarea</button>
                                 )}
+                                <button onClick={() => { setAssigningTechFor(item.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🧑‍🔧 {item.assigned_technician_id ? 'Reasignar técnico' : 'Asignar técnico'}</button>
                                 <button onClick={() => triggerItemPhotoUpload(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {item.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
                                 {item.photo_signed_url && <button onClick={() => removeItemPhoto(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
                                 <button onClick={() => { deleteItem(item.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar</button>
@@ -2074,8 +2092,26 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                               <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setEditingItemId(null)}>Cancelar</button>
                             </div>
                           ) : (
-                            <div style={{ fontSize: 13, fontWeight: 500, textDecoration: sub.completed ? 'line-through' : 'none', color: sub.completed ? 'var(--muted)' : 'var(--text)' }}>
-                              {sub.description}
+                            <>
+                              <div style={{ fontSize: 13, fontWeight: 500, textDecoration: sub.completed ? 'line-through' : 'none', color: sub.completed ? 'var(--muted)' : 'var(--text)' }}>
+                                {sub.description}
+                              </div>
+                              {sub.assigned_technician_id && (
+                                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                                  🧑‍🔧 {assignedTechs.find(at => at.technician_id === sub.assigned_technician_id)?.technicians?.name ?? 'Técnico'}
+                                </div>
+                              )}
+                            </>
+                          )}
+                          {assigningTechFor === sub.id && (
+                            <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
+                              <select autoFocus value={sub.assigned_technician_id ?? ''}
+                                onChange={e => assignItemTechnician(sub.id, e.target.value || null)}
+                                style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}>
+                                <option value="">Sin asignar</option>
+                                {assignedTechs.map(at => <option key={at.technician_id} value={at.technician_id}>{at.technicians?.name}</option>)}
+                              </select>
+                              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setAssigningTechFor(null)}>×</button>
                             </div>
                           )}
                         </div>
@@ -2093,6 +2129,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, tem
                                 <div style={{ position: 'absolute', right: 0, top: 24, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
                                   <button onClick={() => startEditItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
                                   <button onClick={() => duplicateItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
+                                  <button onClick={() => { setAssigningTechFor(sub.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🧑‍🔧 {sub.assigned_technician_id ? 'Reasignar técnico' : 'Asignar técnico'}</button>
                                   <button onClick={() => triggerItemPhotoUpload(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {sub.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
                                   {sub.photo_signed_url && <button onClick={() => removeItemPhoto(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
                                   <button onClick={() => { deleteItem(sub.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar</button>
