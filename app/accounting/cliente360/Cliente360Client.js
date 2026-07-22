@@ -99,7 +99,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
             <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--warn)', background: 'var(--danger-tint)' }}>
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)', marginBottom: 6 }}>⚠️ El cobrado no cuadra con el neto esperado</p>
               <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-                Neto esperado (facturado pagado − retenido de esas facturas): <strong>{fmt(selected.netoEsperado)}</strong>
+                Neto esperado (total − retención de cada factura, tope por lo cobrado): <strong>{fmt(selected.netoEsperado)}</strong>
                 {' · '}Cobrado: <strong>{fmt(selected.cobrado)}</strong>
                 {' · '}Diferencia: <strong style={{ color: 'var(--warn)' }}>{fmt(Math.abs(selected.varianza))}</strong>
               </p>

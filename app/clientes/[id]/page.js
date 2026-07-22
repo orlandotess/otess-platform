@@ -66,16 +66,19 @@ export default async function ClienteDetailPage({ params }) {
   (retenciones ?? []).forEach(r => { if (r.invoice_id) retenidoByInvoice[r.invoice_id] = (retenidoByInvoice[r.invoice_id] ?? 0) + Number(r.retencion_aplicada ?? 0); });
   const totalRetenido = (retenciones ?? []).reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0);
 
-  // Same expected-net check as Cliente 360, scoped to this one client - only
-  // paid invoices settle for real, so unpaid/draft ones are excluded to avoid
-  // a false mismatch (billed and retained, but nothing collected yet).
+  // Same expected-net check as Cliente 360, scoped to this one client. Compared
+  // per invoice (not gated on status === 'paid') so a legitimate partial payment
+  // on a still-open invoice doesn't read as a mismatch: each invoice can only
+  // contribute up to its own total-minus-retención toward "neto esperado", which
+  // is exactly what a partial payment collects. A real variance only appears when
+  // an invoice collected more than that cap - e.g. a missing/wrong retención.
   const cobrado = (invoices ?? []).reduce((a, i) => a + (paymentsByInvoice[i.id] ?? 0), 0);
-  const paidInvoices = (invoices ?? []).filter(i => i.status === 'paid');
-  const facturadoPagado = paidInvoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
-  const retenidoPagado = paidInvoices.reduce((a, i) => a + (retenidoByInvoice[i.id] ?? 0), 0);
-  const netoEsperado = facturadoPagado - retenidoPagado;
+  const netoEsperado = (invoices ?? []).reduce((a, i) => {
+    const cobrable = Math.max(Number(i.total ?? 0) - (retenidoByInvoice[i.id] ?? 0), 0);
+    return a + Math.min(paymentsByInvoice[i.id] ?? 0, cobrable);
+  }, 0);
   const varianza = cobrado - netoEsperado;
-  const hasVarianza = paidInvoices.length > 0 && Math.abs(varianza) > 0.01;
+  const hasVarianza = Math.abs(varianza) > 0.01;
 
   // What the client still owes across every invoice, net of its own payments
   // and retenciones - same per-invoice math as the "Balance de cuenta" shown

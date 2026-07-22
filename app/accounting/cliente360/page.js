@@ -35,15 +35,18 @@ export default async function Cliente360Page() {
     const ivuLabor = clientInvoices.reduce((a, i) => a + Number(i.tax_labor ?? 0), 0);
     const ivuProducto = clientInvoices.reduce((a, i) => a + Number(i.tax_products ?? 0), 0);
 
-    // Only paid invoices settle for real, so the expected-net check is scoped to
-    // those - unpaid/draft invoices would otherwise look like a false mismatch
-    // (billed and retained, but nothing collected yet).
-    const paidInvoices = clientInvoices.filter(i => i.status === 'paid');
-    const facturadoPagado = paidInvoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
-    const retenidoPagado = paidInvoices.reduce((a, i) => a + (retenidoByInvoice[i.id] ?? 0), 0);
-    const netoEsperado = facturadoPagado - retenidoPagado;
+    // Compared per invoice (not gated on status === 'paid') so a legitimate
+    // partial payment on a still-open invoice doesn't read as a mismatch: each
+    // invoice can only contribute up to its own total-minus-retención toward
+    // "neto esperado", which is exactly what a partial payment collects. A real
+    // variance only appears when an invoice collected more than that cap -
+    // e.g. a missing/wrong retención.
+    const netoEsperado = clientInvoices.reduce((a, i) => {
+      const cobrable = Math.max(Number(i.total ?? 0) - (retenidoByInvoice[i.id] ?? 0), 0);
+      return a + Math.min(paymentsByInvoice[i.id] ?? 0, cobrable);
+    }, 0);
     const varianza = cobrado - netoEsperado;
-    const hasVarianza = paidInvoices.length > 0 && Math.abs(varianza) > 0.01;
+    const hasVarianza = Math.abs(varianza) > 0.01;
 
     return {
       id: c.id,

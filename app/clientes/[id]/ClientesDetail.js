@@ -933,7 +933,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             <div style={{ borderLeft: '4px solid var(--warn)', background: 'var(--danger-tint)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)', marginBottom: 6 }}>⚠️ El cobrado no cuadra con el neto esperado</p>
               <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-                Neto esperado (facturado pagado − retenido de esas facturas): <strong>{fmt(invoiceReconciliation.netoEsperado)}</strong>
+                Neto esperado (total − retención de cada factura, tope por lo cobrado): <strong>{fmt(invoiceReconciliation.netoEsperado)}</strong>
                 {' · '}Cobrado: <strong>{fmt(invoiceReconciliation.cobrado)}</strong>
                 {' · '}Diferencia: <strong style={{ color: 'var(--warn)' }}>{fmt(Math.abs(invoiceReconciliation.varianza))}</strong>
               </p>
