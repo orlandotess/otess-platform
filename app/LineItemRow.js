@@ -7,7 +7,7 @@ import { useState } from 'react';
 // picking a result calls onChange with "item_code — description" so the
 // parent's existing `catalogItems.find(c => \`${c.item_code} — ${c.description}\` === value)`
 // matching logic keeps working unchanged.
-function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder, maxLength, fontSize = 13.5, fontWeight = 700 }) {
+function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder, maxLength, fontSize = 13.5, fontWeight = 700, multiline = false }) {
   const [open, setOpen] = useState(false);
   const q = (value || '').trim().toLowerCase();
   const results = (q
@@ -20,15 +20,18 @@ function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder,
     setOpen(false);
   }
 
+  const Field = multiline ? 'textarea' : 'input';
+
   return (
     <div style={{ position: 'relative' }}>
-      <input
+      <Field
         value={value}
         onChange={e => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         placeholder={placeholder}
         maxLength={maxLength}
-        style={{ fontSize, fontWeight, width: '100%' }}
+        rows={multiline ? 3 : undefined}
+        style={{ fontSize, fontWeight, width: '100%', ...(multiline ? { resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4, minHeight: 60 } : {}) }}
       />
       {open && catalogOptions.length > 0 && (
         <>
@@ -61,6 +64,7 @@ export default function LineItemRow({
   viewMode = false,
   isAccessory = false,
   type, onTypeChange,
+  title, onTitleChange,
   description, onDescriptionChange, catalogOptions = [], datalistId, catalogItemId,
   quantity, onQuantityChange,
   msrp, onMsrpChange,
@@ -140,7 +144,8 @@ export default function LineItemRow({
           <>
             <span className={`badge ${type === 'labor' ? 'badge-amber' : 'badge-gray'}`}>{type === 'labor' ? 'Labor' : 'Producto'}</span>
             {exempt && <span className="badge badge-gray" style={{ marginLeft: 6 }}>Exento</span>}
-            <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 4 }}>{description}</div>
+            {title && <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 4 }}>{title}</div>}
+            {description && <div style={{ fontWeight: title ? 400 : 700, fontSize: 13.5, marginTop: title ? 2 : 4, whiteSpace: 'pre-wrap' }}>{description}</div>}
           </>
         ) : (
           <>
@@ -150,8 +155,18 @@ export default function LineItemRow({
                 <option value="product">Producto</option>
               </select>
             </div>
+            {onTitleChange && (
+              <input
+                value={title ?? ''}
+                onChange={e => onTitleChange(e.target.value)}
+                placeholder="Título (ej. Access Control System Installation)..."
+                maxLength={150}
+                style={{ fontSize: 13.5, fontWeight: 700, width: '100%', marginBottom: 4 }}
+              />
+            )}
             <CatalogDescriptionInput value={description} onChange={onDescriptionChange} catalogOptions={catalogOptions}
-              placeholder="Descripción o código..." maxLength={200} />
+              placeholder="Descripción o código..." maxLength={2000} fontWeight={onTitleChange ? 400 : 700}
+              multiline={!!onTitleChange} />
           </>
         )}
       </div>

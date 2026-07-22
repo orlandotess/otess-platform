@@ -10,6 +10,7 @@ function emptyItem(parentKey = null, itemType = 'labor') {
     key: Math.random().toString(36).slice(2),
     parentKey,
     item_type: itemType,
+    title: '',
     description: '',
     quantity: 1,
     msrp: '',
@@ -52,6 +53,7 @@ function itemsToAreas(items) {
       key: parentKey,
       parentKey: null,
       item_type: parent.item_type,
+      title: parent.title ?? '',
       description: parent.description,
       quantity: parent.quantity,
       msrp: parent.msrp ?? '',
@@ -456,6 +458,7 @@ export default function PropuestaForm({ initialData = null }) {
             area: area.name,
             parent_item_id: null,
             item_type: it.item_type,
+            title: it.title.trim() || null,
             description: it.description.trim(),
             quantity: parseFloat(it.quantity) || 1,
             msrp: it.msrp !== '' ? parseFloat(it.msrp) : null,
@@ -716,6 +719,8 @@ export default function PropuestaForm({ initialData = null }) {
                         <LineItemRow
                           type={it.item_type}
                           onTypeChange={v => updateItem(opt.key, area.key, it.key, 'item_type', v)}
+                          title={it.title}
+                          onTitleChange={v => updateItem(opt.key, area.key, it.key, 'title', v)}
                           description={it.description}
                           onDescriptionChange={v => handleCatalogSelect(opt.key, area.key, it.key, v)}
                           catalogOptions={catalogItems.filter(c => c.type === it.item_type)}

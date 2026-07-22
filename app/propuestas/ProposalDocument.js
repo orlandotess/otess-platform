@@ -205,7 +205,8 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                             {it.photo_signed_url ? <img src={it.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{it.item_type === 'product' ? '📦' : '🔧'}</span>}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 700, fontSize: 14 }}>{it.description}</div>
+                            {it.title && <div style={{ fontWeight: 700, fontSize: 14 }}>{it.title}</div>}
+                            <div style={{ fontWeight: it.title ? 400 : 700, fontSize: it.title ? 13 : 14, color: it.title ? '#555' : undefined, whiteSpace: 'pre-wrap' }}>{it.description}</div>
                           </div>
                         </td>
                         {!hidePricing && <td style={{ textAlign: 'right', fontSize: 13.5, color: '#333', verticalAlign: 'top', paddingTop: 14 }}>{bundled ? '' : fmt(it.unit_price)}</td>}

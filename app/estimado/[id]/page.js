@@ -103,7 +103,10 @@ export default async function EstimaPublica({ params }) {
               <tbody>
                 {items?.map(item => (
                   <tr key={item.id}>
-                    <td style={{ padding: '12px 12px 12px 0', fontWeight: 500, fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{item.description}</td>
+                    <td style={{ padding: '12px 12px 12px 0', fontWeight: 500, fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>
+                      {item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                    </td>
                     <td style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #f4f4f4' }}>
                       <span style={{ color: item.type === 'labor' ? '#92600a' : '#666', fontSize: 11.5, fontWeight: 600 }}>
                         {item.type === 'labor' ? 'Labor' : 'Producto'}

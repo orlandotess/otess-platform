@@ -118,7 +118,8 @@ export default async function EstimaDetail({ params }) {
               {items?.map(item => (
                 <tr key={item.id}>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>
-                    {item.description}
+                    {item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
                     {item.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {item.area}</div>}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>

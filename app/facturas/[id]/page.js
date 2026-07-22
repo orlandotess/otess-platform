@@ -167,7 +167,10 @@ export default async function FacturaDetail({ params }) {
             <tbody>
               {displayItems.map(item => (
                 <tr key={item.id}>
-                  <td style={{ padding: '12px 14px', fontWeight: 500 }}>{item.description}</td>
+                  <td style={{ padding: '12px 14px', fontWeight: 500 }}>
+                    {item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                  </td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                     <span className={`badge ${item.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
                       {item.type === 'labor' ? 'Labor' : 'Producto'}

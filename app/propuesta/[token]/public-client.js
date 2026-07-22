@@ -167,7 +167,10 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                                       <span style={{ fontSize: 13 }}>{it.item_type === 'product' ? '📦' : '🔧'}</span>
                                     )}
                                   </div>
-                                  <span style={{ fontSize: 12.5, color: '#555', flex: 1 }}>{it.description}</span>
+                                  <span style={{ fontSize: 12.5, color: '#555', flex: 1 }}>
+                                    {it.title && <div style={{ fontWeight: 700, color: '#333' }}>{it.title}</div>}
+                                    <div style={{ whiteSpace: 'pre-wrap' }}>{it.description}</div>
+                                  </span>
                                   <span style={{ width: 60, textAlign: 'right', fontSize: 12, color: '#999' }}>{fmt(it.unit_price)}</span>
                                   <span style={{ width: 30, textAlign: 'center', fontSize: 12, color: '#999' }}>x{it.quantity}</span>
                                   <span style={{ width: 70, textAlign: 'right', fontSize: 13, fontWeight: 600, color: NAVY }}>{fmt(lineTotal(it))}</span>

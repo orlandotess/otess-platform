@@ -33,7 +33,7 @@ function NuevoTrabajoForm() {
     property_name: '', street: '', city: '', state: 'PR', zip: '',
     contact_name: '', contact_phone: '', contact_email: '',
   });
-  const [items, setItems] = useState([{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
+  const [items, setItems] = useState([{ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showCableCalc, setShowCableCalc] = useState(false);
@@ -100,8 +100,8 @@ function NuevoTrabajoForm() {
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
-  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null, ...item }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
+  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null, ...item }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
   function handleItemPhoto(idx, file) {
@@ -193,7 +193,7 @@ function NuevoTrabajoForm() {
             if (!upErr) photoPath = path;
           }
           lineItems.push({
-            job_id: job.id, type: i.type, description: i.description,
+            job_id: job.id, type: i.type, title: i.title || null, description: i.description,
             quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
             msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
             supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -474,6 +474,8 @@ function NuevoTrabajoForm() {
                       key={idx}
                       type={item.type}
                       onTypeChange={v => setItem(idx, 'type', v)}
+                      title={item.title}
+                      onTitleChange={v => setItem(idx, 'title', v)}
                       description={item.description}
                       onDescriptionChange={v => handleDescriptionSelect(idx, v)}
                       catalogOptions={catalogItems.filter(c => c.type === item.type)}

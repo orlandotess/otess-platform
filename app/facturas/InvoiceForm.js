@@ -40,12 +40,12 @@ export default function InvoiceForm({ initialData = null }) {
   const [items, setItems] = useState(
     initialData?.items?.length
       ? initialData.items.map(li => ({
-          type: li.type, description: li.description, quantity: li.quantity, unit_price: li.unit_price,
+          type: li.type, title: li.title ?? '', description: li.description, quantity: li.quantity, unit_price: li.unit_price,
           msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
           catalog_item_id: li.catalog_item_id ?? null,
           photoFile: null, photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
         }))
-      : [{ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]
+      : [{ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -90,7 +90,7 @@ export default function InvoiceForm({ initialData = null }) {
               photoPreview = data?.signedUrl ?? null;
             }
             return {
-              type: li.type, description: li.description,
+              type: li.type, title: li.title ?? '', description: li.description,
               quantity: li.quantity, unit_price: li.unit_price,
               msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
               catalog_item_id: li.catalog_item_id ?? null,
@@ -107,7 +107,7 @@ export default function InvoiceForm({ initialData = null }) {
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
   function handleItemPhoto(idx, file) {
@@ -238,7 +238,7 @@ export default function InvoiceForm({ initialData = null }) {
       const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
       const rate = i.exempt ? 0 : (TAX[`${clientType}_${i.type}`] ?? 0.115);
       lineItems.push({
-        invoice_id: invoice.id, type: i.type, description: i.description,
+        invoice_id: invoice.id, type: i.type, title: i.title || null, description: i.description,
         quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
         msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
         supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -355,6 +355,8 @@ export default function InvoiceForm({ initialData = null }) {
                   key={idx}
                   type={item.type}
                   onTypeChange={v => setItem(idx, 'type', v)}
+                  title={item.title}
+                  onTitleChange={v => setItem(idx, 'title', v)}
                   description={item.description}
                   onDescriptionChange={v => handleCatalogSelect(idx, v)}
                   catalogOptions={catalogItems.filter(c => c.type === item.type)}

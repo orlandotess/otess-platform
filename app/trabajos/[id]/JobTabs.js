@@ -319,7 +319,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   // Line items state
   const [lineItems, setLineItems] = useState(items);
   const [addingLine, setAddingLine] = useState(false);
-  const [newLine, setNewLine] = useState({ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
+  const [newLine, setNewLine] = useState({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
   const [catalogItems, setCatalogItems] = useState([]);
   const [showCableCalc, setShowCableCalc] = useState(false);
 
@@ -351,6 +351,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     setEditingLineId(item.id);
     setEditLineForm({
       type: item.type,
+      title: item.title ?? '',
       description: item.description,
       quantity: item.quantity,
       unit_price: item.unit_price,
@@ -390,6 +391,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     }
     await supabase.from('job_line_items').update({
       type: editLineForm.type,
+      title: editLineForm.title?.trim() || null,
       description: editLineForm.description.trim(),
       quantity: parseFloat(editLineForm.quantity) || 1,
       unit_price: parseFloat(editLineForm.unit_price) || 0,
@@ -403,6 +405,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     setLineItems(prev => prev.map(i => i.id === id ? {
       ...i,
       type: editLineForm.type,
+      title: editLineForm.title?.trim() || null,
       description: editLineForm.description.trim(),
       quantity: parseFloat(editLineForm.quantity) || 1,
       unit_price: parseFloat(editLineForm.unit_price) || 0,
@@ -430,6 +433,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     const { data } = await supabase.from('job_line_items').insert([{
       job_id: job.id,
       type: newLine.type,
+      title: newLine.title.trim() || null,
       description: newLine.description.trim(),
       quantity: parseFloat(newLine.quantity) || 1,
       unit_price: parseFloat(newLine.unit_price) || 0,
@@ -442,7 +446,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
-    setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
+    setNewLine({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
     setAddingLine(false);
     setSavingLine(false);
   }
@@ -1436,6 +1440,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                       key={it.id}
                       type={editLineForm.type}
                       onTypeChange={v => setEditLineForm(f => ({ ...f, type: v }))}
+                      title={editLineForm.title}
+                      onTitleChange={v => setEditLineForm(f => ({ ...f, title: v }))}
                       description={editLineForm.description}
                       onDescriptionChange={value => {
                         const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
@@ -1475,6 +1481,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                       key={it.id}
                       viewMode
                       type={it.type}
+                      title={it.title}
                       description={it.description}
                       quantity={it.quantity}
                       msrp={it.msrp}
@@ -1497,6 +1504,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 <LineItemRow
                   type={newLine.type}
                   onTypeChange={v => setNewLine(l => ({ ...l, type: v }))}
+                  title={newLine.title}
+                  onTitleChange={v => setNewLine(l => ({ ...l, title: v }))}
                   description={newLine.description}
                   onDescriptionChange={handleLineDescriptionSelect}
                   catalogOptions={catalogItems.filter(c => c.type === newLine.type)}
