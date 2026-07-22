@@ -323,7 +323,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
   return (
     <div>
       {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: '1.5px solid var(--border)', marginBottom: 20, background: 'var(--surface)', borderRadius: '12px 12px 0 0', padding: '0 8px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 4, borderBottom: '1.5px solid var(--border)', marginBottom: 20, background: 'var(--surface)', borderRadius: 12, padding: '4px 8px' }}>
         <button style={tabStyle('info')} onClick={() => setTab('info')}>👤 Info</button>
         <button style={tabStyle('properties')} onClick={() => setTab('properties')}>
           📍 Propiedades
