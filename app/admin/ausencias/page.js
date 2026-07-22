@@ -7,25 +7,32 @@ import Link from 'next/link';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+// Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
+// admin/timesheet, accounting/payroll, and the Dashboard) so "today" — and
+// therefore the default week/month/year shown — doesn't roll over up to 4
+// hours early relative to PR time depending on the server's own timezone.
+// start/end are then real UTC instants anchored to PR-calendar-day
+// midnight, so every place that reads them back (below, and the label
+// further down) must use UTC getters too, not local ones.
 function getRange(period, offset) {
-  const now = new Date();
+  const now = new Date(Date.now() - 4 * 60 * 60 * 1000);
   if (period === 'week') {
-    const day = now.getDay();
+    const day = now.getUTCDay();
     const diffToMon = (day + 6) % 7;
     const start = new Date(now);
-    start.setDate(now.getDate() - diffToMon + offset * 7);
-    start.setHours(0, 0, 0, 0);
+    start.setUTCDate(now.getUTCDate() - diffToMon + offset * 7);
+    start.setUTCHours(0, 0, 0, 0);
     const end = new Date(start);
-    end.setDate(start.getDate() + 6);
+    end.setUTCDate(start.getUTCDate() + 6);
     return { start, end };
   }
   if (period === 'year') {
-    const year = now.getFullYear() + offset;
-    return { start: new Date(year, 0, 1), end: new Date(year, 11, 31) };
+    const year = now.getUTCFullYear() + offset;
+    return { start: new Date(Date.UTC(year, 0, 1)), end: new Date(Date.UTC(year, 11, 31)) };
   }
   // month
-  const base = new Date(now.getFullYear(), now.getMonth() + offset, 1);
-  return { start: base, end: new Date(base.getFullYear(), base.getMonth() + 1, 0) };
+  const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1));
+  return { start: base, end: new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)) };
 }
 
 export default async function AusenciasPage({ searchParams }) {
@@ -60,9 +67,9 @@ export default async function AusenciasPage({ searchParams }) {
   const fmtDay = d => new Date(`${d}T00:00:00`).toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric' });
 
   const label = period === 'week'
-    ? `${start.toLocaleDateString('es-PR', { month: 'short', day: 'numeric' })} — ${end.toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric' })}`
-    : period === 'year' ? String(start.getFullYear())
-    : `${MONTHS[start.getMonth()]} ${start.getFullYear()}`;
+    ? `${start.toLocaleDateString('es-PR', { month: 'short', day: 'numeric', timeZone: 'UTC' })} — ${end.toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
+    : period === 'year' ? String(start.getUTCFullYear())
+    : `${MONTHS[start.getUTCMonth()]} ${start.getUTCFullYear()}`;
 
   const qs = (over = {}) => {
     const p = { period, offset: String(offset), tech: techFilter, ...over };
