@@ -33,6 +33,7 @@ export default function InvoiceForm({ initialData = null }) {
     due_at: initialData.invoice.due_at ?? new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   } : {
     client_id: '', job_id: '', notes: '', work_description: '', bill_to: 'person', terms: DEFAULT_TERMS,
+    invoice_number: '',
     issued_at: new Date().toISOString().split('T')[0],
     due_at: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
@@ -61,6 +62,19 @@ export default function InvoiceForm({ initialData = null }) {
     supabase.from('clients').select('id, name, company, client_type, report_name_source').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('jobs').select('id, title, description, client_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+    if (!isEdit) {
+      supabase.from('invoices').select('invoice_number').then(({ data }) => {
+        let maxNum = 999;
+        (data ?? []).forEach(inv => {
+          const match = inv.invoice_number?.match(/^INV-(\d+)$/);
+          if (match) {
+            const n = parseInt(match[1]);
+            if (n > maxNum) maxNum = n;
+          }
+        });
+        setForm(f => (f.invoice_number ? f : { ...f, invoice_number: `INV-${maxNum + 1}` }));
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -129,6 +143,7 @@ export default function InvoiceForm({ initialData = null }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.client_id) { setError('Selecciona un cliente'); return; }
+    if (!isEdit && !form.invoice_number.trim()) { setError('Ingresa un número de factura'); return; }
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
 
     const shortages = items.filter(i => i.type === 'product' && i.catalog_item_id).map(i => {
@@ -185,16 +200,9 @@ export default function InvoiceForm({ initialData = null }) {
       }
       await supabase.from('invoice_line_items').delete().eq('invoice_id', invoice.id);
     } else {
-      const { data: allInvoices } = await supabase.from('invoices').select('invoice_number');
-      let maxNum = 999;
-      (allInvoices ?? []).forEach(inv => {
-        const match = inv.invoice_number?.match(/^INV-(\d+)$/);
-        if (match) {
-          const n = parseInt(match[1]);
-          if (n > maxNum) maxNum = n;
-        }
-      });
-      const invoiceNumber = `INV-${maxNum + 1}`;
+      const invoiceNumber = form.invoice_number.trim();
+      const { data: dupe } = await supabase.from('invoices').select('id').eq('invoice_number', invoiceNumber).maybeSingle();
+      if (dupe) { setError(`Ya existe una factura con el número ${invoiceNumber}`); setSaving(false); return; }
 
       const { data: created, error: err } = await supabase.from('invoices').insert([{
         invoice_number: invoiceNumber,
@@ -311,6 +319,12 @@ export default function InvoiceForm({ initialData = null }) {
               )}
 
               <div className="form-row" style={{ marginTop: 12 }}>
+                {!isEdit && (
+                  <div className="form-group">
+                    <label>Número de factura</label>
+                    <input type="text" value={form.invoice_number} onChange={e => set('invoice_number', e.target.value)} placeholder="INV-1000" />
+                  </div>
+                )}
                 <div className="form-group">
                   <label>Fecha emisión</label>
                   <input type="date" value={form.issued_at} onChange={e => set('issued_at', e.target.value)} />

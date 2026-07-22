@@ -36,6 +36,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   const [selectedNoteIds, setSelectedNoteIds] = useState(initialAttached || []);
   const [savingAttachments, setSavingAttachments] = useState(false);
   const [newNumber, setNewNumber] = useState(invoiceNumber || '');
+  const [numberError, setNumberError] = useState('');
   const [billTo, setBillTo] = useState(initialBillTo);
   const [propertyId, setPropertyId] = useState(initialPropertyId || '');
   const [terms, setTerms] = useState(initialTerms || DEFAULT_TERMS);
@@ -124,8 +125,14 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
 
   async function saveNumber(e) {
     e.preventDefault();
-    if (!newNumber.trim()) return;
-    await supabase.from('invoices').update({ invoice_number: newNumber.trim() }).eq('id', invoiceId);
+    const trimmed = newNumber.trim();
+    if (!trimmed) return;
+    setNumberError('');
+    if (trimmed !== invoiceNumber) {
+      const { data: dupe } = await supabase.from('invoices').select('id').eq('invoice_number', trimmed).neq('id', invoiceId).maybeSingle();
+      if (dupe) { setNumberError(`Ya existe otra factura con el número ${trimmed}`); return; }
+    }
+    await supabase.from('invoices').update({ invoice_number: trimmed }).eq('id', invoiceId);
     setShowEditNumber(false);
     router.refresh();
   }
@@ -273,7 +280,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
 
   const moreItems = [
     ['draft', 'sent'].includes(status) && { key: 'items', label: '🧾 Editar líneas de factura', onClick: () => router.push(`/facturas/${invoiceId}/editar`) },
-    { key: 'number', label: '✏️ Editar # de factura', onClick: () => { setNewNumber(invoiceNumber); setShowEditNumber(true); } },
+    { key: 'number', label: '✏️ Editar # de factura', onClick: () => { setNewNumber(invoiceNumber); setNumberError(''); setShowEditNumber(true); } },
     clientCompany && { key: 'billto', label: '👤 Facturar a', onClick: () => setShowEditBillTo(true) },
     clientProperties.length > 0 && { key: 'property', label: '🏠 Propiedad', onClick: () => setShowEditProperty(true) },
     { key: 'terms', label: '📋 Términos', onClick: () => setShowEditTerms(true) },
@@ -554,6 +561,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
               <div className="form-group" style={{ marginBottom: 20 }}>
                 <label>Número de factura</label>
                 <input value={newNumber} onChange={e => setNewNumber(e.target.value)} placeholder="INV-1001" required />
+                {numberError && <p style={{ color: 'var(--warn)', fontSize: 13, marginTop: 6 }}>{numberError}</p>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
