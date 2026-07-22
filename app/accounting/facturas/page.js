@@ -92,7 +92,7 @@ export default async function AccountingFacturas({ searchParams }) {
   return (
     <div className="admin-shell">
       <Sidebar />
-      <main className="main-content">
+      <main className="main-content main-content-wide">
         <div className="page-header">
           <div>
             <div className="page-title">Facturas</div>

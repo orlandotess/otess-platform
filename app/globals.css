@@ -257,6 +257,10 @@ body.has-back-button .main-content {
   max-width: 1100px;
 }
 
+.main-content-wide {
+  max-width: 1400px;
+}
+
 /* ── Cards & surfaces ── */
 .card {
   background: var(--surface);
