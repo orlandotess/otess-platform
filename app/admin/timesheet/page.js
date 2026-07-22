@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
-import { computeHours } from '../../../lib/hours';
+import { computeHours, prDayKey, prQueryBounds } from '../../../lib/hours';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import TimesheetClient from './TimesheetClient';
@@ -26,15 +26,15 @@ export default async function TimesheetPage({ searchParams }) {
   const { weekStart, weekEnd } = getWeekRange(weekOffset);
 
   const weekStartStr = weekStart.toISOString().slice(0, 10);
-  console.log('WEEK:', weekStart.toISOString().slice(0, 10), new Date(weekStart.getTime() + 6 * 86400000).toISOString().slice(0, 10));
   const weekEndStr = weekEnd.toISOString().slice(0, 10);
+  const { start: entriesQueryStart, end: entriesQueryEnd } = prQueryBounds(weekStart, weekEnd);
 
   const [{ data: technicians }, { data: entries }, { data: adjustments }, { data: dayOverrides }] = await Promise.all([
     supabase.from("technicians").select("*").order("name"),
     supabase.from("time_entries")
       .select("*, technicians(name)")
-      .gte("clocked_in_at", weekStart.toISOString())
-      .lte("clocked_in_at", weekEnd.toISOString())
+      .gte("clocked_in_at", entriesQueryStart.toISOString())
+      .lte("clocked_in_at", entriesQueryEnd.toISOString())
       .order("clocked_in_at"),
     supabase.from("payroll_adjustments")
       .select("*")
@@ -50,7 +50,6 @@ export default async function TimesheetPage({ searchParams }) {
   const ents = entries ?? [];
   const adjs = adjustments ?? [];
   const dayOvs = dayOverrides ?? [];
-  console.log('ADJS:', JSON.stringify(adjs));
 
   const fmtDate = d => new Date(d).toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 
@@ -67,7 +66,7 @@ export default async function TimesheetPage({ searchParams }) {
     const byDay = {};
     weekDays.forEach(d => { byDay[d.toISOString().slice(0, 10)] = []; });
     techEntries.forEach(e => {
-      const day = e.clocked_in_at.slice(0, 10);
+      const day = prDayKey(e.clocked_in_at);
       if (byDay[day] !== undefined) byDay[day].push(e);
     });
 
@@ -155,9 +154,7 @@ export default async function TimesheetPage({ searchParams }) {
           <div className="stat-card"><div className="stat-label">Gross estimado</div><div className="stat-value" style={{ color: "var(--ok)" }}>${filtered.reduce((a, t) => a + t.grossPay, 0).toFixed(2)}</div></div>
         </div>
 
-        {/* DEBUG */}
-
-        <TimesheetClient techStats={techStats} weekDays={weekDays.map(d => d.toISOString())} techFilter={techFilter} />
+        <TimesheetClient key={`${weekStartStr}_${techFilter}`} techStats={techStats} weekDays={weekDays.map(d => d.toISOString())} techFilter={techFilter} />
       </main>
     </div>
   );

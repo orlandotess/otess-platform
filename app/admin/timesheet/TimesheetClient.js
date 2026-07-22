@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { computeHours } from '../../../lib/hours';
+import { computeHours, prDayKey, prTimeParts, buildPRTimestamp } from '../../../lib/hours';
 import { formatTimePR } from '../../../lib/datetimeLocal';
 import SearchBox from '../../SearchBox';
 
@@ -164,17 +164,22 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
 
   function startEditEntry(entry) {
     setEditingEntry(entry.id);
-    const inDate = new Date(entry.clocked_in_at);
-    const outDate = entry.clocked_out_at ? new Date(entry.clocked_out_at) : null;
-    setEditInTime(inDate.toTimeString().slice(0, 5));
-    setEditOutTime(outDate ? outDate.toTimeString().slice(0, 5) : '');
+    const inParts = prTimeParts(entry.clocked_in_at);
+    setEditInTime(`${String(inParts.hour).padStart(2, '0')}:${String(inParts.minute).padStart(2, '0')}`);
+    if (entry.clocked_out_at) {
+      const outParts = prTimeParts(entry.clocked_out_at);
+      setEditOutTime(`${String(outParts.hour).padStart(2, '0')}:${String(outParts.minute).padStart(2, '0')}`);
+    } else {
+      setEditOutTime('');
+    }
     setEditEntryError('');
   }
 
   async function saveEntry(entry) {
-    const baseDate = entry.clocked_in_at.slice(0, 10);
-    const newIn = new Date(baseDate + 'T' + editInTime + ':00');
-    const newOut = editOutTime ? new Date(baseDate + 'T' + editOutTime + ':00') : null;
+    const baseDate = prDayKey(entry.clocked_in_at);
+    const [inH, inM] = editInTime.split(':').map(Number);
+    const newIn = buildPRTimestamp(baseDate, inH, inM);
+    const newOut = editOutTime ? (() => { const [h, m] = editOutTime.split(':').map(Number); return buildPRTimestamp(baseDate, h, m); })() : null;
 
     if (newOut && computeHours(newIn.toISOString(), newOut.toISOString(), entry.lunch_minutes).invalid) {
       setEditEntryError('Clock Out debe ser después de Clock In.');
@@ -351,6 +356,12 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               )}
             </div>
           </div>
+
+          {tech.hasOverride && (tech.regularHoursRaw + tech.overtimeHoursRaw) === 0 && (
+            <div style={{ background: 'var(--info-tint)', border: '1px solid var(--navy)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--navy)' }}>
+              ✏️ El total de esta semana es un ajuste manual y no tiene fichajes (clock in/out) registrados por día — por eso los días abajo aparecen sin horas. Usa el ✏️ de un día para asignarle horas específicas si lo necesitas.
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8, marginBottom: 16 }}>
             {weekDays.map((dayIso, i) => {

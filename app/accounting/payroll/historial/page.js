@@ -2,19 +2,22 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from "../../../../lib/supabase";
-import { computeHours } from "../../../../lib/hours";
+import { computeHours, prDayKey } from "../../../../lib/hours";
 import { indexDayOverrides, splitRegularOvertime } from "../../../../lib/payrollOverrides";
 import Sidebar from "../../../Sidebar";
 import Link from "next/link";
 import HistorialClient from "./HistorialClient";
 
+// Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
+// /admin/timesheet and /accounting/payroll) so this doesn't depend on the
+// server's own timezone.
 function getWeekRange(offset = 0) {
-  const now = new Date();
-  const day = now.getDay();
+  const now = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  const day = now.getUTCDay();
   const daysSinceWed = (day + 4) % 7;
   const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - daysSinceWed + (offset * 7));
-  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setUTCDate(now.getUTCDate() - daysSinceWed + (offset * 7));
+  weekStart.setUTCHours(0, 0, 0, 0);
   return weekStart;
 }
 
@@ -36,12 +39,11 @@ export default async function PayrollHistorial() {
   const nowWeekStart = getWeekRange(0);
 
   entries.forEach(e => {
-    const d = new Date(e.clocked_in_at);
+    const d = new Date(prDayKey(e.clocked_in_at) + "T00:00:00");
     const day = d.getDay();
     const daysSinceWed = (day + 4) % 7;
     const ws = new Date(d);
     ws.setDate(d.getDate() - daysSinceWed);
-    ws.setHours(0, 0, 0, 0);
     weekStarts.add(ws.toISOString().slice(0, 10));
   });
   adjustments.forEach(a => weekStarts.add(a.period_start));
@@ -67,13 +69,13 @@ export default async function PayrollHistorial() {
 
     techs.forEach(tech => {
       const techEntries = entries.filter(e => {
-        const day = e.clocked_in_at.slice(0, 10);
+        const day = prDayKey(e.clocked_in_at);
         return e.technician_id === tech.id && day >= wsStr && day <= weekEndStr;
       });
 
       const byDay = {};
       techEntries.forEach(e => {
-        const day = e.clocked_in_at.slice(0, 10);
+        const day = prDayKey(e.clocked_in_at);
         if (!byDay[day]) byDay[day] = 0;
         byDay[day] += computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours;
       });

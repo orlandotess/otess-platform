@@ -1,6 +1,7 @@
 "use client";
 import { useState, Fragment } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { prQueryBounds } from "../../../../lib/hours";
 
 const DAY_LABELS = ["Mié", "Jue", "Vie", "Sáb", "Dom", "Lun", "Mar"];
 
@@ -52,10 +53,15 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
       .eq("technician_id", row.techId)
       .eq("period_start", row.weekStart)
       .eq("period_end", row.weekEnd);
+    // row.weekStart/weekEnd are PR calendar-day strings, not real instants —
+    // widen through prQueryBounds (same as every payroll read path) so a
+    // técnico's late-evening PR clock-in near the week boundary doesn't
+    // survive this delete and silently reappear in the next payroll run.
+    const { start, end } = prQueryBounds(new Date(`${row.weekStart}T00:00:00Z`), new Date(`${row.weekEnd}T23:59:59.999Z`));
     await supabase.from("time_entries").delete()
       .eq("technician_id", row.techId)
-      .gte("clocked_in_at", row.weekStart)
-      .lte("clocked_in_at", row.weekEnd + "T23:59:59");
+      .gte("clocked_in_at", start.toISOString())
+      .lte("clocked_in_at", end.toISOString());
     setRows(prev => prev.filter(r => r.id !== row.id));
     setSaving(s => ({ ...s, [row.id]: false }));
   }

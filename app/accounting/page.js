@@ -3,28 +3,23 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../lib/supabase';
 import { computeInvoiceIVU } from '../../lib/ivu';
-import { computeHours } from '../../lib/hours';
+import { computeHours, prDayKey, prMonthRange, prYearRange, prWeekRangeFromDate } from '../../lib/hours';
 import { indexDayOverrides } from '../../lib/payrollOverrides';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
 
 function getPeriods() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const yearStart = new Date(year, 0, 1).toISOString();
-  const yearEnd = new Date(year, 11, 31, 23, 59, 59).toISOString();
-  const monthStart = new Date(year, month, 1).toISOString();
-  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
-  const day = now.getDay();
-  const diffToMon = (day + 6) % 7;
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - diffToMon);
-  weekStart.setHours(0, 0, 0, 0);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  weekEnd.setHours(23, 59, 59, 999);
-  return { yearStart, yearEnd, monthStart, monthEnd, weekStart: weekStart.toISOString(), weekEnd: weekEnd.toISOString(), year, month };
+  // Anchored to PR's fixed UTC-4 offset (matches admin/timesheet's
+  // getWeekRange) so "today" — and therefore the default year/month shown —
+  // doesn't roll over 4 hours early relative to PR time depending on the
+  // server's own timezone.
+  const now = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const yearRange = prYearRange(year);
+  const yearStart = yearRange.queryStart.toISOString();
+  const yearEnd = yearRange.queryEnd.toISOString();
+  return { yearStart, yearEnd, year, month };
 }
 
 function computeRevenue(invs, paymentsByInvoice) {
@@ -92,22 +87,31 @@ function getPayrollWeekStart(dateStr) {
   return d.toISOString().slice(0, 10);
 }
 
-function computePayroll(start, end, techs, ents, adjustments, dayOverrides = []) {
-  const filtered = ents.filter(e => e.clocked_in_at >= start && e.clocked_in_at <= end);
-  const startDate = start.slice(0, 10);
-  const endDate = end.slice(0, 10);
+// periodStartStr/periodEndStr are plain 'YYYY-MM-DD' calendar bounds (the
+// dashboard's Mon–Sun "this week", a calendar month, a quarter, or a full
+// year) — never real timestamps. Attribution is entirely by pay-week: raw
+// hours are bucketed into their Wed–Tue week first (same as Historial), and
+// a week (raw or adjustment) counts toward this window only if that week's
+// own period_start — its Wednesday — falls inside [periodStartStr,
+// periodEndStr]. Mixing that with an instant-level filter on individual
+// entries (the previous approach) let raw hours and adjustments for the same
+// boundary week get attributed by two different rules, so summing several
+// windows back together (e.g. all 4 quarters) didn't reliably reproduce the
+// same total as one whole-year call, or Historial's own per-week figures.
+function computePayroll(periodStartStr, periodEndStr, techs, ents, adjustments, dayOverrides = []) {
   let total = 0;
   techs.forEach(tech => {
     const rate = Number(tech.hourly_rate ?? 0);
     const techDayOverrides = indexDayOverrides(dayOverrides, tech.id);
+    const techEntries = ents.filter(e => e.technician_id === tech.id);
 
     const byDay = {};
-    filtered.filter(e => e.technician_id === tech.id).forEach(e => {
-      const dayKey = e.clocked_in_at.slice(0, 10);
+    techEntries.forEach(e => {
+      const dayKey = prDayKey(e.clocked_in_at);
       (byDay[dayKey] ??= []).push(e);
     });
-    // A day override can apply even with no raw entries in this window (e.g.
-    // a corrected absence), so make sure it's represented too.
+    // A day override can apply even with no raw entries (e.g. a corrected
+    // absence), so make sure it's represented too.
     Object.keys(techDayOverrides).forEach(dayKey => { if (!(dayKey in byDay)) byDay[dayKey] = []; });
 
     // Per-day manual corrections (from the admin Timesheet) replace that
@@ -122,36 +126,28 @@ function computePayroll(start, end, techs, ents, adjustments, dayOverrides = [])
       hoursByWeek[wk] = (hoursByWeek[wk] ?? 0) + hours;
     });
 
-    // Manual payroll adjustments override the raw clocked hours for their
-    // specific pay week (used e.g. for backfilled or gross-pay-only entries
-    // that have no matching time_entries rows). A pay week (Wed–Tue) rarely
-    // lines up with the [start, end] window this is called with (e.g. the
-    // dashboard's Mon–Sun "this week" card, or a calendar month) — when a pay
-    // week only partially overlaps the window, only that fraction of its
-    // adjustment counts, otherwise a week straddling a boundary gets counted
-    // in full on both sides it touches.
-    const techAdjs = adjustments.filter(a => a.technician_id === tech.id && a.period_start <= endDate && a.period_end >= startDate);
-    techAdjs.forEach(a => {
+    // Manual whole-week payroll adjustments replace that week's raw total
+    // entirely, wherever its week falls (not just inside this window) — a
+    // week with no raw entries at all (a pure backfill) still needs its raw
+    // bucket suppressed if one happened to exist.
+    adjustments.filter(a => a.technician_id === tech.id).forEach(a => {
       // A row with every override field null carries no actual adjustment
       // (e.g. an edit form opened and saved with nothing entered) — treat it
       // as a no-op instead of zeroing out that week's real computed hours.
       if (a.regular_hours_override == null && a.overtime_hours_override == null && a.gross_pay_override == null) return;
       delete hoursByWeek[a.period_start];
-      const periodDays = (new Date(a.period_end) - new Date(a.period_start)) / 86400000 + 1;
-      const overlapStart = a.period_start > startDate ? a.period_start : startDate;
-      const overlapEnd = a.period_end < endDate ? a.period_end : endDate;
-      const overlapDays = Math.max(0, (new Date(overlapEnd) - new Date(overlapStart)) / 86400000 + 1);
-      const fraction = periodDays > 0 ? Math.min(1, overlapDays / periodDays) : 0;
+      if (a.period_start < periodStartStr || a.period_start > periodEndStr) return;
       if (a.gross_pay_override !== null && a.gross_pay_override !== undefined) {
-        total += Number(a.gross_pay_override) * fraction;
+        total += Number(a.gross_pay_override);
       } else {
-        const regular = Number(a.regular_hours_override ?? 0);
-        const overtime = Number(a.overtime_hours_override ?? 0);
-        total += (regular * rate + overtime * rate * 1.5) * fraction;
+        total += Number(a.regular_hours_override ?? 0) * rate + Number(a.overtime_hours_override ?? 0) * rate * 1.5;
       }
     });
 
-    total += Object.values(hoursByWeek).reduce((a, h) => a + h, 0) * rate;
+    Object.keys(hoursByWeek).forEach(wk => {
+      if (wk < periodStartStr || wk > periodEndStr) return;
+      total += hoursByWeek[wk] * rate;
+    });
   });
   return total;
 }
@@ -273,29 +269,46 @@ export default async function AccountingDashboard({ searchParams }) {
   // any month via the ?myear=&mmonth= query params (set by MonthPeriodSelector).
   const selMonthYear = parseInt(searchParams?.myear ?? year);
   const selMonth = parseInt(searchParams?.mmonth ?? month);
-  const monthStart = new Date(selMonthYear, selMonth, 1).toISOString();
-  const monthEnd = new Date(selMonthYear, selMonth + 1, 0, 23, 59, 59).toISOString();
+  // monthStart/monthEnd are real UTC instants (for comparing against
+  // time_entries.clocked_in_at in computePayroll) — they deliberately spill
+  // into the next calendar day in UTC terms to capture PR's full last day,
+  // so invoice/expense date-string filtering below uses the separate,
+  // unshifted monthPeriodStart/monthPeriodEnd instead.
+  const monthRange = prMonthRange(selMonthYear, selMonth);
+  const monthStart = monthRange.queryStart.toISOString();
+  const monthEnd = monthRange.queryEnd.toISOString();
+  const monthPeriodStart = monthRange.periodStart;
+  const monthPeriodEnd = monthRange.periodEnd;
 
   // The "week" section defaults to the current week (Mon–Sun) but can be
   // changed via ?wstart= (the Monday date, set by WeekPeriodSelector).
-  const now = new Date();
-  const nowDiffToMon = (now.getDay() + 6) % 7;
-  const currentMonday = new Date(now);
-  currentMonday.setDate(now.getDate() - nowDiffToMon);
-  const currentMondayStr = `${currentMonday.getFullYear()}-${String(currentMonday.getMonth() + 1).padStart(2, '0')}-${String(currentMonday.getDate()).padStart(2, '0')}`;
+  // Anchored to PR's fixed UTC-4 offset (matches getPeriods()) so the
+  // default Monday doesn't roll over 4 hours early relative to PR time
+  // depending on the server's own timezone.
+  const nowPR = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  const nowDiffToMon = (nowPR.getUTCDay() + 6) % 7;
+  const currentMonday = new Date(nowPR);
+  currentMonday.setUTCDate(nowPR.getUTCDate() - nowDiffToMon);
+  const currentMondayStr = `${currentMonday.getUTCFullYear()}-${String(currentMonday.getUTCMonth() + 1).padStart(2, '0')}-${String(currentMonday.getUTCDate()).padStart(2, '0')}`;
   const selWeekStartStr = searchParams?.wstart ?? currentMondayStr;
-  const selWeekStart = new Date(`${selWeekStartStr}T00:00:00`);
-  const selWeekEnd = new Date(selWeekStart);
-  selWeekEnd.setDate(selWeekStart.getDate() + 6);
-  selWeekEnd.setHours(23, 59, 59, 999);
-  const selWeekStartISO = selWeekStart.toISOString();
-  const selWeekEndISO = selWeekEnd.toISOString();
+  // selWeekStartISO/EndISO are real UTC instants (for computePayroll); they
+  // deliberately spill into the next calendar day in UTC terms to capture
+  // PR's full last day, so invoice/expense date-string filtering below uses
+  // the separate, unshifted selWeekPeriodStart/selWeekPeriodEnd instead.
+  const weekRange = prWeekRangeFromDate(selWeekStartStr);
+  const selWeekStartISO = weekRange.queryStart.toISOString();
+  const selWeekEndISO = weekRange.queryEnd.toISOString();
+  const selWeekPeriodStart = weekRange.periodStart;
+  const selWeekPeriodEnd = weekRange.periodEnd;
 
   // The "año" section defaults to the current year but can be changed via
   // ?yyear= (set by YearPeriodSelector).
   const selYear = parseInt(searchParams?.yyear ?? year);
-  const selYearStart = new Date(selYear, 0, 1).toISOString();
-  const selYearEnd = new Date(selYear, 11, 31, 23, 59, 59).toISOString();
+  const yearRange = prYearRange(selYear);
+  const selYearStart = yearRange.queryStart.toISOString();
+  const selYearEnd = yearRange.queryEnd.toISOString();
+  const selYearPeriodStart = yearRange.periodStart;
+  const selYearPeriodEnd = yearRange.periodEnd;
 
   // Payroll needs to cover the current year (for quarters), plus whatever
   // month/week/year is selected, in case those fall outside the current year.
@@ -335,9 +348,9 @@ export default async function AccountingDashboard({ searchParams }) {
   const filterInvs = (start, end) => invoices.filter(i => i.issued_at && i.issued_at >= start.slice(0, 10) && i.issued_at <= end.slice(0, 10));
   const getIds = (start, end) => new Set(filterInvs(start, end).map(i => i.id));
 
-  const weekInvs = filterInvs(selWeekStartISO, selWeekEndISO);
-  const monthInvs = filterInvs(monthStart, monthEnd);
-  const yearInvs = filterInvs(selYearStart, selYearEnd);
+  const weekInvs = filterInvs(selWeekPeriodStart, selWeekPeriodEnd);
+  const monthInvs = filterInvs(monthPeriodStart, monthPeriodEnd);
+  const yearInvs = filterInvs(selYearPeriodStart, selYearPeriodEnd);
 
   // Quarter data
   const quarters = [
@@ -353,7 +366,7 @@ export default async function AccountingDashboard({ searchParams }) {
       key: q.key,
       revenue: computeRevenue(qInvs, paymentsByInvoice),
       ivu: computeIVU(qInvs),
-      payroll: computePayroll(q.start + 'T00:00:00.000Z', q.end + 'T23:59:59.999Z', techs, entries, adjustments, dayOverrides),
+      payroll: computePayroll(q.start, q.end, techs, entries, adjustments, dayOverrides),
       gastos: computeExpenses(q.start, q.end, expenses),
     };
   });
@@ -388,9 +401,9 @@ export default async function AccountingDashboard({ searchParams }) {
           label={<WeekPeriodSelector weekStart={selWeekStartStr} />}
           revenue={computeRevenue(weekInvs, paymentsByInvoice)}
           ivu={computeIVU(weekInvs)}
-          payroll={computePayroll(selWeekStartISO, selWeekEndISO, techs, entries, adjustments, dayOverrides)}
-          margin={computeMargin(getIds(selWeekStartISO, selWeekEndISO), lines)}
-          gastos={computeExpenses(selWeekStartISO, selWeekEndISO, expenses)}
+          payroll={computePayroll(selWeekPeriodStart, selWeekPeriodEnd, techs, entries, adjustments, dayOverrides)}
+          margin={computeMargin(getIds(selWeekPeriodStart, selWeekPeriodEnd), lines)}
+          gastos={computeExpenses(selWeekPeriodStart, selWeekPeriodEnd, expenses)}
           fmt={fmt}
         />
         <PeriodSection
@@ -398,9 +411,9 @@ export default async function AccountingDashboard({ searchParams }) {
           label={<MonthPeriodSelector year={selMonthYear} month={selMonth} />}
           revenue={computeRevenue(monthInvs, paymentsByInvoice)}
           ivu={computeIVU(monthInvs)}
-          payroll={computePayroll(monthStart, monthEnd, techs, entries, adjustments, dayOverrides)}
-          margin={computeMargin(getIds(monthStart, monthEnd), lines)}
-          gastos={computeExpenses(monthStart, monthEnd, expenses)}
+          payroll={computePayroll(monthPeriodStart, monthPeriodEnd, techs, entries, adjustments, dayOverrides)}
+          margin={computeMargin(getIds(monthPeriodStart, monthPeriodEnd), lines)}
+          gastos={computeExpenses(monthPeriodStart, monthPeriodEnd, expenses)}
           fmt={fmt}
         />
         <PeriodSection
@@ -408,9 +421,9 @@ export default async function AccountingDashboard({ searchParams }) {
           label={<YearPeriodSelector year={selYear} />}
           revenue={computeRevenue(yearInvs, paymentsByInvoice)}
           ivu={computeIVU(yearInvs)}
-          payroll={computePayroll(selYearStart, selYearEnd, techs, entries, adjustments, dayOverrides)}
-          margin={computeMargin(getIds(selYearStart, selYearEnd), lines)}
-          gastos={computeExpenses(selYearStart, selYearEnd, expenses)}
+          payroll={computePayroll(selYearPeriodStart, selYearPeriodEnd, techs, entries, adjustments, dayOverrides)}
+          margin={computeMargin(getIds(selYearPeriodStart, selYearPeriodEnd), lines)}
+          gastos={computeExpenses(selYearPeriodStart, selYearPeriodEnd, expenses)}
           fmt={fmt}
         />
       </main>

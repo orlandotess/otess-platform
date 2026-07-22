@@ -6,7 +6,7 @@ import BarcodeScanner from '../BarcodeScanner';
 import { buildMapsLinks, pickMapsLink } from '../../lib/mapsLinks';
 import { normalizeName } from '../../lib/normalizeName';
 import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
-import { computeHours } from '../../lib/hours';
+import { computeHours, prDayKey, prTimeParts, buildPRTimestamp } from '../../lib/hours';
 import { formatDatePR, formatDateTimePR, formatTimePR } from '../../lib/datetimeLocal';
 import { useJobChecklist } from '../../lib/useJobChecklist';
 
@@ -742,21 +742,26 @@ export default function FieldApp() {
     setClockedIn(false); setActiveEntry(null); setElapsed(0);
   }
 
-  // Payroll week runs Wed–Tue (matches /admin/timesheet and /accounting/payroll)
+  // Payroll week runs Wed–Tue (matches /admin/timesheet and /accounting/payroll).
+  // Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (not the
+  // device's local timezone) so a técnico's phone being set to the wrong
+  // timezone can't shift which calendar day their hours land on relative to
+  // what admin sees.
   function getPayrollWeekDays(offset = 0) {
-    const n = new Date();
-    const daysSinceWed = (n.getDay() + 4) % 7;
+    const n = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    const daysSinceWed = (n.getUTCDay() + 4) % 7;
     const weekStart = new Date(n);
-    weekStart.setDate(n.getDate() - daysSinceWed + offset * 7);
-    weekStart.setHours(0, 0, 0, 0);
-    return Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d; });
+    weekStart.setUTCDate(n.getUTCDate() - daysSinceWed + offset * 7);
+    weekStart.setUTCHours(0, 0, 0, 0);
+    return Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setUTCDate(weekStart.getUTCDate() + i); return d; });
   }
   const dayKey = d => d.toISOString().slice(0, 10);
-  function to12h(date) {
-    let h = date.getHours();
+  const todayPRKey = dayKey(new Date(Date.now() - 4 * 60 * 60 * 1000));
+  function to12h(hour24, minute) {
+    let h = hour24;
     const ampm = h >= 12 ? 'PM' : 'AM';
     h = h % 12; if (h === 0) h = 12;
-    return { hour: String(h), minute: String(date.getMinutes()).padStart(2, '0'), ampm };
+    return { hour: String(h), minute: String(minute).padStart(2, '0'), ampm };
   }
   function blankDayForm() {
     return { id: null, entryHour: '', entryMinute: '', entryAmPm: 'AM', exitHour: '', exitMinute: '', exitAmPm: 'PM', lunch: false, notes: '' };
@@ -766,7 +771,7 @@ export default function FieldApp() {
     if (!techId) return;
     const days = getPayrollWeekDays();
     const start = days[0];
-    const end = new Date(days[6]); end.setHours(23, 59, 59, 999);
+    const end = new Date(days[6]); end.setUTCHours(23, 59, 59, 999);
     const { data } = await supabase.from('time_entries').select('*')
       .eq('technician_id', techId)
       .gte('clocked_in_at', start.toISOString())
@@ -775,10 +780,11 @@ export default function FieldApp() {
     const forms = {};
     days.forEach(d => {
       const key = dayKey(d);
-      const entry = (data ?? []).find(e => e.clocked_in_at.slice(0, 10) === key);
+      const entry = (data ?? []).find(e => prDayKey(e.clocked_in_at) === key);
       if (!entry) { forms[key] = blankDayForm(); return; }
-      const inT = to12h(new Date(entry.clocked_in_at));
-      const outT = entry.clocked_out_at ? to12h(new Date(entry.clocked_out_at)) : null;
+      const inParts = prTimeParts(entry.clocked_in_at);
+      const inT = to12h(inParts.hour, inParts.minute);
+      const outT = entry.clocked_out_at ? (p => to12h(p.hour, p.minute))(prTimeParts(entry.clocked_out_at)) : null;
       forms[key] = {
         id: entry.id,
         entryHour: inT.hour, entryMinute: inT.minute, entryAmPm: inT.ampm,
@@ -833,10 +839,13 @@ export default function FieldApp() {
     setSavingDay(key);
     setDayFormStatus(prev => ({ ...prev, [key]: null }));
     const to24 = (hour, ampm) => { let h = parseInt(hour, 10) % 12; if (ampm === 'PM') h += 12; return h; };
-    const clockedIn = new Date(dateObj);
-    clockedIn.setHours(to24(form.entryHour, form.entryAmPm), parseInt(form.entryMinute, 10) || 0, 0, 0);
-    const clockedOut = new Date(dateObj);
-    clockedOut.setHours(to24(form.exitHour, form.exitAmPm), parseInt(form.exitMinute, 10) || 0, 0, 0);
+    // Built with an explicit -04:00 offset (not .setHours(), which uses the
+    // device's local timezone) so the saved instant reflects the intended
+    // Puerto Rico wall-clock time regardless of what timezone the técnico's
+    // phone happens to be set to.
+    const buildPRTime = (hour, minute) => new Date(`${key}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00-04:00`);
+    const clockedIn = buildPRTime(to24(form.entryHour, form.entryAmPm), parseInt(form.entryMinute, 10) || 0);
+    const clockedOut = buildPRTime(to24(form.exitHour, form.exitAmPm), parseInt(form.exitMinute, 10) || 0);
     if (computeHours(clockedIn.toISOString(), clockedOut.toISOString(), form.lunch ? 60 : 0).invalid) {
       setSavingDay(null);
       setDayFormStatus(prev => ({ ...prev, [key]: 'invalid' }));
@@ -874,16 +883,23 @@ export default function FieldApp() {
 
   function startEditEntry(entry) {
     setEditingEntryId(entry.id);
-    setEditEntryIn(new Date(entry.clocked_in_at).toTimeString().slice(0, 5));
-    setEditEntryOut(entry.clocked_out_at ? new Date(entry.clocked_out_at).toTimeString().slice(0, 5) : '');
+    const inParts = prTimeParts(entry.clocked_in_at);
+    setEditEntryIn(`${String(inParts.hour).padStart(2, '0')}:${String(inParts.minute).padStart(2, '0')}`);
+    if (entry.clocked_out_at) {
+      const outParts = prTimeParts(entry.clocked_out_at);
+      setEditEntryOut(`${String(outParts.hour).padStart(2, '0')}:${String(outParts.minute).padStart(2, '0')}`);
+    } else {
+      setEditEntryOut('');
+    }
     setEditEntryError('');
   }
 
   async function saveEntryEdit(entry) {
     if (!editEntryIn) return;
-    const baseDate = entry.clocked_in_at.slice(0, 10);
-    const newIn = new Date(baseDate + 'T' + editEntryIn + ':00');
-    const newOut = editEntryOut ? new Date(baseDate + 'T' + editEntryOut + ':00') : null;
+    const baseDate = prDayKey(entry.clocked_in_at);
+    const [inH, inM] = editEntryIn.split(':').map(Number);
+    const newIn = buildPRTimestamp(baseDate, inH, inM);
+    const newOut = editEntryOut ? (() => { const [h, m] = editEntryOut.split(':').map(Number); return buildPRTimestamp(baseDate, h, m); })() : null;
     if (newOut && computeHours(newIn.toISOString(), newOut.toISOString(), entry.lunch_minutes).invalid) {
       setEditEntryError('La salida debe ser después de la entrada.');
       return;
@@ -899,7 +915,7 @@ export default function FieldApp() {
     const { data: refreshed } = await supabase.from('time_entries').select('*').eq('technician_id', techId)
       .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false });
     setTimeEntries(refreshed ?? []);
-    setSelectedDay(sd => sd ? { ...sd, entries: (refreshed ?? []).filter(e => e.clocked_in_at.slice(0, 10) === baseDate) } : sd);
+    setSelectedDay(sd => sd ? { ...sd, entries: (refreshed ?? []).filter(e => prDayKey(e.clocked_in_at) === baseDate) } : sd);
     setEditingEntryId(null);
     setSavingEntry(false);
   }
@@ -907,12 +923,12 @@ export default function FieldApp() {
   async function deleteEntry(entry) {
     if (!confirm('¿Eliminar esta entrada de horario?')) return;
     await supabase.from('time_entries').delete().eq('id', entry.id);
-    const baseDate = entry.clocked_in_at.slice(0, 10);
+    const baseDate = prDayKey(entry.clocked_in_at);
     const weekStart = getPayrollWeekDays()[0];
     const { data: refreshed } = await supabase.from('time_entries').select('*').eq('technician_id', techId)
       .gte('clocked_in_at', weekStart.toISOString()).order('clocked_in_at', { ascending: false });
     setTimeEntries(refreshed ?? []);
-    setSelectedDay(sd => sd ? { ...sd, entries: (refreshed ?? []).filter(e => e.clocked_in_at.slice(0, 10) === baseDate) } : sd);
+    setSelectedDay(sd => sd ? { ...sd, entries: (refreshed ?? []).filter(e => prDayKey(e.clocked_in_at) === baseDate) } : sd);
     if (activeEntry?.id === entry.id) { setClockedIn(false); setActiveEntry(null); setElapsed(0); }
   }
 
@@ -1381,7 +1397,6 @@ export default function FieldApp() {
   const SC = { estimate: '#5b6473', scheduled: '#2a4cb5', in_progress: AMBER, completed: '#1a7a4a', cancelled: '#b52a2a' };
   const SL = { estimate: 'Estimate', scheduled: 'Scheduled', in_progress: 'In Progress', completed: 'Done', cancelled: 'Cancelled' };
   const DSH = ['Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue'];
-  const WD = DSH.map((_, i) => { const d = new Date(now); const off = now.getDay() === 0 ? -4 : now.getDay() >= 3 ? now.getDay() - 3 : now.getDay() + 4; d.setDate(now.getDate() - off + i); return d.getDate(); });
   const card = { margin: '0 14px 12px', background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' };
   const navBtn = a => ({ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '10px 0 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 600, color: a ? ORANGE : '#aaa' });
   const ftab = a => ({ padding: '8px 16px', borderRadius: 50, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: a ? 'none' : '1.5px solid #dde1e7', background: a ? '#1a1a1a' : '#fff', color: a ? '#fff' : '#333' });
@@ -1616,24 +1631,19 @@ export default function FieldApp() {
               </div>
             </div>
             <div style={{ ...card, display: 'flex', justifyContent: 'space-between' }}>
-              {DSH.map((d, i) => {
-                const dayDate = new Date(now);
-                const off = now.getDay() === 0 ? -4 : now.getDay() >= 3 ? now.getDay() - 3 : now.getDay() + 4;
-                dayDate.setDate(now.getDate() - off + i);
-                const dayEntries = timeEntries.filter(e => {
-                  const eDate = new Date(e.clocked_in_at);
-                  return eDate.getDate() === dayDate.getDate() && eDate.getMonth() === dayDate.getMonth();
-                });
+              {getPayrollWeekDays().map((dayDate, i) => {
+                const dkey = dayKey(dayDate);
+                const dayEntries = timeEntries.filter(e => prDayKey(e.clocked_in_at) === dkey);
                 const dayHours = dayEntries.reduce((a, e) => a + (e.clocked_out_at
                   ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours
                   : (Date.now() - new Date(e.clocked_in_at)) / 3600000), 0).toFixed(1);
-                const isToday = dayDate.getDate() === now.getDate() && dayDate.getMonth() === now.getMonth();
+                const isToday = dkey === todayPRKey;
                 const hasHours = parseFloat(dayHours) > 0;
                 return (
-                  <div key={d} onClick={() => setSelectedDay({ date: new Date(dayDate), entries: dayEntries })} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: hasHours ? 'pointer' : 'default', padding: '6px 4px', borderRadius: 10, background: selectedDay?.date.getDate() === dayDate.getDate() ? ORANGE + '18' : 'transparent' }}>
-                    <div style={{ fontSize: 11, color: isToday ? ORANGE : '#888', fontWeight: isToday ? 700 : 400 }}>{d}</div>
+                  <div key={dkey} onClick={() => setSelectedDay({ date: dayDate, entries: dayEntries })} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: hasHours ? 'pointer' : 'default', padding: '6px 4px', borderRadius: 10, background: selectedDay?.date && dayKey(selectedDay.date) === dkey ? ORANGE + '18' : 'transparent' }}>
+                    <div style={{ fontSize: 11, color: isToday ? ORANGE : '#888', fontWeight: isToday ? 700 : 400 }}>{DSH[i]}</div>
                     <div style={{ fontSize: 12, color: hasHours ? '#16223d' : '#ccc', fontWeight: hasHours ? 700 : 400 }}>{hasHours ? dayHours + 'h' : '—'}</div>
-                    <div style={{ fontSize: 12, color: isToday ? ORANGE : '#aaa', fontWeight: isToday ? 700 : 400 }}>{dayDate.getDate()}</div>
+                    <div style={{ fontSize: 12, color: isToday ? ORANGE : '#aaa', fontWeight: isToday ? 700 : 400 }}>{dayDate.getUTCDate()}</div>
                   </div>
                 );
               })}
@@ -1641,7 +1651,7 @@ export default function FieldApp() {
             {selectedDay && selectedDay.entries.length > 0 && (
               <div style={{ ...card, marginTop: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#16223d' }}>
-                  {selectedDay.date.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  {selectedDay.date.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })}
                 </div>
                 {selectedDay.entries.map((e, i) => {
                   const inTime = new Date(e.clocked_in_at);
@@ -1722,25 +1732,21 @@ export default function FieldApp() {
               <span style={{ fontSize: 15, fontWeight: 700 }}>Editar mi horario semanal</span>
             </div>
 
-            {getPayrollWeekDays().map(dateObj => {
+            {getPayrollWeekDays().filter(dateObj => dayKey(dateObj) <= todayPRKey).map(dateObj => {
               const key = dayKey(dateObj);
               const form = weekDayForms[key] ?? blankDayForm();
-              const dayLabel = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
-              const dateLabel = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const dayLabel = dateObj.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+              const dateLabel = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
               const saving = savingDay === key;
-              const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-              const isFutureDay = dateObj > todayStart;
               const isBlockedDay = isAbsenceBlockedDay(dateObj);
               return (
                 <div key={key} style={card}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFutureDay ? 0 : 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                     <div><span style={{ fontWeight: 700, fontSize: 16 }}>{dayLabel}</span> <span style={{ color: '#888', fontSize: 13 }}>{dateLabel}</span></div>
-                    {!isFutureDay && (
-                      <button onClick={() => saveDayForm(dateObj)} disabled={saving || !form.entryHour || !form.exitHour || isBlockedDay}
-                        style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!form.entryHour || !form.exitHour || isBlockedDay) ? 0.5 : 1 }}>
-                        {saving ? '...' : '💾'}
-                      </button>
-                    )}
+                    <button onClick={() => saveDayForm(dateObj)} disabled={saving || !form.entryHour || !form.exitHour || isBlockedDay}
+                      style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (!form.entryHour || !form.exitHour || isBlockedDay) ? 0.5 : 1 }}>
+                      {saving ? '...' : '💾'}
+                    </button>
                   </div>
 
                   {isBlockedDay && (
@@ -1749,10 +1755,6 @@ export default function FieldApp() {
                     </div>
                   )}
 
-                  {isFutureDay ? (
-                    <div style={{ padding: '8px 0 2px', color: '#aaa', fontSize: 13 }}>Disponible cuando llegue este día</div>
-                  ) : (
-                  <>
                   {[['ENTRY', 'entry'], ['EXIT', 'exit']].map(([label, prefix]) => (
                     <div key={prefix} style={{ marginBottom: 14 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.06em', marginBottom: 6 }}>{label}</div>
@@ -1806,8 +1808,6 @@ export default function FieldApp() {
                     <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
                       🚫 No puedes registrar horas — ausencia registrada este día.
                     </div>
-                  )}
-                  </>
                   )}
                 </div>
               );
