@@ -824,8 +824,12 @@ export default function FieldApp() {
 
   function isAbsenceBlockedDay(dateObj) {
     if (!todayAbsence) return false;
-    const localKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
-    return localKey === todayAbsence.date;
+    // dateObj is one of getPayrollWeekDays()'s UTC-midnight-anchored PR
+    // calendar days — reading it with local getters (as this used to) reapplies
+    // the device's own timezone offset on top, landing on the wrong day for
+    // any técnico whose phone is set to PR time. dayKey() (UTC-based) is the
+    // same helper already used to key and label these tiles correctly.
+    return dayKey(dateObj) === todayAbsence.date;
   }
 
   async function saveDayForm(dateObj) {
