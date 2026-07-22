@@ -18,35 +18,43 @@ const CATEGORY_LABELS = {
   otro: "Otro",
 };
 
+// Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
+// admin/timesheet, accounting/payroll, and accounting/facturas) so the
+// default week shown doesn't roll over up to 4 hours early relative to PR
+// time depending on the server's own timezone. weekStart/weekEnd are then
+// real UTC instants anchored to PR-calendar-day midnight, so fmtDate below
+// must read them back via UTC too.
 function getWeekRange(offset = 0) {
-  const now = new Date();
-  const day = now.getDay();
+  const now = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  const day = now.getUTCDay();
   const diffToMon = (day + 6) % 7;
   const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - diffToMon + (offset * 7));
-  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setUTCDate(now.getUTCDate() - diffToMon + (offset * 7));
+  weekStart.setUTCHours(0, 0, 0, 0);
   const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  weekEnd.setHours(23, 59, 59, 999);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+  weekEnd.setUTCHours(23, 59, 59, 999);
   return { weekStart, weekEnd };
 }
 
+const nowPR = () => new Date(Date.now() - 4 * 60 * 60 * 1000);
+
 export default async function GastosPage({ searchParams }) {
   const view = searchParams?.view ?? "month";
-  const year = parseInt(searchParams?.year ?? new Date().getFullYear());
-  const month = searchParams?.month !== undefined && searchParams.month !== "" ? parseInt(searchParams.month) : new Date().getMonth();
+  const year = parseInt(searchParams?.year ?? nowPR().getUTCFullYear());
+  const month = searchParams?.month !== undefined && searchParams.month !== "" ? parseInt(searchParams.month) : nowPR().getUTCMonth();
   const weekOffset = parseInt(searchParams?.week ?? "0");
 
   let dateStart, dateEnd, periodLabel;
   const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-  const currentYear = new Date().getFullYear();
+  const currentYear = nowPR().getUTCFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
 
   if (view === "week") {
     const { weekStart, weekEnd } = getWeekRange(weekOffset);
     dateStart = weekStart.toISOString().slice(0, 10);
     dateEnd = weekEnd.toISOString().slice(0, 10);
-    const fmtDate = d => d.toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric" });
+    const fmtDate = d => d.toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
     periodLabel = `${fmtDate(weekStart)} — ${fmtDate(weekEnd)}`;
   } else if (view === "month") {
     dateStart = new Date(year, month, 1).toISOString().slice(0, 10);

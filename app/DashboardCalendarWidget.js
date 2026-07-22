@@ -9,15 +9,23 @@ const TECH_COLORS = [
 ];
 
 export default async function DashboardCalendarWidget() {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  // Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
+  // admin/timesheet, accounting/payroll, and accounting/facturas) so
+  // "today" — and the default week/month shown — doesn't roll over up to
+  // 4 hours early relative to PR time depending on the server's own
+  // timezone. Every Date built from `now` below is a real UTC instant
+  // anchored to PR-calendar-day midnight, so everything reading one back
+  // downstream (fmtRangeLabel, the mini-calendar month/day-of-week calc)
+  // must use UTC too.
+  const now = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
 
   // Current week (Monday–Sunday), matching the /calendario week view.
-  const dayOfWeek = now.getDay();
+  const dayOfWeek = now.getUTCDay();
   const diffToMon = (dayOfWeek + 6) % 7;
-  const weekStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMon);
-  const weekEndDate = new Date(weekStartDate.getFullYear(), weekStartDate.getMonth(), weekStartDate.getDate() + 6);
+  const weekStartDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - diffToMon));
+  const weekEndDate = new Date(Date.UTC(weekStartDate.getUTCFullYear(), weekStartDate.getUTCMonth(), weekStartDate.getUTCDate() + 6));
   const weekStart = weekStartDate.toISOString().slice(0, 10);
   const weekEnd = weekEndDate.toISOString().slice(0, 10);
 
@@ -96,19 +104,19 @@ export default async function DashboardCalendarWidget() {
   const weekAbsences = allAbsences.filter(a => inWeek(a.date));
 
   const fmtRangeLabel = (start, end) => {
-    const sameMonth = start.getMonth() === end.getMonth();
-    const startLabel = start.toLocaleDateString('es-PR', { day: 'numeric', month: sameMonth ? undefined : 'short' });
-    const endLabel = end.toLocaleDateString('es-PR', { day: 'numeric', month: 'short' });
+    const sameMonth = start.getUTCMonth() === end.getUTCMonth();
+    const startLabel = start.toLocaleDateString('es-PR', { day: 'numeric', month: sameMonth ? undefined : 'short', timeZone: 'UTC' });
+    const endLabel = end.toLocaleDateString('es-PR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
     return `${startLabel} – ${endLabel}`;
   };
   const weekRangeLabel = fmtRangeLabel(weekStartDate, weekEndDate);
 
   // Mini month calendar
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const prevDays = new Date(year, month, 0).getDate();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const firstDay = new Date(Date.UTC(year, month, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const prevDays = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const cells = [];
   for (let i = firstDay - 1; i >= 0; i--) cells.push({ day: prevDays - i, current: false, date: null });
   for (let i = 1; i <= daysInMonth; i++) {

@@ -256,7 +256,13 @@ export default function FieldApp() {
   // Calendar state
   const [calendarJobs, setCalendarJobs] = useState([]);
   const [calendarWeekOffset, setCalendarWeekOffset] = useState(0);
-  const [calendarSelectedDate, setCalendarSelectedDate] = useState(new Date());
+  // PR-anchored (UTC-4) UTC-midnight date, matching the shape getWeekDays() below returns —
+  // not a bare `new Date()`, which would be keyed to the device's local calendar day instead.
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => {
+    const d = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    d.setUTCHours(0, 0, 0, 0);
+    return d;
+  });
   const [loadingCalendar, setLoadingCalendar] = useState(false);
   // Non-job schedule items assigned to this technician — shown alongside jobs so "today's
   // schedule" and the Calendar tab reflect everything, not just jobs.
@@ -434,9 +440,11 @@ export default function FieldApp() {
 
   useEffect(() => {
     if (!techId) return;
-    const today = new Date();
-    const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    supabase.from('technician_absences').select('*').eq('technician_id', techId).eq('date', todayLocal).maybeSingle()
+    // PR-anchored "today" (todayPRKey, defined below) — not the device's own
+    // local date, which used to make this query fetch the wrong day's
+    // absence row for a técnico whose phone isn't set to PR time (the same
+    // mismatch isAbsenceBlockedDay() had).
+    supabase.from('technician_absences').select('*').eq('technician_id', techId).eq('date', todayPRKey).maybeSingle()
       .then(({ data }) => setTodayAbsence(data ?? null));
   }, [techId]);
 
@@ -544,10 +552,11 @@ export default function FieldApp() {
   async function loadJobs() {
     setLoading(true);
     let list = await fetchTechJobs(techId);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-    if (jobFilter === 'today') list = list.filter(j => j.scheduled_start && new Date(j.scheduled_start) >= today && new Date(j.scheduled_start) < tomorrow);
-    else if (jobFilter === 'upcoming') list = list.filter(j => j.scheduled_start && new Date(j.scheduled_start) >= tomorrow && j.status !== 'completed');
+    // Bucketed by PR calendar day (prDayKey/todayPRKey, defined below) rather than device-local
+    // midnight bounds, so a técnico's phone in another timezone doesn't drop/misfile jobs near
+    // the day boundary.
+    if (jobFilter === 'today') list = list.filter(j => j.scheduled_start && prDayKey(j.scheduled_start) === todayPRKey);
+    else if (jobFilter === 'upcoming') list = list.filter(j => j.scheduled_start && prDayKey(j.scheduled_start) > todayPRKey && j.status !== 'completed');
     else if (jobFilter === 'done') list = list.filter(j => j.status === 'completed');
     list.sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
     setJobs(list.slice(0, 20));
@@ -1442,25 +1451,29 @@ export default function FieldApp() {
   const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const totalDetailExpenses = detailExpenses.reduce((a, e) => a + Number(e.amount ?? 0), 0);
 
-  // Calendar helpers: build the week (Sun-Sat) for the current offset
+  // Calendar helpers: build the week (Sun-Sat) for the current offset, anchored to Puerto
+  // Rico's fixed UTC-4 offset via UTC methods (same approach as getPayrollWeekDays above) so
+  // the strip doesn't shift a day for a técnico whose phone is set to another timezone.
   function getWeekDays(offset) {
-    const base = new Date();
-    base.setDate(base.getDate() + offset * 7);
-    const dayOfWeek = base.getDay(); // 0 = Sunday
-    const sunday = new Date(base);
-    sunday.setDate(base.getDate() - dayOfWeek);
-    sunday.setHours(0, 0, 0, 0);
+    const n = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    const daysSinceSun = n.getUTCDay();
+    const sunday = new Date(n);
+    sunday.setUTCDate(n.getUTCDate() - daysSinceSun + offset * 7);
+    sunday.setUTCHours(0, 0, 0, 0);
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(sunday);
-      d.setDate(sunday.getDate() + i);
+      d.setUTCDate(sunday.getUTCDate() + i);
       return d;
     });
   }
   const weekDays = getWeekDays(calendarWeekOffset);
   const WEEKDAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+  // Both a and b are UTC-midnight-anchored PR calendar days here (weekDays entries,
+  // calendarSelectedDate) — dayKey() compares them without reapplying the device's own
+  // timezone offset on top.
   function sameDay(a, b) {
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    return dayKey(a) === dayKey(b);
   }
 
   // Events/tasks/visits shown as if they were "just another job" in the calendar and today's
@@ -1499,11 +1512,14 @@ export default function FieldApp() {
     ...techVisits.map(v => normalizeEntry('visit', v)),
   ];
 
+  // j.scheduled_start is a real UTC instant, so it needs prDayKey() (PR-timezone-aware) rather
+  // than dayKey()/sameDay(), which assume an already UTC-midnight-anchored date like
+  // calendarSelectedDate.
   const jobsForSelectedDay = calendarEntries
-    .filter(j => j.scheduled_start && sameDay(new Date(j.scheduled_start), calendarSelectedDate))
+    .filter(j => j.scheduled_start && prDayKey(j.scheduled_start) === dayKey(calendarSelectedDate))
     .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start));
 
-  const jobDaysSet = new Set(calendarEntries.filter(j => j.scheduled_start).map(j => new Date(j.scheduled_start).toDateString()));
+  const jobDaysSet = new Set(calendarEntries.filter(j => j.scheduled_start).map(j => prDayKey(j.scheduled_start)));
 
   function openEntry(entry) {
     if (entry._kind) setDetailEntry(entry);
@@ -1511,9 +1527,9 @@ export default function FieldApp() {
   }
 
   // "Today's schedule" on Home mixes in today's events/tasks/visits alongside jobs, same idea
-  // as the Calendar tab above.
-  const todayBounds = (() => { const s = new Date(); s.setHours(0, 0, 0, 0); const e = new Date(s); e.setDate(e.getDate() + 1); return [s, e]; })();
-  const isToday = iso => { if (!iso) return false; const d = new Date(iso); return d >= todayBounds[0] && d < todayBounds[1]; };
+  // as the Calendar tab above. Anchored to PR's calendar day via prDayKey/todayPRKey (not the
+  // device's local midnight) so this can't drift from what admin sees.
+  const isToday = iso => iso && prDayKey(iso) === todayPRKey;
   const todayEntries = [
     ...jobs,
     ...techEvents.filter(e => isToday(e.start_at)).map(e => normalizeEntry('event', e)),
@@ -1823,14 +1839,14 @@ export default function FieldApp() {
           <div>
             <div style={{ padding: '20px 20px 12px' }}>
               <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>Calendar</div>
-              <div style={{ fontSize: 13, color: '#888' }}>{calendarSelectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+              <div style={{ fontSize: 13, color: '#888' }}>{calendarSelectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</div>
             </div>
 
             {/* Week navigation */}
             <div style={{ padding: '0 20px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button onClick={() => setCalendarWeekOffset(o => o - 1)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#888', cursor: 'pointer', padding: '4px 10px' }}>‹</button>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>
-                {weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} – {weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
               </span>
               <button onClick={() => setCalendarWeekOffset(o => o + 1)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#888', cursor: 'pointer', padding: '4px 10px' }}>›</button>
             </div>
@@ -1839,8 +1855,10 @@ export default function FieldApp() {
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 14px 16px' }}>
               {weekDays.map((d, i) => {
                 const isSelected = sameDay(d, calendarSelectedDate);
-                const isToday = sameDay(d, now);
-                const hasJobs = jobDaysSet.has(d.toDateString());
+                // d is UTC-midnight-anchored to a PR calendar day (getWeekDays above), so
+                // compare against todayPRKey directly rather than the device-local `now`.
+                const isToday = dayKey(d) === todayPRKey;
+                const hasJobs = jobDaysSet.has(dayKey(d));
                 return (
                   <div key={i} onClick={() => setCalendarSelectedDate(d)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flex: 1 }}>
                     <div style={{ fontSize: 11, color: isToday ? ORANGE : '#aaa', fontWeight: 600 }}>{WEEKDAY_LETTERS[i]}</div>
@@ -1849,7 +1867,7 @@ export default function FieldApp() {
                       background: isSelected ? ORANGE : 'transparent', color: isSelected ? '#fff' : isToday ? ORANGE : '#333',
                       fontWeight: isSelected || isToday ? 700 : 500, fontSize: 14,
                     }}>
-                      {d.getDate()}
+                      {d.getUTCDate()}
                     </div>
                     <div style={{ width: 5, height: 5, borderRadius: '50%', background: hasJobs ? ORANGE : 'transparent' }} />
                   </div>
