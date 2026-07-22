@@ -135,9 +135,13 @@ export default function Sidebar() {
  // Se refresca al montar y cada vez que calendario-client.js dispara este evento tras crear/eliminar una ausencia.
  useEffect(() => {
    function fetchAbsenceCount() {
-     const now = new Date();
-     const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+     // Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
+     // admin/ausencias' getRange) so the "current month" boundary doesn't roll
+     // over up to 4 hours early/late relative to PR time depending on the
+     // browser's own timezone.
+     const now = new Date(Date.now() - 4 * 60 * 60 * 1000);
+     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
+     const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
      supabase.from('technician_absences').select('id', { count: 'exact', head: true })
        .gte('date', start).lte('date', end)
        .then(({ count }) => setAbsenceCount(count ?? 0));

@@ -2,6 +2,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { formatTimePR, formatDatePR } from "../lib/datetimeLocal";
+import { prDayKey } from "../lib/hours";
 
 const TECH_COLORS = [
   "#16223d", "#e0972c", "#27ae60", "#2a4cb5", "#e05c2a",
@@ -29,7 +30,9 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
     [allJobs, selectedTech]
   );
 
-  const today = new Date().toISOString().slice(0, 10);
+  // PR calendar day, not the browser's raw UTC slice of "now" — otherwise this rolls over up
+  // to 4 hours early relative to PR time depending on the viewer's own timezone.
+  const today = prDayKey(new Date());
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -59,7 +62,7 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
   });
 
   const upcoming = filteredJobs
-    .filter(j => j.scheduled_start.slice(0, 10) >= today && j.status !== "cancelled" && j.status !== "completed")
+    .filter(j => j.scheduled_start && prDayKey(j.scheduled_start) >= today && j.status !== "cancelled" && j.status !== "completed")
     .slice(0, 6);
 
   const fmtTime = iso => formatTimePR(iso, { hour: "2-digit", minute: "2-digit" });
