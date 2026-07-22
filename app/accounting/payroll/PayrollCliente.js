@@ -194,7 +194,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
           <div className="empty"><p>Sin resultados para "{search}".</p></div>
         ) : (
           <div className="table-wrap">
-            <table>
+            <table className="table-dense">
               <thead>
                 <tr>
                   <th>Técnico</th>
@@ -284,7 +284,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
         <div className="card">
           <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Desglose mensual {year}</p>
           <div className="table-wrap">
-            <table>
+            <table className="table-dense">
               <thead>
                 <tr>
                   <th>Mes</th>

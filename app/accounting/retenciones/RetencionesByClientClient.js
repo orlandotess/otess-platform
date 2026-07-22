@@ -214,7 +214,7 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
             <div className="empty"><p>Sin retenciones registradas para este cliente.</p></div>
           ) : (
             <div className="table-wrap">
-              <table>
+              <table className="table-dense">
                 <thead>
                   <tr>
                     <th>Fecha</th>

@@ -50,7 +50,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
           <div className="empty"><p>Sin resultados para "{search}".</p></div>
         ) : (
           <div className="table-wrap">
-            <table>
+            <table className="table-dense">
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -142,7 +142,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
               }, { totalFactura: 0, baseLabor: 0, exento: 0, retenido: 0, neto: 0 });
               return (
                 <div className="table-wrap">
-                  <table>
+                  <table className="table-dense">
                     <thead>
                       <tr>
                         <th>Factura</th>

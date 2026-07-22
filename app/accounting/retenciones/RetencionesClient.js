@@ -104,7 +104,7 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
           <div className="empty"><p>Sin resultados para "{search}".</p></div>
         ) : (
           <div className="table-wrap">
-            <table>
+            <table className="table-dense">
               <thead>
                 <tr>
                   <th>Fecha</th>

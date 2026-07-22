@@ -33,7 +33,7 @@ export default function FacturasTableClient({ invs, totalFacturado }) {
         <div className="empty"><p>Sin resultados para "{search}".</p></div>
       ) : (
         <div className="table-wrap">
-          <table>
+          <table className="table-dense">
             <thead>
               <tr>
                 <th>#</th>

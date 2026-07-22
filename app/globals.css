@@ -392,7 +392,7 @@ body.has-back-button .main-content {
   overflow-x: auto;
 }
 
-.table-wrap table {
+.table-dense {
   white-space: nowrap;
 }
 

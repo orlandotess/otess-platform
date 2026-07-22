@@ -106,7 +106,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
           <div className="empty"><p>No hay registros de payroll.</p></div>
         ) : (
           <div className="table-wrap">
-            <table>
+            <table className="table-dense">
               <thead>
                 <tr>
                   <th></th>
