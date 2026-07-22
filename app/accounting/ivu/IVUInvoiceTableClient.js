@@ -26,7 +26,7 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
         <div className="empty"><p>Sin resultados para "{search}".</p></div>
       ) : (
         <div className="table-wrap">
-          <table>
+          <table style={{ minWidth: 1180, whiteSpace: 'nowrap' }}>
             <thead>
               <tr>
                 <th>#</th>
