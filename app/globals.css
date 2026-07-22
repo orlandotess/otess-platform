@@ -388,8 +388,12 @@ body.has-back-button .main-content {
   overflow-x: auto;
 }
 
+.table-wrap table {
+  white-space: nowrap;
+}
+
 table {
-  width: 100%;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 14px;
 }
