@@ -1,11 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
-import { getCurrentRole } from '../../../lib/supabase-server';
 import ReporteActions from './ReporteActions';
 import FaseDetalle from './FaseDetalle';
-
-const EDITABLE_ROLES = ['admin', 'secretaria', 'vendedor', 'tecnico'];
 
 function lines(text) {
   return (text ?? '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -23,15 +20,11 @@ function Section({ title, children }) {
 export default async function ReportePublico({ params }) {
   const { id } = params;
 
-  const [{ data: report }, currentRole] = await Promise.all([
-    supabase
-      .from('job_reports')
-      .select('*, jobs(title, job_number, property_name, street, city, state, zip, clients(name, email, company, report_name_source))')
-      .eq('id', id)
-      .single(),
-    getCurrentRole(),
-  ]);
-  const canEdit = EDITABLE_ROLES.includes(currentRole);
+  const { data: report } = await supabase
+    .from('job_reports')
+    .select('*, jobs(title, job_number, property_name, street, city, state, zip, clients(name, email, company, report_name_source))')
+    .eq('id', id)
+    .single();
 
   if (!report) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -154,7 +147,6 @@ export default async function ReportePublico({ params }) {
                       label,
                       notesInGroup.map(n => ({ id: n.id, title: n.title ?? null, note: n.note ?? null, phase_number: n.phase_number ?? null })),
                     ]))}
-                    canEdit={canEdit}
                   />
                 </Section>
               )}
