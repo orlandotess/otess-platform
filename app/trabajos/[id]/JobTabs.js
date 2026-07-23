@@ -319,7 +319,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   // Line items state
   const [lineItems, setLineItems] = useState(items);
   const [addingLine, setAddingLine] = useState(false);
-  const [newLine, setNewLine] = useState({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
+  const [newLine, setNewLine] = useState({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null });
   const [catalogItems, setCatalogItems] = useState([]);
   const [showCableCalc, setShowCableCalc] = useState(false);
 
@@ -360,6 +360,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       exempt: !!item.exempt_reason,
       area: item.area ?? '',
       vendor: item.vendor ?? '',
+      warranty_expires_at: item.warranty_expires_at ?? null,
       photoFile: null,
       photoPreview: item.photo_signed_url ?? null,
     });
@@ -400,6 +401,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       exempt_reason: editLineForm.exempt ? 'Exento' : null,
       area: editLineForm.area || null,
       vendor: editLineForm.vendor || null,
+      warranty_expires_at: editLineForm.warranty_expires_at || null,
       ...(photoPath !== undefined ? { photo_url: photoPath } : {}),
     }).eq('id', id);
     setLineItems(prev => prev.map(i => i.id === id ? {
@@ -414,6 +416,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       exempt_reason: editLineForm.exempt ? 'Exento' : null,
       area: editLineForm.area || null,
       vendor: editLineForm.vendor || null,
+      warranty_expires_at: editLineForm.warranty_expires_at || null,
       ...(photoPath !== undefined ? { photo_url: photoPath, photo_signed_url: photoSignedUrl } : {}),
     } : i));
     setEditingLineId(null);
@@ -442,11 +445,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       exempt_reason: newLine.exempt ? 'Exento' : null,
       area: newLine.area || null,
       vendor: newLine.vendor || null,
+      warranty_expires_at: newLine.warranty_expires_at || null,
       photo_url: photoPath,
       sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
-    setNewLine({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
+    setNewLine({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null });
     setAddingLine(false);
     setSavingLine(false);
   }
@@ -1466,6 +1470,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                       vendor={editLineForm.vendor}
                       onVendorChange={v => setEditLineForm(f => ({ ...f, vendor: v }))}
                       vendorOptions={vendorOptions}
+                      warrantyExpiresAt={editLineForm.warranty_expires_at}
+                      onWarrantyExpiresAtChange={v => setEditLineForm(f => ({ ...f, warranty_expires_at: v }))}
                       photoUrl={editLineForm.photoPreview}
                       onPhotoSelect={handleEditLinePhoto}
                       fmt={fmt}
@@ -1488,6 +1494,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                       unitPrice={it.unit_price}
                       supplierPrice={it.supplier_price}
                       exempt={!!it.exempt_reason}
+                      warrantyExpiresAt={it.warranty_expires_at}
                       photoUrl={it.photo_signed_url}
                       fmt={fmt}
                       actions={
@@ -1526,6 +1533,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   vendor={newLine.vendor}
                   onVendorChange={v => setNewLine(l => ({ ...l, vendor: v }))}
                   vendorOptions={vendorOptions}
+                  warrantyExpiresAt={newLine.warranty_expires_at}
+                  onWarrantyExpiresAtChange={v => setNewLine(l => ({ ...l, warranty_expires_at: v }))}
                   photoUrl={newLine.photoPreview}
                   onPhotoSelect={handleNewLinePhoto}
                   fmt={fmt}

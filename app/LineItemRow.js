@@ -74,6 +74,7 @@ export default function LineItemRow({
   discount, onDiscountChange,
   area, onAreaChange, areaOptions = [],
   vendor, onVendorChange, vendorOptions = [],
+  warrantyExpiresAt, onWarrantyExpiresAtChange,
   photoUrl, onPhotoSelect, uploadingPhoto = false,
   fmt,
   actions,
@@ -85,7 +86,19 @@ export default function LineItemRow({
   const hasMsrp = !!onMsrpChange && type !== 'labor';
   const hasSupplierPrice = !!onSupplierPriceChange && type !== 'labor';
   const hasVendor = !!onVendorChange && type !== 'labor';
+  const hasWarranty = !!onWarrantyExpiresAtChange && type !== 'labor';
   const hasPhoto = !!onPhotoSelect || !!photoUrl;
+
+  let warrantyStatus = null;
+  if (warrantyExpiresAt) {
+    const daysLeft = Math.ceil((new Date(`${warrantyExpiresAt}T00:00:00`) - new Date(new Date().toDateString())) / 86400000);
+    warrantyStatus = daysLeft < 0 ? 'expired' : daysLeft <= 60 ? 'soon' : 'ok';
+  }
+  function setWarrantyMonths(months) {
+    const d = new Date();
+    d.setMonth(d.getMonth() + months);
+    onWarrantyExpiresAtChange(d.toISOString().slice(0, 10));
+  }
 
   if (isAccessory) {
     return (
@@ -144,6 +157,18 @@ export default function LineItemRow({
           <>
             <span className={`badge ${type === 'labor' ? 'badge-amber' : 'badge-gray'}`}>{type === 'labor' ? 'Labor' : 'Producto'}</span>
             {exempt && <span className="badge badge-gray" style={{ marginLeft: 6 }}>Exento</span>}
+            {warrantyStatus && (
+              <span
+                title={`Garantía vence ${new Date(`${warrantyExpiresAt}T00:00:00`).toLocaleDateString('es-PR')}`}
+                style={{
+                  marginLeft: 6, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                  background: warrantyStatus === 'expired' ? 'var(--warn-tint, #fee2e2)' : warrantyStatus === 'soon' ? 'var(--amber-tint, #fef3c7)' : 'var(--surface-2)',
+                  color: warrantyStatus === 'expired' ? 'var(--warn, #b91c1c)' : warrantyStatus === 'soon' ? 'var(--amber, #b45309)' : 'var(--muted)',
+                }}
+              >
+                🛡️ {warrantyStatus === 'expired' ? 'Garantía vencida' : 'Garantía'} {new Date(`${warrantyExpiresAt}T00:00:00`).toLocaleDateString('es-PR')}
+              </span>
+            )}
             {title && <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 4 }}>{title}</div>}
             {description && <div style={{ fontWeight: title ? 400 : 700, fontSize: 13.5, marginTop: title ? 2 : 4, whiteSpace: 'pre-wrap' }}>{description}</div>}
           </>
@@ -249,6 +274,21 @@ export default function LineItemRow({
                       <datalist id="line-item-vendor-options">
                         {vendorOptions.map(v => <option key={v} value={v} />)}
                       </datalist>
+                    </div>
+                  )}
+                  {hasWarranty && (
+                    <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Garantía vence</label>
+                      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                        {[12, 24, 36, 60].map(m => (
+                          <button key={m} type="button" onClick={e => { e.stopPropagation(); setWarrantyMonths(m); }}
+                            style={{ fontSize: 10.5, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 5, background: 'var(--surface)', cursor: 'pointer', color: 'var(--navy)' }}>
+                            {m}m
+                          </button>
+                        ))}
+                      </div>
+                      <input type="date" value={warrantyExpiresAt ?? ''} onChange={e => onWarrantyExpiresAtChange(e.target.value || null)}
+                        style={{ fontSize: 12.5, padding: '4px 6px', width: '100%' }} onClick={e => e.stopPropagation()} />
                     </div>
                   )}
                 </div>
