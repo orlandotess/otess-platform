@@ -88,6 +88,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
   // Info tab edit
   const [editingInfo, setEditingInfo] = useState(false);
   const [editInfoData, setEditInfoData] = useState({});
+  const [editKind, setEditKind] = useState('individual'); // 'individual' | 'empresa'
   const [savingInfo, setSavingInfo] = useState(false);
 
   // Property form
@@ -137,13 +138,18 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       notes: client.notes ?? '',
       report_name_source: client.report_name_source ?? 'client',
     });
+    setEditKind(client.company && client.company === client.name ? 'empresa' : 'individual');
     setEditingInfo(true);
   }
 
   async function saveInfo(e) {
     e.preventDefault();
+    if (editKind === 'empresa' && !editInfoData.company.trim()) return;
     setSavingInfo(true);
-    await supabase.from('clients').update(editInfoData).eq('id', client.id);
+    const payload = editKind === 'empresa'
+      ? { ...editInfoData, name: editInfoData.company.trim(), report_name_source: 'company' }
+      : editInfoData;
+    await supabase.from('clients').update(payload).eq('id', client.id);
     setSavingInfo(false);
     setEditingInfo(false);
     router.refresh();
@@ -371,15 +377,37 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
 
               {editingInfo ? (
                 <form onSubmit={saveInfo}>
+                  <div className="form-group" style={{ marginBottom: 12 }}>
+                    <label>Este cliente es</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" onClick={() => setEditKind('individual')}
+                        style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editKind === 'individual' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editKind === 'individual' ? 'var(--navy)' : 'transparent', color: editKind === 'individual' ? '#fff' : 'var(--text)' }}>
+                        Individual
+                      </button>
+                      <button type="button" onClick={() => setEditKind('empresa')}
+                        style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editKind === 'empresa' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editKind === 'empresa' ? 'var(--navy)' : 'transparent', color: editKind === 'empresa' ? '#fff' : 'var(--text)' }}>
+                        Empresa
+                      </button>
+                    </div>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                    <div className="form-group">
-                      <label>Nombre *</label>
-                      <input value={editInfoData.name} onChange={e => setEditInfoData(d => ({ ...d, name: e.target.value }))} required />
-                    </div>
-                    <div className="form-group">
-                      <label>Empresa</label>
-                      <input value={editInfoData.company} onChange={e => setEditInfoData(d => ({ ...d, company: e.target.value }))} />
-                    </div>
+                    {editKind === 'empresa' ? (
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label>Nombre de la empresa *</label>
+                        <input value={editInfoData.company} onChange={e => setEditInfoData(d => ({ ...d, company: e.target.value }))} required />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="form-group">
+                          <label>Nombre *</label>
+                          <input value={editInfoData.name} onChange={e => setEditInfoData(d => ({ ...d, name: e.target.value }))} required />
+                        </div>
+                        <div className="form-group">
+                          <label>Empresa</label>
+                          <input value={editInfoData.company} onChange={e => setEditInfoData(d => ({ ...d, company: e.target.value }))} />
+                        </div>
+                      </>
+                    )}
                     <div className="form-group">
                       <label>Email</label>
                       <input type="email" value={editInfoData.email} onChange={e => setEditInfoData(d => ({ ...d, email: e.target.value }))} />
@@ -400,7 +428,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       <textarea value={editInfoData.notes} onChange={e => setEditInfoData(d => ({ ...d, notes: e.target.value }))} />
                     </div>
                   </div>
-                  {editInfoData.company.trim() && (
+                  {editKind === 'individual' && editInfoData.company.trim() && (
                     <div className="form-group" style={{ marginBottom: 12 }}>
                       <label>Nombre en reportes</label>
                       <div style={{ display: 'flex', gap: 8 }}>
