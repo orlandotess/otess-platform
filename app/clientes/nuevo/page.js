@@ -6,6 +6,7 @@ import Sidebar from '../../Sidebar';
 
 export default function NuevoCliente() {
   const router = useRouter();
+  const [kind, setKind] = useState('individual'); // 'individual' | 'empresa'
   const [form, setForm] = useState({
     name: '', client_type: 'final', email: '', phone: '', company: '', notes: '',
   });
@@ -18,11 +19,16 @@ export default function NuevoCliente() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.name.trim()) { setError('El nombre es requerido'); return; }
+    const isEmpresa = kind === 'empresa';
+    if (isEmpresa && !form.company.trim()) { setError('El nombre de la empresa es requerido'); return; }
+    if (!isEmpresa && !form.name.trim()) { setError('El nombre es requerido'); return; }
     setSaving(true);
     setError('');
+    const payload = isEmpresa
+      ? { ...form, name: form.company.trim(), report_name_source: 'company' }
+      : form;
     const { data: client, error: err } = await supabase
-      .from('clients').insert([form]).select().single();
+      .from('clients').insert([payload]).select().single();
     if (err) { setError(err.message); setSaving(false); return; }
     if (addr.line1.trim()) {
       await supabase.from('client_addresses').insert([{
@@ -43,11 +49,32 @@ export default function NuevoCliente() {
           <form onSubmit={handleSubmit}>
             {error && <p style={{ color: 'var(--warn)', marginBottom: 16, fontSize: 14 }}>{error}</p>}
 
-            <div className="form-row">
-              <div className="form-group">
-                <label>Nombre *</label>
-                <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Juan García" />
+            <div className="form-group">
+              <label>Este cliente es</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => setKind('individual')}
+                  style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: kind === 'individual' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: kind === 'individual' ? 'var(--navy)' : 'transparent', color: kind === 'individual' ? '#fff' : 'var(--text)' }}>
+                  Individual
+                </button>
+                <button type="button" onClick={() => setKind('empresa')}
+                  style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: kind === 'empresa' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: kind === 'empresa' ? 'var(--navy)' : 'transparent', color: kind === 'empresa' ? '#fff' : 'var(--text)' }}>
+                  Empresa
+                </button>
               </div>
+            </div>
+
+            <div className="form-row">
+              {kind === 'empresa' ? (
+                <div className="form-group">
+                  <label>Nombre de la empresa *</label>
+                  <input value={form.company} onChange={e => set('company', e.target.value)} placeholder="ACME Corp" />
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label>Nombre *</label>
+                  <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Juan García" />
+                </div>
+              )}
               <div className="form-group">
                 <label>Tipo de cliente</label>
                 <select value={form.client_type} onChange={e => set('client_type', e.target.value)}>
@@ -68,10 +95,12 @@ export default function NuevoCliente() {
               </div>
             </div>
 
-            <div className="form-group">
-              <label>Empresa / Negocio</label>
-              <input value={form.company} onChange={e => set('company', e.target.value)} placeholder="Nombre de la empresa (opcional)" />
-            </div>
+            {kind === 'individual' && (
+              <div className="form-group">
+                <label>Empresa / Negocio</label>
+                <input value={form.company} onChange={e => set('company', e.target.value)} placeholder="Nombre de la empresa (opcional)" />
+              </div>
+            )}
 
             <div className="form-group">
               <label>Notas</label>
