@@ -18,6 +18,10 @@ export default async function EstimaDetail({ params }) {
 
   const { data: items } = await supabase.from('estimate_line_items').select('*').eq('estimate_id', id).order('sort_order');
 
+  const { data: clientContacts } = est.client_id
+    ? await supabase.from('client_contacts').select('id, name, email').eq('client_id', est.client_id)
+    : { data: [] };
+
   const primaryAddr = est.clients?.client_addresses?.find(a => a.is_primary) ?? est.clients?.client_addresses?.[0];
   const clientProperties = est.clients?.client_properties ?? [];
   const property = est.property_id
@@ -54,6 +58,7 @@ export default async function EstimaDetail({ params }) {
             propertyId={est.property_id ?? null}
             terms={est.terms ?? ''}
             items={items ?? []}
+            clientContacts={clientContacts ?? []}
           />
         </div>
 

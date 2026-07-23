@@ -9,7 +9,7 @@ const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar sop
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
-export default function EstimateActions({ estimateId, status, clientEmail, estimateNumber, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', items = [] }) {
+export default function EstimateActions({ estimateId, status, clientEmail, estimateNumber, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', items = [], clientContacts = [] }) {
   const router = useRouter();
   const [showEmail, setShowEmail] = useState(false);
   const [showEditNumber, setShowEditNumber] = useState(false);
@@ -22,10 +22,18 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
   const [propertyId, setPropertyId] = useState(initialPropertyId || '');
   const [terms, setTerms] = useState(initialTerms || DEFAULT_TERMS);
   const [emailTo, setEmailTo] = useState(clientEmail || '');
+  const [emailCc, setEmailCc] = useState([]);
+  const [emailCcExtra, setEmailCcExtra] = useState('');
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+
+  const toOptions = [
+    ...(clientEmail ? [{ label: clientName ? `${clientName} (cliente)` : 'Cliente', email: clientEmail }] : []),
+    ...clientContacts.filter(c => c.email).map(c => ({ label: c.name, email: c.email })),
+  ];
+  const isCustomEmail = !toOptions.some(o => o.email === emailTo);
 
   async function handlePdf() {
     setGeneratingPdf(true);
@@ -42,13 +50,19 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
     router.refresh();
   }
 
+  function toggleCcContact(email) {
+    setEmailCc(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
+  }
+
   async function sendEmail(e) {
     e.preventDefault();
     setSending(true);
+    const extraCc = emailCcExtra.split(',').map(s => s.trim()).filter(Boolean);
+    const cc = [...new Set([...emailCc, ...extraCc])];
     const res = await fetch('/api/send-estimate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estimateId, toEmail: emailTo }),
+      body: JSON.stringify({ estimateId, toEmail: emailTo, cc }),
     });
     const data = await res.json();
     setSending(false);
@@ -257,10 +271,39 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Enviar estimado por email</h2>
             <form onSubmit={sendEmail}>
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Email del cliente</label>
-                <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="cliente@email.com" required />
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label>Para</label>
+                {toOptions.length > 0 && (
+                  <select value={isCustomEmail ? '__custom__' : emailTo} onChange={e => setEmailTo(e.target.value === '__custom__' ? '' : e.target.value)}>
+                    {toOptions.map(o => <option key={o.email} value={o.email}>{o.label} — {o.email}</option>)}
+                    <option value="__custom__">Otro correo...</option>
+                  </select>
+                )}
+                {(toOptions.length === 0 || isCustomEmail) && (
+                  <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="cliente@email.com" required autoFocus={toOptions.length > 0} style={toOptions.length > 0 ? { marginTop: 8 } : undefined} />
+                )}
               </div>
+
+              {clientContacts.filter(c => c.email).length > 0 && (
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <label>Copiar a (CC)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1.5px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+                    {clientContacts.filter(c => c.email).map(c => (
+                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={emailCc.includes(c.email)} onChange={() => toggleCcContact(c.email)} />
+                        <span style={{ fontWeight: 600 }}>{c.name}</span>
+                        <span style={{ color: 'var(--muted)' }}>{c.email}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label>Otros correos en copia (opcional)</label>
+                <input value={emailCcExtra} onChange={e => setEmailCcExtra(e.target.value)} placeholder="correo1@ejemplo.com, correo2@ejemplo.com" />
+              </div>
+
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sending} style={{ flex: 1, justifyContent: 'center' }}>
                   {sending ? 'Enviando...' : '📧 Enviar'}

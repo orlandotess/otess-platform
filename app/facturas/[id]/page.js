@@ -23,6 +23,10 @@ export default async function FacturaDetail({ params }) {
 
   if (!inv) return <div style={{ padding: 40 }}>Factura no encontrada</div>;
 
+  const { data: clientContacts } = inv.client_id
+    ? await supabase.from('client_contacts').select('id, name, email').eq('client_id', inv.client_id)
+    : { data: [] };
+
   const totalPaid = payments?.reduce((a, p) => a + Number(p.amount), 0) ?? 0;
   const totalRetained = invoiceRetenciones?.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0) ?? 0;
   const balance = Number(inv.total) - totalPaid - totalRetained;
@@ -89,6 +93,8 @@ export default async function FacturaDetail({ params }) {
               status={inv.status}
               balance={balance}
               invoiceNumber={inv.invoice_number}
+              clientEmail={inv.clients?.email}
+              clientContacts={clientContacts ?? []}
               clientName={inv.clients?.name}
               clientCompany={inv.clients?.company}
               billTo={inv.bill_to ?? 'person'}

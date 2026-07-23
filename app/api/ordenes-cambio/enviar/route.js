@@ -11,7 +11,8 @@ export async function POST(request) {
       return Response.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const { orderId, toEmail } = await request.json();
+    const { orderId, toEmail, cc } = await request.json();
+    const ccList = Array.isArray(cc) ? cc.filter(Boolean) : [];
     const [{ data: order }, { data: items }] = await Promise.all([
       supabase.from('change_orders').select('*, clients(name, email, company, client_type)').eq('id', orderId).single(),
       supabase.from('change_order_line_items').select('*').eq('change_order_id', orderId).order('sort_order'),
@@ -98,6 +99,7 @@ export async function POST(request) {
     const { error } = await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: toEmail,
+      ...(ccList.length ? { cc: ccList } : {}),
       subject: `Orden de cambio ${order.change_order_number} — requiere tu aprobación`,
       html,
     });

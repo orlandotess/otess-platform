@@ -11,7 +11,8 @@ export async function POST(request) {
       return Response.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const { estimateId, toEmail } = await request.json();
+    const { estimateId, toEmail, cc } = await request.json();
+    const ccList = Array.isArray(cc) ? cc.filter(Boolean) : [];
     const [{ data: est }, { data: items }] = await Promise.all([
       supabase.from('estimates').select('*, clients(name, email, company, client_type)').eq('id', estimateId).single(),
       supabase.from('estimate_line_items').select('*').eq('estimate_id', estimateId).order('sort_order'),
@@ -103,6 +104,7 @@ export async function POST(request) {
     const { error } = await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: toEmail,
+      ...(ccList.length ? { cc: ccList } : {}),
       subject: `Estimado ${est.estimate_number} — OT Electrical & Security Solutions`,
       html,
     });

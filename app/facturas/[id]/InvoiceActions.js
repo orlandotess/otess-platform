@@ -17,7 +17,7 @@ const TERMS_TEMPLATES = [
   { key: 'standard', label: 'Garantía estándar', text: DEFAULT_TERMS },
 ];
 
-export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [], internalNotes: initialInternalNotes = '', internalAttachments: initialInternalAttachments = [], clientId = null, subtotalLabor = 0, existingRetenciones = [], issuedAt = null }) {
+export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [], internalNotes: initialInternalNotes = '', internalAttachments: initialInternalAttachments = [], clientId = null, subtotalLabor = 0, existingRetenciones = [], issuedAt = null, clientContacts = [] }) {
   const router = useRouter();
   const [showPayment, setShowPayment] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
@@ -48,11 +48,19 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   const [retenciones, setRetenciones] = useState(existingRetenciones);
   const [payment, setPayment] = useState({ amount: balance || '', method: 'cash', reference: '', notes: '', paid_at: new Date().toISOString().split('T')[0] });
   const [emailTo, setEmailTo] = useState(clientEmail || '');
+  const [emailCc, setEmailCc] = useState([]);
+  const [emailCcExtra, setEmailCcExtra] = useState('');
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+
+  const toOptions = [
+    ...(clientEmail ? [{ label: clientName ? `${clientName} (cliente)` : 'Cliente', email: clientEmail }] : []),
+    ...clientContacts.filter(c => c.email).map(c => ({ label: c.name, email: c.email })),
+  ];
+  const isCustomEmail = !toOptions.some(o => o.email === emailTo);
 
   async function handlePdf() {
     setGeneratingPdf(true);
@@ -109,13 +117,19 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
     router.refresh();
   }
 
+  function toggleCcContact(email) {
+    setEmailCc(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
+  }
+
   async function sendEmail(e) {
     e.preventDefault();
     setSending(true);
+    const extraCc = emailCcExtra.split(',').map(s => s.trim()).filter(Boolean);
+    const cc = [...new Set([...emailCc, ...extraCc])];
     const res = await fetch('/api/send-invoice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invoiceId, toEmail: emailTo }),
+      body: JSON.stringify({ invoiceId, toEmail: emailTo, cc }),
     });
     const data = await res.json();
     setSending(false);
@@ -595,10 +609,39 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Enviar factura por email</h2>
             <form onSubmit={sendEmail}>
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Email del cliente</label>
-                <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="cliente@email.com" required />
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label>Para</label>
+                {toOptions.length > 0 && (
+                  <select value={isCustomEmail ? '__custom__' : emailTo} onChange={e => setEmailTo(e.target.value === '__custom__' ? '' : e.target.value)}>
+                    {toOptions.map(o => <option key={o.email} value={o.email}>{o.label} — {o.email}</option>)}
+                    <option value="__custom__">Otro correo...</option>
+                  </select>
+                )}
+                {(toOptions.length === 0 || isCustomEmail) && (
+                  <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="cliente@email.com" required autoFocus={toOptions.length > 0} style={toOptions.length > 0 ? { marginTop: 8 } : undefined} />
+                )}
               </div>
+
+              {clientContacts.filter(c => c.email).length > 0 && (
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <label>Copiar a (CC)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1.5px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+                    {clientContacts.filter(c => c.email).map(c => (
+                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={emailCc.includes(c.email)} onChange={() => toggleCcContact(c.email)} />
+                        <span style={{ fontWeight: 600 }}>{c.name}</span>
+                        <span style={{ color: 'var(--muted)' }}>{c.email}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label>Otros correos en copia (opcional)</label>
+                <input value={emailCcExtra} onChange={e => setEmailCcExtra(e.target.value)} placeholder="correo1@ejemplo.com, correo2@ejemplo.com" />
+              </div>
+
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sending} style={{ flex: 1, justifyContent: 'center' }}>
                   {sending ? 'Enviando...' : '📧 Enviar'}

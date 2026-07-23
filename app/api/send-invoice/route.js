@@ -16,7 +16,8 @@ export async function POST(request) {
       }
     }
 
-    const { invoiceId, toEmail } = await request.json();
+    const { invoiceId, toEmail, cc } = await request.json();
+    const ccList = Array.isArray(cc) ? cc.filter(Boolean) : [];
     const [{ data: inv }, { data: items }] = await Promise.all([
       supabase.from('invoices').select('*, clients(name, email, company, client_type)').eq('id', invoiceId).single(),
       supabase.from('invoice_line_items').select('*').eq('invoice_id', invoiceId).order('sort_order'),
@@ -109,6 +110,7 @@ export async function POST(request) {
     const { error } = await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: toEmail,
+      ...(ccList.length ? { cc: ccList } : {}),
       subject: `Factura ${inv.invoice_number} — OT Electrical & Security Solutions`,
       html,
     });

@@ -28,6 +28,10 @@ export default async function OrdenCambioDetail({ params }) {
 
   const { data: items } = await supabase.from('change_order_line_items').select('*').eq('change_order_id', id).order('sort_order');
 
+  const { data: clientContacts } = order.client_id
+    ? await supabase.from('client_contacts').select('id, name, email').eq('client_id', order.client_id)
+    : { data: [] };
+
   const itemsWithSignedUrls = await Promise.all(
     (items ?? []).map(async it => {
       if (!it.photo_url) return it;
@@ -56,8 +60,10 @@ export default async function OrdenCambioDetail({ params }) {
             orderId={id}
             status={order.status}
             clientEmail={order.clients?.email}
+            clientName={order.clients?.name}
             orderNumber={order.change_order_number}
             publicToken={order.public_token}
+            clientContacts={clientContacts ?? []}
           />
         </div>
 
