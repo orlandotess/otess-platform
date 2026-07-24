@@ -41,7 +41,6 @@ const accountingLinks = [
 
 const adminLinks = [
  { href: '/admin/usuarios', label: 'Usuarios', icon: 'user' },
- { href: '/admin/empresa', label: 'Empresa', icon: 'building' },
  { href: '/admin/ausencias', label: 'Ausencias', icon: 'userOff' },
 ];
 
@@ -57,6 +56,7 @@ const sections = [
 // still searchable so the sidebar search can reach the whole platform.
 const extraSearchableLinks = [
  { href: '/facturas/recurrentes', label: 'Facturas · Recurrentes', icon: 'receipt' },
+ { href: '/propuestas/empresa', label: 'Propuestas · Empresa', icon: 'building' },
 ];
 
 const searchableLinks = [

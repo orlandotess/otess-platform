@@ -12,16 +12,19 @@ export default function EmpresaClient({ settings }) {
   const [aboutUs, setAboutUs] = useState(settings?.about_us ?? DEFAULT_ABOUT_US);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
 
   async function handleSave(e) {
     e.preventDefault();
-    setSaving(true); setSaved(false);
-    if (settings?.id) {
-      await supabase.from('company_settings').update({ about_us: aboutUs, updated_at: new Date().toISOString() }).eq('id', settings.id);
-    } else {
-      await supabase.from('company_settings').insert([{ about_us: aboutUs }]);
-    }
+    setSaving(true); setSaved(false); setError(null);
+    const { error: dbError } = settings?.id
+      ? await supabase.from('company_settings').update({ about_us: aboutUs, updated_at: new Date().toISOString() }).eq('id', settings.id)
+      : await supabase.from('company_settings').insert([{ about_us: aboutUs }]);
     setSaving(false);
+    if (dbError) {
+      setError(dbError.message);
+      return;
+    }
     setSaved(true);
     router.refresh();
     setTimeout(() => setSaved(false), 2500);
@@ -42,6 +45,7 @@ export default function EmpresaClient({ settings }) {
             {saving ? 'Guardando...' : 'Guardar'}
           </button>
           {saved && <span style={{ color: 'var(--ok)', fontSize: 13, fontWeight: 600 }}>✓ Guardado</span>}
+          {error && <span style={{ color: 'var(--danger, #c0392b)', fontSize: 13, fontWeight: 600 }}>Error: {error}</span>}
         </div>
       </form>
     </div>

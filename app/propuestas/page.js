@@ -48,6 +48,7 @@ export default async function PropuestasPage({ searchParams }) {
             ) : (
               <Link href="/propuestas?archived=1" className="btn btn-ghost">📦 Ver archivadas{archivedCount ? ` (${archivedCount})` : ''}</Link>
             )}
+            <Link href="/propuestas/empresa" className="btn btn-ghost">⚙ Empresa</Link>
             <Link href="/facturas/nueva" className="btn btn-ghost">+ Nueva factura</Link>
             <Link href="/propuestas/nuevo" className="btn btn-primary">+ Nueva propuesta</Link>
           </div>
