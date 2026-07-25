@@ -89,12 +89,17 @@ export default async function AccountingFacturas({ searchParams }) {
     collectedByInvoice[p.invoice_id] = (collectedByInvoice[p.invoice_id] ?? 0) + Number(p.amount ?? 0);
   });
 
+  const owed = i => Math.max(Number(i.total ?? 0) - (collectedByInvoice[i.id] ?? 0), 0);
+  // Counts any non-draft, non-cancelled invoice with a real balance left —
+  // including ones mislabeled "paid" whose recorded payments don't cover the
+  // total — so this matches the per-invoice "Pendiente" column/footer below
+  // instead of trusting the status field alone.
+  const owedInvs = invs.filter(i => i.status !== 'draft' && i.status !== 'cancelled');
   const totalFacturado = invs.reduce((a, i) => a + Number(i.total ?? 0), 0);
   const totalCobrado = invs.reduce((a, i) => a + (collectedByInvoice[i.id] ?? 0), 0);
-  const totalPendiente = invs.filter(i => i.status === 'sent')
-    .reduce((a, i) => a + Number(i.total ?? 0) - (collectedByInvoice[i.id] ?? 0), 0);
-  const totalVencido = invs.filter(i => i.status === 'sent' && i.due_at && i.due_at < today)
-    .reduce((a, i) => a + Number(i.total ?? 0) - (collectedByInvoice[i.id] ?? 0), 0);
+  const totalPendiente = owedInvs.reduce((a, i) => a + owed(i), 0);
+  const totalVencido = owedInvs.filter(i => i.due_at && i.due_at < today)
+    .reduce((a, i) => a + owed(i), 0);
   const totalIVU = invs.reduce((a, i) => a + Number(i.tax_products ?? 0) + Number(i.tax_labor ?? 0), 0);
 
   const years = [currentYear, currentYear - 1, currentYear - 2];
@@ -217,7 +222,7 @@ export default async function AccountingFacturas({ searchParams }) {
           </div>
         </div>
 
-        <FacturasTableClient invs={invs} totalFacturado={totalFacturado} />
+        <FacturasTableClient invs={invs} totalFacturado={totalFacturado} collectedByInvoice={collectedByInvoice} />
       </main>
     </div>
   );
