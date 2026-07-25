@@ -81,15 +81,28 @@ export default async function AccountingFacturas({ searchParams }) {
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const invoiceIds = invs.map(i => i.id);
-  const { data: paymentsData } = invoiceIds.length
-    ? await supabase.from('payments').select('invoice_id, amount').in('invoice_id', invoiceIds)
-    : { data: [] };
+  const [{ data: paymentsData }, { data: retencionesData }] = invoiceIds.length
+    ? await Promise.all([
+        supabase.from('payments').select('invoice_id, amount').in('invoice_id', invoiceIds),
+        supabase.from('retenciones').select('invoice_id, retencion_aplicada').in('invoice_id', invoiceIds),
+      ])
+    : [{ data: [] }, { data: [] }];
   const collectedByInvoice = {};
   (paymentsData ?? []).forEach(p => {
     collectedByInvoice[p.invoice_id] = (collectedByInvoice[p.invoice_id] ?? 0) + Number(p.amount ?? 0);
   });
+  const retenidoByInvoice = {};
+  (retencionesData ?? []).forEach(r => {
+    if (!r.invoice_id) return;
+    retenidoByInvoice[r.invoice_id] = (retenidoByInvoice[r.invoice_id] ?? 0) + Number(r.retencion_aplicada ?? 0);
+  });
 
-  const owed = i => Math.max(Number(i.total ?? 0) - (collectedByInvoice[i.id] ?? 0), 0);
+  // A client's 10%-labor retención (see Retenciones) is money legally withheld
+  // and remitted to Hacienda on the invoice's behalf, not an unpaid balance —
+  // so it's netted out here alongside cash payments before anything counts as
+  // "owed". Only invoices with a retención already logged get the credit; an
+  // un-logged shortfall still shows as pendiente until someone records it.
+  const owed = i => Math.max(Number(i.total ?? 0) - (collectedByInvoice[i.id] ?? 0) - (retenidoByInvoice[i.id] ?? 0), 0);
   // Counts any non-draft, non-cancelled invoice with a real balance left —
   // including ones mislabeled "paid" whose recorded payments don't cover the
   // total — so this matches the per-invoice "Pendiente" column/footer below
@@ -222,7 +235,7 @@ export default async function AccountingFacturas({ searchParams }) {
           </div>
         </div>
 
-        <FacturasTableClient invs={invs} totalFacturado={totalFacturado} collectedByInvoice={collectedByInvoice} />
+        <FacturasTableClient invs={invs} totalFacturado={totalFacturado} collectedByInvoice={collectedByInvoice} retenidoByInvoice={retenidoByInvoice} />
       </main>
     </div>
   );

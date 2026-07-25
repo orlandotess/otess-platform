@@ -10,7 +10,7 @@ const statusBadge = {
   cancelled: { cls: 'badge-red',   label: 'Cancelada' },
 };
 
-export default function FacturasTableClient({ invs, totalFacturado, collectedByInvoice = {} }) {
+export default function FacturasTableClient({ invs, totalFacturado, collectedByInvoice = {}, retenidoByInvoice = {} }) {
   const [search, setSearch] = useState('');
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const today = new Date().toISOString().slice(0, 10);
@@ -19,7 +19,11 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
   const query = search.trim().toLowerCase();
   const clientDisplay = inv => inv.bill_to === 'company' && inv.clients?.company ? inv.clients.company : inv.clients?.name ?? '—';
   const cobrado = inv => collectedByInvoice[inv.id] ?? 0;
-  const pendiente = inv => Math.max(Number(inv.total ?? 0) - cobrado(inv), 0);
+  const retenido = inv => retenidoByInvoice[inv.id] ?? 0;
+  // Retención (10% labor withholding, see Retenciones) is money remitted to
+  // Hacienda on the client's behalf, not an unpaid balance — netted out
+  // alongside cash collected before anything counts as still owed.
+  const pendiente = inv => Math.max(Number(inv.total ?? 0) - cobrado(inv) - retenido(inv), 0);
   const visible = query
     ? invs.filter(inv => inv.invoice_number?.toLowerCase().includes(query) || clientDisplay(inv).toLowerCase().includes(query))
     : invs;
@@ -49,6 +53,7 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
                 <th style={{ textAlign: 'right' }}>IVU Labor</th>
                 <th style={{ textAlign: 'right' }}>Total</th>
                 <th style={{ textAlign: 'right' }}>Cobrado</th>
+                <th style={{ textAlign: 'right' }}>Retención</th>
                 <th style={{ textAlign: 'right' }}>Pendiente</th>
                 <th></th>
               </tr>
@@ -59,6 +64,7 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
                 const b = overdue ? { cls: 'badge-red', label: 'Vencida' } : (statusBadge[inv.status] ?? statusBadge.draft);
                 const subtotal = Number(inv.subtotal_products ?? 0) + Number(inv.subtotal_labor ?? 0);
                 const pend = pendiente(inv);
+                const ret = retenido(inv);
                 return (
                   <tr key={inv.id}>
                     <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{inv.invoice_number}</td>
@@ -72,6 +78,7 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
                     <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(inv.tax_labor)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(inv.total)}</td>
                     <td style={{ textAlign: 'right', color: 'var(--ok)' }}>{fmt(cobrado(inv))}</td>
+                    <td style={{ textAlign: 'right', color: ret > 0 ? 'var(--navy)' : 'var(--muted)' }}>{fmt(ret)}</td>
                     <td style={{ textAlign: 'right', fontWeight: pend > 0 ? 700 : 400, color: pend > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmt(pend)}</td>
                     <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                   </tr>
@@ -86,6 +93,7 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(visible.reduce((a, i) => a + Number(i.tax_labor ?? 0), 0))}</td>
                 <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(visible.reduce((a, i) => a + Number(i.total ?? 0), 0))}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12, color: 'var(--ok)' }}>{fmt(visible.reduce((a, i) => a + cobrado(i), 0))}</td>
+                <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12, color: 'var(--navy)' }}>{fmt(visible.reduce((a, i) => a + retenido(i), 0))}</td>
                 <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, paddingTop: 12, color: 'var(--amber)' }}>{fmt(visible.reduce((a, i) => a + pendiente(i), 0))}</td>
                 <td></td>
               </tr>
