@@ -3,7 +3,7 @@ import { useState, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { buildMapsLinks } from '../../../lib/mapsLinks';
+import { buildMapsLinks, pickMapsLink } from '../../../lib/mapsLinks';
 import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 import SearchBox from '../../SearchBox';
@@ -34,6 +34,9 @@ const statusTicket = {
   cerrado: { cls: 'badge-gray', label: 'Cerrado' },
 };
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function jobLocation(j) {
+  return [j.property_name, j.city].filter(Boolean).join(' — ');
+}
 
 function extractCoordsFromInput(text) {
   const trimmed = text.trim();
@@ -927,14 +930,27 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Título</th><th>Estado</th><th>Fecha</th><th></th></tr>
+                  <tr><th>Título</th><th>Propiedad</th><th>Estado</th><th>Fecha</th><th></th></tr>
                 </thead>
                 <tbody>
                   {jobs.map(j => {
                     const b = statusJob[j.status] ?? statusJob.estimate;
+                    const loc = jobLocation(j);
                     return (
                       <tr key={j.id}>
                         <td style={{ fontWeight: 600 }}>{j.title}</td>
+                        <td style={{ fontSize: 13 }}>
+                          {loc ? (
+                            (j.street || j.city) ? (
+                              <a href={pickMapsLink(j.street, j.city, j.state, j.zip)} target="_blank" rel="noopener noreferrer"
+                                style={{ color: 'var(--amber)', fontWeight: 600 }}>
+                                📍 {loc}
+                              </a>
+                            ) : (
+                              <span style={{ color: 'var(--muted)' }}>{loc}</span>
+                            )
+                          ) : <span style={{ color: 'var(--muted)' }}>—</span>}
+                        </td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}</td>
                         <td><Link href={`/trabajos/${j.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
