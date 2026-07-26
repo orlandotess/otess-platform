@@ -113,6 +113,11 @@ export default async function AccountingFacturas({ searchParams }) {
   const totalPendiente = owedInvs.reduce((a, i) => a + owed(i), 0);
   const totalVencido = owedInvs.filter(i => i.due_at && i.due_at < today)
     .reduce((a, i) => a + owed(i), 0);
+  // So Facturado = Cobrado + Retenido + Pendiente reconciles visibly in the
+  // stats row — without this, Facturado - Cobrado looked like an unexplained
+  // gap whenever a client's 10%-labor retención covered it instead of a
+  // late payment.
+  const totalRetenido = invs.reduce((a, i) => a + (retenidoByInvoice[i.id] ?? 0), 0);
   const totalIVU = invs.reduce((a, i) => a + Number(i.tax_products ?? 0) + Number(i.tax_labor ?? 0), 0);
 
   const years = [currentYear, currentYear - 1, currentYear - 2];
@@ -212,7 +217,7 @@ export default async function AccountingFacturas({ searchParams }) {
         </div>
 
         {/* Stats */}
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: 20 }}>
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', marginBottom: 20 }}>
           <div className="stat-card">
             <div className="stat-label">Facturado</div>
             <div className="stat-value">{fmt(totalFacturado)}</div>
@@ -220,6 +225,10 @@ export default async function AccountingFacturas({ searchParams }) {
           <div className="stat-card">
             <div className="stat-label">Cobrado</div>
             <div className="stat-value" style={{ color: 'var(--ok)' }}>{fmt(totalCobrado)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Retenido</div>
+            <div className="stat-value" style={{ color: 'var(--navy)' }}>{fmt(totalRetenido)}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Pendiente</div>
