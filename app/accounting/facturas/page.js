@@ -103,22 +103,19 @@ export default async function AccountingFacturas({ searchParams }) {
   // "owed". Only invoices with a retención already logged get the credit; an
   // un-logged shortfall still shows as pendiente until someone records it.
   const owed = i => Math.max(Number(i.total ?? 0) - (collectedByInvoice[i.id] ?? 0) - (retenidoByInvoice[i.id] ?? 0), 0);
-  // Counts any non-draft, non-cancelled invoice with a real balance left —
-  // including ones mislabeled "paid" whose recorded payments don't cover the
-  // total — so this matches the per-invoice "Pendiente" column/footer below
-  // instead of trusting the status field alone.
+  // A draft isn't a real obligation yet (never sent to the client) and a
+  // cancelled one is void, so neither counts toward Facturado/Cobrado/
+  // Retenido/Pendiente — every stat below is computed from this same set,
+  // which is what keeps Facturado = Cobrado + Retenido + Pendiente reconciling
+  // exactly instead of drifting by whatever's still in draft.
   const owedInvs = invs.filter(i => i.status !== 'draft' && i.status !== 'cancelled');
-  const totalFacturado = invs.reduce((a, i) => a + Number(i.total ?? 0), 0);
-  const totalCobrado = invs.reduce((a, i) => a + (collectedByInvoice[i.id] ?? 0), 0);
+  const totalFacturado = owedInvs.reduce((a, i) => a + Number(i.total ?? 0), 0);
+  const totalCobrado = owedInvs.reduce((a, i) => a + (collectedByInvoice[i.id] ?? 0), 0);
   const totalPendiente = owedInvs.reduce((a, i) => a + owed(i), 0);
   const totalVencido = owedInvs.filter(i => i.due_at && i.due_at < today)
     .reduce((a, i) => a + owed(i), 0);
-  // So Facturado = Cobrado + Retenido + Pendiente reconciles visibly in the
-  // stats row — without this, Facturado - Cobrado looked like an unexplained
-  // gap whenever a client's 10%-labor retención covered it instead of a
-  // late payment.
-  const totalRetenido = invs.reduce((a, i) => a + (retenidoByInvoice[i.id] ?? 0), 0);
-  const totalIVU = invs.reduce((a, i) => a + Number(i.tax_products ?? 0) + Number(i.tax_labor ?? 0), 0);
+  const totalRetenido = owedInvs.reduce((a, i) => a + (retenidoByInvoice[i.id] ?? 0), 0);
+  const totalIVU = owedInvs.reduce((a, i) => a + Number(i.tax_products ?? 0) + Number(i.tax_labor ?? 0), 0);
 
   const years = [currentYear, currentYear - 1, currentYear - 2];
   const { weekStart, weekEnd } = getWeekRange(weekOffset);
