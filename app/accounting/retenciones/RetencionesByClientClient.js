@@ -32,6 +32,50 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
     retenido: acc.retenido + Number(c.totalRetenido ?? 0),
   }), { count: 0, facturado: 0, calculado: 0, retenido: 0 });
 
+  function downloadCSV(filename, headers, rows) {
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportSummaryCSV() {
+    const headers = ['Cliente', 'Transacciones', 'Total facturado', 'Total calculado', 'Total retenido', `Exención ${exemptionYear}`];
+    const rows = visible.map(c => [
+      c.name,
+      c.count,
+      Number(c.totalFacturado ?? 0).toFixed(2),
+      Number(c.totalCalculado ?? 0).toFixed(2),
+      Number(c.totalRetenido ?? 0).toFixed(2),
+      c.exemption?.exhausted ? 'Agotada' : `${fmt(c.exemption?.remainingExemption ?? 500)} disponible`,
+    ]);
+    downloadCSV(`Retenciones_por_cliente_${exemptionYear}.csv`, headers, rows);
+  }
+
+  function exportHistoryCSV() {
+    const headers = ['Fecha', 'Facturado', 'Exento', 'Base', 'Calculado', 'Aplicado', '# Comprobante', 'Estado'];
+    const rows = history.map(r => [
+      r.fecha ?? '',
+      Number(r.monto_facturado ?? 0).toFixed(2),
+      Number(r.monto_exento ?? 0).toFixed(2),
+      Number(r.base_retencion ?? 0).toFixed(2),
+      Number(r.retencion_calculada ?? 0).toFixed(2),
+      Number(r.retencion_aplicada ?? 0).toFixed(2),
+      r.numero_comprobante ?? '',
+      r.estado ?? '',
+    ]);
+    const safeName = selected.name.replace(/[^a-z0-9]+/gi, '_');
+    downloadCSV(`Retenciones_${safeName}.csv`, headers, rows);
+  }
+
   // The detail panel renders below the client list, so scroll it into view —
   // otherwise selecting a client can look like the click did nothing.
   useEffect(() => {
@@ -108,7 +152,10 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Retenciones por cliente</p>
-          <SearchBox value={search} onChange={setSearch} placeholder="Buscar cliente..." />
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <SearchBox value={search} onChange={setSearch} placeholder="Buscar cliente..." />
+            <button onClick={exportSummaryCSV} disabled={visible.length === 0} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>⬇ Exportar CSV</button>
+          </div>
         </div>
         {clientTotals.length === 0 ? (
           <div className="empty"><p>No hay retenciones registradas todavía.</p></div>
@@ -170,9 +217,14 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
         <div className="card" ref={detailRef}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
             <p style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{selected.name}</p>
-            <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-              {showForm ? 'Cancelar' : '+ Registrar retención'}
-            </button>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              {history.length > 0 && (
+                <button onClick={exportHistoryCSV} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>⬇ Exportar CSV</button>
+              )}
+              <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+                {showForm ? 'Cancelar' : '+ Registrar retención'}
+              </button>
+            </div>
           </div>
 
           {selected.exemption && (
