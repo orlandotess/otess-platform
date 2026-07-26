@@ -113,7 +113,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>Historial de retenciones — {selected.name}</p>
               {retenciones.length > 0 && (
-                <SearchBox value={retencionSearch} onChange={setRetencionSearch} placeholder="Buscar # factura o comprobante..." />
+                <SearchBox value={retencionSearch} onChange={setRetencionSearch} placeholder="Buscar # factura, comprobante o fecha..." />
               )}
             </div>
             {loadingRetenciones ? (
@@ -125,7 +125,8 @@ export default function Cliente360Client({ clientTotals, invoices }) {
               const visibleRets = rq
                 ? retenciones.filter(r =>
                     (r.invoices?.invoice_number ?? '').toLowerCase().includes(rq) ||
-                    (r.numero_comprobante ?? '').toLowerCase().includes(rq)
+                    (r.numero_comprobante ?? '').toLowerCase().includes(rq) ||
+                    (r.fecha ?? '').toLowerCase().includes(rq)
                   )
                 : retenciones;
               if (visibleRets.length === 0) return <div className="empty"><p>Sin resultados para "{retencionSearch}".</p></div>;
