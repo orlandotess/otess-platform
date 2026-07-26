@@ -37,6 +37,47 @@ export default function Cliente360Client({ clientTotals, invoices }) {
 
   const clientInvoices = selected ? invoices.filter(i => i.client_id === selected.id) : [];
 
+  const retencionQuery = retencionSearch.trim().toLowerCase();
+  const visibleRetenciones = retencionQuery
+    ? retenciones.filter(r =>
+        (r.invoices?.invoice_number ?? '').toLowerCase().includes(retencionQuery) ||
+        (r.numero_comprobante ?? '').toLowerCase().includes(retencionQuery) ||
+        (r.fecha ?? '').toLowerCase().includes(retencionQuery)
+      )
+    : retenciones;
+
+  function exportRetencionesCSV() {
+    const headers = ['Factura', 'Fecha', 'Total factura', 'Base labor', 'Exento', 'Retenido', 'Neto', '# Comprobante', 'Estado'];
+    const rows = visibleRetenciones.map(r => {
+      const totalFactura = Number(r.invoices?.total ?? r.monto_facturado ?? 0);
+      const retenido = Number(r.retencion_aplicada ?? 0);
+      return [
+        r.invoices?.invoice_number ?? '—',
+        r.fecha ?? '',
+        totalFactura.toFixed(2),
+        Number(r.monto_facturado ?? 0).toFixed(2),
+        Number(r.monto_exento ?? 0).toFixed(2),
+        retenido.toFixed(2),
+        (totalFactura - retenido).toFixed(2),
+        r.numero_comprobante ?? '',
+        r.estado ?? '',
+      ];
+    });
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const safeName = selected.name.replace(/[^a-z0-9]+/gi, '_');
+    link.download = `Retenciones_${safeName}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
       <div className="card" style={{ marginBottom: 20 }}>
@@ -113,7 +154,17 @@ export default function Cliente360Client({ clientTotals, invoices }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>Historial de retenciones — {selected.name}</p>
               {retenciones.length > 0 && (
-                <SearchBox value={retencionSearch} onChange={setRetencionSearch} placeholder="Buscar # factura, comprobante o fecha..." />
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <SearchBox value={retencionSearch} onChange={setRetencionSearch} placeholder="Buscar # factura, comprobante o fecha..." />
+                  <button
+                    onClick={exportRetencionesCSV}
+                    disabled={visibleRetenciones.length === 0}
+                    className="btn btn-ghost"
+                    style={{ padding: '6px 14px', fontSize: 13 }}
+                  >
+                    ⬇ Exportar CSV
+                  </button>
+                </div>
               )}
             </div>
             {loadingRetenciones ? (
@@ -121,14 +172,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
             ) : retenciones.length === 0 ? (
               <div className="empty"><p>Sin retenciones registradas.</p></div>
             ) : (() => {
-              const rq = retencionSearch.trim().toLowerCase();
-              const visibleRets = rq
-                ? retenciones.filter(r =>
-                    (r.invoices?.invoice_number ?? '').toLowerCase().includes(rq) ||
-                    (r.numero_comprobante ?? '').toLowerCase().includes(rq) ||
-                    (r.fecha ?? '').toLowerCase().includes(rq)
-                  )
-                : retenciones;
+              const visibleRets = visibleRetenciones;
               if (visibleRets.length === 0) return <div className="empty"><p>Sin resultados para "{retencionSearch}".</p></div>;
               const totals = visibleRets.reduce((acc, r) => {
                 const totalFactura = Number(r.invoices?.total ?? r.monto_facturado ?? 0);
