@@ -852,11 +852,14 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               date: j.scheduled_start,
               techs: names.size ? [...names].join(', ') : '—',
               href: `/trabajos/${j.id}`,
+              loc: jobLocation(j),
+              mapHref: (j.street || j.city) ? pickMapsLink(j.street, j.city, j.state, j.zip) : null,
             };
           }),
           ...scheduleDays.map(d => {
             const job = jobById[d.job_id];
             const names = techNames([d.technicians]);
+            const loc = job ? jobLocation(job) : '';
             return {
               key: `day-${d.id}`,
               icon: '🚚',
@@ -864,6 +867,8 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               date: d.scheduled_start,
               techs: names.size ? [...names].join(', ') : '—',
               href: job ? `/trabajos/${job.id}` : undefined,
+              loc,
+              mapHref: (job?.street || job?.city) ? pickMapsLink(job.street, job.city, job.state, job.zip) : null,
             };
           }),
           ...calendarEvents.map(e => {
@@ -875,6 +880,8 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               date: e.start_at,
               techs: names.size ? [...names].join(', ') : '—',
               href: undefined,
+              loc: e.address ?? '',
+              mapHref: e.address ? pickMapsLink(e.address) : null,
             };
           }),
           ...tasks.map(t => ({
@@ -884,6 +891,8 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             date: t.due_at,
             techs: t.technicians?.name ?? '—',
             href: undefined,
+            loc: '',
+            mapHref: null,
           })),
         ].sort((a, b) => new Date(a.date ?? 0) - new Date(b.date ?? 0));
 
@@ -896,12 +905,24 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Título</th><th>Fecha</th><th>Asignado</th><th></th></tr>
+                    <tr><th>Título</th><th>Ubicación</th><th>Fecha</th><th>Asignado</th><th></th></tr>
                   </thead>
                   <tbody>
                     {items.map(it => (
                       <tr key={it.key}>
                         <td style={{ fontWeight: 600 }}>{it.icon} {it.label}</td>
+                        <td style={{ fontSize: 13 }}>
+                          {it.loc ? (
+                            it.mapHref ? (
+                              <a href={it.mapHref} target="_blank" rel="noopener noreferrer"
+                                style={{ color: 'var(--amber)', fontWeight: 600 }}>
+                                📍 {it.loc}
+                              </a>
+                            ) : (
+                              <span style={{ color: 'var(--muted)' }}>{it.loc}</span>
+                            )
+                          ) : <span style={{ color: 'var(--muted)' }}>—</span>}
+                        </td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>
                           {it.date ? formatDateTimePR(it.date, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </td>

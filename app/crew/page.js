@@ -1893,7 +1893,13 @@ export default function FieldApp() {
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: 15 }}>{j.title}</div>
                       <div style={{ fontSize: 13, color: '#888', marginTop: 2 }}>{j.clients?.name}</div>
-                      {(j.street || j.city) && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>📍 {[j.street, j.city].filter(Boolean).join(', ')}</div>}
+                      {(j.street || j.city) && (
+                        <a href={pickMapsLink(j.street, j.city, j.state, j.zip)} target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          style={{ display: 'block', fontSize: 12, color: ORANGE, marginTop: 2, fontWeight: 600, textDecoration: 'underline' }}>
+                          📍 {[j.property_name, j.city].filter(Boolean).join(' — ') || [j.street, j.city].filter(Boolean).join(', ')}
+                        </a>
+                      )}
                     </div>
                     <span style={{ fontSize: 10, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 8px', borderRadius: 20, height: 'fit-content', whiteSpace: 'nowrap' }}>{SL[j.status]}</span>
                   </div>
@@ -1910,12 +1916,19 @@ export default function FieldApp() {
               ? <div style={{ ...card, textAlign: 'center', padding: '60px 20px', color: '#aaa' }}><div style={{ fontSize: 48, marginBottom: 12 }}>📋</div><div>No active projects</div></div>
               : allJobs.map(j => (
                 <div key={j.id} style={{ ...card, cursor: 'pointer' }} onClick={() => openJobDetail(j)}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                       <div style={{ fontWeight: 700 }}>{j.title}</div>
                       <div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div>
+                      {(j.street || j.city) && (
+                        <a href={pickMapsLink(j.street, j.city, j.state, j.zip)} target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          style={{ display: 'block', fontSize: 12, color: ORANGE, marginTop: 3, fontWeight: 600, textDecoration: 'underline' }}>
+                          📍 {[j.property_name, j.city].filter(Boolean).join(' — ') || [j.street, j.city].filter(Boolean).join(', ')}
+                        </a>
+                      )}
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 10px', borderRadius: 20 }}>{SL[j.status]}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>{SL[j.status]}</span>
                   </div>
                 </div>
               ))

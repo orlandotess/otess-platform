@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../lib/supabase';
 import { formatDatePR } from '../lib/datetimeLocal';
+import { pickMapsLink } from '../lib/mapsLinks';
 import Sidebar from './Sidebar';
 import Link from 'next/link';
 import DashboardCalendarWidget from './DashboardCalendarWidget';
@@ -56,7 +57,7 @@ async function getStats() {
 async function getRecentJobs() {
   const { data } = await supabase
     .from('jobs')
-    .select('id, title, status, scheduled_start, clients(name)')
+    .select('id, title, status, scheduled_start, property_name, street, city, state, zip, clients(name)')
     .order('created_at', { ascending: false })
     .limit(5);
   return data ?? [];
@@ -80,6 +81,10 @@ const statusBadge = {
 };
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function jobLocation(j) {
+  return [j.property_name, j.city].filter(Boolean).join(' — ');
+}
 
 export default async function Home() {
   const [stats, recentJobs, inboxNotifications] = await Promise.all([getStats(), getRecentJobs(), getInboxNotifications()]);
@@ -164,6 +169,7 @@ export default async function Home() {
                   <tr>
                     <th>Trabajo</th>
                     <th>Cliente</th>
+                    <th>Ubicación</th>
                     <th>Estado</th>
                     <th>Fecha</th>
                     <th></th>
@@ -172,10 +178,23 @@ export default async function Home() {
                 <tbody>
                   {recentJobs.map(j => {
                     const b = statusBadge[j.status] ?? statusBadge.estimate;
+                    const loc = jobLocation(j);
                     return (
                       <tr key={j.id}>
                         <td style={{ fontWeight: 600 }}>{j.title}</td>
                         <td style={{ color: 'var(--muted)' }}>{j.clients?.name ?? '—'}</td>
+                        <td style={{ fontSize: 13 }}>
+                          {loc ? (
+                            (j.street || j.city) ? (
+                              <a href={pickMapsLink(j.street, j.city, j.state, j.zip)} target="_blank" rel="noopener noreferrer"
+                                style={{ color: 'var(--amber)', fontWeight: 600 }}>
+                                📍 {loc}
+                              </a>
+                            ) : (
+                              <span style={{ color: 'var(--muted)' }}>{loc}</span>
+                            )
+                          ) : <span style={{ color: 'var(--muted)' }}>—</span>}
+                        </td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>
                           {j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}
