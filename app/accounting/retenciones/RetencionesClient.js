@@ -71,6 +71,34 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
     ? rets.filter(r => (r.clients?.name ?? '').toLowerCase().includes(query) || (r.numero_comprobante ?? '').toLowerCase().includes(query))
     : rets;
 
+  function exportCSV() {
+    const headers = ['Fecha', 'Cliente', 'Facturado', 'Exento', 'Base', 'Calculado (10%)', 'Aplicado', 'Diferencia', '# Comprobante', 'Estado'];
+    const rows = visibleRets.map(r => [
+      r.fecha ?? '',
+      r.clients?.name ?? '—',
+      Number(r.monto_facturado ?? 0).toFixed(2),
+      Number(r.monto_exento ?? 0).toFixed(2),
+      Number(r.base_retencion ?? 0).toFixed(2),
+      Number(r.retencion_calculada ?? 0).toFixed(2),
+      Number(r.retencion_aplicada ?? 0).toFixed(2),
+      Number(r.diferencia ?? 0).toFixed(2),
+      r.numero_comprobante ?? '',
+      r.estado ?? '',
+    ]);
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Retenciones_${year}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   const totals = visibleRets.reduce((acc, r) => ({
     facturado: acc.facturado + Number(r.monto_facturado ?? 0),
     exento: acc.exento + Number(r.monto_exento ?? 0),
@@ -85,8 +113,9 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
       {/* Add button */}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Registro de retenciones {year}</p>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <SearchBox value={search} onChange={setSearch} placeholder="Buscar cliente o comprobante..." />
+          <button onClick={exportCSV} disabled={visibleRets.length === 0} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>⬇ Exportar CSV</button>
           <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>{showForm ? 'Cancelar' : '+ Agregar retención'}</button>
         </div>
       </div>
