@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Styled catalog search used in place of a native <input list>/<datalist>,
 // which renders inconsistently across browsers and can't be themed.
@@ -80,6 +80,28 @@ export default function LineItemRow({
   actions,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showMargin, setShowMargin] = useState(false);
+  const [marginPct, setMarginPct] = useState('');
+
+  useEffect(() => {
+    if (!showMargin) return;
+    const cost = parseFloat(supplierPrice);
+    const pct = parseFloat(marginPct);
+    if (!isNaN(cost) && !isNaN(pct)) {
+      onUnitPriceChange((cost * (1 + pct / 100)).toFixed(2));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplierPrice]);
+
+  function openMargin() {
+    const cost = parseFloat(supplierPrice);
+    const price = parseFloat(unitPrice);
+    if (!isNaN(cost) && cost > 0 && !isNaN(price)) {
+      setMarginPct((((price / cost) - 1) * 100).toFixed(1));
+    }
+    setShowMargin(true);
+  }
+
   const subtotal = (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
   const matchedCatalogItem = catalogItemId ? catalogOptions.find(c => c.id === catalogItemId) : null;
   const stockHint = type === 'product' && matchedCatalogItem?.stock_quantity != null ? matchedCatalogItem.stock_quantity : null;
@@ -214,7 +236,38 @@ export default function LineItemRow({
             )}
             <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder="Precio venta" style={{ fontSize: 13, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="Precio de venta al cliente" />
             {hasSupplierPrice && (
-              <input type="number" value={supplierPrice} onChange={e => onSupplierPriceChange(e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--warn)', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
+              <>
+                <input type="number" value={supplierPrice} onChange={e => onSupplierPriceChange(e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--warn)', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
+                {!showMargin ? (
+                  <button type="button" onClick={openMargin} style={{ display: 'block', marginLeft: 'auto', marginTop: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 10, padding: 0, textDecoration: 'underline' }} title="Calcular precio de venta por margen (solo interno, no se muestra al cliente)">
+                    + Margen %
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 3 }}>
+                    <input
+                      type="number"
+                      value={marginPct}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setMarginPct(v);
+                        const cost = parseFloat(supplierPrice);
+                        const pct = parseFloat(v);
+                        if (!isNaN(cost) && !isNaN(pct)) {
+                          onUnitPriceChange((cost * (1 + pct / 100)).toFixed(2));
+                        }
+                      }}
+                      placeholder="30"
+                      style={{ fontSize: 11, padding: '3px 4px', textAlign: 'right', width: '100%' }}
+                      min="0" step="1"
+                      title="Margen % sobre el costo (solo interno, calcula el precio de venta)"
+                    />
+                    <span style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>%</span>
+                    <button type="button" onClick={() => { setShowMargin(false); setMarginPct(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12, padding: 0, flexShrink: 0 }} title="Cerrar calculadora de margen">
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
