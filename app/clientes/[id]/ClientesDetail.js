@@ -991,7 +991,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Facturas</h2>
             {invoices.length > 0 && (
-              <SearchBox value={invoiceSearch} onChange={setInvoiceSearch} placeholder="Buscar # factura o estado..." />
+              <SearchBox value={invoiceSearch} onChange={setInvoiceSearch} placeholder="Buscar # factura, trabajo o estado..." />
             )}
           </div>
           {invoiceReconciliation?.hasVarianza && (
@@ -1008,11 +1008,14 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           {invoices.length === 0 ? (
             <div className="empty"><p>No hay facturas para este cliente.</p></div>
           ) : (() => {
+            const jobsById = Object.fromEntries(jobs.map(j => [j.id, j]));
+            const propertiesById = Object.fromEntries(properties.map(p => [p.id, p]));
             const query = invoiceSearch.trim().toLowerCase();
             const visibleInvoices = query
               ? invoices.filter(inv =>
                   inv.invoice_number?.toLowerCase().includes(query) ||
-                  (statusInv[inv.status]?.label ?? '').toLowerCase().includes(query)
+                  (statusInv[inv.status]?.label ?? '').toLowerCase().includes(query) ||
+                  (jobsById[inv.job_id]?.title ?? '').toLowerCase().includes(query)
                 )
               : invoices;
             const invoicesTotal = visibleInvoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
@@ -1022,14 +1025,38 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Número</th><th>Estado</th><th>Total</th><th>Fecha</th><th></th></tr>
+                    <tr><th>Número</th><th>Trabajo</th><th>Propiedad</th><th>Estado</th><th>Total</th><th>Fecha</th><th></th></tr>
                   </thead>
                   <tbody>
                     {visibleInvoices.map(inv => {
                       const b = statusInv[inv.status] ?? statusInv.draft;
+                      const job = jobsById[inv.job_id];
+                      const prop = propertiesById[inv.property_id];
+                      const street = job?.street || prop?.street;
+                      const city = job?.city || prop?.city;
+                      const state = job?.state || prop?.state;
+                      const zip = job?.zip || prop?.zip;
+                      const loc = job ? jobLocation(job) : (prop?.name ?? '');
                       return (
                         <tr key={inv.id}>
                           <td style={{ fontWeight: 600 }}>{inv.invoice_number ?? '—'}</td>
+                          <td style={{ fontSize: 13 }}>
+                            {job ? (
+                              <Link href={`/trabajos/${job.id}`} style={{ color: 'var(--amber)', fontWeight: 600 }}>{job.title}</Link>
+                            ) : <span style={{ color: 'var(--muted)' }}>—</span>}
+                          </td>
+                          <td style={{ fontSize: 13 }}>
+                            {loc ? (
+                              (street || city) ? (
+                                <a href={pickMapsLink(street, city, state, zip)} target="_blank" rel="noopener noreferrer"
+                                  style={{ color: 'var(--amber)', fontWeight: 600 }}>
+                                  📍 {loc}
+                                </a>
+                              ) : (
+                                <span style={{ color: 'var(--muted)' }}>{loc}</span>
+                              )
+                            ) : <span style={{ color: 'var(--muted)' }}>—</span>}
+                          </td>
                           <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                           <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
                           <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(inv.created_at)}</td>
@@ -1041,6 +1068,8 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                   <tfoot>
                     <tr style={{ borderTop: '2px solid var(--border)' }}>
                       <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTAL {query ? '(visibles)' : ''}</td>
+                      <td></td>
+                      <td></td>
                       <td></td>
                       <td style={{ fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(invoicesTotal)}</td>
                       <td></td>
