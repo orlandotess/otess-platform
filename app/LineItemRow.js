@@ -87,7 +87,7 @@ export default function LineItemRow({
     if (!showMargin) return;
     const cost = parseFloat(supplierPrice);
     const pct = parseFloat(marginPct);
-    if (!isNaN(cost) && !isNaN(pct)) {
+    if (!isNaN(cost) && cost > 0 && !isNaN(pct)) {
       onUnitPriceChange((cost * (1 + pct / 100)).toFixed(2));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,13 +203,10 @@ export default function LineItemRow({
               </select>
             </div>
             {onTitleChange && (
-              <input
-                value={title ?? ''}
-                onChange={e => onTitleChange(e.target.value)}
-                placeholder="Título (ej. Access Control System Installation)..."
-                maxLength={150}
-                style={{ fontSize: 13.5, fontWeight: 700, width: '100%', marginBottom: 4 }}
-              />
+              <div style={{ marginBottom: 4 }}>
+                <CatalogDescriptionInput value={title ?? ''} onChange={onTitleChange} catalogOptions={catalogOptions}
+                  placeholder="Título (ej. Access Control System Installation)..." maxLength={150} fontSize={13.5} fontWeight={700} />
+              </div>
             )}
             <CatalogDescriptionInput value={description} onChange={onDescriptionChange} catalogOptions={catalogOptions}
               placeholder="Descripción o código..." maxLength={2000} fontWeight={onTitleChange ? 400 : 700}
@@ -239,9 +236,15 @@ export default function LineItemRow({
               <>
                 <input type="number" value={supplierPrice} onChange={e => onSupplierPriceChange(e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--warn)', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
                 {!showMargin ? (
-                  <button type="button" onClick={openMargin} style={{ display: 'block', marginLeft: 'auto', marginTop: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 10, padding: 0, textDecoration: 'underline' }} title="Calcular precio de venta por margen (solo interno, no se muestra al cliente)">
-                    + Margen %
-                  </button>
+                  (parseFloat(supplierPrice) > 0) ? (
+                    <button type="button" onClick={openMargin} style={{ display: 'block', marginLeft: 'auto', marginTop: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 10, padding: 0, textDecoration: 'underline' }} title="Calcular precio de venta por margen (solo interno, no se muestra al cliente)">
+                      + Margen %
+                    </button>
+                  ) : (
+                    <div style={{ textAlign: 'right', marginTop: 3, fontSize: 9.5, color: 'var(--muted)' }} title="Escribe el costo para poder calcular el margen">
+                      + Margen % (ingresa costo)
+                    </div>
+                  )
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 3 }}>
                     <input
@@ -252,7 +255,7 @@ export default function LineItemRow({
                         setMarginPct(v);
                         const cost = parseFloat(supplierPrice);
                         const pct = parseFloat(v);
-                        if (!isNaN(cost) && !isNaN(pct)) {
+                        if (!isNaN(cost) && cost > 0 && !isNaN(pct)) {
                           onUnitPriceChange((cost * (1 + pct / 100)).toFixed(2));
                         }
                       }}

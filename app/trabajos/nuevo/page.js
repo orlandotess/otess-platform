@@ -64,10 +64,22 @@ function NuevoTrabajoForm() {
     if (match) {
       setItems(prev => prev.map((it, n) => n === idx ? {
         ...it, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        vendor: it.vendor || match.vendor || '',
+        vendor: it.vendor || match.vendor || '', title: it.title || match.description,
       } : it));
     } else {
       setItem(idx, 'description', value);
+    }
+  }
+  function handleTitleSelect(idx, value) {
+    const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+    if (match) {
+      setItems(prev => prev.map((it, n) => n === idx ? {
+        ...it, type: match.type, title: match.description, description: it.description || `${match.item_code} — ${match.description}`,
+        unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+        vendor: it.vendor || match.vendor || '',
+      } : it));
+    } else {
+      setItem(idx, 'title', value);
     }
   }
 
@@ -475,7 +487,7 @@ function NuevoTrabajoForm() {
                       type={item.type}
                       onTypeChange={v => setItem(idx, 'type', v)}
                       title={item.title}
-                      onTitleChange={v => setItem(idx, 'title', v)}
+                      onTitleChange={v => handleTitleSelect(idx, v)}
                       description={item.description}
                       onDescriptionChange={v => handleDescriptionSelect(idx, v)}
                       catalogOptions={catalogItems.filter(c => c.type === item.type)}

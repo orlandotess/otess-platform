@@ -333,9 +333,17 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   function handleLineDescriptionSelect(value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
-      setNewLine(l => ({ ...l, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '' }));
+      setNewLine(l => ({ ...l, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '', title: l.title || match.description }));
     } else {
       setNewLine(l => ({ ...l, description: value }));
+    }
+  }
+  function handleLineTitleSelect(value) {
+    const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+    if (match) {
+      setNewLine(l => ({ ...l, type: match.type, title: match.description, description: l.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '' }));
+    } else {
+      setNewLine(l => ({ ...l, title: value }));
     }
   }
 
@@ -1445,11 +1453,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                       type={editLineForm.type}
                       onTypeChange={v => setEditLineForm(f => ({ ...f, type: v }))}
                       title={editLineForm.title}
-                      onTitleChange={v => setEditLineForm(f => ({ ...f, title: v }))}
+                      onTitleChange={value => {
+                        const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+                        if (match) setEditLineForm(f => ({ ...f, type: match.type, title: match.description, description: f.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' }));
+                        else setEditLineForm(f => ({ ...f, title: value }));
+                      }}
                       description={editLineForm.description}
                       onDescriptionChange={value => {
                         const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
-                        if (match) setEditLineForm(f => ({ ...f, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' }));
+                        if (match) setEditLineForm(f => ({ ...f, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', title: f.title || match.description }));
                         else setEditLineForm(f => ({ ...f, description: value }));
                       }}
                       catalogOptions={catalogItems.filter(c => c.type === editLineForm.type)}
@@ -1512,7 +1524,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   type={newLine.type}
                   onTypeChange={v => setNewLine(l => ({ ...l, type: v }))}
                   title={newLine.title}
-                  onTitleChange={v => setNewLine(l => ({ ...l, title: v }))}
+                  onTitleChange={handleLineTitleSelect}
                   description={newLine.description}
                   onDescriptionChange={handleLineDescriptionSelect}
                   catalogOptions={catalogItems.filter(c => c.type === newLine.type)}

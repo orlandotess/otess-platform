@@ -119,10 +119,22 @@ export default function InvoiceForm({ initialData = null }) {
     if (match) {
       setItems(i => i.map((it, n) => n === idx ? {
         ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        catalog_item_id: match.id,
+        catalog_item_id: match.id, title: it.title || match.description,
       } : it));
     } else {
       setItems(i => i.map((it, n) => n === idx ? { ...it, description: value, catalog_item_id: null } : it));
+    }
+  }
+  function handleTitleCatalogSelect(idx, value) {
+    const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+    if (match) {
+      setItems(i => i.map((it, n) => n === idx ? {
+        ...it, title: match.description, description: it.description || `${match.item_code} — ${match.description}`,
+        unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+        catalog_item_id: match.id,
+      } : it));
+    } else {
+      setItems(i => i.map((it, n) => n === idx ? { ...it, title: value } : it));
     }
   }
 
@@ -356,7 +368,7 @@ export default function InvoiceForm({ initialData = null }) {
                   type={item.type}
                   onTypeChange={v => setItem(idx, 'type', v)}
                   title={item.title}
-                  onTitleChange={v => setItem(idx, 'title', v)}
+                  onTitleChange={v => handleTitleCatalogSelect(idx, v)}
                   description={item.description}
                   onDescriptionChange={v => handleCatalogSelect(idx, v)}
                   catalogOptions={catalogItems.filter(c => c.type === item.type)}

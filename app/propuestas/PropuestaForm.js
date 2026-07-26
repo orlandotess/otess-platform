@@ -319,11 +319,25 @@ export default function PropuestaForm({ initialData = null }) {
       setOptions(prev => prev.map(o => o.key === optKey
         ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.map(it => it.key === itemKey ? {
               ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-              vendor: it.vendor || match.vendor || '',
+              vendor: it.vendor || match.vendor || '', title: it.title || match.description,
             } : it) } : a) }
         : o));
     } else {
       updateItem(optKey, areaKey, itemKey, 'description', value);
+    }
+  }
+  function handleTitleCatalogSelect(optKey, areaKey, itemKey, value) {
+    const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+    if (match) {
+      setOptions(prev => prev.map(o => o.key === optKey
+        ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.map(it => it.key === itemKey ? {
+              ...it, title: match.description, description: it.description || `${match.item_code} — ${match.description}`,
+              unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+              vendor: it.vendor || match.vendor || '',
+            } : it) } : a) }
+        : o));
+    } else {
+      updateItem(optKey, areaKey, itemKey, 'title', value);
     }
   }
   function handleItemPhoto(optKey, areaKey, itemKey, file) {
@@ -720,7 +734,7 @@ export default function PropuestaForm({ initialData = null }) {
                           type={it.item_type}
                           onTypeChange={v => updateItem(opt.key, area.key, it.key, 'item_type', v)}
                           title={it.title}
-                          onTitleChange={v => updateItem(opt.key, area.key, it.key, 'title', v)}
+                          onTitleChange={v => handleTitleCatalogSelect(opt.key, area.key, it.key, v)}
                           description={it.description}
                           onDescriptionChange={v => handleCatalogSelect(opt.key, area.key, it.key, v)}
                           catalogOptions={catalogItems.filter(c => c.type === it.item_type)}
