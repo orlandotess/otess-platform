@@ -23,6 +23,8 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
 
   const [converting, setConverting] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [showDeleteSolicitud, setShowDeleteSolicitud] = useState(false);
+  const [deletingSolicitud, setDeletingSolicitud] = useState(false);
 
   async function convertirATrabajo() {
     if (!confirm(`¿Convertir "${solicitud.title}" en un trabajo? Se creará un nuevo trabajo con esta información.`)) return;
@@ -96,6 +98,22 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
     ).eq('id', solicitud.id);
     setArchiving(false);
     router.refresh();
+  }
+
+  async function deleteSolicitud() {
+    setDeletingSolicitud(true);
+    await supabase.from('solicitud_technicians').delete().eq('solicitud_id', solicitud.id);
+    await supabase.from('solicitud_line_items').delete().eq('solicitud_id', solicitud.id);
+    await supabase.from('solicitud_notes').delete().eq('solicitud_id', solicitud.id);
+    const { error } = await supabase.from('solicitudes').delete().eq('id', solicitud.id);
+    if (error) {
+      setDeletingSolicitud(false);
+      alert('No se pudo eliminar la solicitud: ' + error.message);
+      return;
+    }
+    // Full reload (not router.push) so the list doesn't serve a stale
+    // cached render of the just-deleted solicitud.
+    window.location.href = '/solicitudes';
   }
 
   async function updateStatus(val) {
@@ -621,6 +639,25 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
           <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} disabled={archiving} onClick={toggleArchive}>
             {archiving ? 'Guardando...' : solicitud.status === 'archivada' ? 'Desarchivar' : 'Archivar'}
           </button>
+          <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginTop: 8, color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDeleteSolicitud(true)}>
+            🗑 Eliminar
+          </button>
+
+          {showDeleteSolicitud && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar solicitud?</h2>
+                <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente y no se puede deshacer.</p>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-ghost" onClick={deleteSolicitud} disabled={deletingSolicitud}
+                    style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
+                    {deletingSolicitud ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => setShowDeleteSolicitud(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {lineItems.length > 0 && (
