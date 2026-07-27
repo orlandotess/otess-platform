@@ -80,7 +80,14 @@ export default function MantenimientoForm({ editing, technicians, clients, clien
       await supabase.from('recurring_maintenance_technicians').delete().eq('recurring_maintenance_id', editing.id);
       await supabase.from('recurring_maintenance_items').delete().eq('recurring_maintenance_id', editing.id);
     } else {
-      const { data, error: err } = await supabase.from('recurring_maintenances').insert([{ ...payload, active: true }]).select().single();
+      const { data: lastPlan } = await supabase.from('recurring_maintenances').select('maintenance_number').order('created_at', { ascending: false }).limit(1).single();
+      let nextNum = 1001;
+      if (lastPlan?.maintenance_number) {
+        const n = parseInt(lastPlan.maintenance_number.replace('MNT-', ''));
+        if (!isNaN(n)) nextNum = n + 1;
+      }
+
+      const { data, error: err } = await supabase.from('recurring_maintenances').insert([{ ...payload, maintenance_number: `MNT-${nextNum}`, active: true }]).select().single();
       if (err) { setSaving(false); setError(err.message); return; }
       planId = data.id;
     }

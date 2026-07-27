@@ -75,6 +75,7 @@ export default function MantenimientosClient({ recurring: initial, technicians, 
             <table>
               <thead>
                 <tr>
+                  <th>#</th>
                   <th>Cliente</th>
                   <th>Título</th>
                   <th>Técnicos</th>
@@ -88,6 +89,7 @@ export default function MantenimientosClient({ recurring: initial, technicians, 
               <tbody>
                 {rows.map(r => (
                   <tr key={r.id}>
+                    <td style={{ color: 'var(--muted)', fontSize: 13, whiteSpace: 'nowrap' }}>{r.maintenance_number ?? '—'}</td>
                     <td style={{ fontWeight: 600 }}>{r.clients?.name ?? '—'}</td>
                     <td>{r.title}</td>
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>{technicianNames(r)}</td>
