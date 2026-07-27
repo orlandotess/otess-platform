@@ -177,7 +177,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   function exportCSV() {
     const rows = filtered.map(i => [i.item_code, i.name ?? "", i.description, i.price, i.msrp ?? "", i.supplier_price ?? "", i.markup_pct ?? "", i.vendor ?? "", i.stock_quantity ?? ""]);
     const csvContent = [["Item Code", "Nombre", "Descripcion", "Precio", "MSRP", "Costo Suplidor", "Markup %", "Vendor", "Stock"], ...rows]
-      .map(row => row.map(cell => `"${cell}"`).join(","))
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
       .join("\n");
     const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -191,15 +191,48 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     setShowMenu(false);
   }
 
+  // Parser CSV consciente de comillas: soporta comas y saltos de línea dentro
+  // de campos entre comillas (ej. Descripción pegada desde Excel), y comillas
+  // escapadas como "". Opera sobre el texto completo, no línea por línea, para
+  // que un salto de línea dentro de comillas no corte una fila a la mitad.
+  function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inQuotes) {
+        if (ch === '"' && text[i + 1] === '"') { cur += '"'; i++; }
+        else if (ch === '"') { inQuotes = false; }
+        else { cur += ch; }
+      } else if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        row.push(cur.trim());
+        cur = "";
+      } else if (ch === "\n" || ch === "\r") {
+        if (ch === "\r" && text[i + 1] === "\n") i++;
+        row.push(cur.trim());
+        cur = "";
+        rows.push(row);
+        row = [];
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur !== "" || row.length) { row.push(cur.trim()); rows.push(row); }
+    return rows.filter(r => r.some(c => c !== ""));
+  }
+
   async function handleImport(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     const text = await file.text();
-    const lines = text.split(/\r?\n/).filter(l => l.trim());
-    const dataLines = lines[0]?.toLowerCase().includes("item code") ? lines.slice(1) : lines;
+    const rows = parseCsv(text);
+    const dataRows = rows[0]?.[0]?.toLowerCase().includes("item code") ? rows.slice(1) : rows;
 
-    const toInsert = dataLines.map(line => {
-      const cols = line.split(",").map(c => c.replace(/^"|"$/g, "").trim());
+    const toInsert = dataRows.map(cols => {
       return { type: dataType, item_code: cols[0] || "", name: cols[1] || "", description: cols[2] || "", price: parseFloat(cols[3]) || 0, msrp: cols[4] ? parseFloat(cols[4]) : null, supplier_price: cols[5] ? parseFloat(cols[5]) : null, markup_pct: dataType === "product" && cols[6] ? parseFloat(cols[6]) : null, vendor: cols[7] || null, stock_quantity: dataType === "product" && cols[8] ? parseFloat(cols[8]) : null };
     }).filter(i => i.item_code && i.name && i.description);
 
