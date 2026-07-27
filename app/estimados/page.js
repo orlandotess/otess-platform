@@ -26,7 +26,7 @@ export default async function EstimadosPage() {
   const [{ data: estimates }, { data: views }] = await Promise.all([
     supabase
       .from('estimates')
-      .select('id, estimate_number, status, total, issued_at, valid_until, clients(name)')
+      .select('id, estimate_number, title, status, total, issued_at, valid_until, clients(name)')
       .order('created_at', { ascending: false }),
     supabase
       .from('estimate_views')
@@ -101,7 +101,10 @@ export default async function EstimadosPage() {
                     const viewInfo = viewsByEstimate[est.id];
                     return (
                       <tr key={est.id}>
-                        <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{est.estimate_number}</td>
+                        <td>
+                          <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{est.estimate_number}</div>
+                          {est.title && <div style={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'inherit', fontWeight: 400 }}>{est.title}</div>}
+                        </td>
                         <td>{est.clients?.name ?? '—'}</td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{est.issued_at ?? '—'}</td>

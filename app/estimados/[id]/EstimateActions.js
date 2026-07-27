@@ -11,16 +11,18 @@ const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar sop
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
-export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null }) {
+export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, title: initialTitle = '', clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null }) {
   const router = useRouter();
   const [showEmail, setShowEmail] = useState(false);
   const [showEditNumber, setShowEditNumber] = useState(false);
+  const [showEditTitle, setShowEditTitle] = useState(false);
   const [showEditBillTo, setShowEditBillTo] = useState(false);
   const [showEditProperty, setShowEditProperty] = useState(false);
   const [showEditTerms, setShowEditTerms] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showConvert, setShowConvert] = useState(false);
   const [newNumber, setNewNumber] = useState(estimateNumber || '');
+  const [title, setTitle] = useState(initialTitle || '');
   const [billTo, setBillTo] = useState(initialBillTo);
   const [propertyId, setPropertyId] = useState(initialPropertyId || '');
   const [terms, setTerms] = useState(initialTerms || DEFAULT_TERMS);
@@ -141,6 +143,13 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
     router.refresh();
   }
 
+  async function saveTitle(e) {
+    e.preventDefault();
+    await supabase.from('estimates').update({ title: title.trim() || null }).eq('id', estimateId);
+    setShowEditTitle(false);
+    router.refresh();
+  }
+
   async function saveBillTo(e) {
     e.preventDefault();
     await supabase.from('estimates').update({ bill_to: billTo }).eq('id', estimateId);
@@ -182,6 +191,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 Email</button>
       <button className="btn btn-ghost" onClick={() => exportPurchaseListCSV(items, estimateNumber)}>📦 Lista de compra</button>
       <button className="btn btn-ghost" onClick={() => { setNewNumber(estimateNumber); setShowEditNumber(true); }}>✏️ # Estimado</button>
+      <button className="btn btn-ghost" onClick={() => { setTitle(initialTitle); setShowEditTitle(true); }}>✏️ Título</button>
       {clientCompany && (
         <button className="btn btn-ghost" onClick={() => setShowEditBillTo(true)}>👤 A nombre de</button>
       )}
@@ -321,6 +331,25 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
                 <button type="button" className="btn btn-ghost" onClick={() => setShowEditNumber(false)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit title */}
+      {showEditTitle && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Título del estimado</h2>
+            <form onSubmit={saveTitle}>
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label>Título</label>
+                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Sistema de cámaras - Oficina Principal" autoFocus />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditTitle(false)}>Cancelar</button>
               </div>
             </form>
           </div>

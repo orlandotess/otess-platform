@@ -42,6 +42,7 @@ export default async function EstimaDetail({ params }) {
         <div className="page-header">
           <div>
             <div className="page-title">{est.estimate_number}</div>
+            {est.title && <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--muted)', marginTop: 2 }}>{est.title}</div>}
             <span className={`badge ${statusCls[est.status]}`} style={{ marginTop: 6, display: 'inline-block' }}>
               {statusLabel[est.status]}
             </span>
@@ -52,6 +53,7 @@ export default async function EstimaDetail({ params }) {
             clientId={est.client_id}
             clientEmail={est.clients?.email}
             estimateNumber={est.estimate_number}
+            title={est.title ?? ''}
             clientName={est.clients?.name}
             clientCompany={est.clients?.company}
             billTo={est.bill_to ?? 'person'}
@@ -78,6 +80,7 @@ export default async function EstimaDetail({ params }) {
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--navy)', letterSpacing: -1 }}>ESTIMADO</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace' }}>{est.estimate_number}</div>
+              {est.title && <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)', marginTop: 4 }}>{est.title}</div>}
               <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8 }}>Fecha: <strong>{est.issued_at}</strong></div>
               {est.valid_until && <div style={{ fontSize: 13, color: 'var(--muted)' }}>Válida hasta: <strong>{est.valid_until}</strong></div>}
             </div>

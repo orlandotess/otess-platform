@@ -83,6 +83,7 @@ export default async function EstimaPublica({ params }) {
             <div style={{ textAlign: 'right' }}>
               <div style={{ color: '#16223d', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em' }}>ESTIMADO</div>
               <div style={{ color: '#999', fontSize: 15, fontWeight: 600, fontFamily: 'monospace', marginTop: 2 }}>{est.estimate_number}</div>
+              {est.title && <div style={{ color: '#16223d', fontSize: 13, fontWeight: 600, marginTop: 4 }}>{est.title}</div>}
               <div style={{ color: '#999', fontSize: 12, marginTop: 8 }}>Fecha: <strong style={{ color: '#555' }}>{est.issued_at}</strong></div>
               {est.valid_until && <div style={{ color: '#999', fontSize: 12 }}>Válida hasta: <strong style={{ color: '#555' }}>{est.valid_until}</strong></div>}
             </div>

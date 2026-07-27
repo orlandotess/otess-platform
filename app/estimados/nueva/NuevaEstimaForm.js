@@ -25,7 +25,7 @@ export default function NuevaEstimaForm() {
   const [propertyMode, setPropertyMode] = useState('none'); // none | existing | new
   const [newProperty, setNewProperty] = useState({ name: '', street: '', city: '', state: 'PR', zip: '' });
   const [form, setForm] = useState({
-    client_id: '', job_id: '', property_id: '', notes: '', bill_to: 'person', terms: DEFAULT_TERMS,
+    client_id: '', job_id: '', property_id: '', title: '', notes: '', bill_to: 'person', terms: DEFAULT_TERMS,
     issued_at: new Date().toISOString().split('T')[0],
     valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
@@ -50,7 +50,7 @@ export default function NuevaEstimaForm() {
     if (jobIdParam && jobs.length) {
       const job = jobs.find(j => j.id === jobIdParam);
       if (job) {
-        setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id, bill_to: job.bill_to ?? 'person' }));
+        setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id, bill_to: job.bill_to ?? 'person', title: job.title ?? '' }));
         if (job.job_line_items?.length) {
           Promise.all(job.job_line_items.map(async li => {
             let photoPreview = null;
@@ -172,6 +172,7 @@ export default function NuevaEstimaForm() {
       client_id: form.client_id,
       job_id: form.job_id || null,
       property_id: propertyId,
+      title: form.title || null,
       notes: form.notes || null,
       terms: form.terms || null,
       issued_at: form.issued_at,
@@ -237,13 +238,22 @@ export default function NuevaEstimaForm() {
                 </div>
                 <div className="form-group">
                   <label>Trabajo (opcional)</label>
-                  <select value={form.job_id} onChange={e => set('job_id', e.target.value)}>
+                  <select value={form.job_id} onChange={e => {
+                    const jid = e.target.value;
+                    const job = jobs.find(j => j.id === jid);
+                    setForm(f => ({ ...f, job_id: jid, title: job?.title ?? '' }));
+                  }}>
                     <option value="">— Sin trabajo asociado —</option>
                     {jobs.filter(j => !form.client_id || j.client_id === form.client_id).map(j => (
                       <option key={j.id} value={j.id}>{j.title}</option>
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label>Título del estimado</label>
+                <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="Ej: Sistema de cámaras - Oficina Principal" />
               </div>
 
               {hasCompany && (
