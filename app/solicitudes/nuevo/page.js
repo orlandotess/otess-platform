@@ -14,6 +14,7 @@ export default function NuevaSolicitud() {
   const router = useRouter();
   const [catalogItems, setCatalogItems] = useState([]);
   const [clients, setClients] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
   const [properties, setProperties] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [form, setForm] = useState({
@@ -25,6 +26,7 @@ export default function NuevaSolicitud() {
   const [wantsAssessment, setWantsAssessment] = useState(false);
   const [assessmentDate, setAssessmentDate] = useState('');
   const [assessmentInstructions, setAssessmentInstructions] = useState('');
+  const [technicianIds, setTechnicianIds] = useState([]);
   const [items, setItems] = useState([]);
   const [images, setImages] = useState([]); // { file, preview }
   const [saving, setSaving] = useState(false);
@@ -39,6 +41,7 @@ export default function NuevaSolicitud() {
   useEffect(() => {
     supabase.from('clients').select('id, name, client_type, company').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+    supabase.from('technicians').select('id, name').order('name').then(({ data }) => setTechnicians(data ?? []));
   }, []);
 
   useEffect(() => {
@@ -62,6 +65,7 @@ export default function NuevaSolicitud() {
   }, [form.contact_id]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const toggleTechnician = techId => setTechnicianIds(ids => ids.includes(techId) ? ids.filter(id => id !== techId) : [...ids, techId]);
   const selectedClient = clients.find(c => c.id === form.client_id);
   const clientType = selectedClient?.client_type ?? 'final';
 
@@ -148,6 +152,7 @@ export default function NuevaSolicitud() {
         status: 'nueva',
         assessment_date: wantsAssessment && assessmentDate ? localInputToIso(assessmentDate) : null,
         assessment_instructions: wantsAssessment ? (assessmentInstructions || null) : null,
+        technician_id: wantsAssessment ? (technicianIds[0] ?? null) : null,
         property_id: form.property_id || null,
         contact_id: form.contact_id || null,
         property_name: form.property_name || null,
@@ -161,6 +166,12 @@ export default function NuevaSolicitud() {
       }]).select().single();
 
       if (err) { setError(err.message); return; }
+
+      if (wantsAssessment && technicianIds.length > 1) {
+        await supabase.from('solicitud_technicians').insert(
+          technicianIds.slice(1).map(techId => ({ solicitud_id: solicitud.id, technician_id: techId }))
+        );
+      }
 
       if (images.length) {
         const uploadedPaths = [];
@@ -329,6 +340,21 @@ export default function NuevaSolicitud() {
                   <div className="form-group">
                     <label>Instrucciones para el técnico</label>
                     <textarea value={assessmentInstructions} onChange={e => setAssessmentInstructions(e.target.value)} placeholder="Ej: Tomar notas sobre control de acceso" />
+                  </div>
+                  <div className="form-group">
+                    <label>Técnicos (opcional, puedes escoger más de uno)</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                      {technicians.map(t => {
+                        const checked = technicianIds.includes(t.id);
+                        return (
+                          <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleTechnician(t.id)} style={{ margin: 0 }} />
+                            {t.name}
+                          </label>
+                        );
+                      })}
+                      {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
+                    </div>
                   </div>
                 </div>
               )}

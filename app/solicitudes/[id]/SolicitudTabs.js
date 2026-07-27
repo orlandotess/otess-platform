@@ -15,7 +15,7 @@ const statusOptions = [
 
 const TAX_RATES = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
-export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls, clientProperties = [], clientContacts = [] }) {
+export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls, clientProperties = [], clientContacts = [], technicians = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const clientType = solicitud.clients?.client_type ?? 'final';
@@ -122,14 +122,28 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
   const [editingAssessment, setEditingAssessment] = useState(false);
   const [assessmentDate, setAssessmentDate] = useState(isoToLocalInput(solicitud.assessment_date));
   const [assessmentInstructions, setAssessmentInstructions] = useState(solicitud.assessment_instructions ?? '');
+  const [technicianIds, setTechnicianIds] = useState(() =>
+    [solicitud.technician_id, ...(solicitud.solicitud_technicians ?? []).map(st => st.technician_id)].filter(Boolean)
+  );
   const [savingAssessment, setSavingAssessment] = useState(false);
+
+  function toggleTechnician(techId) {
+    setTechnicianIds(ids => ids.includes(techId) ? ids.filter(id => id !== techId) : [...ids, techId]);
+  }
 
   async function saveAssessment() {
     setSavingAssessment(true);
     await supabase.from('solicitudes').update({
       assessment_date: assessmentDate ? localInputToIso(assessmentDate) : null,
       assessment_instructions: assessmentInstructions.trim() || null,
+      technician_id: technicianIds[0] ?? null,
     }).eq('id', solicitud.id);
+    await supabase.from('solicitud_technicians').delete().eq('solicitud_id', solicitud.id);
+    if (technicianIds.length > 1) {
+      await supabase.from('solicitud_technicians').insert(
+        technicianIds.slice(1).map(techId => ({ solicitud_id: solicitud.id, technician_id: techId }))
+      );
+    }
     setSavingAssessment(false);
     setEditingAssessment(false);
     router.refresh();
@@ -372,6 +386,21 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
                 <label>Instrucciones para el técnico</label>
                 <textarea value={assessmentInstructions} onChange={e => setAssessmentInstructions(e.target.value)} />
               </div>
+              <div className="form-group">
+                <label>Técnicos (opcional, puedes escoger más de uno)</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  {technicians.map(t => {
+                    const checked = technicianIds.includes(t.id);
+                    return (
+                      <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleTechnician(t.id)} style={{ margin: 0 }} />
+                        {t.name}
+                      </label>
+                    );
+                  })}
+                  {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
+                </div>
+              </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-primary" disabled={savingAssessment} onClick={saveAssessment}>{savingAssessment ? 'Guardando...' : 'Guardar'}</button>
                 <button className="btn btn-ghost" onClick={() => setEditingAssessment(false)}>Cancelar</button>
@@ -383,6 +412,14 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
                 {solicitud.assessment_date ? formatDateTimePR(solicitud.assessment_date) : 'Sin programar'}
               </p>
               {solicitud.assessment_instructions && <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>{solicitud.assessment_instructions}</p>}
+              {(() => {
+                const names = [solicitud.technicians?.name, ...(solicitud.solicitud_technicians ?? []).map(st => st.technicians?.name)].filter(Boolean);
+                return (
+                  <p style={{ fontSize: 13, color: names.length ? 'var(--navy)' : 'var(--muted)', marginBottom: 10 }}>
+                    👤 {names.length ? names.join(', ') : 'Sin técnico asignado'}
+                  </p>
+                );
+              })()}
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
                 <input type="checkbox" checked={!!solicitud.assessment_completed} onChange={toggleAssessmentComplete} />
                 Evaluación completada

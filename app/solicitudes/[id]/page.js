@@ -16,10 +16,11 @@ const statusBadge = {
 export default async function SolicitudDetail({ params }) {
   const { id } = params;
 
-  const [{ data: solicitud }, { data: items }, { data: notes }] = await Promise.all([
-    supabase.from('solicitudes').select('*, clients(name, email, phone, client_type, company), jobs:converted_to_job_id(id, job_number, title)').eq('id', id).single(),
+  const [{ data: solicitud }, { data: items }, { data: notes }, { data: technicians }] = await Promise.all([
+    supabase.from('solicitudes').select('*, clients(name, email, phone, client_type, company), jobs:converted_to_job_id(id, job_number, title), technicians(name), solicitud_technicians(technician_id, technicians(name))').eq('id', id).single(),
     supabase.from('solicitud_line_items').select('*').eq('solicitud_id', id).order('sort_order'),
     supabase.from('solicitud_notes').select('*').eq('solicitud_id', id).order('created_at', { ascending: false }),
+    supabase.from('technicians').select('id, name').order('name'),
   ]);
 
   if (!solicitud) return (
@@ -105,6 +106,7 @@ export default async function SolicitudDetail({ params }) {
           intakePhotoUrls={intakePhotoUrls.filter(Boolean)}
           clientProperties={clientProperties ?? []}
           clientContacts={clientContacts ?? []}
+          technicians={technicians ?? []}
         />
       </main>
     </div>
