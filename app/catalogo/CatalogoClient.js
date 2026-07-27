@@ -283,32 +283,36 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                 if (f) { setNewPhotoFile(f); setNewPhotoPreview(URL.createObjectURL(f)); }
               }} />
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: dataType === "product" ? "140px 1fr 1fr 90px 90px 90px 70px 110px 80px 150px" : "140px 1fr 1fr 90px", gap: 8, alignItems: "center", flex: 1 }}>
-              <input value={newItem.item_code} onChange={e => setNewItem(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "monospace" }} />
-              <input value={newItem.name} onChange={e => setNewItem(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del ítem" maxLength={150} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
-              <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
-              {dataType === "product" && (
-                <input type="number" value={newItem.msrp} onChange={e => setNewItem(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)" }} />
-              )}
-              <input type="number" value={newItem.price} onChange={e => setNewItem(f => ({ ...f, price: e.target.value }))} placeholder="Precio venta" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} title="Precio de venta al cliente (editable a mano)" />
-              {dataType === "product" && (
-                <input type="number" value={newItem.supplier_price} onChange={e => applyMarkup(setNewItem, { supplier_price: e.target.value })} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--warn)" }} />
-              )}
-              {dataType === "product" && (
-                <input type="number" value={newItem.markup_pct} onChange={e => applyMarkup(setNewItem, { markup_pct: e.target.value })} placeholder="Markup %" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} title="% sobre el costo — calcula el precio de venta automáticamente" />
-              )}
-              {dataType === "product" && (
-                <input list="vendor-options" value={newItem.vendor} onChange={e => setNewItem(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
-              )}
-              {dataType === "product" && (
-                <input type="number" value={newItem.stock_quantity} onChange={e => setNewItem(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--navy)" }} title="Cantidad en inventario" />
-              )}
-              {dataType === "product" && (
-                <select value={newItem.default_location_id} onChange={e => setNewItem(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} title="Ubicación de origen">
-                  <option value="">Sin ubicación</option>
-                  {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-                </select>
-              )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input value={newItem.item_code} onChange={e => setNewItem(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "monospace", width: 140, flexShrink: 0 }} />
+                <input value={newItem.name} onChange={e => setNewItem(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del ítem" maxLength={150} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0 }} />
+              </div>
+              <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, width: "100%" }} />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {dataType === "product" && (
+                  <input type="number" value={newItem.msrp} onChange={e => setNewItem(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)", width: 90 }} />
+                )}
+                <input type="number" value={newItem.price} onChange={e => setNewItem(f => ({ ...f, price: e.target.value }))} placeholder="Precio venta" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, width: 100 }} title="Precio de venta al cliente (editable a mano)" />
+                {dataType === "product" && (
+                  <input type="number" value={newItem.supplier_price} onChange={e => applyMarkup(setNewItem, { supplier_price: e.target.value })} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--warn)", width: 90 }} />
+                )}
+                {dataType === "product" && (
+                  <input type="number" value={newItem.markup_pct} onChange={e => applyMarkup(setNewItem, { markup_pct: e.target.value })} placeholder="Markup %" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 90 }} title="% sobre el costo — calcula el precio de venta automáticamente" />
+                )}
+                {dataType === "product" && (
+                  <input list="vendor-options" value={newItem.vendor} onChange={e => setNewItem(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 120 }} />
+                )}
+                {dataType === "product" && (
+                  <input type="number" value={newItem.stock_quantity} onChange={e => setNewItem(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--navy)", width: 80 }} title="Cantidad en inventario" />
+                )}
+                {dataType === "product" && (
+                  <select value={newItem.default_location_id} onChange={e => setNewItem(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 160 }} title="Ubicación de origen">
+                    <option value="">Sin ubicación</option>
+                    {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
