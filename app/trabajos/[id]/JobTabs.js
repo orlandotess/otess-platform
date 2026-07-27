@@ -319,7 +319,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   // Line items state
   const [lineItems, setLineItems] = useState(items);
   const [addingLine, setAddingLine] = useState(false);
-  const [newLine, setNewLine] = useState({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null });
+  const [newLine, setNewLine] = useState({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
   const [catalogItems, setCatalogItems] = useState([]);
   const [showCableCalc, setShowCableCalc] = useState(false);
 
@@ -330,10 +330,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   const areaOptions = [...new Set(lineItems.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
 
+  async function applyNewLineCatalogPhoto(match) {
+    if (newLine.photoFile || newLine.existingPhotoPath || !match.photo_url) return;
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(match.photo_url, 3600);
+    setNewLine(l => l.photoFile || l.existingPhotoPath ? l : { ...l, existingPhotoPath: match.photo_url, photoPreview: data?.signedUrl ?? l.photoPreview });
+  }
   function handleLineDescriptionSelect(value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
       setNewLine(l => ({ ...l, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '', title: l.title || match.name || match.description }));
+      applyNewLineCatalogPhoto(match);
     } else {
       setNewLine(l => ({ ...l, description: value }));
     }
@@ -342,6 +348,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
       setNewLine(l => ({ ...l, type: match.type, title: match.name || match.description, description: l.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '' }));
+      applyNewLineCatalogPhoto(match);
     } else {
       setNewLine(l => ({ ...l, title: value }));
     }
@@ -371,23 +378,30 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       warranty_expires_at: item.warranty_expires_at ?? null,
       photoFile: null,
       photoPreview: item.photo_signed_url ?? null,
+      existingPhotoPath: item.photo_url ?? null,
     });
   }
 
   function handleEditLinePhoto(file) {
     if (!file) return;
-    setEditLineForm(f => ({ ...f, photoFile: file, photoPreview: URL.createObjectURL(file) }));
+    setEditLineForm(f => ({ ...f, photoFile: file, existingPhotoPath: null, photoPreview: URL.createObjectURL(file) }));
+  }
+
+  async function applyEditLineCatalogPhoto(match) {
+    if (editLineForm.photoFile || editLineForm.existingPhotoPath || !match.photo_url) return;
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(match.photo_url, 3600);
+    setEditLineForm(f => f.photoFile || f.existingPhotoPath ? f : { ...f, existingPhotoPath: match.photo_url, photoPreview: data?.signedUrl ?? f.photoPreview });
   }
 
   function handleNewLinePhoto(file) {
     if (!file) return;
-    setNewLine(l => ({ ...l, photoFile: file, photoPreview: URL.createObjectURL(file) }));
+    setNewLine(l => ({ ...l, photoFile: file, existingPhotoPath: null, photoPreview: URL.createObjectURL(file) }));
   }
 
   async function saveEditLine(id) {
     setSavingLine(true);
-    let photoPath;
-    let photoSignedUrl;
+    let photoPath = editLineForm.existingPhotoPath ?? null;
+    let photoSignedUrl = editLineForm.photoPreview ?? null;
     if (editLineForm.photoFile) {
       const ext = editLineForm.photoFile.name.split('.').pop();
       const path = `${job.id}/${Date.now()}.${ext}`;
@@ -410,7 +424,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       area: editLineForm.area || null,
       vendor: editLineForm.vendor || null,
       warranty_expires_at: editLineForm.warranty_expires_at || null,
-      ...(photoPath !== undefined ? { photo_url: photoPath } : {}),
+      photo_url: photoPath,
     }).eq('id', id);
     setLineItems(prev => prev.map(i => i.id === id ? {
       ...i,
@@ -425,7 +439,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       area: editLineForm.area || null,
       vendor: editLineForm.vendor || null,
       warranty_expires_at: editLineForm.warranty_expires_at || null,
-      ...(photoPath !== undefined ? { photo_url: photoPath, photo_signed_url: photoSignedUrl } : {}),
+      photo_url: photoPath, photo_signed_url: photoSignedUrl,
     } : i));
     setEditingLineId(null);
     setSavingLine(false);
@@ -434,7 +448,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   async function addLineItem() {
     if (!newLine.description.trim()) return;
     setSavingLine(true);
-    let photoPath = null;
+    let photoPath = newLine.existingPhotoPath ?? null;
     if (newLine.photoFile) {
       const ext = newLine.photoFile.name.split('.').pop();
       const path = `${job.id}/${Date.now()}.${ext}`;
@@ -458,7 +472,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
-    setNewLine({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null });
+    setNewLine({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
     setAddingLine(false);
     setSavingLine(false);
   }
@@ -1455,13 +1469,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                       title={editLineForm.title}
                       onTitleChange={value => {
                         const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
-                        if (match) setEditLineForm(f => ({ ...f, type: match.type, title: match.name || match.description, description: f.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' }));
+                        if (match) { setEditLineForm(f => ({ ...f, type: match.type, title: match.name || match.description, description: f.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' })); applyEditLineCatalogPhoto(match); }
                         else setEditLineForm(f => ({ ...f, title: value }));
                       }}
                       description={editLineForm.description}
                       onDescriptionChange={value => {
                         const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
-                        if (match) setEditLineForm(f => ({ ...f, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', title: f.title || match.name || match.description }));
+                        if (match) { setEditLineForm(f => ({ ...f, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', title: f.title || match.name || match.description })); applyEditLineCatalogPhoto(match); }
                         else setEditLineForm(f => ({ ...f, description: value }));
                       }}
                       catalogOptions={catalogItems.filter(c => c.type === editLineForm.type)}

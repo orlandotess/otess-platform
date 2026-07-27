@@ -313,6 +313,14 @@ export default function PropuestaForm({ initialData = null }) {
       ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.map(it => it.key === itemKey ? { ...it, [field]: value } : it) } : a) }
       : o));
   }
+  async function applyCatalogItemPhoto(optKey, areaKey, itemKey, match) {
+    const current = options.find(o => o.key === optKey)?.areas.find(a => a.key === areaKey)?.items.find(it => it.key === itemKey);
+    if (!current || current.photoFile || current.existingPhotoPath || !match.photo_url) return;
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(match.photo_url, 3600);
+    setOptions(prev => prev.map(o => o.key === optKey
+      ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.map(it => it.key === itemKey && !it.photoFile && !it.existingPhotoPath ? { ...it, existingPhotoPath: match.photo_url, photoPreview: data?.signedUrl ?? it.photoPreview } : it) } : a) }
+      : o));
+  }
   function handleCatalogSelect(optKey, areaKey, itemKey, value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
@@ -322,6 +330,7 @@ export default function PropuestaForm({ initialData = null }) {
               vendor: it.vendor || match.vendor || '', title: it.title || match.name || match.description,
             } : it) } : a) }
         : o));
+      applyCatalogItemPhoto(optKey, areaKey, itemKey, match);
     } else {
       updateItem(optKey, areaKey, itemKey, 'description', value);
     }
@@ -336,6 +345,7 @@ export default function PropuestaForm({ initialData = null }) {
               vendor: it.vendor || match.vendor || '',
             } : it) } : a) }
         : o));
+      applyCatalogItemPhoto(optKey, areaKey, itemKey, match);
     } else {
       updateItem(optKey, areaKey, itemKey, 'title', value);
     }

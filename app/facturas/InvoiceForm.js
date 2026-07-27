@@ -114,6 +114,14 @@ export default function InvoiceForm({ initialData = null }) {
     if (!file) return;
     setItems(i => i.map((it, n) => n === idx ? { ...it, photoFile: file, photoPreview: URL.createObjectURL(file), existingPhotoPath: null } : it));
   }
+  // Si el ítem del catálogo tiene foto y la línea todavía no tiene una propia,
+  // la copia (vía signed URL) en vez de dejar la línea sin foto.
+  async function applyCatalogItemPhoto(idx, match) {
+    const current = items[idx];
+    if (!current || current.photoFile || current.existingPhotoPath || !match.photo_url) return;
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(match.photo_url, 3600);
+    setItems(i => i.map((it, n) => n === idx && !it.photoFile && !it.existingPhotoPath ? { ...it, existingPhotoPath: match.photo_url, photoPreview: data?.signedUrl ?? it.photoPreview } : it));
+  }
   function handleCatalogSelect(idx, value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
@@ -121,6 +129,7 @@ export default function InvoiceForm({ initialData = null }) {
         ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
         catalog_item_id: match.id, title: it.title || match.name || match.description,
       } : it));
+      applyCatalogItemPhoto(idx, match);
     } else {
       setItems(i => i.map((it, n) => n === idx ? { ...it, description: value, catalog_item_id: null } : it));
     }
@@ -133,6 +142,7 @@ export default function InvoiceForm({ initialData = null }) {
         unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
         catalog_item_id: match.id,
       } : it));
+      applyCatalogItemPhoto(idx, match);
     } else {
       setItems(i => i.map((it, n) => n === idx ? { ...it, title: value } : it));
     }

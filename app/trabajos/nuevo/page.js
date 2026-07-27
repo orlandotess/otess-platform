@@ -59,6 +59,12 @@ function NuevoTrabajoForm() {
     }
   }, [clientParam, clients]);
 
+  async function applyCatalogItemPhoto(idx, match) {
+    const current = items[idx];
+    if (!current || current.photoFile || current.existingPhotoPath || !match.photo_url) return;
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(match.photo_url, 3600);
+    setItems(i => i.map((it, n) => n === idx && !it.photoFile && !it.existingPhotoPath ? { ...it, existingPhotoPath: match.photo_url, photoPreview: data?.signedUrl ?? it.photoPreview } : it));
+  }
   function handleDescriptionSelect(idx, value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
@@ -66,6 +72,7 @@ function NuevoTrabajoForm() {
         ...it, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
         vendor: it.vendor || match.vendor || '', title: it.title || match.name || match.description,
       } : it));
+      applyCatalogItemPhoto(idx, match);
     } else {
       setItem(idx, 'description', value);
     }
@@ -78,6 +85,7 @@ function NuevoTrabajoForm() {
         unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
         vendor: it.vendor || match.vendor || '',
       } : it));
+      applyCatalogItemPhoto(idx, match);
     } else {
       setItem(idx, 'title', value);
     }
@@ -112,13 +120,14 @@ function NuevoTrabajoForm() {
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
-  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null, ...item }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null, existingPhotoPath: null, ...item }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
   function handleItemPhoto(idx, file) {
     if (!file) return;
     setItem(idx, 'photoFile', file);
+    setItem(idx, 'existingPhotoPath', null);
     setItem(idx, 'photoPreview', URL.createObjectURL(file));
   }
 
@@ -197,7 +206,7 @@ function NuevoTrabajoForm() {
         const lineItems = [];
         let sortOrder = 0;
         for (const i of items.filter(i => i.description.trim())) {
-          let photoPath = null;
+          let photoPath = i.existingPhotoPath ?? null;
           if (i.photoFile) {
             const ext = i.photoFile.name.split('.').pop();
             const path = `${job.id}/${Date.now()}-${sortOrder}.${ext}`;
