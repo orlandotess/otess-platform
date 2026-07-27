@@ -9,6 +9,10 @@ export default function AuthCallback() {
 
   useEffect(() => {
     async function handleCallback() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isRecovery = urlParams.get("type") === "recovery";
+      const destination = isRecovery ? "/reset-password" : "/";
+
       // Handle hash-based tokens (implicit flow): #access_token=...&refresh_token=...
       const hash = window.location.hash;
       if (hash && hash.includes("access_token")) {
@@ -18,18 +22,17 @@ export default function AuthCallback() {
         if (access_token && refresh_token) {
           const { error } = await supabase.auth.setSession({ access_token, refresh_token });
           if (error) { setError(error.message); return; }
-          router.push("/");
+          router.push(isRecovery || params.get("type") === "recovery" ? "/reset-password" : "/");
           return;
         }
       }
 
       // Handle code-based flow (PKCE): ?code=...
-      const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get("code");
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) { setError(error.message); return; }
-        router.push("/");
+        router.push(destination);
         return;
       }
 
@@ -42,7 +45,7 @@ export default function AuthCallback() {
   if (error) {
     return (
       <div style={{ padding: 40, fontFamily: "sans-serif", textAlign: "center" }}>
-        <h2>Error al procesar invitación</h2>
+        <h2>Error al procesar el enlace</h2>
         <p style={{ color: "var(--ink-faint)" }}>{error}</p>
         <a href="/login" style={{ color: "var(--amber)" }}>Ir a login</a>
       </div>
@@ -51,7 +54,7 @@ export default function AuthCallback() {
 
   return (
     <div style={{ padding: 40, fontFamily: "sans-serif", textAlign: "center" }}>
-      <p>Procesando invitación...</p>
+      <p>Procesando...</p>
     </div>
   );
 }
