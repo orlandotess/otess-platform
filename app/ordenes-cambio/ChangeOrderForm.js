@@ -242,7 +242,7 @@ export default function ChangeOrderForm({ initialData = null }) {
                   onTypeChange={v => setItem(idx, 'type', v)}
                   description={item.description}
                   onDescriptionChange={v => handleCatalogSelect(idx, v)}
-                  catalogOptions={catalogItems.filter(c => c.type === item.type)}
+                  catalogOptions={catalogItems.filter(c => c.type === item.type && !c.internal_only)}
                   catalogItemId={item.catalog_item_id}
                   datalistId={`co-cat-${idx}`}
                   quantity={item.quantity}

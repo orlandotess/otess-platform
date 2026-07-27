@@ -344,7 +344,7 @@ export default function NuevaEstimaForm() {
                   onTitleChange={v => handleTitleCatalogSelect(idx, v)}
                   description={item.description}
                   onDescriptionChange={v => handleCatalogSelect(idx, v)}
-                  catalogOptions={catalogItems.filter(c => c.type === item.type)}
+                  catalogOptions={catalogItems.filter(c => c.type === item.type && !c.internal_only)}
                   catalogItemId={item.catalog_item_id}
                   datalistId={`est-cat-${idx}`}
                   quantity={item.quantity}

@@ -723,7 +723,7 @@ export default function PropuestaForm({ initialData = null }) {
                         isAccessory
                         description={it.description}
                         onDescriptionChange={v => updateItem(opt.key, area.key, it.key, 'description', v)}
-                        catalogOptions={catalogItems}
+                        catalogOptions={catalogItems.filter(c => !c.internal_only)}
                         datalistId={`cat-${optIndex}-${areaIndex}-${itemIndex}`}
                         quantity={it.quantity}
                         onQuantityChange={v => updateItem(opt.key, area.key, it.key, 'quantity', v)}
@@ -747,7 +747,7 @@ export default function PropuestaForm({ initialData = null }) {
                           onTitleChange={v => handleTitleCatalogSelect(opt.key, area.key, it.key, v)}
                           description={it.description}
                           onDescriptionChange={v => handleCatalogSelect(opt.key, area.key, it.key, v)}
-                          catalogOptions={catalogItems.filter(c => c.type === it.item_type)}
+                          catalogOptions={catalogItems.filter(c => c.type === it.item_type && !c.internal_only)}
                           datalistId={`cat-${optIndex}-${areaIndex}-${itemIndex}`}
                           quantity={it.quantity}
                           onQuantityChange={v => updateItem(opt.key, area.key, it.key, 'quantity', v)}

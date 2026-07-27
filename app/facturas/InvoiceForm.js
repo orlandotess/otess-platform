@@ -381,7 +381,7 @@ export default function InvoiceForm({ initialData = null }) {
                   onTitleChange={v => handleTitleCatalogSelect(idx, v)}
                   description={item.description}
                   onDescriptionChange={v => handleCatalogSelect(idx, v)}
-                  catalogOptions={catalogItems.filter(c => c.type === item.type)}
+                  catalogOptions={catalogItems.filter(c => c.type === item.type && !c.internal_only)}
                   catalogItemId={item.catalog_item_id}
                   datalistId={`fact-cat-${idx}`}
                   quantity={item.quantity}
