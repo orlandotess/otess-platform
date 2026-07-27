@@ -24,6 +24,7 @@ export default function TrabajosTableClient({ jobs }) {
   const visible = query
     ? jobs.filter(j =>
         (j.title ?? '').toLowerCase().includes(query) ||
+        (j.job_number ?? '').toLowerCase().includes(query) ||
         (j.clients?.name ?? '').toLowerCase().includes(query) ||
         (j.property_name ?? '').toLowerCase().includes(query) ||
         (j.street ?? '').toLowerCase().includes(query) ||
@@ -42,6 +43,7 @@ export default function TrabajosTableClient({ jobs }) {
           <table>
             <thead>
               <tr>
+                <th>#</th>
                 <th>Trabajo</th>
                 <th>Cliente</th>
                 <th>Ubicación</th>
@@ -55,6 +57,7 @@ export default function TrabajosTableClient({ jobs }) {
                 const b = statusBadge[j.status] ?? statusBadge.estimate;
                 return (
                   <tr key={j.id}>
+                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{j.job_number ?? '—'}</td>
                     <td style={{ fontWeight: 600 }}>{j.title}</td>
                     <td style={{ color: 'var(--muted)' }}>{j.clients?.name ?? '—'}</td>
                     <td style={{ fontSize: 13 }}>

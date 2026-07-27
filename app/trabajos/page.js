@@ -8,7 +8,7 @@ import TrabajosTableClient from './TrabajosTableClient';
 export default async function TrabajosPage() {
   const { data: jobs } = await supabase
     .from('jobs')
-    .select('id, title, status, scheduled_start, property_name, street, city, state, zip, clients(name)')
+    .select('id, job_number, title, status, scheduled_start, property_name, street, city, state, zip, clients(name)')
     .order('created_at', { ascending: false });
 
   return (

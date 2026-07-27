@@ -1,6 +1,7 @@
 'use client';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { useRouter } from 'next/navigation';
 import { STATUS_BADGE, STATUS_TINT } from './dispatchUtils';
 
 function location(job) {
@@ -8,6 +9,7 @@ function location(job) {
 }
 
 export default function JobCard({ job, compact, overlay, color = 'var(--info)' }) {
+  const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: job.id });
   const badge = STATUS_BADGE[job.status] ?? STATUS_BADGE.estimate;
   const extraTechs = job.job_technicians?.length ?? 0;
@@ -18,12 +20,23 @@ export default function JobCard({ job, compact, overlay, color = 'var(--info)' }
     opacity: isDragging && !overlay ? 0.3 : 1,
   };
 
+  // El drag necesita moverse 8px para activarse (ver activationConstraint en
+  // DispatchBoard), así que un click sin arrastre siempre llega hasta acá.
+  function handleClick() {
+    if (overlay) return;
+    const jobId = job.job_id ?? job.id;
+    if (window.confirm(`¿Quieres abrir "${job.title}"?`)) {
+      router.push(`/trabajos/${jobId}`);
+    }
+  }
+
   if (compact) {
     return (
       <div
         ref={setNodeRef}
         {...listeners}
         {...attributes}
+        onClick={handleClick}
         className="dispatch-job"
         style={{
           ...style,
@@ -56,6 +69,7 @@ export default function JobCard({ job, compact, overlay, color = 'var(--info)' }
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      onClick={handleClick}
       className="dispatch-panel-card"
       style={{
         ...style,
