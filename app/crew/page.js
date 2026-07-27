@@ -289,32 +289,42 @@ export default function FieldApp() {
     })));
   }
 
+  // event/task notes carry an author_name column; solicitud_notes doesn't (it also
+  // uses photo_url as the first-photo convenience column, mirroring the admin
+  // Solicitudes note form) — table/fkColumn/hasAuthor bundled per kind here so the
+  // three note functions below don't each need their own kind switch.
+  const NOTE_TABLE_BY_KIND = {
+    event: { table: 'calendar_event_notes', fkColumn: 'event_id', hasAuthor: true },
+    task: { table: 'task_notes', fkColumn: 'task_id', hasAuthor: true },
+    solicitud: { table: 'solicitud_notes', fkColumn: 'solicitud_id', hasAuthor: false },
+  };
+
   useEffect(() => {
     setNewEntryNoteText('');
     setNewEntryNotePhotos([]);
-    if (!detailEntry || (detailEntry._kind !== 'event' && detailEntry._kind !== 'task')) { setDetailEntryNotes([]); return; }
-    const table = detailEntry._kind === 'event' ? 'calendar_event_notes' : 'task_notes';
-    const fkColumn = detailEntry._kind === 'event' ? 'event_id' : 'task_id';
-    supabase.from(table).select('*').eq(fkColumn, detailEntry._raw.id)
+    const cfg = NOTE_TABLE_BY_KIND[detailEntry?._kind];
+    if (!cfg) { setDetailEntryNotes([]); return; }
+    supabase.from(cfg.table).select('*').eq(cfg.fkColumn, detailEntry._raw.id)
       .order('created_at', { ascending: false }).then(async ({ data }) => setDetailEntryNotes(await resolveNotePhotoUrls(data ?? [])));
   }, [detailEntry?._kind, detailEntry?._raw?.id]);
 
   async function addDetailEntryNote() {
     if (!newEntryNoteText.trim() && newEntryNotePhotos.length === 0) return;
     setSavingEntryNote(true);
-    const table = detailEntry._kind === 'event' ? 'calendar_event_notes' : 'task_notes';
-    const fkColumn = detailEntry._kind === 'event' ? 'event_id' : 'task_id';
-    const taskId = detailEntry._raw.id;
+    const cfg = NOTE_TABLE_BY_KIND[detailEntry._kind];
+    const entryId = detailEntry._raw.id;
     const uploadedPaths = [];
     for (const { file } of newEntryNotePhotos) {
       const ext = file.name.split('.').pop();
-      const path = `${taskId}/note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const path = `${entryId}/note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
       const { error } = await supabase.storage.from('Job-photos').upload(path, file);
       if (!error) uploadedPaths.push(path);
     }
-    const { data, error } = await supabase.from(table).insert([{
-      [fkColumn]: taskId, note: newEntryNoteText.trim() || null, author_name: techName,
+    const { data, error } = await supabase.from(cfg.table).insert([{
+      [cfg.fkColumn]: entryId, note: newEntryNoteText.trim() || null,
+      ...(cfg.hasAuthor ? { author_name: techName } : {}),
       photo_urls: uploadedPaths.length ? uploadedPaths : null,
+      ...(cfg.table === 'solicitud_notes' ? { photo_url: uploadedPaths[0] ?? null } : {}),
     }]).select().single();
     setSavingEntryNote(false);
     if (error) { alert(error.message); return; }
@@ -325,8 +335,8 @@ export default function FieldApp() {
   }
 
   async function deleteDetailEntryNote(note) {
-    const table = detailEntry._kind === 'event' ? 'calendar_event_notes' : 'task_notes';
-    const { error } = await supabase.from(table).delete().eq('id', note.id);
+    const cfg = NOTE_TABLE_BY_KIND[detailEntry._kind];
+    const { error } = await supabase.from(cfg.table).delete().eq('id', note.id);
     if (error) { alert(error.message); return; }
     if (note.photo_urls?.length) await supabase.storage.from('Job-photos').remove(note.photo_urls);
     setDetailEntryNotes(prev => prev.filter(n => n.id !== note.id));
@@ -2882,7 +2892,7 @@ export default function FieldApp() {
                 </div>
               </div>
             )}
-            {(detailEntry._kind === 'event' || detailEntry._kind === 'task') && (
+            {(detailEntry._kind === 'event' || detailEntry._kind === 'task' || detailEntry._kind === 'solicitud') && (
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 13, color: '#555', fontWeight: 700, marginBottom: 8 }}>📝 Notas</div>
                 <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 220, overflowY: 'auto' }}>
