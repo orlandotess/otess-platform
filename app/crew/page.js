@@ -269,7 +269,8 @@ export default function FieldApp() {
   const [techEvents, setTechEvents] = useState([]);
   const [techTasks, setTechTasks] = useState([]);
   const [techVisits, setTechVisits] = useState([]);
-  const [detailEntry, setDetailEntry] = useState(null); // { kind, raw } — simple read-only view for event/task/visit
+  const [techSolicitudes, setTechSolicitudes] = useState([]);
+  const [detailEntry, setDetailEntry] = useState(null); // { kind, raw } — simple read-only view for event/task/visit/solicitud
   const [detailEntryNotes, setDetailEntryNotes] = useState([]);
   const [newEntryNoteText, setNewEntryNoteText] = useState('');
   const [newEntryNotePhotos, setNewEntryNotePhotos] = useState([]); // [{file, previewUrl}]
@@ -481,13 +482,16 @@ export default function FieldApp() {
   // Events/tasks/visits assigned to this technician, mirroring the same dual-path pattern as
   // jobs (a direct technician_id column, plus a junction table for calendar_events' multi-tech
   // assignment) so the tech's schedule shows everything, not just jobs.
+  const SOLICITUD_FIELDS = 'id, solicitud_number, title, assessment_date, assessment_instructions, assessment_completed, status, client_id, property_name, street, city, state, zip, clients(name)';
   async function loadTechScheduleExtras() {
-    const [{ data: eventsDirect }, { data: eventsViaJunction }, { data: tasksDirect }, { data: tasksViaJunction }, { data: visitsData }] = await Promise.all([
+    const [{ data: eventsDirect }, { data: eventsViaJunction }, { data: tasksDirect }, { data: tasksViaJunction }, { data: visitsData }, { data: solicitudesDirect }, { data: solicitudesViaJunction }] = await Promise.all([
       supabase.from('calendar_events').select('id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name)').eq('technician_id', techId),
       supabase.from('calendar_event_technicians').select('calendar_events(id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name))').eq('technician_id', techId),
       supabase.from('tasks').select('id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name), task_items(id, text, done, sort_order)').eq('technician_id', techId),
       supabase.from('task_technicians').select('tasks(id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name), task_items(id, text, done, sort_order))').eq('technician_id', techId),
       supabase.from('visits').select('id, request_id, scheduled_at, duration_minutes, status, requests(title, clients(name))').eq('technician_id', techId),
+      supabase.from('solicitudes').select(SOLICITUD_FIELDS).eq('technician_id', techId).not('assessment_date', 'is', null),
+      supabase.from('solicitud_technicians').select(`solicitudes(${SOLICITUD_FIELDS})`).eq('technician_id', techId),
     ]);
     const seen = new Set();
     const events = [];
@@ -501,9 +505,16 @@ export default function FieldApp() {
     (tasksDirect ?? []).forEach(addTask);
     (tasksViaJunction ?? []).forEach(row => addTask(row.tasks));
 
+    const seenSolicitudes = new Set();
+    const solicitudes = [];
+    const addSolicitud = s => { if (s && s.assessment_date && !seenSolicitudes.has(s.id)) { seenSolicitudes.add(s.id); solicitudes.push(s); } };
+    (solicitudesDirect ?? []).forEach(addSolicitud);
+    (solicitudesViaJunction ?? []).forEach(row => addSolicitud(row.solicitudes));
+
     setTechEvents(events);
     setTechTasks(tasks);
     setTechVisits(visitsData ?? []);
+    setTechSolicitudes(solicitudes);
   }
 
   useEffect(() => { if (techId) loadTechScheduleExtras(); }, [techId]);
@@ -1497,11 +1508,18 @@ export default function FieldApp() {
         scheduled_start: raw.due_at, status: raw.completed ? 'completed' : 'scheduled', _kind: 'task', _raw: raw,
       };
     }
-    // visit
+    if (kind === 'visit') {
+      return {
+        id: `visit-${raw.id}`, title: `👁 ${raw.requests?.title ?? 'Visita'}`, clients: raw.requests?.clients, property_name: null,
+        street: null, city: null, state: null, zip: null,
+        scheduled_start: raw.scheduled_at, status: VISIT_STATUS_MAP[raw.status] ?? 'scheduled', _kind: 'visit', _raw: raw,
+      };
+    }
+    // solicitud (evaluación en sitio)
     return {
-      id: `visit-${raw.id}`, title: `👁 ${raw.requests?.title ?? 'Visita'}`, clients: raw.requests?.clients, property_name: null,
-      street: null, city: null, state: null, zip: null,
-      scheduled_start: raw.scheduled_at, status: VISIT_STATUS_MAP[raw.status] ?? 'scheduled', _kind: 'visit', _raw: raw,
+      id: `solicitud-${raw.id}`, title: `📋 ${raw.title}`, clients: raw.clients, property_name: raw.property_name,
+      street: raw.street, city: raw.city, state: raw.state, zip: raw.zip,
+      scheduled_start: raw.assessment_date, status: raw.assessment_completed ? 'completed' : 'scheduled', _kind: 'solicitud', _raw: raw,
     };
   }
 
@@ -1510,6 +1528,7 @@ export default function FieldApp() {
     ...techEvents.map(e => normalizeEntry('event', e)),
     ...techTasks.map(t => normalizeEntry('task', t)),
     ...techVisits.map(v => normalizeEntry('visit', v)),
+    ...techSolicitudes.map(s => normalizeEntry('solicitud', s)),
   ];
 
   // j.scheduled_start is a real UTC instant, so it needs prDayKey() (PR-timezone-aware) rather
@@ -1535,6 +1554,7 @@ export default function FieldApp() {
     ...techEvents.filter(e => isToday(e.start_at)).map(e => normalizeEntry('event', e)),
     ...techTasks.filter(t => isToday(t.due_at)).map(t => normalizeEntry('task', t)),
     ...techVisits.filter(v => isToday(v.scheduled_at)).map(v => normalizeEntry('visit', v)),
+    ...techSolicitudes.filter(s => isToday(s.assessment_date)).map(s => normalizeEntry('solicitud', s)),
   ].sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
 
   return (
@@ -2837,6 +2857,15 @@ export default function FieldApp() {
             {detailEntry._kind === 'event' && detailEntry._raw.address && (
               <a href={pickMapsLink(detailEntry._raw.address)} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 13, color: ORANGE, marginBottom: 6, fontWeight: 600 }}>📍 {detailEntry._raw.address}</a>
             )}
+            {detailEntry._kind === 'solicitud' && (detailEntry._raw.street || detailEntry._raw.city) && (
+              <a href={pickMapsLink(detailEntry._raw.street, detailEntry._raw.city, detailEntry._raw.state, detailEntry._raw.zip)} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'block', fontSize: 13, color: ORANGE, marginBottom: 6, fontWeight: 600 }}>
+                📍 {[detailEntry._raw.property_name, detailEntry._raw.city].filter(Boolean).join(' — ')}
+              </a>
+            )}
+            {detailEntry._kind === 'solicitud' && detailEntry._raw.assessment_instructions && (
+              <div style={{ fontSize: 13, color: '#888', marginTop: 8, whiteSpace: 'pre-wrap' }}>{detailEntry._raw.assessment_instructions}</div>
+            )}
             {detailEntry._raw.notes && <div style={{ fontSize: 13, color: '#888', marginTop: 8, whiteSpace: 'pre-wrap' }}>{detailEntry._raw.notes}</div>}
             {detailEntry._kind === 'task' && detailEntry._raw.task_type === 'checklist' && (detailEntry._raw.task_items ?? []).length > 0 && (
               <div style={{ marginTop: 14 }}>
@@ -2925,6 +2954,21 @@ export default function FieldApp() {
                 }}
                 style={{ marginTop: 8, width: '100%', background: detailEntry._raw.completed ? '#eee' : ORANGE, color: detailEntry._raw.completed ? '#333' : '#fff', border: 'none', borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                 {detailEntry._raw.completed ? 'Mark as pending' : 'Mark as done'}
+              </button>
+            )}
+            {detailEntry._kind === 'solicitud' && (
+              <button
+                onClick={async () => {
+                  const next = !detailEntry._raw.assessment_completed;
+                  await supabase.from('solicitudes').update({
+                    assessment_completed: next,
+                    status: next && detailEntry._raw.status === 'nueva' ? 'evaluacion_completa' : detailEntry._raw.status,
+                  }).eq('id', detailEntry._raw.id);
+                  setDetailEntry(null);
+                  loadTechScheduleExtras();
+                }}
+                style={{ marginTop: 8, width: '100%', background: detailEntry._raw.assessment_completed ? '#eee' : ORANGE, color: detailEntry._raw.assessment_completed ? '#333' : '#fff', border: 'none', borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                {detailEntry._raw.assessment_completed ? 'Marcar como pendiente' : 'Marcar evaluación completada'}
               </button>
             )}
           </div>
