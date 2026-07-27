@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { formatDateTimePR } from '../../../../lib/datetimeLocal';
+import { generatePurchaseOrders } from '../../../../lib/generatePurchaseOrders';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -10,7 +11,7 @@ export async function POST(request) {
 
   const { data: order } = await supabase
     .from('change_orders')
-    .select('id, change_order_number, title, status, requires_signature, valid_until, clients(name)')
+    .select('id, change_order_number, title, status, requires_signature, valid_until, job_id, clients(name)')
     .eq('public_token', token)
     .single();
 
@@ -32,6 +33,34 @@ export async function POST(request) {
   }).eq('id', order.id);
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  if (order.job_id) {
+    try {
+      const { data: coItems } = await supabase.from('change_order_line_items').select('*').eq('change_order_id', order.id).order('sort_order');
+      if (coItems?.length) {
+        const { data: insertedJobItems } = await supabase.from('job_line_items').insert(coItems.map(it => ({
+          job_id: order.job_id, change_order_id: order.id, type: it.type, description: it.description,
+          quantity: it.quantity, unit_price: it.unit_price, msrp: it.msrp,
+          supplier_price: it.supplier_price, exempt_reason: it.exempt_reason,
+          area: it.area, vendor: it.vendor, photo_url: it.photo_url, sort_order: it.sort_order,
+        }))).select();
+
+        if (insertedJobItems?.length) {
+          const normalized = insertedJobItems.map(it => ({
+            id: it.id, description: it.description, quantity: it.quantity, unit_price: it.unit_price,
+            supplier_price: it.supplier_price, vendor: it.vendor, isProduct: it.type === 'product',
+          }));
+          await generatePurchaseOrders(normalized, {
+            sourceType: 'change_order', sourceId: order.id,
+            sourceLabel: `${order.change_order_number}${order.title ? ` — ${order.title}` : ''}`,
+            client: supabase,
+          });
+        }
+      }
+    } catch (syncErr) {
+      console.error('Error sincronizando orden de cambio al trabajo:', syncErr);
+    }
+  }
 
   try {
     await resend.emails.send({

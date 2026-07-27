@@ -6,8 +6,8 @@ import { supabase } from '../../../lib/supabase';
 
 const STATUS_BADGE = { pendiente: 'badge-gray', ordenado: 'badge-blue', recibido: 'badge-green', cancelado: 'badge-red' };
 const STATUS_LABELS = { pendiente: 'Pendiente', ordenado: 'Ordenado', recibido: 'Recibido', cancelado: 'Cancelado' };
-const SOURCE_LABELS = { proposal: 'Propuesta', job: 'Trabajo' };
-const SOURCE_HREF = { proposal: id => `/propuestas/${id}`, job: id => `/trabajos/${id}` };
+const SOURCE_LABELS = { proposal: 'Propuesta', job: 'Trabajo', change_order: 'Orden de cambio' };
+const SOURCE_HREF = { proposal: id => `/propuestas/${id}`, job: id => `/trabajos/${id}`, change_order: id => `/ordenes-cambio/${id}` };
 
 export default function CompraDetailClient({ order }) {
   const router = useRouter();
@@ -15,9 +15,52 @@ export default function CompraDetailClient({ order }) {
   const [saving, setSaving] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editItems, setEditItems] = useState(order.purchase_order_items ?? []);
+  const [savingItems, setSavingItems] = useState(false);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const total = (order.purchase_order_items ?? []).reduce((sum, it) => sum + (it.quantity || 0) * (it.unit_price || 0), 0);
+  const items = editing ? editItems : (order.purchase_order_items ?? []);
+  const total = items.reduce((sum, it) => sum + (it.quantity || 0) * (it.unit_price || 0), 0);
+
+  function startEditing() {
+    setEditItems((order.purchase_order_items ?? []).map(it => ({ ...it })));
+    setEditing(true);
+  }
+
+  function updateEditItem(id, field, value) {
+    setEditItems(prev => prev.map(it => it.id === id ? { ...it, [field]: value } : it));
+  }
+
+  function removeEditItem(id) {
+    setEditItems(prev => prev.filter(it => it.id !== id));
+  }
+
+  async function saveItems() {
+    setSavingItems(true);
+    try {
+      const keptIds = editItems.map(it => it.id);
+      const removedIds = (order.purchase_order_items ?? []).map(it => it.id).filter(id => !keptIds.includes(id));
+      if (removedIds.length) {
+        const { error: delErr } = await supabase.from('purchase_order_items').delete().in('id', removedIds);
+        if (delErr) throw delErr;
+      }
+      for (const it of editItems) {
+        const { error: updErr } = await supabase.from('purchase_order_items').update({
+          description: it.description,
+          quantity: Number(it.quantity) || 0,
+          unit_price: Number(it.unit_price) || 0,
+        }).eq('id', it.id);
+        if (updErr) throw updErr;
+      }
+      setEditing(false);
+      router.refresh();
+    } catch (err) {
+      alert('Error al guardar los cambios: ' + err.message);
+    } finally {
+      setSavingItems(false);
+    }
+  }
 
   async function changeStatus(newStatus) {
     setSaving(true);
@@ -66,6 +109,9 @@ export default function CompraDetailClient({ order }) {
           {['pendiente', 'ordenado'].includes(status) && (
             <button className="btn btn-ghost" disabled={saving} onClick={() => changeStatus('cancelado')}>Cancelar</button>
           )}
+          {status === 'pendiente' && !editing && (
+            <button className="btn btn-ghost" onClick={startEditing}>✏️ Editar</button>
+          )}
           <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
         </div>
       </div>
@@ -102,21 +148,48 @@ export default function CompraDetailClient({ order }) {
               <th style={{ textAlign: 'center', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Cant.</th>
               <th style={{ textAlign: 'right', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Costo unit.</th>
               <th style={{ textAlign: 'right', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Total</th>
+              {editing && <th style={{ padding: '12px 20px' }}></th>}
             </tr>
           </thead>
           <tbody>
-            {(order.purchase_order_items ?? []).map(it => (
+            {items.map(it => (
               <tr key={it.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '12px 20px', fontSize: 14, fontWeight: 600 }}>{it.description}</td>
-                <td style={{ padding: '12px 20px', fontSize: 14, textAlign: 'center' }}>{it.quantity}</td>
-                <td style={{ padding: '12px 20px', fontSize: 14, textAlign: 'right' }}>{fmt(it.unit_price)}</td>
-                <td style={{ padding: '12px 20px', fontSize: 14, textAlign: 'right', fontWeight: 700 }}>{fmt((it.quantity || 0) * (it.unit_price || 0))}</td>
+                {editing ? (
+                  <>
+                    <td style={{ padding: '8px 20px' }}>
+                      <input className="input" value={it.description} onChange={e => updateEditItem(it.id, 'description', e.target.value)} style={{ width: '100%' }} />
+                    </td>
+                    <td style={{ padding: '8px 20px', textAlign: 'center' }}>
+                      <input className="input" type="number" value={it.quantity} onChange={e => updateEditItem(it.id, 'quantity', e.target.value)} style={{ width: 70, textAlign: 'center' }} />
+                    </td>
+                    <td style={{ padding: '8px 20px', textAlign: 'right' }}>
+                      <input className="input" type="number" step="0.01" value={it.unit_price} onChange={e => updateEditItem(it.id, 'unit_price', e.target.value)} style={{ width: 90, textAlign: 'right' }} />
+                    </td>
+                    <td style={{ padding: '8px 20px', textAlign: 'right', fontWeight: 700 }}>{fmt((Number(it.quantity) || 0) * (Number(it.unit_price) || 0))}</td>
+                    <td style={{ padding: '8px 20px', textAlign: 'center' }}>
+                      <button type="button" className="btn btn-ghost" style={{ color: 'var(--warn)', padding: '2px 8px' }} onClick={() => removeEditItem(it.id)}>🗑</button>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td style={{ padding: '12px 20px', fontSize: 14, fontWeight: 600 }}>{it.description}</td>
+                    <td style={{ padding: '12px 20px', fontSize: 14, textAlign: 'center' }}>{it.quantity}</td>
+                    <td style={{ padding: '12px 20px', fontSize: 14, textAlign: 'right' }}>{fmt(it.unit_price)}</td>
+                    <td style={{ padding: '12px 20px', fontSize: 14, textAlign: 'right', fontWeight: 700 }}>{fmt((it.quantity || 0) * (it.unit_price || 0))}</td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
-        <div style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 800, fontSize: 15, color: 'var(--navy)', borderTop: '1.5px solid var(--border)' }}>
-          Total: {fmt(total)}
+        <div style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1.5px solid var(--border)' }}>
+          {editing ? (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-primary" disabled={savingItems} onClick={saveItems}>{savingItems ? 'Guardando...' : 'Guardar cambios'}</button>
+              <button className="btn btn-ghost" disabled={savingItems} onClick={() => setEditing(false)}>Cancelar</button>
+            </div>
+          ) : <div />}
+          <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>Total: {fmt(total)}</div>
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { exportPurchaseListCSV } from '../../purchaseListCsv';
+import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { localInputToIso } from '../../../lib/datetimeLocal';
 
@@ -94,14 +95,28 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       }]).select().single();
       if (jobErr) { alert(jobErr.message); return; }
 
+      let poMessage = null;
       if (items.length) {
-        const { error: itemsErr } = await supabase.from('job_line_items').insert(items.map(i => ({
+        const { data: insertedItems, error: itemsErr } = await supabase.from('job_line_items').insert(items.map(i => ({
           job_id: job.id, type: i.type, title: i.title, description: i.description,
           quantity: i.quantity, unit_price: i.unit_price, msrp: i.msrp,
           supplier_price: i.supplier_price, exempt_reason: i.exempt_reason,
           area: i.area, vendor: i.vendor, photo_url: i.photo_url, sort_order: i.sort_order,
-        })));
+        }))).select();
         if (itemsErr) { alert(itemsErr.message); return; }
+
+        try {
+          const normalized = (insertedItems ?? []).map(it => ({
+            id: it.id, description: it.description, quantity: it.quantity, unit_price: it.unit_price,
+            supplier_price: it.supplier_price, vendor: it.vendor, isProduct: it.type === 'product',
+          }));
+          const { orders } = await generatePurchaseOrders(normalized, {
+            sourceType: 'job', sourceId: job.id, sourceLabel: `${jobNumber} — ${billToName || estimateNumber}`,
+          });
+          if (orders.length) poMessage = `${orders.length} orden(es) de compra generada(s) automáticamente.`;
+        } catch (poErr) {
+          console.error('Error generando orden de compra automática:', poErr);
+        }
       }
 
       if (notes) {
@@ -109,6 +124,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       }
 
       await supabase.from('estimates').update({ status: 'converted', converted_to_job_id: job.id }).eq('id', estimateId);
+      if (poMessage) alert(poMessage);
       router.push(`/trabajos/${job.id}`);
     } finally {
       setConverting(false);
