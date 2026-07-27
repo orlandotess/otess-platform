@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../lib/supabase';
-import { formatDatePR } from '../lib/datetimeLocal';
+import { formatDatePR, formatDateTimePR } from '../lib/datetimeLocal';
 import { pickMapsLink } from '../lib/mapsLinks';
 import Sidebar from './Sidebar';
 import Link from 'next/link';
@@ -72,6 +72,25 @@ async function getInboxNotifications() {
   return data ?? [];
 }
 
+async function getIntegrationStats() {
+  const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const nowIso = new Date().toISOString();
+
+  const [{ data: paypalPayments }, { data: acceptedEstimates }, { data: lockedProfiles }] = await Promise.all([
+    supabase.from('payments').select('amount, paid_at, invoices(invoice_number)').eq('method', 'paypal').gte('paid_at', since30).order('paid_at', { ascending: false }),
+    supabase.from('estimates').select('id, estimate_number, accepted_at, clients(name)').eq('status', 'accepted').is('converted_to_job_id', null).order('accepted_at', { ascending: false }),
+    supabase.from('profiles').select('id, name, email, locked_until').gt('locked_until', nowIso).order('locked_until', { ascending: false }),
+  ]);
+
+  return {
+    paypalCount: paypalPayments?.length ?? 0,
+    paypalTotal: (paypalPayments ?? []).reduce((a, p) => a + Number(p.amount ?? 0), 0),
+    paypalRecent: (paypalPayments ?? []).slice(0, 3),
+    acceptedEstimates: acceptedEstimates ?? [],
+    lockedProfiles: lockedProfiles ?? [],
+  };
+}
+
 const statusBadge = {
   estimate:    { cls: 'badge-gray',  label: 'Estimado' },
   scheduled:   { cls: 'badge-blue',  label: 'Programado' },
@@ -87,7 +106,7 @@ function jobLocation(j) {
 }
 
 export default async function Home() {
-  const [stats, recentJobs, inboxNotifications] = await Promise.all([getStats(), getRecentJobs(), getInboxNotifications()]);
+  const [stats, recentJobs, inboxNotifications, integrations] = await Promise.all([getStats(), getRecentJobs(), getInboxNotifications(), getIntegrationStats()]);
 
   return (
     <div className="admin-shell">
@@ -102,6 +121,10 @@ export default async function Home() {
           </div>
           <Link href="/crew" className="btn btn-orange">📱 Abrir Crew App</Link>
         </div>
+
+        <InboxWidget notifications={inboxNotifications} />
+
+        <DashboardCalendarWidget />
 
         <div className="stats-grid">
           <div className="stat-card">
@@ -148,7 +171,45 @@ export default async function Home() {
           </div>
         </div>
 
-        <InboxWidget notifications={inboxNotifications} />
+        <div className="card">
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Integraciones</h2>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-label">Pagos PayPal (30 días)</div>
+              <div className="stat-value" style={{ color: 'var(--ok)' }}>{fmt(integrations.paypalTotal)}</div>
+              <div className="stat-sub">{integrations.paypalCount} pago{integrations.paypalCount === 1 ? '' : 's'}</div>
+              {integrations.paypalRecent.map((p, i) => (
+                <div key={i} style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  {p.invoices?.invoice_number ?? '—'} · {fmt(p.amount)} · {formatDatePR(p.paid_at)}
+                </div>
+              ))}
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Estimados aceptados</div>
+              <div className="stat-value" style={{ color: 'var(--amber)' }}>{integrations.acceptedEstimates.length}</div>
+              <div className="stat-sub">Pendientes de convertir a trabajo</div>
+              {integrations.acceptedEstimates.slice(0, 3).map(e => (
+                <div key={e.id} style={{ fontSize: 12, marginTop: 4 }}>
+                  <Link href={`/estimados/${e.id}`} style={{ color: 'var(--amber)', fontWeight: 600 }}>
+                    {e.estimate_number} — {e.clients?.name ?? '—'} →
+                  </Link>
+                </div>
+              ))}
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Cuentas bloqueadas</div>
+              <div className="stat-value" style={{ color: integrations.lockedProfiles.length > 0 ? 'var(--warn)' : undefined }}>
+                {integrations.lockedProfiles.length}
+              </div>
+              <div className="stat-sub">Por intentos de acceso fallidos</div>
+              {integrations.lockedProfiles.slice(0, 3).map(p => (
+                <div key={p.id} style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  {p.name ?? p.email} · hasta {formatDateTimePR(p.locked_until, { hour: 'numeric', minute: '2-digit' })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -208,8 +269,6 @@ export default async function Home() {
             </div>
           )}
         </div>
-
-        <DashboardCalendarWidget />
       </main>
     </div>
   );
