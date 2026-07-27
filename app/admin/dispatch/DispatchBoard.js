@@ -52,7 +52,20 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
     if (!over) return;
     const overId = String(over.id);
 
+    const job = jobs.find(j => j.id === active.id);
+    if (!job) return;
+    const isExtraDay = job.schedule_day_id != null;
+
     if (overId === 'panel_unassigned') {
+      if (isExtraDay) {
+        // Un día extra no tiene "cola de sin asignar" propia — soltar acá solo le
+        // quita el técnico a ese día puntual, y el bloque desaparece del board.
+        setJobs(prev => prev.filter(j => j.id !== active.id));
+        await supabase.from('job_schedule_days')
+          .update({ technician_id: null })
+          .eq('id', job.schedule_day_id);
+        return;
+      }
       setJobs(prev => prev.map(j => j.id === active.id
         ? { ...j, technician_id: null, scheduled_start: null, scheduled_end: null }
         : j));
@@ -66,8 +79,6 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
       const [, technicianId, hourStr, minuteStr] = overId.split('_');
       const hour = parseInt(hourStr, 10);
       const minute = parseInt(minuteStr, 10);
-      const job = jobs.find(j => j.id === active.id);
-      if (!job) return;
 
       const durationMs = (job.scheduled_start && job.scheduled_end)
         ? new Date(job.scheduled_end).getTime() - new Date(job.scheduled_start).getTime()
@@ -75,6 +86,17 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
 
       const newStart = slotToIso(day, hour, minute);
       const newEnd = new Date(new Date(newStart).getTime() + durationMs).toISOString();
+
+      if (isExtraDay) {
+        setJobs(prev => prev.map(j => j.id === active.id
+          ? { ...j, technician_id: technicianId, scheduled_start: newStart, scheduled_end: newEnd }
+          : j));
+        await supabase.from('job_schedule_days')
+          .update({ technician_id: technicianId, scheduled_start: newStart, scheduled_end: newEnd })
+          .eq('id', job.schedule_day_id);
+        return;
+      }
+
       const newStatus = job.status === 'estimate' ? 'scheduled' : job.status;
 
       setJobs(prev => prev.map(j => j.id === active.id
