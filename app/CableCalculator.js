@@ -11,6 +11,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   const [segments, setSegments] = useState([{ label: '', feet: '' }]);
   const [feetPerBox, setFeetPerBox] = useState(DEFAULT_FEET_PER_UNIT.cable);
   const [pricePerBox, setPricePerBox] = useState('');
+  const [supplierPricePerBox, setSupplierPricePerBox] = useState('');
 
   const unitLabel = calcType === 'tubo' ? 'tubo' : 'caja';
 
@@ -41,6 +42,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       vendor: vendor.trim() || '',
       quantity: boxesNeeded,
       unit_price: parseFloat(pricePerBox) || 0,
+      supplier_price: parseFloat(supplierPricePerBox) || 0,
     });
   }
 
@@ -112,15 +114,20 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
           <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addSegment}>+ Agregar lado</button>
         </div>
 
-        <div className="form-row" style={{ marginBottom: 16 }}>
+        <div className="form-row" style={{ marginBottom: 12 }}>
           <div className="form-group">
             <label>Pies por {unitLabel}</label>
             <input type="number" value={feetPerBox} onChange={e => setFeetPerBox(e.target.value)} min="0" step="1" placeholder={DEFAULT_FEET_PER_UNIT[calcType]} />
           </div>
           <div className="form-group">
-            <label>Precio por {unitLabel}</label>
+            <label>Precio venta por {unitLabel}</label>
             <input type="number" value={pricePerBox} onChange={e => setPricePerBox(e.target.value)} min="0" step="0.01" />
           </div>
+        </div>
+
+        <div className="form-group" style={{ marginBottom: 16 }}>
+          <label>Costo de suplidor por {unitLabel} (para orden de compra)</label>
+          <input type="number" value={supplierPricePerBox} onChange={e => setSupplierPricePerBox(e.target.value)} min="0" step="0.01" />
         </div>
 
         <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13 }}>
