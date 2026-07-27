@@ -1,8 +1,8 @@
 import { APP_TIMEZONE } from '../../../lib/datetimeLocal';
 
-// Ventana visible del Gantt: 5am–7pm en bloques de 30 min.
-export const HORA_INICIO = 5;
-export const HORA_FIN = 19;
+// Ventana visible del Gantt: día completo (12am–12am) en bloques de 30 min.
+export const HORA_INICIO = 0;
+export const HORA_FIN = 24;
 export const SLOT_MINUTOS = 30;
 export const SLOT_WIDTH = 64;
 
