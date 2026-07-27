@@ -671,3 +671,174 @@ body.sidebar-hidden .main-content {
 .brand-logo-dark { display: none !important; }
 :root[data-theme="dark"] .brand-logo-light { display: none !important; }
 :root[data-theme="dark"] .brand-logo-dark  { display: block !important; }
+
+/* ── Dispatch Board ──
+   .main-content trae padding:32px y max-width:1100px por defecto; el board
+   necesita el viewport completo con scroll propio, así que se anula eso acá. */
+.dispatch-main {
+  max-width: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.dispatch-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.dispatch-daynav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dispatch-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.dispatch-gantt {
+  flex: 1;
+  overflow: auto;
+}
+
+.dispatch-timeheader {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.dispatch-tech-col {
+  width: 160px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
+  position: sticky;
+  left: 0;
+  z-index: 4;
+}
+
+.dispatch-hour-cell {
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 8px 0;
+  border-right: 1px solid var(--border);
+}
+
+.dispatch-row {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  min-height: 64px;
+}
+
+.dispatch-row:hover { background: var(--surface-2); }
+
+.dispatch-tech-name {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+
+.dispatch-tech-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.dispatch-slots {
+  position: relative;
+  display: flex;
+  flex: 1;
+}
+
+.dispatch-slot {
+  flex-shrink: 0;
+  height: 100%;
+  border-right: 1px dashed var(--border);
+  transition: background 0.1s;
+}
+.dispatch-slot.hour-start { border-right: 1px solid var(--border); }
+.dispatch-slot.is-over { background: var(--badge-blue-bg); }
+
+.dispatch-job {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 8px;
+  border-left: 4px solid;
+  padding: 4px 8px;
+  overflow: hidden;
+  cursor: grab;
+  box-shadow: var(--shadow-card);
+}
+.dispatch-job:active { cursor: grabbing; }
+
+.dispatch-panel {
+  width: 300px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+
+.dispatch-panel-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.dispatch-panel-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: background 0.1s;
+}
+.dispatch-panel-list.is-over { background: var(--badge-red-bg); }
+
+.dispatch-panel-card {
+  border-radius: 8px;
+  border-left: 4px solid;
+  padding: 10px 12px;
+  font-size: 13px;
+  cursor: grab;
+}
+.dispatch-panel-card:active { cursor: grabbing; }
+
+@media (max-width: 900px) {
+  .dispatch-panel { width: 240px; }
+}

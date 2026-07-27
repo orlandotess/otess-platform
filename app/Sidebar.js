@@ -15,6 +15,7 @@ const ventasLinks = [
 const campoLinks = [
  { href: '/trabajos',   label: 'Trabajos',   icon: 'bolt' },
  { href: '/calendario', label: 'Calendario', icon: 'calendar' },
+ { href: '/admin/dispatch', label: 'Dispatch', icon: 'dispatch' },
  { href: '/mantenimientos', label: 'Mantenimientos', icon: 'wrench' },
  { href: '/boletos',    label: 'Boletos',    icon: 'ticket' },
  { href: '/crew',       label: 'Crew App',   icon: 'phone' },
@@ -90,6 +91,7 @@ const ICON_PATHS = {
   inbox: <><path d="M3 12 h5 l2 3 h4 l2 -3 h5"/><path d="M5.5 5 h13 l2.5 7 v7 a1.5 1.5 0 0 1 -1.5 1.5 h-15 A1.5 1.5 0 0 1 3 19 v-7 z"/></>,
   wrench: <path d="M20.5 6.5 a4.5 4.5 0 0 1 -6 4.2 L6 19 a2 2 0 0 1 -2.8 -2.8 l8.3 -8.5 a4.5 4.5 0 0 1 4.2 -6 l-3 3 l0.6 2.4 l2.4 0.6 z" fill="none"/>,
   target: <><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.8"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></>,
+  dispatch: <><rect x="3" y="5" width="12" height="3" rx="1"/><rect x="3" y="10.5" width="18" height="3" rx="1"/><rect x="3" y="16" width="8" height="3" rx="1"/></>,
 };
 
 function NavIcon({ name }) {
