@@ -90,10 +90,15 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     });
     setSavingReel(false);
     if (error) { setReelError("Error: " + error.message); return; }
+    const footage = parseFloat(newReel.total_footage);
     setReels(prev => [{
       id: data, location_id: newReel.location_id, catalog_item_id: reelsModalItem.id,
-      code: newReel.code.trim() || null, total_footage: parseFloat(newReel.total_footage), remaining_footage: parseFloat(newReel.total_footage),
+      code: newReel.code.trim() || null, total_footage: footage, remaining_footage: footage,
     }, ...prev]);
+    // Mantiene items[].stock_quantity al día — si no, un "Editar" posterior sobre
+    // este mismo ítem reenviaría el Stock viejo (desactualizado) y sobreescribiría
+    // el agregado real que acaba de mover add_stock_reel en la base de datos.
+    setItems(prev => prev.map(i => i.id === reelsModalItem.id ? { ...i, stock_quantity: (i.stock_quantity ?? 0) + footage } : i));
     setNewReel({ location_id: newReel.location_id, code: "", total_footage: "" });
   }
 
@@ -106,6 +111,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     setSavingReel(false);
     if (error) { setReelError("Error: " + error.message); return; }
     setReels(prev => prev.map(r => r.id === reel.id ? { ...r, remaining_footage: r.remaining_footage - footage } : r));
+    setItems(prev => prev.map(i => i.id === reel.catalog_item_id ? { ...i, stock_quantity: (i.stock_quantity ?? 0) - footage } : i));
     setReelFootageInputs(prev => ({ ...prev, [reel.id]: "" }));
   }
 
@@ -116,6 +122,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     setSavingReel(false);
     if (error) { alert("Error: " + error.message); return; }
     setReels(prev => prev.filter(r => r.id !== reel.id));
+    setItems(prev => prev.map(i => i.id === reel.catalog_item_id ? { ...i, stock_quantity: (i.stock_quantity ?? 0) - reel.remaining_footage } : i));
   }
 
   // Recalcula Precio venta = Costo * (1 + Markup%/100) cuando cambia el costo
