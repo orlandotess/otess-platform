@@ -64,7 +64,7 @@ function NuevoTrabajoForm() {
     if (match) {
       setItems(prev => prev.map((it, n) => n === idx ? {
         ...it, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        vendor: it.vendor || match.vendor || '', title: it.title || match.description,
+        vendor: it.vendor || match.vendor || '', title: it.title || match.name || match.description,
       } : it));
     } else {
       setItem(idx, 'description', value);
@@ -74,7 +74,7 @@ function NuevoTrabajoForm() {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
       setItems(prev => prev.map((it, n) => n === idx ? {
-        ...it, type: match.type, title: match.description, description: it.description || `${match.item_code} — ${match.description}`,
+        ...it, type: match.type, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
         unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
         vendor: it.vendor || match.vendor || '',
       } : it));

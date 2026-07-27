@@ -89,7 +89,7 @@ export default function NuevaEstimaForm() {
     if (match) {
       setItems(i => i.map((it, n) => n === idx ? {
         ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, title: it.title || match.description,
+        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, title: it.title || match.name || match.description,
       } : it));
     } else {
       setItems(i => i.map((it, n) => n === idx ? { ...it, description: value, catalog_item_id: null } : it));
@@ -99,7 +99,7 @@ export default function NuevaEstimaForm() {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
       setItems(i => i.map((it, n) => n === idx ? {
-        ...it, title: match.description, description: it.description || `${match.item_code} — ${match.description}`,
+        ...it, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
         unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
         vendor: it.vendor || match.vendor || '', catalog_item_id: match.id,
       } : it));
