@@ -126,6 +126,65 @@ export default async function Home() {
 
         <DashboardCalendarWidget />
 
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>Trabajos recientes</h2>
+            <Link href="/trabajos/nuevo" className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }}>+ Nuevo trabajo</Link>
+          </div>
+          {recentJobs.length === 0 ? (
+            <div className="empty">
+              <div className="empty-glyph">🔧</div>
+              <h3>No hay trabajos aún</h3>
+              <p>Cuando crees un trabajo para un cliente, aparecerá aquí.</p>
+              <Link href="/trabajos/nuevo" className="btn btn-primary btn-sm">+ Crear trabajo</Link>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Trabajo</th>
+                    <th>Cliente</th>
+                    <th>Ubicación</th>
+                    <th>Estado</th>
+                    <th>Fecha</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentJobs.map(j => {
+                    const b = statusBadge[j.status] ?? statusBadge.estimate;
+                    const loc = jobLocation(j);
+                    return (
+                      <tr key={j.id}>
+                        <td style={{ fontWeight: 600 }}>{j.title}</td>
+                        <td style={{ color: 'var(--muted)' }}>{j.clients?.name ?? '—'}</td>
+                        <td style={{ fontSize: 13 }}>
+                          {loc ? (
+                            (j.street || j.city) ? (
+                              <a href={pickMapsLink(j.street, j.city, j.state, j.zip)} target="_blank" rel="noopener noreferrer"
+                                style={{ color: 'var(--amber)', fontWeight: 600 }}>
+                                📍 {loc}
+                              </a>
+                            ) : (
+                              <span style={{ color: 'var(--muted)' }}>{loc}</span>
+                            )
+                          ) : <span style={{ color: 'var(--muted)' }}>—</span>}
+                        </td>
+                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>
+                          {j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}
+                        </td>
+                        <td><Link href={`/trabajos/${j.id}`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>Ver →</Link></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-label">Caja</div>
@@ -209,65 +268,6 @@ export default async function Home() {
               ))}
             </div>
           </div>
-        </div>
-
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>Trabajos recientes</h2>
-            <Link href="/trabajos/nuevo" className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }}>+ Nuevo trabajo</Link>
-          </div>
-          {recentJobs.length === 0 ? (
-            <div className="empty">
-              <div className="empty-glyph">🔧</div>
-              <h3>No hay trabajos aún</h3>
-              <p>Cuando crees un trabajo para un cliente, aparecerá aquí.</p>
-              <Link href="/trabajos/nuevo" className="btn btn-primary btn-sm">+ Crear trabajo</Link>
-            </div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Trabajo</th>
-                    <th>Cliente</th>
-                    <th>Ubicación</th>
-                    <th>Estado</th>
-                    <th>Fecha</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentJobs.map(j => {
-                    const b = statusBadge[j.status] ?? statusBadge.estimate;
-                    const loc = jobLocation(j);
-                    return (
-                      <tr key={j.id}>
-                        <td style={{ fontWeight: 600 }}>{j.title}</td>
-                        <td style={{ color: 'var(--muted)' }}>{j.clients?.name ?? '—'}</td>
-                        <td style={{ fontSize: 13 }}>
-                          {loc ? (
-                            (j.street || j.city) ? (
-                              <a href={pickMapsLink(j.street, j.city, j.state, j.zip)} target="_blank" rel="noopener noreferrer"
-                                style={{ color: 'var(--amber)', fontWeight: 600 }}>
-                                📍 {loc}
-                              </a>
-                            ) : (
-                              <span style={{ color: 'var(--muted)' }}>{loc}</span>
-                            )
-                          ) : <span style={{ color: 'var(--muted)' }}>—</span>}
-                        </td>
-                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                          {j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}
-                        </td>
-                        <td><Link href={`/trabajos/${j.id}`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>Ver →</Link></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       </main>
     </div>
