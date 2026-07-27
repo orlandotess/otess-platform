@@ -79,7 +79,11 @@ export default async function FacturaPublica({ params }) {
     ? clientProperties.find(p => p.id === inv.property_id) ?? null
     : inv.jobs?.client_properties ?? null;
   const billToName = inv.bill_to === 'company' && inv.clients?.company ? inv.clients.company : inv.clients?.name;
-  const displayItems = items?.length ? items : fallbackLineItems(inv);
+  const displayItems = await Promise.all((items?.length ? items : fallbackLineItems(inv)).map(async item => {
+    if (!item.photo_url) return item;
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(item.photo_url, 3600);
+    return { ...item, photo_signed_url: data?.signedUrl ?? null };
+  }));
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const today = new Date().toISOString().slice(0, 10);
@@ -156,8 +160,15 @@ export default async function FacturaPublica({ params }) {
                 {displayItems.map(item => (
                   <tr key={item.id}>
                     <td style={{ padding: '12px 12px 12px 0', fontWeight: 500, fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>
-                      {item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
-                      <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                        {item.photo_signed_url && (
+                          <img src={item.photo_signed_url} alt="" style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 6, background: '#f4f4f4', flexShrink: 0 }} />
+                        )}
+                        <div>
+                          {item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
+                          <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                        </div>
+                      </div>
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #f4f4f4' }}>
                       <span style={{ color: item.type === 'labor' ? '#92600a' : '#666', fontSize: 11.5, fontWeight: 600 }}>
