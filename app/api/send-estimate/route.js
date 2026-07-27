@@ -20,9 +20,22 @@ export async function POST(request) {
     if (!est) return Response.json({ error: 'No encontrada' }, { status: 404 });
     const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     const publicUrl = `https://app.otesspr.com/estimado/${estimateId}`;
-    const rows = items?.map(i => `
+    const displayItems = await Promise.all((items ?? []).map(async i => {
+      if (!i.photo_url) return i;
+      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(i.photo_url, 2592000);
+      return { ...i, photo_signed_url: data?.signedUrl ?? null };
+    }));
+    const rows = displayItems.map(i => `
       <tr>
-        <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px">${i.description}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+            ${i.photo_signed_url ? `<td style="padding-right:10px;vertical-align:top"><img src="${i.photo_signed_url}" alt="" width="40" height="40" style="width:40px;height:40px;object-fit:contain;border-radius:6px;background:#f4f4f4;display:block" /></td>` : ''}
+            <td style="vertical-align:top">
+              ${i.title ? `<div style="font-weight:700;margin-bottom:2px">${i.title}</div>` : ''}
+              <div>${i.description}</div>
+            </td>
+          </tr></table>
+        </td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${i.type === 'labor' ? 'Labor' : 'Producto'}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${i.quantity}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${fmt(i.unit_price)}</td>
