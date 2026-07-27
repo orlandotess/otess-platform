@@ -36,7 +36,16 @@ export default function NuevoBoletoForm() {
     e.preventDefault();
     if (!canSave) return;
     setSaving(true); setError('');
+
+    const { data: lastTicket } = await supabase.from('service_tickets').select('ticket_number').order('created_at', { ascending: false }).limit(1).single();
+    let nextNum = 1001;
+    if (lastTicket?.ticket_number) {
+      const n = parseInt(lastTicket.ticket_number.replace('TCK-', ''));
+      if (!isNaN(n)) nextNum = n + 1;
+    }
+
     const { data, error } = await supabase.from('service_tickets').insert([{
+      ticket_number: `TCK-${nextNum}`,
       client_id: form.client_id,
       property_id: form.property_id || null,
       subject: form.subject.trim(),

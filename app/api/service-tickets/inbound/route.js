@@ -78,9 +78,17 @@ export async function POST(request) {
     }
   }
 
+  const { data: lastTicket } = await supabase.from('service_tickets').select('ticket_number').order('created_at', { ascending: false }).limit(1).single();
+  let nextNum = 1001;
+  if (lastTicket?.ticket_number) {
+    const n = parseInt(lastTicket.ticket_number.replace('TCK-', ''));
+    if (!isNaN(n)) nextNum = n + 1;
+  }
+
   const { data: ticket, error } = await supabase
     .from('service_tickets')
     .insert([{
+      ticket_number: `TCK-${nextNum}`,
       client_id: clientId,
       subject: subject?.trim() || '(sin asunto)',
       description,

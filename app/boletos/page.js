@@ -16,7 +16,7 @@ const statusBadge = {
 export default async function BoletosPage() {
   const { data: tickets } = await supabase
     .from('service_tickets')
-    .select('id, subject, status, source, contact_email, created_at, resolved_at, updated_at, clients(name, company), technicians(name)')
+    .select('id, ticket_number, subject, status, source, contact_email, created_at, resolved_at, updated_at, clients(name, company), technicians(name)')
     .order('created_at', { ascending: false });
 
   const abiertos = tickets?.filter(t => t.status === 'abierto').length ?? 0;
@@ -74,6 +74,7 @@ export default async function BoletosPage() {
               <table>
                 <thead>
                   <tr>
+                    <th>#</th>
                     <th>Cliente</th>
                     <th>Problema</th>
                     <th>Origen</th>
@@ -92,6 +93,7 @@ export default async function BoletosPage() {
                       : formatDuration(t.created_at, new Date().toISOString());
                     return (
                       <tr key={t.id}>
+                        <td style={{ color: 'var(--muted)', fontSize: 12, fontFamily: 'monospace' }}>{t.ticket_number ?? '—'}</td>
                         <td style={{ fontWeight: 600 }}>
                           {t.clients?.company || t.clients?.name || (
                             <span style={{ color: 'var(--warn)', fontWeight: 600 }}>⚠️ {t.contact_email ?? 'Sin asignar'}</span>

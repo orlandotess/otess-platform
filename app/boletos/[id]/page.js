@@ -67,7 +67,14 @@ export default async function BoletoDetailPage({ params }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
           <div className="card">
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Cliente</h2>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Cliente</h2>
+              {ticket.ticket_number && (
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace', background: 'var(--amber-tint)', padding: '3px 8px', borderRadius: 8 }}>
+                  {ticket.ticket_number}
+                </span>
+              )}
+            </div>
             {ticket.clients ? (
               <>
                 <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
