@@ -1,14 +1,24 @@
 'use client';
 import { useState } from 'react';
 
+const DEFAULT_FEET_PER_UNIT = { cable: '1000', tubo: '10' };
+
 export default function CableCalculator({ areaOptions = [], vendorOptions = [], onAdd, onClose }) {
+  const [calcType, setCalcType] = useState('cable');
   const [area, setArea] = useState('');
   const [description, setDescription] = useState('');
   const [vendor, setVendor] = useState('');
   const [runs, setRuns] = useState('');
   const [feetPerRun, setFeetPerRun] = useState('');
-  const [feetPerBox, setFeetPerBox] = useState('');
+  const [feetPerBox, setFeetPerBox] = useState(DEFAULT_FEET_PER_UNIT.cable);
   const [pricePerBox, setPricePerBox] = useState('');
+
+  const unitLabel = calcType === 'tubo' ? 'tubo' : 'caja';
+
+  function handleTypeChange(type) {
+    setCalcType(type);
+    setFeetPerBox(DEFAULT_FEET_PER_UNIT[type]);
+  }
 
   const totalFeet = (parseFloat(runs) || 0) * (parseFloat(feetPerRun) || 0);
   const boxesNeeded = feetPerBox > 0 ? Math.ceil(totalFeet / parseFloat(feetPerBox)) : 0;
@@ -17,7 +27,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   function handleAdd() {
     if (!description.trim() || boxesNeeded <= 0) return;
     onAdd({
-      description: `${description.trim()} — ${boxesNeeded} caja(s) (${totalFeet} pies)`,
+      description: `${description.trim()} — ${boxesNeeded} ${unitLabel}(s) (${totalFeet} pies)`,
       area: area.trim() || '',
       vendor: vendor.trim() || '',
       quantity: boxesNeeded,
@@ -29,6 +39,21 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
         <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>🧮 Calcular cable/tubo</h2>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <button
+            type="button"
+            className={calcType === 'cable' ? 'btn btn-primary' : 'btn btn-ghost'}
+            style={{ flex: 1, justifyContent: 'center', fontSize: 13 }}
+            onClick={() => handleTypeChange('cable')}
+          >Cable</button>
+          <button
+            type="button"
+            className={calcType === 'tubo' ? 'btn btn-primary' : 'btn btn-ghost'}
+            style={{ flex: 1, justifyContent: 'center', fontSize: 13 }}
+            onClick={() => handleTypeChange('tubo')}
+          >Tubería</button>
+        </div>
 
         <div className="form-group" style={{ marginBottom: 12 }}>
           <label>Área</label>
@@ -64,11 +89,11 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
 
         <div className="form-row" style={{ marginBottom: 16 }}>
           <div className="form-group">
-            <label>Pies por caja</label>
-            <input type="number" value={feetPerBox} onChange={e => setFeetPerBox(e.target.value)} min="0" step="1" placeholder="1000" />
+            <label>Pies por {unitLabel}</label>
+            <input type="number" value={feetPerBox} onChange={e => setFeetPerBox(e.target.value)} min="0" step="1" placeholder={DEFAULT_FEET_PER_UNIT[calcType]} />
           </div>
           <div className="form-group">
-            <label>Precio por caja</label>
+            <label>Precio por {unitLabel}</label>
             <input type="number" value={pricePerBox} onChange={e => setPricePerBox(e.target.value)} min="0" step="0.01" />
           </div>
         </div>
@@ -78,7 +103,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
             <span style={{ color: 'var(--muted)' }}>Pies totales</span><span style={{ fontWeight: 700 }}>{totalFeet}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: 'var(--muted)' }}>Cajas necesarias</span><span style={{ fontWeight: 700 }}>{boxesNeeded}</span>
+            <span style={{ color: 'var(--muted)' }}>{calcType === 'tubo' ? 'Tubos necesarios' : 'Cajas necesarias'}</span><span style={{ fontWeight: 700 }}>{boxesNeeded}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, color: 'var(--navy)' }}>
             <span>Total</span><span>${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
