@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
 import LineItemRow from '../LineItemRow';
+import CableCalculator from '../CableCalculator';
 
 function emptyItem(parentKey = null, itemType = 'labor') {
   return {
@@ -132,6 +133,7 @@ export default function PropuestaForm({ initialData = null }) {
   }
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
+  const [cableCalcTarget, setCableCalcTarget] = useState(null); // { optKey, areaKey } — which area the calculator adds into, or null when closed
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — the item group currently being dragged
   const [selectedItemKeys, setSelectedItemKeys] = useState(new Set()); // parent item keys selected for bulk actions
   const [multiOption, setMultiOption] = useState((initialData?.options?.length ?? 0) > 1);
@@ -203,6 +205,15 @@ export default function PropuestaForm({ initialData = null }) {
   function addItem(optKey, areaKey, itemType = 'labor') {
     setOptions(prev => prev.map(o => o.key === optKey
       ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: [...a.items, emptyItem(null, itemType)] } : a) }
+      : o));
+  }
+  // Used by the cable/tubo calculator — merges a prefilled item (from the
+  // modal's onAdd) into a specific area instead of appending a blank one.
+  // The calculator's own `area` field is dropped since grouping here already
+  // happens by area, not by a per-item field.
+  function addPrefilledItem(optKey, areaKey, { area, ...item }) {
+    setOptions(prev => prev.map(o => o.key === optKey
+      ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: [...a.items, { ...emptyItem(null, 'product'), ...item }] } : a) }
       : o));
   }
   // Accessories are inserted right after the last item already belonging to
@@ -792,6 +803,7 @@ export default function PropuestaForm({ initialData = null }) {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key, 'product')}>+ Añadir producto</button>
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key, 'labor')}>+ Añadir labor</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ optKey: opt.key, areaKey: area.key })}>🧮 Calcular cable/tubo</button>
                   </div>
                 </div>
               ))}
@@ -842,6 +854,13 @@ export default function PropuestaForm({ initialData = null }) {
             <button type="button" className="btn btn-ghost" onClick={() => router.back()}>Cancelar</button>
           </div>
         </div>
+        {cableCalcTarget && (
+          <CableCalculator
+            vendorOptions={vendorOptions}
+            onAdd={item => { addPrefilledItem(cableCalcTarget.optKey, cableCalcTarget.areaKey, item); setCableCalcTarget(null); }}
+            onClose={() => setCableCalcTarget(null)}
+          />
+        )}
       </main>
     </div>
   );
