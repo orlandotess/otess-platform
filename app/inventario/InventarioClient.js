@@ -112,7 +112,7 @@ export default function InventarioClient({ locations: initialLocations, location
   const selectedStock = selectedId ? stock.filter(s => s.location_id === selectedId) : [];
   const unitSearchTerm = unitSearch.trim().toLowerCase();
   const selectedUnits = selectedId ? units.filter(u => u.location_id === selectedId
-    && (!unitSearchTerm || u.serial_number.toLowerCase().includes(unitSearchTerm) || u.catalog_items?.description?.toLowerCase().includes(unitSearchTerm) || u.catalog_items?.item_code?.toLowerCase().includes(unitSearchTerm))) : [];
+    && (!unitSearchTerm || u.serial_number.toLowerCase().includes(unitSearchTerm) || u.catalog_items?.name?.toLowerCase().includes(unitSearchTerm) || u.catalog_items?.description?.toLowerCase().includes(unitSearchTerm) || u.catalog_items?.item_code?.toLowerCase().includes(unitSearchTerm))) : [];
 
   function closeAddUnitModal() {
     setShowAddUnitModal(false);
@@ -165,7 +165,7 @@ export default function InventarioClient({ locations: initialLocations, location
       serial_number: unitForm.serial_number.trim(),
       photo_path,
       notes: unitForm.notes.trim() || null,
-    }]).select("*, catalog_items(item_code, description)").single();
+    }]).select("*, catalog_items(item_code, name, description)").single();
     setSavingUnit(false);
     if (error) {
       setUnitError(error.code === "23505" ? "Ese serial number ya existe en el sistema." : "Error: " + error.message);
@@ -246,6 +246,11 @@ export default function InventarioClient({ locations: initialLocations, location
     if (selectedId === loc.id) setSelectedId(null);
   }
 
+  function openAdjustForStock(catalog_item_id) {
+    setAdjustForm({ catalog_item_id, delta: "", reason: "" });
+    setShowAdjustModal(true);
+  }
+
   async function adjustStock() {
     const delta = parseFloat(adjustForm.delta);
     if (!adjustForm.catalog_item_id || !delta || !selectedId) return;
@@ -263,7 +268,7 @@ export default function InventarioClient({ locations: initialLocations, location
       const idx = prev.findIndex(s => s.location_id === selectedId && s.catalog_item_id === adjustForm.catalog_item_id);
       if (idx === -1) {
         const prod = products.find(p => p.id === adjustForm.catalog_item_id);
-        return [...prev, { id: `tmp-${Date.now()}`, location_id: selectedId, catalog_item_id: adjustForm.catalog_item_id, quantity: delta, catalog_items: prod ? { item_code: prod.item_code, description: prod.description } : null }];
+        return [...prev, { id: `tmp-${Date.now()}`, location_id: selectedId, catalog_item_id: adjustForm.catalog_item_id, quantity: delta, catalog_items: prod ? { item_code: prod.item_code, name: prod.name, description: prod.description } : null }];
       }
       return prev.map((s, i) => i === idx ? { ...s, quantity: s.quantity + delta } : s);
     });
@@ -291,7 +296,7 @@ export default function InventarioClient({ locations: initialLocations, location
       const toIdx = next.findIndex(s => s.location_id === transferForm.to_location_id && s.catalog_item_id === transferForm.catalog_item_id);
       if (toIdx === -1) {
         const prod = products.find(p => p.id === transferForm.catalog_item_id);
-        next = [...next, { id: `tmp-${Date.now()}`, location_id: transferForm.to_location_id, catalog_item_id: transferForm.catalog_item_id, quantity, catalog_items: prod ? { item_code: prod.item_code, description: prod.description } : null }];
+        next = [...next, { id: `tmp-${Date.now()}`, location_id: transferForm.to_location_id, catalog_item_id: transferForm.catalog_item_id, quantity, catalog_items: prod ? { item_code: prod.item_code, name: prod.name, description: prod.description } : null }];
       } else {
         next = next.map((s, i) => i === toIdx ? { ...s, quantity: s.quantity + quantity } : s);
       }
@@ -305,7 +310,7 @@ export default function InventarioClient({ locations: initialLocations, location
     setShowHistory(true);
     setLoadingHistory(true);
     const { data } = await supabase.from("inventory_transactions")
-      .select("*, catalog_items(item_code, description)")
+      .select("*, catalog_items(item_code, name, description)")
       .eq("location_id", selectedId)
       .order("created_at", { ascending: false })
       .limit(50);
@@ -450,10 +455,12 @@ export default function InventarioClient({ locations: initialLocations, location
                 ) : (
                   <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
                     {selectedStock.map((s, idx) => (
-                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", borderBottom: idx < selectedStock.length - 1 ? "1px solid var(--border)" : "none" }}>
+                      <div key={s.id} onClick={() => openAdjustForStock(s.catalog_item_id)} title="Click para editar este stock"
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderBottom: idx < selectedStock.length - 1 ? "1px solid var(--border)" : "none", cursor: "pointer" }}>
                         <div>
                           <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--amber)" }}>{s.catalog_items?.item_code}</div>
-                          <div style={{ fontSize: 13 }}>{s.catalog_items?.description}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{s.catalog_items?.name || s.catalog_items?.description}</div>
+                          {s.catalog_items?.name && s.catalog_items?.description && <div style={{ fontSize: 11, color: "var(--muted)" }}>{s.catalog_items.description}</div>}
                         </div>
                         <div style={{ fontWeight: 700, color: s.quantity <= 0 ? "var(--warn)" : "var(--navy)" }}>{s.quantity}</div>
                       </div>
@@ -483,7 +490,8 @@ export default function InventarioClient({ locations: initialLocations, location
                           <div style={{ width: 44, height: 44, borderRadius: 8, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📦</div>
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13 }}>{u.catalog_items?.description}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{u.catalog_items?.name || u.catalog_items?.description}</div>
+                          {u.catalog_items?.name && u.catalog_items?.description && <div style={{ fontSize: 11, color: "var(--muted)" }}>{u.catalog_items.description}</div>}
                           <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--amber)" }}>SN: {u.serial_number}</div>
                           {u.notes && <div style={{ fontSize: 11, color: "var(--muted)" }}>{u.notes}</div>}
                         </div>
@@ -559,9 +567,13 @@ export default function InventarioClient({ locations: initialLocations, location
           <Field label="Producto">
             <select value={adjustForm.catalog_item_id} onChange={e => setAdjustForm(f => ({ ...f, catalog_item_id: e.target.value }))} style={inputStyle}>
               <option value="">Selecciona un producto...</option>
-              {products.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+              {products.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
             </select>
           </Field>
+          {(() => {
+            const current = selectedStock.find(s => s.catalog_item_id === adjustForm.catalog_item_id);
+            return current ? <p style={{ fontSize: 12, color: "var(--muted)", marginTop: -6 }}>Cantidad actual aquí: <strong>{current.quantity}</strong></p> : null;
+          })()}
           <Field label="Cantidad (negativo para restar)">
             <input type="number" value={adjustForm.delta} onChange={e => setAdjustForm(f => ({ ...f, delta: e.target.value }))} placeholder="10 o -5" style={inputStyle} />
           </Field>
@@ -580,7 +592,7 @@ export default function InventarioClient({ locations: initialLocations, location
               <>
                 <select value={unitForm.catalog_item_id} onChange={e => setUnitForm(f => ({ ...f, catalog_item_id: e.target.value }))} style={inputStyle}>
                   <option value="">Selecciona un producto...</option>
-                  {products.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+                  {products.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
                 </select>
                 <button type="button" onClick={() => setShowNewProduct(true)}
                   style={{ background: "none", border: "none", color: "var(--amber)", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "6px 0 0" }}>
@@ -646,7 +658,7 @@ export default function InventarioClient({ locations: initialLocations, location
           <Field label="Producto">
             <select value={transferForm.catalog_item_id} onChange={e => setTransferForm(f => ({ ...f, catalog_item_id: e.target.value }))} style={inputStyle}>
               <option value="">Selecciona un producto...</option>
-              {selectedStock.map(s => <option key={s.catalog_item_id} value={s.catalog_item_id}>{s.catalog_items?.item_code} — {s.catalog_items?.description} (disponible: {s.quantity})</option>)}
+              {selectedStock.map(s => <option key={s.catalog_item_id} value={s.catalog_item_id}>{s.catalog_items?.item_code} — {s.catalog_items?.name || s.catalog_items?.description} (disponible: {s.quantity})</option>)}
             </select>
           </Field>
           <Field label="Ubicación destino">
@@ -677,7 +689,7 @@ export default function InventarioClient({ locations: initialLocations, location
               {history.map(h => (
                 <div key={h.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 4px", borderBottom: "1px solid var(--border)" }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{h.catalog_items?.item_code} — {h.catalog_items?.description}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{h.catalog_items?.item_code} — {h.catalog_items?.name || h.catalog_items?.description}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)" }}>
                       {h.reason}{h.transfer_group_id ? " · transferencia" : ""} · {new Date(h.created_at).toLocaleString("es-PR")}
                       {h.created_by ? ` · ${h.created_by}` : ""}

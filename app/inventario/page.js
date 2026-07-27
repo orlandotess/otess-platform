@@ -8,9 +8,9 @@ import InventarioClient from "./InventarioClient";
 export default async function InventarioPage() {
   const [{ data: locations }, { data: locationStock }, { data: products }, { data: locationStockUnits }] = await Promise.all([
     supabase.from("locations").select("*").order("name"),
-    supabase.from("location_stock").select("*, catalog_items(item_code, description)"),
-    supabase.from("catalog_items").select("id, item_code, description, stock_quantity, default_location_id").eq("type", "product").order("item_code"),
-    supabase.from("location_stock_units").select("*, catalog_items(item_code, description)").order("created_at", { ascending: false }),
+    supabase.from("location_stock").select("*, catalog_items(item_code, name, description)"),
+    supabase.from("catalog_items").select("id, item_code, name, description, stock_quantity, default_location_id").eq("type", "product").order("item_code"),
+    supabase.from("location_stock_units").select("*, catalog_items(item_code, name, description)").order("created_at", { ascending: false }),
   ]);
 
   return (
