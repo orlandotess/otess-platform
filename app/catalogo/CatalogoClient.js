@@ -10,15 +10,21 @@ const TYPE_META = {
 
 const LOCATION_ICONS = { warehouse: "🏢", site: "📍", van: "🚐", zone: "🗂️", shelf: "📚", bin: "🗃️" };
 
-export default function CatalogoClient({ items: initial, locations = [], locationStock = [] }) {
+export default function CatalogoClient({ items: initial, locations = [], locationStock = [], locationReels = [] }) {
   const [items, setItems] = useState(initial);
+  const [reels, setReels] = useState(locationReels);
+  const [reelsModalItem, setReelsModalItem] = useState(null);
+  const [newReel, setNewReel] = useState({ location_id: "", code: "", total_footage: "" });
+  const [reelFootageInputs, setReelFootageInputs] = useState({});
+  const [savingReel, setSavingReel] = useState(false);
+  const [reelError, setReelError] = useState("");
   const [tab, setTab] = useState("labor");
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [editPhotoFile, setEditPhotoFile] = useState(null);
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [newItem, setNewItem] = useState({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "" });
+  const [newItem, setNewItem] = useState({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false });
   const [newPhotoFile, setNewPhotoFile] = useState(null);
   const [newPhotoPreview, setNewPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -61,6 +67,57 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     return locationStock.filter(s => s.catalog_item_id === itemId && s.quantity !== 0);
   }
 
+  function reelsForItem(itemId) {
+    return reels.filter(r => r.catalog_item_id === itemId);
+  }
+
+  function openReelsModal(item) {
+    setReelsModalItem(item);
+    setNewReel({ location_id: item.default_location_id ?? "", code: "", total_footage: "" });
+    setReelFootageInputs({});
+    setReelError("");
+  }
+
+  async function addReel() {
+    if (!reelsModalItem || !newReel.location_id || !newReel.total_footage) return;
+    setSavingReel(true);
+    setReelError("");
+    const { data, error } = await supabase.rpc("add_stock_reel", {
+      p_catalog_item_id: reelsModalItem.id,
+      p_location_id: newReel.location_id,
+      p_total_footage: parseFloat(newReel.total_footage),
+      p_code: newReel.code.trim() || null,
+    });
+    setSavingReel(false);
+    if (error) { setReelError("Error: " + error.message); return; }
+    setReels(prev => [{
+      id: data, location_id: newReel.location_id, catalog_item_id: reelsModalItem.id,
+      code: newReel.code.trim() || null, total_footage: parseFloat(newReel.total_footage), remaining_footage: parseFloat(newReel.total_footage),
+    }, ...prev]);
+    setNewReel({ location_id: newReel.location_id, code: "", total_footage: "" });
+  }
+
+  async function useReelFootage(reel) {
+    const footage = parseFloat(reelFootageInputs[reel.id]);
+    if (!footage || footage <= 0) return;
+    setSavingReel(true);
+    setReelError("");
+    const { error } = await supabase.rpc("use_reel_footage", { p_reel_id: reel.id, p_footage: footage });
+    setSavingReel(false);
+    if (error) { setReelError("Error: " + error.message); return; }
+    setReels(prev => prev.map(r => r.id === reel.id ? { ...r, remaining_footage: r.remaining_footage - footage } : r));
+    setReelFootageInputs(prev => ({ ...prev, [reel.id]: "" }));
+  }
+
+  async function deleteReel(reel) {
+    if (!confirm("¿Eliminar esta caja de cable?")) return;
+    setSavingReel(true);
+    const { error } = await supabase.rpc("delete_stock_reel", { p_reel_id: reel.id });
+    setSavingReel(false);
+    if (error) { alert("Error: " + error.message); return; }
+    setReels(prev => prev.filter(r => r.id !== reel.id));
+  }
+
   // Recalcula Precio venta = Costo * (1 + Markup%/100) cuando cambia el costo
   // o el markup; el precio sigue siendo editable a mano por encima de esto.
   function applyMarkup(setFn, patch) {
@@ -100,7 +157,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
 
   function startEdit(item) {
     setEditingId(item.id);
-    setEditForm({ item_code: item.item_code, name: item.name ?? "", description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", markup_pct: item.markup_pct ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "" });
+    setEditForm({ item_code: item.item_code, name: item.name ?? "", description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", markup_pct: item.markup_pct ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "", internal_only: item.internal_only ?? false });
     setEditPhotoFile(null);
     setEditPhotoPreview(item.photo_url ? signedUrls[item.photo_url] ?? null : null);
   }
@@ -123,6 +180,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       msrp: editForm.msrp !== "" ? parseFloat(editForm.msrp) : null,
       supplier_price: editForm.supplier_price !== "" ? parseFloat(editForm.supplier_price) : null,
       vendor: editForm.vendor.trim() || null,
+      internal_only: !!editForm.internal_only,
     };
     if (dataType === "product") {
       payload.stock_quantity = editForm.stock_quantity !== "" ? parseFloat(editForm.stock_quantity) : null;
@@ -164,10 +222,11 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       vendor: newItem.vendor.trim() || null,
       stock_quantity: dataType === "product" && newItem.stock_quantity !== "" ? parseFloat(newItem.stock_quantity) : null,
       default_location_id: dataType === "product" ? (newItem.default_location_id || null) : null,
+      internal_only: !!newItem.internal_only,
       photo_url,
     }]).select().single();
     if (data) setItems(prev => [...prev, data]);
-    setNewItem({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "" });
+    setNewItem({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false });
     setNewPhotoFile(null);
     setNewPhotoPreview(null);
     setAdding(false);
@@ -346,6 +405,10 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                   </select>
                 )}
               </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", cursor: "pointer" }} title="No aparece como opción al armar Facturas, Estimas, Propuestas u Órdenes de Cambio">
+                <input type="checkbox" checked={newItem.internal_only} onChange={e => setNewItem(f => ({ ...f, internal_only: e.target.checked }))} />
+                🔒 Interno (no visible en documentos de cliente)
+              </label>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
@@ -403,6 +466,10 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                         {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                       </select>
                     )}
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted)", cursor: "pointer" }} title="No aparece como opción al armar Facturas, Estimas, Propuestas u Órdenes de Cambio">
+                      <input type="checkbox" checked={!!editForm.internal_only} onChange={e => setEditForm(f => ({ ...f, internal_only: e.target.checked }))} />
+                      🔒 Interno
+                    </label>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px", flex: 1, justifyContent: "center" }}>💾 Guardar</button>
                       <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>✕</button>
@@ -415,7 +482,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                         <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                       ) : "📦"}
                     </div>
-                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title="No visible en documentos de cliente">🔒 Interno</span>}</div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
                     {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)", minHeight: 34 }}>{item.description}</div>}
                     <div>
@@ -439,9 +506,17 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                           {locationBreakdown(item.id).map(s => `${LOCATION_ICONS[locationsById[s.location_id]?.type] ?? "📍"} ${locationsById[s.location_id]?.name ?? "?"}: ${s.quantity}`).join(" · ")}
                         </div>
                       )}
+                      {item.type === "product" && reelsForItem(item.id).length > 0 && (
+                        <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+                          🧵 {reelsForItem(item.id).length} caja{reelsForItem(item.id).length === 1 ? "" : "s"} · {reelsForItem(item.id).reduce((a, r) => a + r.remaining_footage, 0)} pies restantes
+                        </div>
+                      )}
                     </div>
                     <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                       <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", flex: 1, justifyContent: "center" }}>✏️ Editar</button>
+                      {item.type === "product" && (
+                        <button onClick={() => openReelsModal(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }} title="Cajas de cable">🧵</button>
+                      )}
                       <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", color: "var(--warn)" }}>🗑</button>
                     </div>
                   </>
@@ -473,6 +548,10 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                       <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del ítem" maxLength={150} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700, flex: 1 }} />
                     </div>
                     <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, width: "100%" }} />
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted)", cursor: "pointer" }} title="No aparece como opción al armar Facturas, Estimas, Propuestas u Órdenes de Cambio">
+                      <input type="checkbox" checked={!!editForm.internal_only} onChange={e => setEditForm(f => ({ ...f, internal_only: e.target.checked }))} />
+                      🔒 Interno (no visible en documentos de cliente)
+                    </label>
                     <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                       <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>💾 Guardar</button>
                       <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>✕ Cancelar</button>
@@ -513,7 +592,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title="No visible en documentos de cliente">🔒 Interno</span>}</div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
                     {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)" }}>{item.description}</div>}
                     {item.type === "product" && item.vendor && <div style={{ fontSize: 11, color: "var(--muted)" }}>🏪 {item.vendor}</div>}
@@ -525,6 +604,11 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                         {locationBreakdown(item.id).map(s => `${LOCATION_ICONS[locationsById[s.location_id]?.type] ?? "📍"} ${locationsById[s.location_id]?.name ?? "?"}: ${s.quantity}`).join(" · ")}
                       </div>
                     )}
+                    {item.type === "product" && reelsForItem(item.id).length > 0 && (
+                      <div style={{ fontSize: 10, color: "var(--muted)" }}>
+                        🧵 {reelsForItem(item.id).length} caja{reelsForItem(item.id).length === 1 ? "" : "s"} · {reelsForItem(item.id).reduce((a, r) => a + r.remaining_footage, 0)} pies restantes
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0, width: 110 }}>
                     {item.type === "product" && item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
@@ -534,12 +618,74 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                     <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 12px" }}>✏️ Editar</button>
+                    {item.type === "product" && (
+                      <button onClick={() => openReelsModal(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }} title="Cajas de cable">🧵</button>
+                    )}
                     <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", color: "var(--warn)" }}>🗑</button>
                   </div>
                 </div>
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {reelsModalItem && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }} onClick={() => setReelsModalItem(null)}>
+          <div style={{ background: "var(--surface)", borderRadius: 16, padding: 20, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 17 }}>🧵 Cajas de cable — {reelsModalItem.name || reelsModalItem.description}</div>
+              <button onClick={() => setReelsModalItem(null)} aria-label="Cerrar" style={{ background: "var(--surface-2)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 15 }}>✕</button>
+            </div>
+
+            <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>+ Agregar caja</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <select value={newReel.location_id} onChange={e => setNewReel(f => ({ ...f, location_id: e.target.value }))}
+                  style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, flex: "1 1 160px" }}>
+                  <option value="">Ubicación...</option>
+                  {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+                <input value={newReel.code} onChange={e => setNewReel(f => ({ ...f, code: e.target.value }))} placeholder="Código (opcional)"
+                  style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 130 }} />
+                <input type="number" value={newReel.total_footage} onChange={e => setNewReel(f => ({ ...f, total_footage: e.target.value }))} placeholder="Pies totales"
+                  style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 100 }} />
+                <button onClick={addReel} disabled={savingReel || !newReel.location_id || !newReel.total_footage} className="btn btn-primary" style={{ fontSize: 12, padding: "8px 14px" }}>
+                  {savingReel ? "Guardando..." : "Agregar"}
+                </button>
+              </div>
+            </div>
+
+            {reelError && <p style={{ color: "var(--warn)", fontSize: 12, marginBottom: 10 }}>{reelError}</p>}
+
+            {reelsForItem(reelsModalItem.id).length === 0 ? (
+              <div className="empty"><p>Sin cajas registradas para este producto.</p></div>
+            ) : (
+              reelsForItem(reelsModalItem.id).map(reel => {
+                const pct = reel.total_footage > 0 ? Math.max(0, Math.min(100, (reel.remaining_footage / reel.total_footage) * 100)) : 0;
+                return (
+                  <div key={reel.id} style={{ border: "1.5px solid var(--border)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>
+                        {LOCATION_ICONS[locationsById[reel.location_id]?.type] ?? "📍"} {locationsById[reel.location_id]?.name ?? "?"}
+                        {reel.code && <span style={{ color: "var(--muted)", fontWeight: 400 }}> · {reel.code}</span>}
+                      </div>
+                      <button onClick={() => deleteReel(reel)} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 8px", color: "var(--warn)" }}>🗑</button>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>{reel.remaining_footage} / {reel.total_footage} pies restantes</div>
+                    <div style={{ background: "var(--surface-2)", borderRadius: 20, height: 6, overflow: "hidden", marginBottom: 8 }}>
+                      <div style={{ background: pct <= 15 ? "var(--warn)" : "var(--amber)", height: "100%", width: `${pct}%` }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input type="number" value={reelFootageInputs[reel.id] ?? ""} onChange={e => setReelFootageInputs(prev => ({ ...prev, [reel.id]: e.target.value }))} placeholder="Pies usados"
+                        style={{ flex: 1, padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
+                      <button onClick={() => useReelFootage(reel)} disabled={savingReel || !reelFootageInputs[reel.id]} className="btn btn-amber" style={{ fontSize: 12, padding: "6px 12px" }}>Usar</button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
     </div>
