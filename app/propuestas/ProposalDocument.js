@@ -264,8 +264,8 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14 }}><span style={{ color: '#666' }}>Total Labor</span><span style={{ fontWeight: 700 }}>{fmt(fb.labor)}</span></div>
             <hr style={{ border: 'none', borderTop: '1px solid #eee', margin: '6px 0' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>Subtotal</span><span style={{ fontWeight: 700 }}>{fmt(fb.subtotal)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>Sales Tax</span><span>{fmt(fb.tax)}</span></div>
-            <div style={{ fontSize: 10.5, color: '#999', textAlign: 'right' }}>Parts: {partsRate}% Labor: {laborRate}%</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>Sales Tax — Parts ({partsRate}%)</span><span>{fmt(fb.taxParts)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>Sales Tax — Labor ({laborRate}%)</span><span>{fmt(fb.taxLabor)}</span></div>
             <hr style={{ border: 'none', borderTop: '1.5px solid #ddd', margin: '10px 0' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: NAVY }}><span>Proposal Total</span><span>{fmt(fb.total)}</span></div>
           </div>
