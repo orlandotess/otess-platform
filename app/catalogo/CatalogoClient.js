@@ -18,7 +18,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   const [editPhotoFile, setEditPhotoFile] = useState(null);
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [newItem, setNewItem] = useState({ item_code: "", description: "", price: "", msrp: "", supplier_price: "", vendor: "", stock_quantity: "", default_location_id: "" });
+  const [newItem, setNewItem] = useState({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "" });
   const [newPhotoFile, setNewPhotoFile] = useState(null);
   const [newPhotoPreview, setNewPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -61,11 +61,26 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     return locationStock.filter(s => s.catalog_item_id === itemId && s.quantity !== 0);
   }
 
+  // Recalcula Precio venta = Costo * (1 + Markup%/100) cuando cambia el costo
+  // o el markup; el precio sigue siendo editable a mano por encima de esto.
+  function applyMarkup(setFn, patch) {
+    setFn(f => {
+      const next = { ...f, ...patch };
+      const cost = parseFloat(next.supplier_price);
+      const pct = parseFloat(next.markup_pct);
+      if (!isNaN(cost) && cost > 0 && !isNaN(pct)) {
+        next.price = (cost * (1 + pct / 100)).toFixed(2);
+      }
+      return next;
+    });
+  }
+
   const counts = { labor: items.filter(i => i.type === "labor").length, product: items.filter(i => i.type === "product").length };
   counts.catalog_view = counts.product;
 
   const filtered = items.filter(i => i.type === dataType && (
     i.item_code.toLowerCase().includes(search.toLowerCase()) ||
+    (i.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
     i.description.toLowerCase().includes(search.toLowerCase())
   ));
 
@@ -85,7 +100,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
 
   function startEdit(item) {
     setEditingId(item.id);
-    setEditForm({ item_code: item.item_code, description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "" });
+    setEditForm({ item_code: item.item_code, name: item.name ?? "", description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", markup_pct: item.markup_pct ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "" });
     setEditPhotoFile(null);
     setEditPhotoPreview(item.photo_url ? signedUrls[item.photo_url] ?? null : null);
   }
@@ -102,6 +117,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     setSaving(true);
     const payload = {
       item_code: editForm.item_code.trim(),
+      name: editForm.name.trim(),
       description: editForm.description.trim(),
       price: parseFloat(editForm.price) || 0,
       msrp: editForm.msrp !== "" ? parseFloat(editForm.msrp) : null,
@@ -111,6 +127,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     if (dataType === "product") {
       payload.stock_quantity = editForm.stock_quantity !== "" ? parseFloat(editForm.stock_quantity) : null;
       payload.default_location_id = editForm.default_location_id || null;
+      payload.markup_pct = editForm.markup_pct !== "" ? parseFloat(editForm.markup_pct) : null;
     }
     if (editPhotoFile) {
       const path = await uploadPhoto(editPhotoFile);
@@ -131,24 +148,26 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   }
 
   async function addItem() {
-    if (!newItem.item_code.trim() || !newItem.description.trim()) return;
+    if (!newItem.item_code.trim() || !newItem.name.trim() || !newItem.description.trim()) return;
     setSaving(true);
     let photo_url = null;
     if (newPhotoFile) photo_url = await uploadPhoto(newPhotoFile);
     const { data } = await supabase.from("catalog_items").insert([{
       type: dataType,
       item_code: newItem.item_code.trim(),
+      name: newItem.name.trim(),
       description: newItem.description.trim(),
       price: parseFloat(newItem.price) || 0,
       msrp: newItem.msrp !== "" ? parseFloat(newItem.msrp) : null,
       supplier_price: newItem.supplier_price !== "" ? parseFloat(newItem.supplier_price) : null,
+      markup_pct: dataType === "product" && newItem.markup_pct !== "" ? parseFloat(newItem.markup_pct) : null,
       vendor: newItem.vendor.trim() || null,
       stock_quantity: dataType === "product" && newItem.stock_quantity !== "" ? parseFloat(newItem.stock_quantity) : null,
       default_location_id: dataType === "product" ? (newItem.default_location_id || null) : null,
       photo_url,
     }]).select().single();
     if (data) setItems(prev => [...prev, data]);
-    setNewItem({ item_code: "", description: "", price: "", msrp: "", supplier_price: "", vendor: "", stock_quantity: "", default_location_id: "" });
+    setNewItem({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "" });
     setNewPhotoFile(null);
     setNewPhotoPreview(null);
     setAdding(false);
@@ -156,8 +175,8 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   }
 
   function exportCSV() {
-    const rows = filtered.map(i => [i.item_code, i.description, i.price, i.msrp ?? "", i.supplier_price ?? "", i.vendor ?? "", i.stock_quantity ?? ""]);
-    const csvContent = [["Item Code", "Descripcion", "Precio", "MSRP", "Costo Suplidor", "Vendor", "Stock"], ...rows]
+    const rows = filtered.map(i => [i.item_code, i.name ?? "", i.description, i.price, i.msrp ?? "", i.supplier_price ?? "", i.markup_pct ?? "", i.vendor ?? "", i.stock_quantity ?? ""]);
+    const csvContent = [["Item Code", "Nombre", "Descripcion", "Precio", "MSRP", "Costo Suplidor", "Markup %", "Vendor", "Stock"], ...rows]
       .map(row => row.map(cell => `"${cell}"`).join(","))
       .join("\n");
     const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
@@ -181,8 +200,8 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
 
     const toInsert = dataLines.map(line => {
       const cols = line.split(",").map(c => c.replace(/^"|"$/g, "").trim());
-      return { type: dataType, item_code: cols[0] || "", description: cols[1] || "", price: parseFloat(cols[2]) || 0, msrp: cols[3] ? parseFloat(cols[3]) : null, supplier_price: cols[4] ? parseFloat(cols[4]) : null, vendor: cols[5] || null, stock_quantity: dataType === "product" && cols[6] ? parseFloat(cols[6]) : null };
-    }).filter(i => i.item_code && i.description);
+      return { type: dataType, item_code: cols[0] || "", name: cols[1] || "", description: cols[2] || "", price: parseFloat(cols[3]) || 0, msrp: cols[4] ? parseFloat(cols[4]) : null, supplier_price: cols[5] ? parseFloat(cols[5]) : null, markup_pct: dataType === "product" && cols[6] ? parseFloat(cols[6]) : null, vendor: cols[7] || null, stock_quantity: dataType === "product" && cols[8] ? parseFloat(cols[8]) : null };
+    }).filter(i => i.item_code && i.name && i.description);
 
     if (toInsert.length === 0) { alert("No se encontraron filas válidas en el CSV."); return; }
 
@@ -264,15 +283,19 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                 if (f) { setNewPhotoFile(f); setNewPhotoPreview(URL.createObjectURL(f)); }
               }} />
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: dataType === "product" ? "140px 1fr 90px 90px 90px 110px 80px 150px" : "140px 1fr 90px", gap: 8, alignItems: "center", flex: 1 }}>
+            <div style={{ display: "grid", gridTemplateColumns: dataType === "product" ? "140px 1fr 1fr 90px 90px 90px 70px 110px 80px 150px" : "140px 1fr 1fr 90px", gap: 8, alignItems: "center", flex: 1 }}>
               <input value={newItem.item_code} onChange={e => setNewItem(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "monospace" }} />
+              <input value={newItem.name} onChange={e => setNewItem(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del ítem" maxLength={150} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
               <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
               {dataType === "product" && (
                 <input type="number" value={newItem.msrp} onChange={e => setNewItem(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)" }} />
               )}
-              <input type="number" value={newItem.price} onChange={e => setNewItem(f => ({ ...f, price: e.target.value }))} placeholder="Precio venta" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
+              <input type="number" value={newItem.price} onChange={e => setNewItem(f => ({ ...f, price: e.target.value }))} placeholder="Precio venta" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} title="Precio de venta al cliente (editable a mano)" />
               {dataType === "product" && (
-                <input type="number" value={newItem.supplier_price} onChange={e => setNewItem(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--warn)" }} />
+                <input type="number" value={newItem.supplier_price} onChange={e => applyMarkup(setNewItem, { supplier_price: e.target.value })} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--warn)" }} />
+              )}
+              {dataType === "product" && (
+                <input type="number" value={newItem.markup_pct} onChange={e => applyMarkup(setNewItem, { markup_pct: e.target.value })} placeholder="Markup %" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} title="% sobre el costo — calcula el precio de venta automáticamente" />
               )}
               {dataType === "product" && (
                 <input list="vendor-options" value={newItem.vendor} onChange={e => setNewItem(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
@@ -319,13 +342,17 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                       }} />
                     </label>
                     <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace" }} />
+                    <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del ítem" maxLength={150} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
                     <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
                     {item.type === "product" && (
                       <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)" }} />
                     )}
-                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
+                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} title="Precio de venta al cliente (editable a mano)" />
                     {item.type === "product" && (
-                      <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)" }} />
+                      <input type="number" value={editForm.supplier_price} onChange={e => applyMarkup(setEditForm, { supplier_price: e.target.value })} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)" }} />
+                    )}
+                    {item.type === "product" && (
+                      <input type="number" value={editForm.markup_pct} onChange={e => applyMarkup(setEditForm, { markup_pct: e.target.value })} placeholder="Markup %" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} title="% sobre el costo — calcula el precio de venta automáticamente" />
                     )}
                     {item.type === "product" && (
                       <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} />
@@ -352,15 +379,19 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                       ) : "📦"}
                     </div>
                     <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}</div>
-                    <div style={{ fontWeight: 700, fontSize: 14, minHeight: 34 }}>{item.description}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
+                    {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)", minHeight: 34 }}>{item.description}</div>}
                     <div>
                       {item.type === "product" && item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
                       <div style={{ fontWeight: 800, fontSize: 18, color: "var(--navy)" }}>{fmt(item.price)}</div>
                       {item.type === "product" && item.supplier_price != null && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--warn)" }}>
                           <span>Costo: {fmt(item.supplier_price)}</span>
-                          {margin != null && <span style={{ color: margin >= 0 ? "#0e8f7a" : "var(--warn)", fontWeight: 700 }}>{margin}%</span>}
+                          {margin != null && <span title="Margen real (ganancia / precio)" style={{ color: margin >= 0 ? "#0e8f7a" : "var(--warn)", fontWeight: 700 }}>{margin}% margen</span>}
                         </div>
+                      )}
+                      {item.type === "product" && item.markup_pct != null && (
+                        <div style={{ fontSize: 11, color: "var(--muted)" }} title="% sobre el costo usado para calcular el precio de venta">Markup: {item.markup_pct}%</div>
                       )}
                       {item.type === "product" && item.vendor && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>🏪 {item.vendor}</div>}
                       {item.type === "product" && item.stock_quantity != null && (
@@ -402,8 +433,9 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                   <div style={{ flex: 1, display: "grid", gap: 6 }}>
                     <div style={{ display: "flex", gap: 6 }}>
                       <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace", width: 140 }} />
-                      <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, flex: 1 }} />
+                      <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del ítem" maxLength={150} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700, flex: 1 }} />
                     </div>
+                    <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, width: "100%" }} />
                     <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                       <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>💾 Guardar</button>
                       <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>✕ Cancelar</button>
@@ -413,9 +445,12 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                     {item.type === "product" && (
                       <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)", textAlign: "right", width: "100%", marginBottom: 3 }} />
                     )}
-                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: "right", width: "100%", marginBottom: 3 }} />
+                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: "right", width: "100%", marginBottom: 3 }} title="Precio de venta al cliente (editable a mano)" />
                     {item.type === "product" && (
-                      <input type="number" value={editForm.supplier_price} onChange={e => setEditForm(f => ({ ...f, supplier_price: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)", textAlign: "right", width: "100%" }} />
+                      <input type="number" value={editForm.supplier_price} onChange={e => applyMarkup(setEditForm, { supplier_price: e.target.value })} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)", textAlign: "right", width: "100%", marginBottom: 3 }} />
+                    )}
+                    {item.type === "product" && (
+                      <input type="number" value={editForm.markup_pct} onChange={e => applyMarkup(setEditForm, { markup_pct: e.target.value })} placeholder="Markup %" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} title="% sobre el costo — calcula el precio de venta automáticamente" />
                     )}
                     {item.type === "product" && (
                       <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} />
@@ -442,7 +477,8 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}</div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{item.description}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
+                    {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)" }}>{item.description}</div>}
                     {item.type === "product" && item.vendor && <div style={{ fontSize: 11, color: "var(--muted)" }}>🏪 {item.vendor}</div>}
                     {item.type === "product" && item.stock_quantity != null && (
                       <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700 }}>📦 Stock: {item.stock_quantity}</div>
@@ -457,6 +493,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                     {item.type === "product" && item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
                     <div style={{ fontWeight: 800, fontSize: 16, color: "var(--navy)" }}>{fmt(item.price)}</div>
                     {item.type === "product" && item.supplier_price != null && <div style={{ fontSize: 11, color: "var(--warn)" }}>Costo: {fmt(item.supplier_price)}</div>}
+                    {item.type === "product" && item.markup_pct != null && <div style={{ fontSize: 11, color: "var(--muted)" }} title="% sobre el costo usado para calcular el precio de venta">Markup: {item.markup_pct}%</div>}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                     <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 12px" }}>✏️ Editar</button>
