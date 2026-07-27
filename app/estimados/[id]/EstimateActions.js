@@ -1,15 +1,17 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
+import { localInputToIso } from '../../../lib/datetimeLocal';
 
 const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
-export default function EstimateActions({ estimateId, status, clientEmail, estimateNumber, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', items = [], clientContacts = [] }) {
+export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null }) {
   const router = useRouter();
   const [showEmail, setShowEmail] = useState(false);
   const [showEditNumber, setShowEditNumber] = useState(false);
@@ -17,6 +19,7 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
   const [showEditProperty, setShowEditProperty] = useState(false);
   const [showEditTerms, setShowEditTerms] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showConvert, setShowConvert] = useState(false);
   const [newNumber, setNewNumber] = useState(estimateNumber || '');
   const [billTo, setBillTo] = useState(initialBillTo);
   const [propertyId, setPropertyId] = useState(initialPropertyId || '');
@@ -28,6 +31,11 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
   const [deleting, setDeleting] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [convScheduledStart, setConvScheduledStart] = useState('');
+  const [convScheduledEnd, setConvScheduledEnd] = useState('');
+
+  const billToName = billTo === 'company' && clientCompany ? clientCompany : clientName;
 
   const toOptions = [
     ...(clientEmail ? [{ label: clientName ? `${clientName} (cliente)` : 'Cliente', email: clientEmail }] : []),
@@ -46,8 +54,63 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
   }
 
   async function updateStatus(newStatus) {
-    await supabase.from('estimates').update({ status: newStatus }).eq('id', estimateId);
+    const patch = { status: newStatus };
+    if (newStatus === 'accepted') patch.accepted_at = new Date().toISOString();
+    await supabase.from('estimates').update(patch).eq('id', estimateId);
     router.refresh();
+  }
+
+  async function convertToJob(e) {
+    e.preventDefault();
+    setConverting(true);
+    try {
+      const { data: last } = await supabase.from('jobs').select('job_number').order('created_at', { ascending: false }).limit(1).single();
+      let nextNum = 1001;
+      if (last?.job_number) {
+        const n = parseInt(last.job_number.replace('JOB-', ''));
+        if (!isNaN(n)) nextNum = n + 1;
+      }
+      const jobNumber = `JOB-${nextNum}`;
+      const prop = clientProperties.find(p => p.id === propertyId) || (!propertyId ? initialProperty : null);
+      const hasSchedule = !!(convScheduledStart && convScheduledEnd);
+
+      const { data: job, error: jobErr } = await supabase.from('jobs').insert([{
+        job_number: jobNumber,
+        client_id: clientId,
+        title: billToName || estimateNumber,
+        status: hasSchedule ? 'scheduled' : 'estimate',
+        notes: notes || null,
+        bill_to: billTo,
+        scheduled_start: hasSchedule ? localInputToIso(convScheduledStart) : null,
+        scheduled_end: hasSchedule ? localInputToIso(convScheduledEnd) : null,
+        property_id: propertyId || null,
+        property_name: prop?.name || null,
+        street: prop?.street || null,
+        city: prop?.city || null,
+        state: prop?.state || null,
+        zip: prop?.zip || null,
+      }]).select().single();
+      if (jobErr) { alert(jobErr.message); return; }
+
+      if (items.length) {
+        const { error: itemsErr } = await supabase.from('job_line_items').insert(items.map(i => ({
+          job_id: job.id, type: i.type, title: i.title, description: i.description,
+          quantity: i.quantity, unit_price: i.unit_price, msrp: i.msrp,
+          supplier_price: i.supplier_price, exempt_reason: i.exempt_reason,
+          area: i.area, vendor: i.vendor, photo_url: i.photo_url, sort_order: i.sort_order,
+        })));
+        if (itemsErr) { alert(itemsErr.message); return; }
+      }
+
+      if (notes) {
+        await supabase.from('job_notes').insert([{ job_id: job.id, note: notes }]);
+      }
+
+      await supabase.from('estimates').update({ status: 'converted', converted_to_job_id: job.id }).eq('id', estimateId);
+      router.push(`/trabajos/${job.id}`);
+    } finally {
+      setConverting(false);
+    }
   }
 
   function toggleCcContact(email) {
@@ -130,7 +193,23 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
       {status === 'sent' && (
         <>
           <span className="badge badge-blue" style={{ padding: '8px 16px', fontSize: 13 }}>📤 Enviado</span>
+          <button className="btn btn-primary" onClick={() => updateStatus('accepted')}>✓ Marcar como aceptado</button>
           <button className="btn btn-ghost" onClick={() => updateStatus('cancelled')}>Cancelar</button>
+        </>
+      )}
+      {status === 'accepted' && (
+        <>
+          <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Aceptado</span>
+          <button className="btn btn-amber" onClick={() => setShowConvert(true)} disabled={converting}>
+            {converting ? 'Convirtiendo...' : '🔧 Convertir a trabajo'}
+          </button>
+          <button className="btn btn-ghost" onClick={() => updateStatus('cancelled')}>Cancelar</button>
+        </>
+      )}
+      {status === 'converted' && (
+        <>
+          <span className="badge badge-amber" style={{ padding: '8px 16px', fontSize: 13 }}>🔧 Convertido a trabajo</span>
+          {convertedToJobId && <Link href={`/trabajos/${convertedToJobId}`} className="btn btn-ghost">Ver trabajo →</Link>}
         </>
       )}
       {status === 'cancelled' && (
@@ -242,6 +321,32 @@ export default function EstimateActions({ estimateId, status, clientEmail, estim
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
                 <button type="button" className="btn btn-ghost" onClick={() => setShowEditNumber(false)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Convert to job */}
+      {showConvert && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}>Convertir a trabajo</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>Se creará un nuevo trabajo con esta información. Agendar es opcional — puedes hacerlo después desde Trabajos.</p>
+            <form onSubmit={convertToJob}>
+              <div className="form-group">
+                <label>Inicio (opcional)</label>
+                <input type="datetime-local" value={convScheduledStart} onChange={e => setConvScheduledStart(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label>Fin (opcional)</label>
+                <input type="datetime-local" value={convScheduledEnd} onChange={e => setConvScheduledEnd(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="submit" className="btn btn-primary" disabled={converting} style={{ flex: 1, justifyContent: 'center' }}>
+                  {converting ? 'Convirtiendo...' : (convScheduledStart && convScheduledEnd) ? 'Convertir y agendar' : 'Convertir'}
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowConvert(false)} disabled={converting}>Cancelar</button>
               </div>
             </form>
           </div>

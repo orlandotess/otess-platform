@@ -10,7 +10,7 @@ export default async function EstimaDetail({ params }) {
 
   const { data: est } = await supabase
     .from('estimates')
-    .select('*, client_id, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*)), jobs(id, title, client_properties(*))')
+    .select('*, client_id, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*)), jobs!estimates_job_id_fkey(id, title, client_properties(*))')
     .eq('id', id)
     .single();
 
@@ -32,8 +32,8 @@ export default async function EstimaDetail({ params }) {
     ? est.clients.company
     : est.clients?.name;
 
-  const statusLabel = { draft: 'Borrador', sent: 'Enviado', cancelled: 'Cancelado' };
-  const statusCls = { draft: 'badge-gray', sent: 'badge-blue', cancelled: 'badge-red' };
+  const statusLabel = { draft: 'Borrador', sent: 'Enviado', accepted: 'Aceptado', cancelled: 'Cancelado', converted: 'Convertido a trabajo' };
+  const statusCls = { draft: 'badge-gray', sent: 'badge-blue', accepted: 'badge-green', cancelled: 'badge-red', converted: 'badge-amber' };
 
   return (
     <div className="admin-shell ds-estimados">
@@ -49,6 +49,7 @@ export default async function EstimaDetail({ params }) {
           <EstimateActions
             estimateId={id}
             status={est.status}
+            clientId={est.client_id}
             clientEmail={est.clients?.email}
             estimateNumber={est.estimate_number}
             clientName={est.clients?.name}
@@ -56,9 +57,12 @@ export default async function EstimaDetail({ params }) {
             billTo={est.bill_to ?? 'person'}
             clientProperties={clientProperties}
             propertyId={est.property_id ?? null}
+            initialProperty={property}
             terms={est.terms ?? ''}
+            notes={est.notes ?? ''}
             items={items ?? []}
             clientContacts={clientContacts ?? []}
+            convertedToJobId={est.converted_to_job_id ?? null}
           />
         </div>
 

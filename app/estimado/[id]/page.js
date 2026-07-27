@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
+import AcceptEstimateButton from './AcceptEstimateButton';
 
 export default async function EstimaPublica({ params }) {
   const { id } = params;
@@ -62,6 +63,8 @@ export default async function EstimaPublica({ params }) {
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
+
+        <AcceptEstimateButton estimateId={id} status={est.status} />
 
         <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>
 

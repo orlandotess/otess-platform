@@ -9,7 +9,9 @@ import Link from 'next/link';
 const statusBadge = {
   draft:     { cls: 'badge-gray',  label: 'Borrador' },
   sent:      { cls: 'badge-blue',  label: 'Enviado' },
+  accepted:  { cls: 'badge-green', label: 'Aceptado' },
   cancelled: { cls: 'badge-red',   label: 'Cancelado' },
+  converted: { cls: 'badge-amber', label: 'Convertido a trabajo' },
 };
 
 function formatViewedAt(dateStr) {
