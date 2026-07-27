@@ -425,6 +425,15 @@ export default function FieldApp() {
   const [invNewProductError, setInvNewProductError] = useState('');
   const fileRefInvUnit = useRef();
 
+  // Inventario: cajas de cable (pietaje total + restante por caja física, se
+  // consume parcialmente a diferencia del equipo serializado de arriba).
+  const [invReels, setInvReels] = useState([]);
+  const [showInvAddReel, setShowInvAddReel] = useState(false);
+  const [invReelForm, setInvReelForm] = useState({ catalog_item_id: '', code: '', total_footage: '' });
+  const [invSavingReel, setInvSavingReel] = useState(false);
+  const [invReelError, setInvReelError] = useState('');
+  const [invReelFootageInputs, setInvReelFootageInputs] = useState({});
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { window.location.replace('/login'); return; }
@@ -1263,17 +1272,19 @@ export default function FieldApp() {
   useEffect(() => {
     if (tab !== 'inventario' || invLoaded) return;
     (async () => {
-      const [{ data: locs }, { data: stockRows }, { data: prods }, { data: unitRows }] = await Promise.all([
+      const [{ data: locs }, { data: stockRows }, { data: prods }, { data: unitRows }, { data: reelRows }] = await Promise.all([
         supabase.from('locations').select('*').eq('is_active', true).order('name'),
         supabase.from('location_stock').select('*, catalog_items(item_code, description)'),
         supabase.from('catalog_items').select('id, item_code, description').eq('type', 'product').order('item_code'),
         supabase.from('location_stock_units').select('*, catalog_items(item_code, description)').order('created_at', { ascending: false }),
+        supabase.from('location_stock_reels').select('*, catalog_items(item_code, description)').order('created_at', { ascending: false }),
       ]);
       setInvLocations(locs ?? []);
       setInvStock(stockRows ?? []);
       setInvProducts(prods ?? []);
       const unitsWithUrls = await Promise.all((unitRows ?? []).map(async u => ({ ...u, photo_signed_url: u.photo_path ? await getSignedUrl(u.photo_path) : null })));
       setInvUnits(unitsWithUrls);
+      setInvReels(reelRows ?? []);
       const savedLocationId = localStorage.getItem('otess-crew-inv-location');
       if (savedLocationId && (locs ?? []).some(l => l.id === savedLocationId)) {
         setInvLocationId(savedLocationId);
@@ -1321,6 +1332,49 @@ export default function FieldApp() {
   const invUnitSearchTerm = invUnitSearch.trim().toLowerCase();
   const invSelectedUnits = invUnits.filter(u => u.location_id === invLocationId
     && (!invUnitSearchTerm || u.catalog_items?.description?.toLowerCase().includes(invUnitSearchTerm) || u.catalog_items?.item_code?.toLowerCase().includes(invUnitSearchTerm) || u.serial_number.toLowerCase().includes(invUnitSearchTerm)));
+  const invSelectedReels = invReels.filter(r => r.location_id === invLocationId);
+
+  function closeInvAddReelModal() {
+    setShowInvAddReel(false);
+    setInvReelForm({ catalog_item_id: '', code: '', total_footage: '' });
+    setInvReelError('');
+  }
+
+  async function invAddReel() {
+    if (!invReelForm.catalog_item_id || !invReelForm.total_footage || !invLocationId) {
+      setInvReelError('Selecciona un producto y escribe el pietaje total.');
+      return;
+    }
+    setInvSavingReel(true);
+    setInvReelError('');
+    const { data, error } = await supabase.rpc('add_stock_reel', {
+      p_catalog_item_id: invReelForm.catalog_item_id,
+      p_location_id: invLocationId,
+      p_total_footage: parseFloat(invReelForm.total_footage),
+      p_code: invReelForm.code.trim() || null,
+    });
+    setInvSavingReel(false);
+    if (error) { setInvReelError('No se pudo guardar. Intenta de nuevo.'); return; }
+    const prod = invProducts.find(p => p.id === invReelForm.catalog_item_id);
+    const footage = parseFloat(invReelForm.total_footage);
+    setInvReels(prev => [{
+      id: data, location_id: invLocationId, catalog_item_id: invReelForm.catalog_item_id,
+      code: invReelForm.code.trim() || null, total_footage: footage, remaining_footage: footage,
+      catalog_items: prod ? { item_code: prod.item_code, description: prod.description } : null,
+    }, ...prev]);
+    closeInvAddReelModal();
+  }
+
+  async function invUseReelFootage(reel) {
+    const footage = parseFloat(invReelFootageInputs[reel.id]);
+    if (!footage || footage <= 0) return;
+    setInvSavingReel(true);
+    const { error } = await supabase.rpc('use_reel_footage', { p_reel_id: reel.id, p_footage: footage });
+    setInvSavingReel(false);
+    if (error) { alert('Error: ' + error.message); return; }
+    setInvReels(prev => prev.map(r => r.id === reel.id ? { ...r, remaining_footage: r.remaining_footage - footage } : r));
+    setInvReelFootageInputs(prev => ({ ...prev, [reel.id]: '' }));
+  }
 
   function handleInvUnitPhotoSelect(file) {
     if (!file) return;
@@ -2103,6 +2157,38 @@ export default function FieldApp() {
                       </div>
                     </div>
                   ))
+                )}
+              </div>
+            )}
+
+            {invLoaded && invLocationId && (
+              <div style={card}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>CAJAS DE CABLE ({invSelectedReels.length})</div>
+                  <button onClick={() => setShowInvAddReel(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Agregar caja</button>
+                </div>
+                {invSelectedReels.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin cajas de cable en esta ubicación.</div>
+                ) : (
+                  invSelectedReels.map((r, idx) => {
+                    const pct = r.total_footage > 0 ? Math.max(0, Math.min(100, (r.remaining_footage / r.total_footage) * 100)) : 0;
+                    return (
+                      <div key={r.id} style={{ padding: '10px 0', borderBottom: idx < invSelectedReels.length - 1 ? '1px solid #eee' : 'none' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600 }}>{r.catalog_items?.description}{r.code ? ` · ${r.code}` : ''}</div>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: pct <= 15 ? '#b52a2a' : '#16223d' }}>{r.remaining_footage} / {r.total_footage} pies</div>
+                        </div>
+                        <div style={{ background: '#eee', borderRadius: 20, height: 6, overflow: 'hidden', marginBottom: 8 }}>
+                          <div style={{ background: pct <= 15 ? '#b52a2a' : ORANGE, height: '100%', width: `${pct}%` }} />
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <input type="number" value={invReelFootageInputs[r.id] ?? ''} onChange={e => setInvReelFootageInputs(prev => ({ ...prev, [r.id]: e.target.value }))} placeholder="Pies usados"
+                            style={{ flex: 1, padding: '8px 10px', border: '1.5px solid #eee', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+                          <button onClick={() => invUseReelFootage(r)} disabled={invSavingReel || !invReelFootageInputs[r.id]} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Usar</button>
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}
@@ -2967,6 +3053,12 @@ export default function FieldApp() {
               </button>
             )}
             {detailEntry._kind === 'solicitud' && (
+              <a href={`/solicitudes/${detailEntry._raw.id}`} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'block', marginTop: 14, width: '100%', textAlign: 'center', background: '#fff', color: ORANGE, border: `1.5px solid ${ORANGE}`, borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, textDecoration: 'none', boxSizing: 'border-box' }}>
+                📄 Ver solicitud completa
+              </a>
+            )}
+            {detailEntry._kind === 'solicitud' && (
               <button
                 onClick={async () => {
                   const next = !detailEntry._raw.assessment_completed;
@@ -3315,6 +3407,33 @@ export default function FieldApp() {
           onScan={code => { setInvUnitForm(f => ({ ...f, serial_number: code })); setShowInvScanner(false); }}
           onClose={() => setShowInvScanner(false)}
         />
+      )}
+
+      {showInvAddReel && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={closeInvAddReelModal}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>🧵 Agregar caja de cable — {invLocById[invLocationId]?.name}</div>
+              <button onClick={closeInvAddReelModal} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+            </div>
+            <select value={invReelForm.catalog_item_id} onChange={e => setInvReelForm(f => ({ ...f, catalog_item_id: e.target.value }))}
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
+              <option value="">Selecciona un producto...</option>
+              {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+            </select>
+            <input value={invReelForm.code} onChange={e => setInvReelForm(f => ({ ...f, code: e.target.value }))} placeholder="Código de la caja (opcional)"
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+            <input type="number" value={invReelForm.total_footage} onChange={e => setInvReelForm(f => ({ ...f, total_footage: e.target.value }))} placeholder="Pies totales"
+              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16 }} />
+            {invReelError && <p style={{ color: '#b52a2a', fontSize: 13, marginBottom: 8 }}>{invReelError}</p>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={closeInvAddReelModal} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={invAddReel} disabled={invSavingReel || !invReelForm.catalog_item_id || !invReelForm.total_footage} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                {invSavingReel ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showJobExpense && (

@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { getCurrentRole } from '../../../lib/supabase-server';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import SolicitudTabs from './SolicitudTabs';
@@ -15,6 +16,8 @@ const statusBadge = {
 
 export default async function SolicitudDetail({ params }) {
   const { id } = params;
+  const currentRole = await getCurrentRole();
+  const isTecnico = currentRole === 'tecnico';
 
   const [{ data: solicitud }, { data: items }, { data: notes }, { data: technicians }] = await Promise.all([
     supabase.from('solicitudes').select('*, clients(name, email, phone, client_type, company), jobs:converted_to_job_id(id, job_number, title), technicians(name), solicitud_technicians(technician_id, technicians(name))').eq('id', id).single(),
@@ -23,17 +26,22 @@ export default async function SolicitudDetail({ params }) {
     supabase.from('technicians').select('id, name').order('name'),
   ]);
 
-  if (!solicitud) return (
-    <div className="admin-shell ds-trabajos">
-      <Sidebar />
-      <main className="main-content">
-        <div className="page-header">
-          <div className="page-title">Solicitud no encontrada</div>
-          <Link href="/solicitudes" className="btn btn-ghost">← Volver</Link>
-        </div>
-      </main>
-    </div>
-  );
+  if (!solicitud) {
+    const notFoundHeader = (
+      <div className="page-header">
+        <div className="page-title">Solicitud no encontrada</div>
+        <Link href={isTecnico ? '/crew' : '/solicitudes'} className="btn btn-ghost">← Volver</Link>
+      </div>
+    );
+    return isTecnico ? (
+      <main className="main-content" style={{ margin: '0 auto', maxWidth: 640, padding: '20px 16px' }}>{notFoundHeader}</main>
+    ) : (
+      <div className="admin-shell ds-trabajos">
+        <Sidebar />
+        <main className="main-content">{notFoundHeader}</main>
+      </div>
+    );
+  }
 
   const [{ data: clientProperties }, { data: clientContacts }] = solicitud.client_id
     ? await Promise.all([
@@ -77,38 +85,48 @@ export default async function SolicitudDetail({ params }) {
 
   const b = statusBadge[solicitud.status] ?? statusBadge.nueva;
 
-  return (
+  const content = (
+    <>
+      <div className="page-header">
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="page-title">{solicitud.title}</div>
+            {solicitud.solicitud_number && <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace', background: 'var(--amber-tint)', padding: '4px 10px', borderRadius: 8 }}>{solicitud.solicitud_number}</span>}
+          </div>
+          <span className={`badge ${b.cls}`} style={{ marginTop: 6, display: 'inline-block' }}>{b.label}</span>
+          {solicitud.jobs && (
+            <Link href={`/trabajos/${solicitud.jobs.id}`} style={{ marginLeft: 10, fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>
+              → Ver trabajo {solicitud.jobs.job_number}
+            </Link>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Link href={isTecnico ? '/crew' : '/solicitudes'} className="btn btn-ghost">← {isTecnico ? 'Crew App' : 'Solicitudes'}</Link>
+        </div>
+      </div>
+
+      <SolicitudTabs
+        solicitud={solicitud}
+        items={itemsWithSignedUrls}
+        notes={notesWithSignedUrls}
+        intakePhotoUrls={intakePhotoUrls.filter(Boolean)}
+        clientProperties={clientProperties ?? []}
+        clientContacts={clientContacts ?? []}
+        technicians={technicians ?? []}
+        currentRole={currentRole}
+      />
+    </>
+  );
+
+  // A técnico reaches this page from a phone via the Crew App, not the desktop
+  // admin nav — skip the fixed 220px Sidebar/admin-shell (which leaves no room
+  // for content on a phone) in favor of a simple full-width, padded container.
+  return isTecnico ? (
+    <main className="main-content" style={{ margin: '0 auto', maxWidth: 640, padding: '20px 16px' }}>{content}</main>
+  ) : (
     <div className="admin-shell ds-trabajos">
       <Sidebar />
-      <main className="main-content">
-        <div className="page-header">
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="page-title">{solicitud.title}</div>
-              {solicitud.solicitud_number && <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace', background: 'var(--amber-tint)', padding: '4px 10px', borderRadius: 8 }}>{solicitud.solicitud_number}</span>}
-            </div>
-            <span className={`badge ${b.cls}`} style={{ marginTop: 6, display: 'inline-block' }}>{b.label}</span>
-            {solicitud.jobs && (
-              <Link href={`/trabajos/${solicitud.jobs.id}`} style={{ marginLeft: 10, fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>
-                → Ver trabajo {solicitud.jobs.job_number}
-              </Link>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Link href="/solicitudes" className="btn btn-ghost">← Solicitudes</Link>
-          </div>
-        </div>
-
-        <SolicitudTabs
-          solicitud={solicitud}
-          items={itemsWithSignedUrls}
-          notes={notesWithSignedUrls}
-          intakePhotoUrls={intakePhotoUrls.filter(Boolean)}
-          clientProperties={clientProperties ?? []}
-          clientContacts={clientContacts ?? []}
-          technicians={technicians ?? []}
-        />
-      </main>
+      <main className="main-content">{content}</main>
     </div>
   );
 }

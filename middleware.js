@@ -15,6 +15,11 @@ function isPublic(pathname) {
 // Rutas permitidas para el rol "tecnico" (todo lo demás redirige a /crew)
 const TECNICO_ALLOWED = ['/crew', '/trabajos', '/clientes', '/planos', '/boletos'];
 
+// Un técnico solo puede abrir el detalle de una solicitud específica (llegando
+// desde la agenda del Crew App), no la lista completa ni "Nueva solicitud" —
+// esas siguen siendo funciones de oficina/ventas.
+const SOLICITUD_DETAIL_RE = /^\/solicitudes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Rutas bloqueadas para el rol "vendedor" (redirige a /)
 const VENDEDOR_BLOCKED = ['/accounting', '/admin/usuarios'];
 
@@ -70,7 +75,7 @@ export async function middleware(request) {
   }
 
   if (role === 'tecnico') {
-    const allowed = TECNICO_ALLOWED.some(p => pathname === p || pathname.startsWith(p + '/'));
+    const allowed = TECNICO_ALLOWED.some(p => pathname === p || pathname.startsWith(p + '/')) || SOLICITUD_DETAIL_RE.test(pathname);
     if (!allowed) {
       const url = request.nextUrl.clone();
       url.pathname = '/crew';

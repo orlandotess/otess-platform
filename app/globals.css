@@ -667,6 +667,20 @@ body.sidebar-hidden .main-content {
   }
 }
 
+/* Detalle de solicitud: dos columnas (contenido + panel de estado de 340px) en
+   escritorio, una sola columna apilada en móvil — usada por el técnico desde
+   el enlace en el Crew App, donde el ancho fijo original quedaba cortado. */
+.solicitud-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 20px;
+}
+@media (max-width: 760px) {
+  .solicitud-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Logo de marca: cambia segun el tema (negro sobre claro, blanco sobre oscuro) */
 .brand-logo-dark { display: none !important; }
 :root[data-theme="dark"] .brand-logo-light { display: none !important; }

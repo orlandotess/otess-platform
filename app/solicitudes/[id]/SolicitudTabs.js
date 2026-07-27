@@ -15,11 +15,15 @@ const statusOptions = [
 
 const TAX_RATES = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
-export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls, clientProperties = [], clientContacts = [], technicians = [] }) {
+export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls, clientProperties = [], clientContacts = [], technicians = [], currentRole = null }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const clientType = solicitud.clients?.client_type ?? 'final';
   const isOpen = !['convertida', 'archivada'].includes(solicitud.status);
+  // A técnico reaches this page from their Crew App agenda to see/add everything about the
+  // visit (notes, photos, line items), but the office-only actions below (convert to job,
+  // archive/delete, change status, pricing) stay hidden — those are sales/admin decisions.
+  const isTecnico = currentRole === 'tecnico';
 
   const [converting, setConverting] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -338,7 +342,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
+    <div className="solicitud-detail-grid" style={{ alignItems: 'start' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Info general */}
@@ -550,16 +554,18 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
             <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
               <div>
                 <span style={{ fontWeight: 600, fontSize: 13.5 }}>{item.description}</span>
-                <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8 }}>{item.quantity} × {fmt(item.unit_price)}</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8 }}>
+                  {isTecnico ? `${item.quantity}${item.area ? ` — ${item.area}` : ''}` : `${item.quantity} × ${fmt(item.unit_price)}`}
+                </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontWeight: 700, fontSize: 13.5 }}>{fmt(item.quantity * item.unit_price)}</span>
+                {!isTecnico && <span style={{ fontWeight: 700, fontSize: 13.5 }}>{fmt(item.quantity * item.unit_price)}</span>}
                 <button type="button" onClick={() => deleteLineItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
               </div>
             </div>
           ))}
           {addingLine && (
-            <div style={{ marginTop: 12 }}>
+            <div style={{ marginTop: 12, overflowX: 'auto' }}>
               <LineItemRow
                 type={newLine.type} onTypeChange={v => setNewLine(l => ({ ...l, type: v }))}
                 description={newLine.description} onDescriptionChange={v => setNewLine(l => ({ ...l, description: v }))}
@@ -622,45 +628,55 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div className="card">
           <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 12 }}>Estado</p>
-          {isOpen ? (
-            <select value={solicitud.status} onChange={e => updateStatus(e.target.value)} style={{ marginBottom: 12 }}>
-              {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          ) : (
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
-              {solicitud.status === 'convertida' ? 'Esta solicitud ya fue convertida.' : 'Esta solicitud está archivada.'}
+          {isTecnico ? (
+            <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+              {statusOptions.find(o => o.value === solicitud.status)?.label
+                ?? (solicitud.status === 'convertida' ? 'Convertida' : solicitud.status === 'archivada' ? 'Archivada' : solicitud.status)}
+              {' '}— cambios de estado los hace la oficina.
             </p>
-          )}
-          {isOpen && (
-            <button className="btn btn-amber" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} disabled={converting} onClick={convertirATrabajo}>
-              {converting ? 'Convirtiendo...' : '✓ Convertir a Trabajo'}
-            </button>
-          )}
-          <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} disabled={archiving} onClick={toggleArchive}>
-            {archiving ? 'Guardando...' : solicitud.status === 'archivada' ? 'Desarchivar' : 'Archivar'}
-          </button>
-          <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginTop: 8, color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDeleteSolicitud(true)}>
-            🗑 Eliminar
-          </button>
+          ) : (
+            <>
+              {isOpen ? (
+                <select value={solicitud.status} onChange={e => updateStatus(e.target.value)} style={{ marginBottom: 12 }}>
+                  {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              ) : (
+                <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+                  {solicitud.status === 'convertida' ? 'Esta solicitud ya fue convertida.' : 'Esta solicitud está archivada.'}
+                </p>
+              )}
+              {isOpen && (
+                <button className="btn btn-amber" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} disabled={converting} onClick={convertirATrabajo}>
+                  {converting ? 'Convirtiendo...' : '✓ Convertir a Trabajo'}
+                </button>
+              )}
+              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} disabled={archiving} onClick={toggleArchive}>
+                {archiving ? 'Guardando...' : solicitud.status === 'archivada' ? 'Desarchivar' : 'Archivar'}
+              </button>
+              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginTop: 8, color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDeleteSolicitud(true)}>
+                🗑 Eliminar
+              </button>
 
-          {showDeleteSolicitud && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-              <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar solicitud?</h2>
-                <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente y no se puede deshacer.</p>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button className="btn btn-ghost" onClick={deleteSolicitud} disabled={deletingSolicitud}
-                    style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                    {deletingSolicitud ? 'Eliminando...' : '🗑 Sí, eliminar'}
-                  </button>
-                  <button className="btn btn-ghost" onClick={() => setShowDeleteSolicitud(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              {showDeleteSolicitud && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                  <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+                    <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar solicitud?</h2>
+                    <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente y no se puede deshacer.</p>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button className="btn btn-ghost" onClick={deleteSolicitud} disabled={deletingSolicitud}
+                        style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
+                        {deletingSolicitud ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                      </button>
+                      <button className="btn btn-ghost" onClick={() => setShowDeleteSolicitud(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
 
-        {lineItems.length > 0 && (
+        {!isTecnico && lineItems.length > 0 && (
           <div className="card">
             <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
