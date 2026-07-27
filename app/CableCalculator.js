@@ -8,8 +8,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   const [area, setArea] = useState('');
   const [description, setDescription] = useState('');
   const [vendor, setVendor] = useState('');
-  const [runs, setRuns] = useState('');
-  const [feetPerRun, setFeetPerRun] = useState('');
+  const [segments, setSegments] = useState([{ label: '', feet: '' }]);
   const [feetPerBox, setFeetPerBox] = useState(DEFAULT_FEET_PER_UNIT.cable);
   const [pricePerBox, setPricePerBox] = useState('');
 
@@ -20,7 +19,17 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
     setFeetPerBox(DEFAULT_FEET_PER_UNIT[type]);
   }
 
-  const totalFeet = (parseFloat(runs) || 0) * (parseFloat(feetPerRun) || 0);
+  function updateSegment(idx, field, value) {
+    setSegments(s => s.map((seg, i) => i === idx ? { ...seg, [field]: value } : seg));
+  }
+  function addSegment() {
+    setSegments(s => [...s, { label: '', feet: '' }]);
+  }
+  function removeSegment(idx) {
+    setSegments(s => s.filter((_, i) => i !== idx));
+  }
+
+  const totalFeet = segments.reduce((sum, s) => sum + (parseFloat(s.feet) || 0), 0);
   const boxesNeeded = feetPerBox > 0 ? Math.ceil(totalFeet / parseFloat(feetPerBox)) : 0;
   const total = boxesNeeded * (parseFloat(pricePerBox) || 0);
 
@@ -37,7 +46,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, maxHeight: '90vh', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>🧮 Calcular cable/tubo</h2>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -76,15 +85,31 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
           </datalist>
         </div>
 
-        <div className="form-row" style={{ marginBottom: 12 }}>
-          <div className="form-group">
-            <label>Cantidad de corridas</label>
-            <input type="number" value={runs} onChange={e => setRuns(e.target.value)} min="0" step="1" />
-          </div>
-          <div className="form-group">
-            <label>Pies por corrida</label>
-            <input type="number" value={feetPerRun} onChange={e => setFeetPerRun(e.target.value)} min="0" step="0.1" />
-          </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', marginBottom: 8 }}>Lados / corridas</label>
+          {segments.map((seg, idx) => (
+            <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+              <input
+                value={seg.label}
+                onChange={e => updateSegment(idx, 'label', e.target.value)}
+                placeholder={`Lado ${idx + 1}`}
+                style={{ flex: 1 }}
+              />
+              <input
+                type="number"
+                value={seg.feet}
+                onChange={e => updateSegment(idx, 'feet', e.target.value)}
+                placeholder="Pies"
+                min="0"
+                step="0.1"
+                style={{ width: 100 }}
+              />
+              {segments.length > 1 && (
+                <button type="button" onClick={() => removeSegment(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
+              )}
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addSegment}>+ Agregar lado</button>
         </div>
 
         <div className="form-row" style={{ marginBottom: 16 }}>
