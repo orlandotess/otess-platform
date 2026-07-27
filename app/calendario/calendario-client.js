@@ -37,6 +37,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const canQuickReschedule = currentRole === 'admin';
   const canScheduleVisit = currentRole === 'admin' || currentRole === 'secretaria';
   const [view, setView] = useState(initialView);
+  const [weekNow, setWeekNow] = useState(() => new Date());
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
   const [weekOffset, setWeekOffset] = useState(initialWeek);
@@ -85,6 +86,11 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       })),
     })));
   }
+
+  useEffect(() => {
+    const id = setInterval(() => setWeekNow(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     setNewNoteText('');
@@ -1034,110 +1040,178 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           const startHour = 6;
           const endHour = 20;
           const hours = Array.from({ length: endHour - startHour }, (_, i) => i + startHour);
+          const HOUR_HEIGHT = 60;
+          const dayStartMin = startHour * 60;
+          const dayEndMin = endHour * 60;
+          const totalHeight = (endHour - startHour) * HOUR_HEIGHT;
+          const nowMin = weekNow.getHours() * 60 + weekNow.getMinutes();
+
+          const ENTRY_STYLES = {
+            visit: (techId) => ({ background: 'var(--surface)', border: `2px solid ${techColors[techId] ?? 'var(--ink-faint)'}`, color: techColors[techId] ?? 'var(--ink-faint)' }),
+            event: (techId) => ({ background: 'var(--surface)', border: `2px solid ${techColors[techId] ?? 'var(--navy)'}`, color: techColors[techId] ?? 'var(--navy)' }),
+            task: (techId) => ({ background: 'var(--surface)', border: `2px dashed ${techColors[techId] ?? 'var(--muted)'}`, color: techColors[techId] ?? 'var(--muted)' }),
+            job: (techId) => ({ background: techColors[techId] ?? 'var(--ink-faint)', color: '#fff' }),
+          };
+
+          // Build this day's entries with real start/end minutes (instead of bucketing by
+          // hour), so multi-hour jobs get a proportional block instead of a fixed-height
+          // box that used to overflow into the next hour row and misalign the grid.
+          function dayEntries(dateStr) {
+            const list = [];
+            filteredVisits.forEach(v => {
+              if (!v.scheduled_at || new Date(v.scheduled_at).toISOString().slice(0, 10) !== dateStr) return;
+              const start = new Date(v.scheduled_at);
+              const startMin = start.getHours() * 60 + start.getMinutes();
+              list.push({ key: `v${v.id}`, type: 'visit', techId: v.technician_id, startMin, endMin: startMin + 30,
+                icon: '👁', label: v.requests?.title ?? 'Visita', time: fmtTime(v.scheduled_at),
+                onClick: (e) => showQuickPreview('visit', v, e) });
+            });
+            filteredJobs.forEach(j => {
+              if (!j.scheduled_start || new Date(j.scheduled_start).toISOString().slice(0, 10) !== dateStr) return;
+              const start = new Date(j.scheduled_start);
+              const end = new Date(j.scheduled_end ?? j.scheduled_start);
+              const startMin = start.getHours() * 60 + start.getMinutes();
+              const endMin = Math.max(startMin + 30, startMin + (end - start) / 60000);
+              list.push({ key: `j${j.id}`, type: 'job', techId: j.technician_id, startMin, endMin,
+                label: j.title, time: fmtTime(j.scheduled_start),
+                onClick: (e) => { e.stopPropagation(); openEntry('job', j, e); } });
+            });
+            filteredEvents.forEach(e => {
+              if (!e.start_at || new Date(e.start_at).toISOString().slice(0, 10) !== dateStr) return;
+              const start = new Date(e.start_at);
+              const end = e.end_at ? new Date(e.end_at) : null;
+              const startMin = start.getHours() * 60 + start.getMinutes();
+              const endMin = end ? Math.max(startMin + 30, startMin + (end - start) / 60000) : startMin + 45;
+              list.push({ key: `e${e.id}`, type: 'event', techId: e.technician_id, startMin, endMin,
+                icon: ENTRY_TYPE_ICONS.event, label: e.title, time: fmtTime(e.start_at),
+                onClick: (ev) => { ev.stopPropagation(); openEntry('event', e, ev); } });
+            });
+            filteredTasks.forEach(t => {
+              if (!t.due_at || new Date(t.due_at).toISOString().slice(0, 10) !== dateStr) return;
+              const start = new Date(t.due_at);
+              const startMin = start.getHours() * 60 + start.getMinutes();
+              list.push({ key: `t${t.id}`, type: 'task', techId: t.technician_id, startMin, endMin: startMin + 30,
+                icon: ENTRY_TYPE_ICONS[t.task_type], label: t.title, time: fmtTime(t.due_at), completed: t.completed,
+                onClick: (ev) => { ev.stopPropagation(); openEntry('task', t, ev); } });
+            });
+            return list
+              .filter(en => en.endMin > dayStartMin && en.startMin < dayEndMin)
+              .map(en => ({ ...en, startMin: Math.max(en.startMin, dayStartMin), endMin: Math.min(en.endMin, dayEndMin) }))
+              .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+          }
+
+          // Assigns side-by-side columns to overlapping entries instead of letting them
+          // stack on top of each other unreadably.
+          function withColumns(entries) {
+            const colEnds = [];
+            let clusterEntries = [];
+            let clusterEnd = -Infinity;
+            const flush = () => {
+              if (!clusterEntries.length) return;
+              const maxCols = Math.max(...clusterEntries.map(e => e._col)) + 1;
+              clusterEntries.forEach(e => { e.colCount = maxCols; });
+              clusterEntries = [];
+            };
+            entries.forEach(en => {
+              if (en.startMin >= clusterEnd) { flush(); colEnds.length = 0; clusterEnd = -Infinity; }
+              let col = colEnds.findIndex(end => end <= en.startMin);
+              if (col === -1) { col = colEnds.length; colEnds.push(en.endMin); } else { colEnds[col] = en.endMin; }
+              en._col = col;
+              clusterEnd = Math.max(clusterEnd, en.endMin);
+              clusterEntries.push(en);
+            });
+            flush();
+            return entries;
+          }
+
           return (
             <div style={{ overflowX: 'auto' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', minWidth: 700 }}>
-                <div style={{ borderBottom: '2px solid var(--border)', padding: '8px 0' }} />
-                {weekDays.map((d, i) => {
-                  const isToday = fmtDate(d) === today;
-                  const dateStr = fmtDate(d);
-                  return (
-                    <div key={i} onClick={() => setDayDetail(dateStr)}
-                      style={{ textAlign: 'center', padding: '8px 4px', borderBottom: '2px solid var(--border)', background: isToday ? 'var(--info-tint)' : 'transparent', cursor: 'pointer' }}>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>{DAYS_SHORT[d.getDay()]}</div>
-                      <div style={{ fontSize: 18, fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--navy)' : 'var(--text)' }}>{d.getDate()}</div>
-                    </div>
-                  );
-                })}
-                <div style={{ borderBottom: '1px solid var(--border)' }} />
-                {weekDays.map((d, i) => {
-                  const dayAbsences = getAbsencesForDate(fmtDate(d));
-                  return (
-                    <div key={`abs${i}`} style={{ borderBottom: '1px solid var(--border)', padding: '2px 4px', display: 'grid', gap: 2 }}>
-                      {dayAbsences.map(a => (
-                        <div key={a.id} onClick={(e) => showQuickPreview('absence', a, e)}
-                          style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
-                            overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: 'var(--danger-tint)', color: 'var(--warn)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                          <span style={{ fontSize: 9 }}>🚫</span> {a.technicians?.name ?? 'Técnico'}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-                {hours.map(hour => (
-                  [
-                    <div key={`h${hour}`} style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right', paddingRight: 8, paddingTop: 4, borderTop: '1px solid var(--border)', height: 64 }}>
-                      {String(hour).padStart(2,'0')}:00
-                    </div>,
-                    ...weekDays.map((d, di) => {
-                      const dateStr = fmtDate(d);
-                      const hourJobs = filteredJobs.filter(j => {
-                        if (!j.scheduled_start) return false;
-                        const start = new Date(j.scheduled_start);
-                        return start.toISOString().slice(0, 10) === dateStr && start.getHours() === hour;
-                      });
-                      const hourVisits = filteredVisits.filter(v => {
-                        if (!v.scheduled_at) return false;
-                        const start = new Date(v.scheduled_at);
-                        return start.toISOString().slice(0, 10) === dateStr && start.getHours() === hour;
-                      });
-                      const hourEvents = filteredEvents.filter(e => {
-                        if (!e.start_at) return false;
-                        const start = new Date(e.start_at);
-                        return start.toISOString().slice(0, 10) === dateStr && start.getHours() === hour;
-                      });
-                      const hourTasks = filteredTasks.filter(t => {
-                        if (!t.due_at) return false;
-                        const start = new Date(t.due_at);
-                        return start.toISOString().slice(0, 10) === dateStr && start.getHours() === hour;
-                      });
-                      return (
-                        <div key={`${hour}-${di}`} style={{ borderTop: '1px solid var(--border)', borderLeft: '1px solid var(--border)', height: 64, padding: 2, cursor: canScheduleVisit ? 'pointer' : 'default' }}
-                          onClick={() => { if (canScheduleVisit) setScheduleModal({ dateStr, time: `${String(hour).padStart(2,'0')}:00` }); }}>
-                          {hourVisits.map(v => (
-                            <div key={`v${v.id}`} onClick={(e) => showQuickPreview('visit', v, e)}
-                              style={{ background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)',
-                                borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                              <span style={{ fontSize: 9 }}>👁</span> {v.requests?.title ?? 'Visita'}
-                              <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(v.scheduled_at)}</div>
-                            </div>
-                          ))}
-                          {hourJobs.map(j => {
-                            const start = new Date(j.scheduled_start);
-                            const end = new Date(j.scheduled_end ?? j.scheduled_start);
-                            const duration = Math.max((end - start) / 3600000, 0.5);
+              <div style={{ minWidth: 760 }}>
+                {/* Day headers */}
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: 52, flexShrink: 0 }} />
+                  {weekDays.map((d, i) => {
+                    const isToday = fmtDate(d) === today;
+                    const dateStr = fmtDate(d);
+                    return (
+                      <div key={i} onClick={() => setDayDetail(dateStr)}
+                        style={{ flex: 1, minWidth: 96, textAlign: 'center', padding: '8px 4px', borderBottom: '2px solid var(--border)',
+                          background: isToday ? 'var(--info-tint)' : 'transparent', cursor: 'pointer' }}>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>{DAYS_SHORT[d.getDay()]}</div>
+                        <div style={{ fontSize: 18, fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--navy)' : 'var(--text)' }}>{d.getDate()}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Absences row */}
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: 52, flexShrink: 0, borderBottom: '1px solid var(--border)' }} />
+                  {weekDays.map((d, i) => {
+                    const dayAbsences = getAbsencesForDate(fmtDate(d));
+                    return (
+                      <div key={`abs${i}`} style={{ flex: 1, minWidth: 96, borderBottom: '1px solid var(--border)', padding: '2px 4px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {dayAbsences.map(a => (
+                          <div key={a.id} onClick={(e) => showQuickPreview('absence', a, e)}
+                            style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
+                              overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                              background: 'var(--danger-tint)', color: 'var(--warn)', userSelect: 'none', WebkitUserSelect: 'none' }}>
+                            <span style={{ fontSize: 9 }}>🚫</span> {a.technicians?.name ?? 'Técnico'}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Hour grid */}
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: 52, flexShrink: 0 }}>
+                    {hours.map(hour => (
+                      <div key={hour} style={{ height: HOUR_HEIGHT, boxSizing: 'border-box', borderTop: '1px solid var(--border)',
+                        fontSize: 11, color: 'var(--muted)', textAlign: 'right', paddingRight: 8, paddingTop: 2 }}>
+                        {String(hour).padStart(2, '0')}:00
+                      </div>
+                    ))}
+                  </div>
+                  {weekDays.map((d, di) => {
+                    const dateStr = fmtDate(d);
+                    const isToday = dateStr === today;
+                    const entries = withColumns(dayEntries(dateStr));
+                    return (
+                      <div key={di} style={{ flex: 1, minWidth: 96, position: 'relative', height: totalHeight,
+                        borderLeft: '1px solid var(--border)', background: isToday ? 'var(--info-tint)' : 'transparent' }}>
+                        {hours.map(hour => (
+                          <div key={hour}
+                            onClick={() => { if (canScheduleVisit) setScheduleModal({ dateStr, time: `${String(hour).padStart(2, '0')}:00` }); }}
+                            style={{ height: HOUR_HEIGHT, boxSizing: 'border-box', borderTop: '1px solid var(--border)', cursor: canScheduleVisit ? 'pointer' : 'default' }} />
+                        ))}
+                        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                          {entries.map(en => {
+                            const top = (en.startMin - dayStartMin) / 60 * HOUR_HEIGHT;
+                            const height = Math.max((en.endMin - en.startMin) / 60 * HOUR_HEIGHT - 2, 18);
+                            const widthPct = 100 / en.colCount;
+                            const leftPct = en._col * widthPct;
                             return (
-                              <div key={j.id} onClick={(e) => { e.stopPropagation(); openEntry('job', j, e); }}
-                                style={{ background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff', borderRadius: 4, padding: '2px 6px',
-                                  fontSize: 11, fontWeight: 600, cursor: 'pointer', height: `${Math.min(duration * 64, 60)}px`, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                                {j.title}
-                                <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(j.scheduled_start)}</div>
+                              <div key={en.key} onClick={en.onClick}
+                                style={{ position: 'absolute', top, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`, height,
+                                  ...ENTRY_STYLES[en.type](en.techId), borderRadius: 5, padding: '2px 6px', fontSize: 11, fontWeight: 600,
+                                  cursor: 'pointer', overflow: 'hidden', pointerEvents: 'auto', userSelect: 'none', WebkitUserSelect: 'none',
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.08)', textDecoration: en.completed ? 'line-through' : 'none', lineHeight: 1.25 }}>
+                                {en.icon && <span style={{ fontSize: 9 }}>{en.icon} </span>}{en.label}
+                                {height >= 30 && <div style={{ fontSize: 10, opacity: 0.85 }}>{en.time}</div>}
                               </div>
                             );
                           })}
-                          {hourEvents.map(e => (
-                            <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('event', e, ev); }}
-                              style={{ background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)',
-                                borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                              <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS.event}</span> {e.title}
-                              <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(e.start_at)}</div>
+                          {isToday && nowMin >= dayStartMin && nowMin <= dayEndMin && (
+                            <div style={{ position: 'absolute', top: (nowMin - dayStartMin) / 60 * HOUR_HEIGHT, left: 0, right: 0, zIndex: 5 }}>
+                              <div style={{ borderTop: '2px solid var(--warn)' }} />
+                              <span style={{ position: 'absolute', left: -4, top: -4, width: 8, height: 8, borderRadius: '50%', background: 'var(--warn)' }} />
                             </div>
-                          ))}
-                          {hourTasks.map(t => (
-                            <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('task', t, ev); }}
-                              style={{ background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)',
-                                textDecoration: t.completed ? 'line-through' : 'none',
-                                borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginBottom: 2, overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                              <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS[t.task_type]}</span> {t.title}
-                              <div style={{ fontSize: 10, opacity: 0.85 }}>{fmtTime(t.due_at)}</div>
-                            </div>
-                          ))}
+                          )}
                         </div>
-                      );
-                    })
-                  ]
-                ))}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           );
