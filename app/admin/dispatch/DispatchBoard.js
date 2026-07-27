@@ -6,7 +6,7 @@ import { supabase } from '../../../lib/supabase';
 import GanttGrid from './GanttGrid';
 import JobsPanel from './JobsPanel';
 import JobCard from './JobCard';
-import { slotToIso, todayPR, dayPR } from './dispatchUtils';
+import { slotToIso, todayPR, dayPR, assignedTechIds } from './dispatchUtils';
 
 export default function DispatchBoard({ technicians, scheduledJobs, unassignedJobs, day }) {
   const router = useRouter();
@@ -49,24 +49,38 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  // Jobs sin técnico que YA tienen hora para este día van a la fila "Sin técnico" del
-  // Gantt en vez del panel lateral — si no, quedaban invisibles al navegar a otro día.
+  // El panel "Sin asignar" es la cola de jobs que aún no tienen un horario puesto —
+  // tenga o no ya un técnico preferido vía job_technicians, igual hay que arrastrarlo
+  // a un slot. Uno con hora ya puesta siempre tiene un lugar fijo en el Gantt (su fila
+  // de técnico, o "Sin técnico" si no tiene ninguno), así que nunca vive en el panel.
+  const unassigned = useMemo(() => jobs.filter(j => !j.scheduled_start), [jobs]);
+
+  // Jobs sin ningún técnico (ni technician_id ni job_technicians) que YA tienen hora
+  // para este día van a la fila "Sin técnico" del Gantt en vez del panel lateral — si
+  // no, quedaban invisibles al navegar a otro día.
   const sinTecnicoHoy = useMemo(() =>
-    jobs.filter(j => !j.technician_id && j.scheduled_start && dayPR(j.scheduled_start) === day),
+    jobs.filter(j => assignedTechIds(j).length === 0 && j.scheduled_start && dayPR(j.scheduled_start) === day),
     [jobs, day]);
 
-  const unassigned = useMemo(() =>
-    jobs.filter(j => !j.technician_id && !(j.scheduled_start && dayPR(j.scheduled_start) === day)),
-    [jobs, day]);
-
+  // Un job puede tener varios técnicos (job_technicians) sin que jobs.technician_id
+  // refleje ninguno de ellos — se pinta en la fila de cada técnico asignado; solo la
+  // primera (el "dueño") es arrastrable, las demás son copias de solo lectura.
   const jobsByTech = useMemo(() => {
     const map = {};
     for (const t of technicians) map[t.id] = [];
     for (const j of jobs) {
-      if (j.technician_id && map[j.technician_id]) map[j.technician_id].push(j);
+      // El panel "Sin asignar" no está filtrado por día (trae todos los jobs sin
+      // technician_id sin importar fecha) — sin este chequeo, uno con job_technicians
+      // pero sin scheduled_start para HOY se colaba en la fila del técnico igual,
+      // porque jobPosition solo mira la hora, no la fecha.
+      if (!j.scheduled_start || dayPR(j.scheduled_start) !== day) continue;
+      assignedTechIds(j).forEach((techId, idx) => {
+        if (!map[techId]) return;
+        map[techId].push(idx === 0 ? j : { ...j, __dragId: `${j.id}::${techId}`, __readOnly: true });
+      });
     }
     return map;
-  }, [jobs, technicians]);
+  }, [jobs, technicians, day]);
 
   function goToDay(newDay) {
     router.push(`/admin/dispatch?day=${newDay}`);

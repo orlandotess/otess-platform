@@ -2,7 +2,7 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useRouter } from 'next/navigation';
-import { STATUS_BADGE, STATUS_TINT } from './dispatchUtils';
+import { STATUS_BADGE, STATUS_TINT, assignedTechIds } from './dispatchUtils';
 
 function location(job) {
   return [job.property_name, job.city].filter(Boolean).join(' — ');
@@ -10,14 +10,19 @@ function location(job) {
 
 export default function JobCard({ job, compact, overlay, color = 'var(--info)' }) {
   const router = useRouter();
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: job.id });
+  const readOnly = !!job.__readOnly;
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: job.__dragId ?? job.id,
+    disabled: readOnly,
+  });
   const badge = STATUS_BADGE[job.status] ?? STATUS_BADGE.estimate;
-  const extraTechs = job.job_technicians?.length ?? 0;
+  const extraTechs = Math.max(assignedTechIds(job).length - 1, 0);
   const isExtraDay = job.schedule_day_id != null;
 
   const style = {
     transform: CSS.Translate.toString(transform),
-    opacity: isDragging && !overlay ? 0.3 : 1,
+    opacity: isDragging && !overlay ? 0.3 : readOnly ? 0.7 : 1,
+    cursor: readOnly ? 'pointer' : undefined,
   };
 
   // El drag necesita moverse 8px para activarse (ver activationConstraint en
@@ -41,10 +46,11 @@ export default function JobCard({ job, compact, overlay, color = 'var(--info)' }
         style={{
           ...style,
           borderLeftColor: color,
+          borderLeftStyle: readOnly ? 'dashed' : 'solid',
           background: STATUS_TINT[job.status] ?? 'var(--surface-2)',
           boxShadow: overlay ? 'var(--shadow-pop)' : 'var(--shadow-card)',
         }}
-        title={`${job.clients?.name ?? 'Sin cliente'} — ${job.title}${isExtraDay ? ' (día extra)' : ''}`}
+        title={`${job.clients?.name ?? 'Sin cliente'} — ${job.title}${isExtraDay ? ' (día extra)' : ''}${readOnly ? ' (también asignado acá — arrastra desde su fila principal)' : ''}`}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {isExtraDay && <span style={{ fontSize: 10, flexShrink: 0 }} title="Día extra de un job multi-día">📅</span>}

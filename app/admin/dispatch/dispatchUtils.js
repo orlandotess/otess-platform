@@ -57,6 +57,24 @@ export function jobPosition(job) {
   return { left, width };
 }
 
+// Técnicos realmente asignados a un job: jobs.technician_id es un campo "primario"
+// legacy que no siempre se llena — muchos jobs solo tienen técnicos vía job_technicians
+// (ver app/trabajos/[id]/JobTabs.js). El primero de la lista es el que "dueño" de la
+// tarjeta arrastrable; el resto se pintan como copias de solo lectura en su propia fila.
+// Los días extra (job_schedule_days) son la excepción: cada fila ya es un día+técnico
+// puntual, así que ignoran job_technicians del job padre para no multiplicarse de más.
+export function assignedTechIds(job) {
+  if (job.schedule_day_id != null) {
+    return job.technician_id ? [job.technician_id] : [];
+  }
+  const ids = [];
+  if (job.technician_id) ids.push(job.technician_id);
+  for (const jt of job.job_technicians ?? []) {
+    if (jt.technician_id && !ids.includes(jt.technician_id)) ids.push(jt.technician_id);
+  }
+  return ids;
+}
+
 export function formatHourLabel(h) {
   const period = h < 12 ? 'am' : 'pm';
   const hh = h % 12 === 0 ? 12 : h % 12;
