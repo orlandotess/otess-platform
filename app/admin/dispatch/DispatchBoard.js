@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { supabase } from '../../../lib/supabase';
@@ -12,11 +12,40 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
   const router = useRouter();
   const [jobs, setJobs] = useState(() => [...scheduledJobs, ...unassignedJobs]);
   const [activeJob, setActiveJob] = useState(null);
+  const isDraggingRef = useRef(false);
+  const pendingRefreshRef = useRef(false);
 
   // El día pudo haber cambiado (navegación) y el server component ya trajo los jobs correctos.
   useEffect(() => {
     setJobs([...scheduledJobs, ...unassignedJobs]);
   }, [scheduledJobs, unassignedJobs]);
+
+  // Refresca el board cuando otro usuario (o la Crew App) cambia un job — sin esto,
+  // hay que recargar la página a mano para ver asignaciones o estados nuevos.
+  // Se posterga si hay un drag en curso para no arrancarle el board de las manos al usuario.
+  useEffect(() => {
+    let refreshTimer = null;
+    const scheduleRefresh = () => {
+      if (isDraggingRef.current) {
+        pendingRefreshRef.current = true;
+        return;
+      }
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => router.refresh(), 400);
+    };
+
+    const channel = supabase
+      .channel('dispatch-board')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_schedule_days' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_technicians' }, scheduleRefresh)
+      .subscribe();
+
+    return () => {
+      clearTimeout(refreshTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -42,11 +71,12 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
   }
 
   const handleDragStart = useCallback((event) => {
+    isDraggingRef.current = true;
     const job = jobs.find(j => j.id === event.active.id);
     setActiveJob(job ?? null);
   }, [jobs]);
 
-  const handleDragEnd = useCallback(async (event) => {
+  const finishDrag = useCallback(async (event) => {
     const { active, over } = event;
     setActiveJob(null);
     if (!over) return;
@@ -108,6 +138,18 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
         .eq('id', active.id);
     }
   }, [jobs, day]);
+
+  const handleDragEnd = useCallback(async (event) => {
+    try {
+      await finishDrag(event);
+    } finally {
+      isDraggingRef.current = false;
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        router.refresh();
+      }
+    }
+  }, [finishDrag, router]);
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
