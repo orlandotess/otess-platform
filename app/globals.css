@@ -842,3 +842,12 @@ body.sidebar-hidden .main-content {
 @media (max-width: 900px) {
   .dispatch-panel { width: 240px; }
 }
+
+/* Fila "Sin técnico" — jobs con hora puesta para el día pero sin técnico asignado */
+.dispatch-row-unassigned {
+  background: var(--badge-red-bg);
+}
+.dispatch-row-unassigned:hover { background: var(--badge-red-bg); }
+.dispatch-tech-avatar-empty {
+  background: var(--warn);
+}

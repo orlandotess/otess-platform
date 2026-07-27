@@ -1,7 +1,8 @@
 import { HORA_INICIO, HORA_FIN, SLOT_WIDTH, formatHourLabel } from './dispatchUtils';
 import GanttRow from './GanttRow';
+import UnassignedLane from './UnassignedLane';
 
-export default function GanttGrid({ technicians, jobsByTech }) {
+export default function GanttGrid({ technicians, jobsByTech, sinTecnicoJobs = [] }) {
   const hours = [];
   for (let h = HORA_INICIO; h < HORA_FIN; h++) hours.push(h);
 
@@ -15,6 +16,7 @@ export default function GanttGrid({ technicians, jobsByTech }) {
           </div>
         ))}
       </div>
+      <UnassignedLane jobs={sinTecnicoJobs} />
       {technicians.length === 0 ? (
         <div className="empty" style={{ padding: 40 }}>
           <p>No hay técnicos activos. Agrega técnicos en Usuarios &amp; Roles.</p>

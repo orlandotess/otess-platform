@@ -1,7 +1,7 @@
 'use client';
 import { useDroppable } from '@dnd-kit/core';
 import JobCard from './JobCard';
-import { HORA_INICIO, HORA_FIN, SLOT_MINUTOS, SLOT_WIDTH, techColor, minutesOfDayPR } from './dispatchUtils';
+import { HORA_INICIO, HORA_FIN, SLOT_MINUTOS, SLOT_WIDTH, techColor, jobPosition } from './dispatchUtils';
 
 function GanttSlot({ technicianId, hour, minute }) {
   const id = `slot_${technicianId}_${hour}_${minute}`;
@@ -13,19 +13,6 @@ function GanttSlot({ technicianId, hour, minute }) {
       style={{ width: SLOT_WIDTH }}
     />
   );
-}
-
-// Posición y ancho del job dentro de la fila, en px, recortado a la ventana visible del Gantt.
-function jobPosition(job) {
-  if (!job.scheduled_start) return null;
-  const startMin = minutesOfDayPR(job.scheduled_start);
-  const rawEndMin = job.scheduled_end ? minutesOfDayPR(job.scheduled_end) : startMin + 60;
-  const clampedStart = Math.max(startMin, HORA_INICIO * 60);
-  const clampedEnd = Math.min(rawEndMin > startMin ? rawEndMin : startMin + 60, HORA_FIN * 60);
-  if (clampedStart >= HORA_FIN * 60 || clampedEnd <= HORA_INICIO * 60) return null;
-  const left = ((clampedStart - HORA_INICIO * 60) / SLOT_MINUTOS) * SLOT_WIDTH;
-  const width = Math.max(((clampedEnd - clampedStart) / SLOT_MINUTOS) * SLOT_WIDTH, SLOT_WIDTH / 2);
-  return { left, width };
 }
 
 export default function GanttRow({ tecnico, colorIndex, jobs }) {

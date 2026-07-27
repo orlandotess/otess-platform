@@ -36,6 +36,27 @@ export function todayPR() {
   return new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+const PR_DATE_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: APP_TIMEZONE });
+
+// Fecha (YYYY-MM-DD) en hora de Puerto Rico, para comparar contra el `day` del board.
+export function dayPR(iso) {
+  return PR_DATE_FMT.format(new Date(iso));
+}
+
+// Posición y ancho de un job dentro de una fila del Gantt, en px, recortado a la
+// ventana visible. Compartido entre GanttRow y la fila de "Sin técnico".
+export function jobPosition(job) {
+  if (!job.scheduled_start) return null;
+  const startMin = minutesOfDayPR(job.scheduled_start);
+  const rawEndMin = job.scheduled_end ? minutesOfDayPR(job.scheduled_end) : startMin + 60;
+  const clampedStart = Math.max(startMin, HORA_INICIO * 60);
+  const clampedEnd = Math.min(rawEndMin > startMin ? rawEndMin : startMin + 60, HORA_FIN * 60);
+  if (clampedStart >= HORA_FIN * 60 || clampedEnd <= HORA_INICIO * 60) return null;
+  const left = ((clampedStart - HORA_INICIO * 60) / SLOT_MINUTOS) * SLOT_WIDTH;
+  const width = Math.max(((clampedEnd - clampedStart) / SLOT_MINUTOS) * SLOT_WIDTH, SLOT_WIDTH / 2);
+  return { left, width };
+}
+
 export function formatHourLabel(h) {
   const period = h < 12 ? 'am' : 'pm';
   const hh = h % 12 === 0 ? 12 : h % 12;

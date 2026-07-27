@@ -6,7 +6,7 @@ import { supabase } from '../../../lib/supabase';
 import GanttGrid from './GanttGrid';
 import JobsPanel from './JobsPanel';
 import JobCard from './JobCard';
-import { slotToIso, todayPR } from './dispatchUtils';
+import { slotToIso, todayPR, dayPR } from './dispatchUtils';
 
 export default function DispatchBoard({ technicians, scheduledJobs, unassignedJobs, day }) {
   const router = useRouter();
@@ -49,7 +49,15 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  const unassigned = useMemo(() => jobs.filter(j => !j.technician_id), [jobs]);
+  // Jobs sin técnico que YA tienen hora para este día van a la fila "Sin técnico" del
+  // Gantt en vez del panel lateral — si no, quedaban invisibles al navegar a otro día.
+  const sinTecnicoHoy = useMemo(() =>
+    jobs.filter(j => !j.technician_id && j.scheduled_start && dayPR(j.scheduled_start) === day),
+    [jobs, day]);
+
+  const unassigned = useMemo(() =>
+    jobs.filter(j => !j.technician_id && !(j.scheduled_start && dayPR(j.scheduled_start) === day)),
+    [jobs, day]);
 
   const jobsByTech = useMemo(() => {
     const map = {};
@@ -169,7 +177,7 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
       </div>
       <div className="dispatch-body">
         <div className="dispatch-gantt">
-          <GanttGrid technicians={technicians} jobsByTech={jobsByTech} />
+          <GanttGrid technicians={technicians} jobsByTech={jobsByTech} sinTecnicoJobs={sinTecnicoHoy} />
         </div>
         <JobsPanel jobs={unassigned} />
       </div>
