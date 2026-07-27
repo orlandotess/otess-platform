@@ -8,7 +8,7 @@ import SolicitudesTableClient from './SolicitudesTableClient';
 export default async function SolicitudesPage() {
   const { data: solicitudes } = await supabase
     .from('solicitudes')
-    .select('id, solicitud_number, title, status, requested_on, assessment_date, property_name, street, city, state, zip, clients(name)')
+    .select('id, solicitud_number, title, status, requested_on, assessment_date, property_name, street, city, state, zip, clients(name), technicians(name), solicitud_technicians(technicians(name))')
     .order('created_at', { ascending: false });
 
   return (

@@ -30,6 +30,10 @@ function location(s) {
   return [s.property_name, s.city].filter(Boolean).join(' — ');
 }
 
+function technicianNames(s) {
+  return [s.technicians?.name, ...(s.solicitud_technicians ?? []).map(st => st.technicians?.name)].filter(Boolean).join(', ');
+}
+
 const FILTERS = [
   { id: 'all',                 label: 'Todas' },
   { id: 'nueva',                label: 'Nueva' },
@@ -100,6 +104,7 @@ export default function SolicitudesTableClient({ solicitudes }) {
                   <th>Solicitud</th>
                   <th>Cliente</th>
                   <th>Ubicación</th>
+                  <th>Técnico</th>
                   <th>Estado</th>
                   <th>Solicitada</th>
                   <th></th>
@@ -126,6 +131,9 @@ export default function SolicitudesTableClient({ solicitudes }) {
                             <span style={{ color: 'var(--muted)' }}>{location(s)}</span>
                           )
                         ) : <span style={{ color: 'var(--muted)' }}>—</span>}
+                      </td>
+                      <td style={{ fontSize: 13, color: 'var(--muted)' }}>
+                        {technicianNames(s) || '—'}
                       </td>
                       <td>
                         <span className={`badge ${b.cls}`}>{b.label}</span>

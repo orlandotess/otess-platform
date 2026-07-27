@@ -54,8 +54,14 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
         contact_name: solicitud.contact_name || null,
         contact_phone: solicitud.contact_phone || null,
         contact_email: solicitud.contact_email || null,
+        technician_id: solicitud.technician_id || null,
       }]).select().single();
       if (jobErr) { alert(jobErr.message); return; }
+
+      const allTechIds = [solicitud.technician_id, ...(solicitud.solicitud_technicians ?? []).map(st => st.technician_id)].filter(Boolean);
+      if (allTechIds.length) {
+        await supabase.from('job_technicians').insert(allTechIds.map(techId => ({ job_id: job.id, technician_id: techId })));
+      }
 
       if (items.length) {
         await supabase.from('job_line_items').insert(items.map(i => ({
