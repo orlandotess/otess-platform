@@ -110,7 +110,14 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
 
   async function deleteRetencion(id) {
     if (!confirm('¿Eliminar esta retención?')) return;
-    await supabase.from('retenciones').delete().eq('id', id);
+    // .select('id') so a policy-blocked delete (0 rows affected, no thrown error)
+    // is distinguishable from a real success — otherwise the row vanishes from
+    // the UI even though it's still in the database.
+    const { data, error } = await supabase.from('retenciones').delete().eq('id', id).select('id');
+    if (error || !data?.length) {
+      alert('No se pudo eliminar la retención. Es posible que no tengas permiso para hacerlo.');
+      return;
+    }
     setHistory(prev => prev.filter(r => r.id !== id));
     router.refresh();
   }
