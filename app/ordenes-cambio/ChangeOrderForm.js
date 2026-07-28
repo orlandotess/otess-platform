@@ -103,6 +103,7 @@ export default function ChangeOrderForm({ initialData = null }) {
     if (!job) { setError('Falta el trabajo asociado'); return; }
     if (!title.trim()) { setError('El título es requerido'); return; }
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
+    if (items.some(i => !i.description.trim())) { setError('Todas las líneas necesitan una descripción antes de guardar.'); return; }
     setSaving(true); setError('');
 
     let order;

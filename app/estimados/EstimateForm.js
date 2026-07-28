@@ -154,6 +154,7 @@ export default function EstimateForm({ initialData = null }) {
     e.preventDefault();
     if (!form.client_id) { setError('Selecciona un cliente'); return; }
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
+    if (items.some(i => !i.description.trim())) { setError('Todas las líneas necesitan una descripción antes de guardar.'); return; }
     if (propertyMode === 'new' && !newProperty.name.trim()) { setError('Ponle un nombre a la propiedad nueva'); return; }
     setSaving(true); setError('');
 
