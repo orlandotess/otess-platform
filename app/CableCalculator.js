@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 const DEFAULT_FEET_PER_UNIT = { cable: '1000', tubo: '10' };
 
-export default function CableCalculator({ areaOptions = [], vendorOptions = [], onAdd, onClose }) {
+export default function CableCalculator({ areaOptions = [], vendorOptions = [], materialOptions = [], onAdd, onClose }) {
   const [calcType, setCalcType] = useState('cable');
   const [area, setArea] = useState('');
   const [description, setDescription] = useState('');
@@ -12,12 +12,14 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   const [feetPerBox, setFeetPerBox] = useState(DEFAULT_FEET_PER_UNIT.cable);
   const [pricePerBox, setPricePerBox] = useState('');
   const [supplierPricePerBox, setSupplierPricePerBox] = useState('');
+  const [materialGroupTitle, setMaterialGroupTitle] = useState('Materiales de cable');
 
   const unitLabel = calcType === 'tubo' ? 'tubo' : 'caja';
 
   function handleTypeChange(type) {
     setCalcType(type);
     setFeetPerBox(DEFAULT_FEET_PER_UNIT[type]);
+    setMaterialGroupTitle(type === 'tubo' ? 'Materiales de tubería' : 'Materiales de cable');
   }
 
   function updateSegment(idx, field, value) {
@@ -50,9 +52,11 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       const desc = m.description.trim();
       const qty = parseFloat(m.quantity) || 0;
       if (!desc || qty <= 0) return;
-      map.set(desc, (map.get(desc) || 0) + qty);
+      const key = desc.toLowerCase();
+      const existing = map.get(key);
+      map.set(key, { desc: existing ? existing.desc : desc, qty: (existing?.qty || 0) + qty });
     }));
-    return [...map.entries()];
+    return [...map.values()].map(({ desc, qty }) => [desc, qty]);
   })();
 
   function handleAdd() {
@@ -67,6 +71,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
     });
     materialTotals.forEach(([desc, qty]) => {
       onAdd({
+        title: materialGroupTitle.trim() || null,
         description: desc,
         area: area.trim() || '',
         vendor: vendor.trim() || '',
@@ -149,6 +154,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                     value={mat.description}
                     onChange={e => updateMaterial(idx, midx, 'description', e.target.value)}
                     placeholder="Material (ej. Caja PVC 4x4x2)"
+                    list="cable-calc-material-options"
                     style={{ flex: 1, fontSize: 12 }}
                   />
                   <input
@@ -167,10 +173,17 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
             </div>
           ))}
           <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addSegment}>+ Agregar lado</button>
+          <datalist id="cable-calc-material-options">
+            {materialOptions.map(m => <option key={m} value={m} />)}
+          </datalist>
         </div>
 
         {materialTotals.length > 0 && (
           <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 13 }}>
+            <div className="form-group" style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 11 }}>Título del grupo (en el estimado, estos materiales se combinan en una sola línea por área)</label>
+              <input value={materialGroupTitle} onChange={e => setMaterialGroupTitle(e.target.value)} placeholder="Materiales de tubería" style={{ fontSize: 13 }} />
+            </div>
             <p style={{ fontWeight: 700, color: 'var(--navy)', margin: '0 0 6px' }}>Materiales</p>
             {materialTotals.map(([desc, qty]) => (
               <div key={desc} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>

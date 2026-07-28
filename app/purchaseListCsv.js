@@ -5,12 +5,13 @@ export function exportPurchaseListCSV(items, docNumber) {
 
   const groups = new Map();
   for (const it of products) {
-    const vendor = it.vendor || 'Sin asignar';
+    const vendor = (it.vendor || 'Sin asignar').trim();
+    const description = (it.description || '').trim();
     const price = Number(it.unit_price) || 0;
-    const key = `${vendor}|||${it.description}|||${price}`;
+    const key = `${vendor.toLowerCase()}|||${description.toLowerCase()}|||${price}`;
     const existing = groups.get(key);
     if (existing) existing.quantity += Number(it.quantity) || 0;
-    else groups.set(key, { vendor, description: it.description, price, quantity: Number(it.quantity) || 0 });
+    else groups.set(key, { vendor, description, price, quantity: Number(it.quantity) || 0 });
   }
 
   const rows = [...groups.values()].sort((a, b) => a.vendor.localeCompare(b.vendor) || a.description.localeCompare(b.description));

@@ -5,6 +5,30 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import EstimateActions from './EstimateActions';
 
+// Materials added by the cable/tubo calculator share a `title` (set per calculator
+// run) so multiple materials for the same area collapse into one client-facing row,
+// while the underlying rows stay separate for the purchase list / purchase orders.
+// Items without a title (manually added lines) always render on their own.
+function groupItemsForDisplay(items) {
+  const groups = new Map();
+  const display = [];
+  for (const item of items ?? []) {
+    if (!item.title) { display.push({ kind: 'single', item }); continue; }
+    const key = `${item.area || ''}|||${item.title}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = { kind: 'group', key, title: item.title, area: item.area, type: item.type, tax_rate: item.tax_rate, parts: [], line_total: 0, tax_amount: 0, supplier_total: 0 };
+      groups.set(key, group);
+      display.push(group);
+    }
+    group.parts.push(`${item.quantity}x ${item.description}`);
+    group.line_total += Number(item.line_total) || 0;
+    group.tax_amount += Number(item.tax_amount) || 0;
+    if (item.supplier_price != null) group.supplier_total += (Number(item.supplier_price) || 0) * (Number(item.quantity) || 0);
+  }
+  return display;
+}
+
 export default async function EstimaDetail({ params }) {
   const { id } = params;
 
@@ -17,6 +41,7 @@ export default async function EstimaDetail({ params }) {
   if (!est) return <div style={{ padding: 40 }}>Estimado no encontrado</div>;
 
   const { data: items } = await supabase.from('estimate_line_items').select('*').eq('estimate_id', id).order('sort_order');
+  const displayItems = groupItemsForDisplay(items);
 
   const { data: clientContacts } = est.client_id
     ? await supabase.from('client_contacts').select('id, name, email').eq('client_id', est.client_id)
@@ -127,32 +152,56 @@ export default async function EstimaDetail({ params }) {
               </tr>
             </thead>
             <tbody>
-              {items?.map(item => (
-                <tr key={item.id}>
+              {displayItems.map(entry => entry.kind === 'group' ? (
+                <tr key={entry.key}>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>
-                    {item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
-                    {item.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {item.area}</div>}
+                    <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.title}</div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{entry.parts.join(', ')}</div>
+                    {entry.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {entry.area}</div>}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                    <span className={`badge ${item.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
-                      {item.type === 'labor' ? 'Labor' : 'Producto'}
+                    <span className={`badge ${entry.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
+                      {entry.type === 'labor' ? 'Labor' : 'Producto'}
                     </span>
                   </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>{item.quantity}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>—</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>
-                    {item.msrp != null && (
-                      <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${Number(item.msrp).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                    )}
-                    ${Number(item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                    {item.supplier_price != null && (
-                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${Number(item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    —
+                    {entry.supplier_total > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${entry.supplier_total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                     )}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
-                    {item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}
+                    {entry.tax_rate === 0 ? 'Exento' : `${(entry.tax_rate * 100).toFixed(1)}%`}
                   </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(Number(item.line_total) + Number(item.tax_amount)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(entry.line_total + entry.tax_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                </tr>
+              ) : (
+                <tr key={entry.item.id}>
+                  <td style={{ padding: '12px 14px', fontWeight: 500 }}>
+                    {entry.item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.item.title}</div>}
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{entry.item.description}</div>
+                    {entry.item.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {entry.item.area}</div>}
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                    <span className={`badge ${entry.item.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
+                      {entry.item.type === 'labor' ? 'Labor' : 'Producto'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>{entry.item.quantity}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>
+                    {entry.item.msrp != null && (
+                      <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${Number(entry.item.msrp).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    )}
+                    ${Number(entry.item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    {entry.item.supplier_price != null && (
+                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${Number(entry.item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    )}
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
+                    {entry.item.tax_rate === 0 ? 'Exento' : `${(entry.item.tax_rate * 100).toFixed(1)}%`}
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(Number(entry.item.line_total) + Number(entry.item.tax_amount)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
               ))}
             </tbody>

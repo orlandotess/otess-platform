@@ -117,6 +117,24 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
         } catch (poErr) {
           console.error('Error generando orden de compra automática:', poErr);
         }
+
+        try {
+          const checklistItems = (insertedItems ?? [])
+            .filter(it => it.area)
+            .map((it, idx) => ({
+              job_id: job.id,
+              group_name: it.area,
+              description: Number(it.quantity) > 1 ? `${it.description} (x${it.quantity})` : it.description,
+              completed: false,
+              sort_order: idx,
+            }));
+          if (checklistItems.length) {
+            const { error: checklistErr } = await supabase.from('job_checklist_items').insert(checklistItems);
+            if (checklistErr) throw checklistErr;
+          }
+        } catch (checklistErr) {
+          console.error('Error generando checklist automático:', checklistErr);
+        }
       }
 
       if (notes) {

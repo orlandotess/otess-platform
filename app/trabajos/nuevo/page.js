@@ -146,6 +146,7 @@ function NuevoTrabajoForm() {
   const fmt = n => `$${n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
+  const materialOptions = [...new Map(items.filter(i => i.description).map(i => [i.description.trim().toLowerCase(), i.description.trim()])).values()];
 
   const fullAddress = [form.street, form.city, form.state, form.zip].filter(Boolean).join(', ');
   const mapsLinks = buildMapsLinks(form.street, form.city, form.state, form.zip);
@@ -579,6 +580,7 @@ function NuevoTrabajoForm() {
           <CableCalculator
             areaOptions={areaOptions}
             vendorOptions={vendorOptions}
+            materialOptions={materialOptions}
             onAdd={item => { addPrefilledItem(item); setShowCableCalc(false); }}
             onClose={() => setShowCableCalc(false)}
           />

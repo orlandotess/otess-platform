@@ -329,6 +329,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
 
   const areaOptions = [...new Set(lineItems.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
+  const materialOptions = [...new Map(lineItems.filter(i => i.description).map(i => [i.description.trim().toLowerCase(), i.description.trim()])).values()];
 
   async function applyNewLineCatalogPhoto(match) {
     if (newLine.photoFile || newLine.existingPhotoPath || !match.photo_url) return;
@@ -2592,6 +2593,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
         <CableCalculator
           areaOptions={areaOptions}
           vendorOptions={vendorOptions}
+          materialOptions={materialOptions}
           onAdd={item => { addPrefilledLineItem(item); setShowCableCalc(false); }}
           onClose={() => setShowCableCalc(false)}
         />

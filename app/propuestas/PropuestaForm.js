@@ -132,6 +132,11 @@ export default function PropuestaForm({ initialData = null }) {
     setPaymentSchedule(prev => prev.filter(p => p.key !== key));
   }
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
+  const materialOptions = [...new Map(
+    options.flatMap(o => o.areas.flatMap(a => a.items))
+      .filter(i => i.description)
+      .map(i => [i.description.trim().toLowerCase(), i.description.trim()])
+  ).values()];
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [cableCalcTarget, setCableCalcTarget] = useState(null); // { optKey, areaKey } — which area the calculator adds into, or null when closed
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — the item group currently being dragged
@@ -857,6 +862,7 @@ export default function PropuestaForm({ initialData = null }) {
         {cableCalcTarget && (
           <CableCalculator
             vendorOptions={vendorOptions}
+            materialOptions={materialOptions}
             onAdd={item => { addPrefilledItem(cableCalcTarget.optKey, cableCalcTarget.areaKey, item); setCableCalcTarget(null); }}
             onClose={() => setCableCalcTarget(null)}
           />

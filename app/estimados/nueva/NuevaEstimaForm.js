@@ -131,6 +131,7 @@ export default function NuevaEstimaForm() {
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
+  const materialOptions = [...new Map(items.filter(i => i.description).map(i => [i.description.trim().toLowerCase(), i.description.trim()])).values()];
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -428,6 +429,7 @@ export default function NuevaEstimaForm() {
           <CableCalculator
             areaOptions={areaOptions}
             vendorOptions={vendorOptions}
+            materialOptions={materialOptions}
             onAdd={item => { addPrefilledItem(item); setShowCableCalc(false); }}
             onClose={() => setShowCableCalc(false)}
           />
