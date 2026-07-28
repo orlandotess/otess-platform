@@ -107,7 +107,7 @@ export default async function CalendarioPage({ searchParams }) {
   return (
     <div className="admin-shell">
       <Sidebar />
-      <main className="main-content" style={{ padding: '24px 28px' }}>
+      <main className="main-content calendario-main" style={{ padding: '24px 28px' }}>
         <CalendarioClient
           jobs={allJobs}
           technicians={technicians ?? []}

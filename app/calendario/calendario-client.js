@@ -49,7 +49,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const [selectedVisit, setSelectedVisit] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
-  const [showRequests, setShowRequests] = useState(true);
+  const [showRequests, setShowRequests] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
   const [scheduleModal, setScheduleModal] = useState(null); // { requestId?, date?, hour? }
   const [eventModal, setEventModal] = useState(null); // { dateStr?, time? }
   const [taskModal, setTaskModal] = useState(null); // { dateStr?, time? }
@@ -790,8 +791,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   }
 
   return (
-    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-      <div style={{ flex: '1 1 480px', minWidth: 0 }}>
+    <div>
         {/* Header */}
         <div className="page-header" style={{ marginBottom: 20 }}>
           <div className="page-title">Calendario</div>
@@ -799,9 +799,40 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             {[['year','Anual'],['month','Mensual'],['week','Semanal'],['day','Día']].map(([v, l]) => (
               <button key={v} onClick={() => setView(v)} className={`btn ${v === view ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>
             ))}
-            <button onClick={() => setShowRequests(s => !s)} className="btn btn-ghost">
-              {showRequests ? 'Ocultar' : 'Ver'} solicitudes {pendingRequests.length > 0 && `(${pendingRequests.length})`}
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setShowRequests(s => !s)} className={`btn ${showRequests ? 'btn-primary' : 'btn-ghost'}`}>
+                Solicitudes {pendingRequests.length > 0 && `(${pendingRequests.length})`}
+              </button>
+              {showRequests && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 1040 }} onClick={() => setShowRequests(false)} />
+                  <div className="card" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, width: 300, maxWidth: '90vw',
+                    zIndex: 1041, padding: 16, maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.18)' }}
+                    onClick={e => e.stopPropagation()}>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--navy)', marginBottom: 12 }}>
+                      Solicitudes pendientes {pendingRequests.length > 0 && `(${pendingRequests.length})`}
+                    </div>
+                    {pendingRequests.length === 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>No hay solicitudes nuevas.</div>
+                    )}
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {pendingRequests.map(r => (
+                        <div key={r.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                          <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--navy)' }}>{r.title}</div>
+                          <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 }}>{r.clients?.name}</div>
+                          {canScheduleVisit && (
+                            <button className="btn btn-primary" style={{ width: '100%', fontSize: 11.5, padding: '5px 0' }}
+                              onClick={() => { setScheduleModal({ requestId: r.id }); setShowRequests(false); }}>
+                              Agendar visita
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <button onClick={() => setEventModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ Evento</button>
             <button onClick={() => setTaskModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ Tarea</button>
             <button onClick={() => setAbsenceModal(true)} className="btn btn-ghost">🚫 Ausencia</button>
@@ -849,30 +880,37 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             style={{ fontSize: 12, padding: '6px 10px', minWidth: 220, flex: '1 1 220px' }}
           />
 
+          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => setShowLegend(v => !v)}>
+            {showLegend ? 'Ocultar' : ''} leyenda {showLegend ? '▲' : '▼'}
+          </button>
+
           {/* Legend: entry-type shapes + technician colors, so the styling used across
-              month/week cells doesn't have to be memorized. */}
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', width: '100%', fontSize: 11, color: 'var(--muted)', paddingTop: 10, marginTop: 2, borderTop: '1px solid var(--border)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--ink-faint)' }} /> Trabajo
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px solid var(--navy)' }} /> {ENTRY_TYPE_ICONS.event} Evento
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px dashed var(--muted)' }} /> ☑ Tarea
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px solid var(--ink-faint)' }} /> 👁 Visita
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--danger-tint)' }} /> 🚫 Ausencia
-            </span>
-            {technicians.map(t => (
-              <span key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: techColors[t.id] }} /> {t.name}
+              month/week cells doesn't have to be memorized. Collapsed by default so it
+              doesn't push the grid down before you've seen it once. */}
+          {showLegend && (
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', width: '100%', fontSize: 11, color: 'var(--muted)', paddingTop: 10, marginTop: 2, borderTop: '1px solid var(--border)' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--ink-faint)' }} /> Trabajo
               </span>
-            ))}
-          </div>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px solid var(--navy)' }} /> {ENTRY_TYPE_ICONS.event} Evento
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px dashed var(--muted)' }} /> ☑ Tarea
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px solid var(--ink-faint)' }} /> 👁 Visita
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--danger-tint)' }} /> 🚫 Ausencia
+              </span>
+              {technicians.map(t => (
+                <span key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: techColors[t.id] }} /> {t.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ─── ANNUAL VIEW ─── */}
@@ -956,7 +994,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   const isToday = cell.date === today;
                   const isDragOver = cell.current && dragOverDate === cell.date;
                   return (
-                    <div key={idx} style={{ minHeight: 122, height: 122, padding: '6px 8px', borderRadius: 8,
+                    <div key={idx} style={{ minHeight: 148, height: 148, padding: '6px 8px', borderRadius: 8,
                       background: isDragOver ? 'var(--amber-tint)' : isToday ? 'var(--info-tint)' : 'var(--surface)',
                       border: isDragOver ? '2px dashed var(--amber)' : isToday ? '2px solid var(--navy)' : '1px solid var(--border)',
                       opacity: cell.current ? 1 : 0.4,
@@ -971,7 +1009,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       onDragLeave={() => { if (dragOverDate === cell.date) setDragOverDate(null); }}
                       onDrop={(e) => { if (cell.current) { e.preventDefault(); handleDayDrop(cell.date); } }}>
                       <div style={{ fontSize: 13, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)', marginBottom: 4, width: 'fit-content' }}>{cell.day}</div>
-                      {dayAbsences.slice(0, 4).map(a => (
+                      {dayAbsences.slice(0, 5).map(a => (
                         <div key={`a${a.id}`} onClick={(e) => showQuickPreview('absence', a, e)}
                           style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
@@ -979,7 +1017,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           <span style={{ fontSize: 9 }}>🚫</span> {a.technicians?.name ?? 'Técnico'} ausente
                         </div>
                       ))}
-                      {dayVisits.slice(0, Math.max(3 - dayAbsences.length, 0)).map(v => (
+                      {dayVisits.slice(0, Math.max(5 - dayAbsences.length, 0)).map(v => (
                         <div key={`v${v.id}`} onClick={(e) => showQuickPreview('visit', v, e)}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
@@ -987,7 +1025,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           <span style={{ fontSize: 9 }}>👁</span> {v.requests?.title ?? 'Visita'}
                         </div>
                       ))}
-                      {dayJobs.slice(0, Math.max(4 - dayAbsences.length - dayVisits.length, 0)).map(j => (
+                      {dayJobs.slice(0, Math.max(5 - dayAbsences.length - dayVisits.length, 0)).map(j => (
                         <div key={j.id} onClick={(e) => { e.stopPropagation(); openEntry('job', j, e); }}
                           draggable={canQuickReschedule}
                           onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData('text/plain', j.id); e.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'job', item: j }); }}
@@ -998,7 +1036,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           {j.title}
                         </div>
                       ))}
-                      {dayEvents.slice(0, Math.max(4 - dayAbsences.length - dayVisits.length - dayJobs.length, 0)).map(e => (
+                      {dayEvents.slice(0, Math.max(5 - dayAbsences.length - dayVisits.length - dayJobs.length, 0)).map(e => (
                         <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('event', e, ev); }}
                           draggable={canQuickReschedule}
                           onDragStart={(ev) => { ev.stopPropagation(); ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'event', item: e }); }}
@@ -1009,7 +1047,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS.event}</span> {e.title}
                         </div>
                       ))}
-                      {dayTasks.slice(0, Math.max(4 - dayAbsences.length - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(t => (
+                      {dayTasks.slice(0, Math.max(5 - dayAbsences.length - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(t => (
                         <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('task', t, ev); }}
                           draggable={canQuickReschedule}
                           onDragStart={(ev) => { ev.stopPropagation(); ev.dataTransfer.setData('text/plain', t.id); ev.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'task', item: t }); }}
@@ -1020,10 +1058,10 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS[t.task_type]}</span> {t.title}
                         </div>
                       ))}
-                      {dayTotal > 4 && (
+                      {dayTotal > 5 && (
                         <div onClick={(e) => { e.stopPropagation(); setDayDetail(cell.date); }}
                           style={{ fontSize: 10, color: 'var(--navy)', fontWeight: 700, cursor: 'pointer', width: 'fit-content' }}>
-                          +{dayTotal - 4} más
+                          +{dayTotal - 5} más
                         </div>
                       )}
                     </div>
@@ -1292,33 +1330,6 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             </div>
           );
         })()}
-      </div>
-
-      {/* ─── SIDE PANEL: Pending Requests ─── */}
-      {showRequests && (
-        <div className="card" style={{ width: 280, maxWidth: '100%', flexShrink: 0, flexGrow: 1, padding: 16, position: 'sticky', top: 20 }}>
-          <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--navy)', marginBottom: 12 }}>
-            Solicitudes pendientes {pendingRequests.length > 0 && `(${pendingRequests.length})`}
-          </div>
-          {pendingRequests.length === 0 && (
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>No hay solicitudes nuevas.</div>
-          )}
-          <div style={{ display: 'grid', gap: 8 }}>
-            {pendingRequests.map(r => (
-              <div key={r.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
-                <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--navy)' }}>{r.title}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 }}>{r.clients?.name}</div>
-                {canScheduleVisit && (
-                  <button className="btn btn-primary" style={{ width: '100%', fontSize: 11.5, padding: '5px 0' }}
-                    onClick={() => setScheduleModal({ requestId: r.id })}>
-                    Agendar visita
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ─── SCHEDULE MODAL ─── */}
       {scheduleModal && (

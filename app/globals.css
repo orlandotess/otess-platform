@@ -698,6 +698,13 @@ body.sidebar-hidden .main-content {
   overflow: hidden;
 }
 
+/* ── Calendario ──
+   .main-content trae max-width:1100px por defecto; el grid mensual/semanal
+   necesita más ancho para no truncar títulos, así que se anula acá. */
+.calendario-main {
+  max-width: 1600px;
+}
+
 .dispatch-header {
   display: flex;
   align-items: center;
