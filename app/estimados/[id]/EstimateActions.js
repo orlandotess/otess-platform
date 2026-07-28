@@ -233,6 +233,9 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
         <button className="btn btn-ghost" onClick={() => setShowEditProperty(true)}>🏠 Propiedad</button>
       )}
       <button className="btn btn-ghost" onClick={() => setShowEditTerms(true)}>📋 Términos</button>
+      {['draft', 'sent'].includes(status) && (
+        <button className="btn btn-ghost" onClick={() => router.push(`/estimados/${estimateId}/editar`)}>🧾 Editar líneas</button>
+      )}
       {status === 'draft' && <button className="btn btn-primary" onClick={() => updateStatus('sent')}>📤 Enviar</button>}
       {status === 'sent' && (
         <>

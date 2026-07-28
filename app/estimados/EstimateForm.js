@@ -1,11 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Sidebar from '../../Sidebar';
-import ClientCombobox from '../../facturas/nueva/ClientCombobox';
-import LineItemRow from '../../LineItemRow';
-import CableCalculator from '../../CableCalculator';
+import Sidebar from '../Sidebar';
+import ClientCombobox from '../facturas/nueva/ClientCombobox';
+import LineItemRow from '../LineItemRow';
+import CableCalculator from '../CableCalculator';
 
 const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
@@ -13,23 +13,40 @@ const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar sop
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
-export default function NuevaEstimaForm() {
+export default function EstimateForm({ initialData = null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobIdParam = searchParams.get('job');
+  const isEdit = !!initialData;
 
   const [clients, setClients] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
   const [properties, setProperties] = useState([]);
-  const [propertyMode, setPropertyMode] = useState('none'); // none | existing | new
+  const [propertyMode, setPropertyMode] = useState(initialData?.estimate?.property_id ? 'existing' : 'none'); // none | existing | new
   const [newProperty, setNewProperty] = useState({ name: '', street: '', city: '', state: 'PR', zip: '' });
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(initialData ? {
+    client_id: initialData.estimate.client_id ?? '', job_id: initialData.estimate.job_id ?? '',
+    property_id: initialData.estimate.property_id ?? '', title: initialData.estimate.title ?? '',
+    notes: initialData.estimate.notes ?? '', bill_to: initialData.estimate.bill_to ?? 'person',
+    terms: initialData.estimate.terms ?? DEFAULT_TERMS,
+    issued_at: initialData.estimate.issued_at ?? new Date().toISOString().split('T')[0],
+    valid_until: initialData.estimate.valid_until ?? new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+  } : {
     client_id: '', job_id: '', property_id: '', title: '', notes: '', bill_to: 'person', terms: DEFAULT_TERMS,
     issued_at: new Date().toISOString().split('T')[0],
     valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
-  const [items, setItems] = useState([{ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const [items, setItems] = useState(
+    initialData?.items?.length
+      ? initialData.items.map(li => ({
+          type: li.type, title: li.title ?? '', description: li.description, quantity: li.quantity, unit_price: li.unit_price,
+          msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
+          area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
+          photoFile: null, photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
+        }))
+      : [{ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showCableCalc, setShowCableCalc] = useState(false);
@@ -47,7 +64,7 @@ export default function NuevaEstimaForm() {
   }, [form.client_id]);
 
   useEffect(() => {
-    if (jobIdParam && jobs.length) {
+    if (!isEdit && jobIdParam && jobs.length) {
       const job = jobs.find(j => j.id === jobIdParam);
       if (job) {
         setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id, bill_to: job.bill_to ?? 'person', title: job.title ?? '' }));
@@ -157,37 +174,66 @@ export default function NuevaEstimaForm() {
       propertyId = newProp.id;
     }
 
-    const { data: allEstimates } = await supabase.from('estimates').select('estimate_number');
-    let maxNum = 1000;
-    (allEstimates ?? []).forEach(est => {
-      const match = est.estimate_number?.match(/^EST-(\d+)$/);
-      if (match) {
-        const n = parseInt(match[1]);
-        if (n > maxNum) maxNum = n;
+    let estimate;
+    if (isEdit) {
+      const { data: current } = await supabase.from('estimates').select('status').eq('id', initialData.estimate.id).single();
+      if (!current || !['draft', 'sent'].includes(current.status)) {
+        setError('Este estimado ya no se puede editar (fue aceptado, convertido o cancelado).');
+        setSaving(false);
+        return;
       }
-    });
-    const estimateNumber = `EST-${maxNum + 1}`;
+      const { data: updated, error: err } = await supabase.from('estimates').update({
+        client_id: form.client_id,
+        job_id: form.job_id || null,
+        property_id: propertyId,
+        title: form.title || null,
+        notes: form.notes || null,
+        terms: form.terms || null,
+        issued_at: form.issued_at,
+        valid_until: form.valid_until,
+        bill_to: form.bill_to,
+        subtotal_products: t.subProd,
+        tax_products: t.taxProd,
+        subtotal_labor: t.subLabor,
+        tax_labor: t.taxLabor,
+        total: t.total,
+      }).eq('id', initialData.estimate.id).select().single();
+      if (err) { setError(err.message); setSaving(false); return; }
+      estimate = updated;
+      await supabase.from('estimate_line_items').delete().eq('estimate_id', estimate.id);
+    } else {
+      const { data: allEstimates } = await supabase.from('estimates').select('estimate_number');
+      let maxNum = 1000;
+      (allEstimates ?? []).forEach(est => {
+        const match = est.estimate_number?.match(/^EST-(\d+)$/);
+        if (match) {
+          const n = parseInt(match[1]);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+      const estimateNumber = `EST-${maxNum + 1}`;
 
-    const { data: estimate, error: err } = await supabase.from('estimates').insert([{
-      estimate_number: estimateNumber,
-      client_id: form.client_id,
-      job_id: form.job_id || null,
-      property_id: propertyId,
-      title: form.title || null,
-      notes: form.notes || null,
-      terms: form.terms || null,
-      issued_at: form.issued_at,
-      valid_until: form.valid_until,
-      status: 'draft',
-      bill_to: form.bill_to,
-      subtotal_products: t.subProd,
-      tax_products: t.taxProd,
-      subtotal_labor: t.subLabor,
-      tax_labor: t.taxLabor,
-      total: t.total,
-    }]).select().single();
-
-    if (err) { setError(err.message); setSaving(false); return; }
+      const { data: created, error: err } = await supabase.from('estimates').insert([{
+        estimate_number: estimateNumber,
+        client_id: form.client_id,
+        job_id: form.job_id || null,
+        property_id: propertyId,
+        title: form.title || null,
+        notes: form.notes || null,
+        terms: form.terms || null,
+        issued_at: form.issued_at,
+        valid_until: form.valid_until,
+        status: 'draft',
+        bill_to: form.bill_to,
+        subtotal_products: t.subProd,
+        tax_products: t.taxProd,
+        subtotal_labor: t.subLabor,
+        tax_labor: t.taxLabor,
+        total: t.total,
+      }]).select().single();
+      if (err) { setError(err.message); setSaving(false); return; }
+      estimate = created;
+    }
 
     const lineItems = [];
     let sortOrder = 0;
@@ -214,7 +260,13 @@ export default function NuevaEstimaForm() {
       });
     }
 
-    await supabase.from('estimate_line_items').insert(lineItems);
+    const { error: liErr } = await supabase.from('estimate_line_items').insert(lineItems);
+    if (liErr) {
+      setError(`El estimado ${estimate.estimate_number} se guardó pero no se pudieron guardar sus líneas: ${liErr.message}. Ábrelo y agrégalas manualmente.`);
+      setSaving(false);
+      return;
+    }
+
     router.push(`/estimados/${estimate.id}`);
   }
 
@@ -222,7 +274,7 @@ export default function NuevaEstimaForm() {
     <div className="admin-shell ds-estimados">
       <Sidebar />
       <main className="main-content">
-        <div className="page-header"><div className="page-title">Nuevo estimado</div></div>
+        <div className="page-header"><div className="page-title">{isEdit ? `Editar estimado ${initialData.estimate.estimate_number}` : 'Nuevo estimado'}</div></div>
         <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {error && <p style={{ color: 'var(--warn)', fontSize: 14 }}>{error}</p>}
@@ -420,7 +472,7 @@ export default function NuevaEstimaForm() {
               </div>
             </div>
             <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
-              {saving ? 'Guardando...' : '💾 Guardar estimado'}
+              {saving ? 'Guardando...' : isEdit ? '💾 Guardar cambios' : '💾 Guardar estimado'}
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>Cancelar</button>
           </div>
