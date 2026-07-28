@@ -37,6 +37,7 @@ export default function NuevaSolicitud() {
   const [newClientName, setNewClientName] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
   const [creatingClient, setCreatingClient] = useState(false);
+  const [showNewProperty, setShowNewProperty] = useState(false);
 
   useEffect(() => {
     supabase.from('clients').select('id, name, client_type, company').order('name').then(({ data }) => setClients(data ?? []));
@@ -46,6 +47,8 @@ export default function NuevaSolicitud() {
 
   useEffect(() => {
     if (!form.client_id) { setProperties([]); setContacts([]); return; }
+    setShowNewProperty(false);
+    setForm(f => ({ ...f, property_id: '', contact_id: '' }));
     supabase.from('client_properties').select('*').eq('client_id', form.client_id).order('is_primary', { ascending: false })
       .then(({ data }) => setProperties(data ?? []));
     supabase.from('client_contacts').select('*').eq('client_id', form.client_id).order('is_primary', { ascending: false })
@@ -68,6 +71,7 @@ export default function NuevaSolicitud() {
   const toggleTechnician = techId => setTechnicianIds(ids => ids.includes(techId) ? ids.filter(id => id !== techId) : [...ids, techId]);
   const selectedClient = clients.find(c => c.id === form.client_id);
   const clientType = selectedClient?.client_type ?? 'final';
+  const selectedProperty = properties.find(p => p.id === form.property_id);
 
   const addItem = () => setItems(i => [...i, { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
@@ -363,37 +367,54 @@ export default function NuevaSolicitud() {
             {/* Propiedad */}
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>🏠 Propiedad</p>
-              {properties.length > 0 && (
+              {properties.length > 0 && !showNewProperty && (
                 <div className="form-group">
-                  <label>Seleccionar propiedad del cliente</label>
-                  <select value={form.property_id} onChange={e => set('property_id', e.target.value)}>
-                    <option value="">— Seleccionar propiedad —</option>
-                    {properties.map(p => <option key={p.id} value={p.id}>{p.name}{p.is_primary ? ' ★' : ''}</option>)}
-                  </select>
+                  <label>Propiedad del cliente</label>
+                  {selectedProperty ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
+                      <span style={{ flex: 1, fontWeight: 600 }}>{selectedProperty.name}{selectedProperty.is_primary ? ' ★' : ''}{selectedProperty.city ? ` — ${selectedProperty.city}` : ''}</span>
+                      <button type="button" onClick={() => set('property_id', '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>Cambiar</button>
+                    </div>
+                  ) : (
+                    <>
+                      <select value={form.property_id} onChange={e => set('property_id', e.target.value)}>
+                        <option value="">— Seleccionar propiedad —</option>
+                        {properties.map(p => <option key={p.id} value={p.id}>{p.name}{p.is_primary ? ' ★' : ''}</option>)}
+                      </select>
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>+ Agregar propiedad nueva</button>
+                    </>
+                  )}
                 </div>
               )}
-              <div className="form-group">
-                <label>Nombre de la propiedad</label>
-                <input value={form.property_name} onChange={e => set('property_name', e.target.value)} placeholder="Ej: Oficina Principal, Almacén Caguas" />
-              </div>
-              <div className="form-group">
-                <label>Dirección</label>
-                <input value={form.street} onChange={e => set('street', e.target.value)} placeholder="Calle y número" />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
-                <div className="form-group">
-                  <label>Ciudad</label>
-                  <input value={form.city} onChange={e => set('city', e.target.value)} placeholder="San Juan" />
-                </div>
-                <div className="form-group">
-                  <label>Estado</label>
-                  <input value={form.state} onChange={e => set('state', e.target.value)} placeholder="PR" />
-                </div>
-                <div className="form-group">
-                  <label>Zip</label>
-                  <input value={form.zip} onChange={e => set('zip', e.target.value)} placeholder="00901" />
-                </div>
-              </div>
+              {(properties.length === 0 || showNewProperty || selectedProperty) && (
+                <>
+                  {properties.length > 0 && showNewProperty && (
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>‹ Usar propiedad existente</button>
+                  )}
+                  <div className="form-group">
+                    <label>Nombre de la propiedad</label>
+                    <input value={form.property_name} onChange={e => set('property_name', e.target.value)} placeholder="Ej: Oficina Principal, Almacén Caguas" />
+                  </div>
+                  <div className="form-group">
+                    <label>Dirección</label>
+                    <input value={form.street} onChange={e => set('street', e.target.value)} placeholder="Calle y número" />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
+                    <div className="form-group">
+                      <label>Ciudad</label>
+                      <input value={form.city} onChange={e => set('city', e.target.value)} placeholder="San Juan" />
+                    </div>
+                    <div className="form-group">
+                      <label>Estado</label>
+                      <input value={form.state} onChange={e => set('state', e.target.value)} placeholder="PR" />
+                    </div>
+                    <div className="form-group">
+                      <label>Zip</label>
+                      <input value={form.zip} onChange={e => set('zip', e.target.value)} placeholder="00901" />
+                    </div>
+                  </div>
+                </>
+              )}
               {fullAddress && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                   {mapsLinks.direct ? (

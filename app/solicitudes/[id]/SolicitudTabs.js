@@ -188,6 +188,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
 
   // --- Propiedad ---
   const [editingProperty, setEditingProperty] = useState(false);
+  const [showNewProperty, setShowNewProperty] = useState(false);
   const [propertyForm, setPropertyForm] = useState({
     property_id: solicitud.property_id ?? '', property_name: solicitud.property_name ?? '',
     street: solicitud.street ?? '', city: solicitud.city ?? '', state: solicitud.state ?? 'PR', zip: solicitud.zip ?? '',
@@ -211,6 +212,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
     }).eq('id', solicitud.id);
     setSavingProperty(false);
     setEditingProperty(false);
+    setShowNewProperty(false);
     router.refresh();
   }
 
@@ -464,34 +466,51 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
           </div>
           {editingProperty ? (
             <>
-              {clientProperties.length > 0 && (
+              {clientProperties.length > 0 && !showNewProperty && (
                 <div className="form-group">
-                  <label>Seleccionar propiedad del cliente</label>
-                  <select value={propertyForm.property_id} onChange={e => {
-                    const p = clientProperties.find(p => p.id === e.target.value);
-                    if (p) selectProperty(p); else setPropertyForm(f => ({ ...f, property_id: '' }));
-                  }}>
-                    <option value="">— Seleccionar propiedad —</option>
-                    {clientProperties.map(p => <option key={p.id} value={p.id}>{propertyLabel(p)}</option>)}
-                  </select>
+                  <label>Propiedad del cliente</label>
+                  {propertyForm.property_id ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
+                      <span style={{ flex: 1, fontWeight: 600 }}>{propertyLabel(clientProperties.find(p => p.id === propertyForm.property_id) ?? { name: propertyForm.property_name })}</span>
+                      <button type="button" onClick={() => setPropertyForm(f => ({ ...f, property_id: '' }))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>Cambiar</button>
+                    </div>
+                  ) : (
+                    <>
+                      <select value={propertyForm.property_id} onChange={e => {
+                        const p = clientProperties.find(p => p.id === e.target.value);
+                        if (p) selectProperty(p); else setPropertyForm(f => ({ ...f, property_id: '' }));
+                      }}>
+                        <option value="">— Seleccionar propiedad —</option>
+                        {clientProperties.map(p => <option key={p.id} value={p.id}>{propertyLabel(p)}</option>)}
+                      </select>
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>+ Agregar propiedad nueva</button>
+                    </>
+                  )}
                 </div>
               )}
-              <div className="form-group">
-                <label>Nombre de la propiedad</label>
-                <input value={propertyForm.property_name} onChange={e => setPropertyForm(f => ({ ...f, property_name: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label>Dirección</label>
-                <input value={propertyForm.street} onChange={e => setPropertyForm(f => ({ ...f, street: e.target.value }))} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
-                <div className="form-group"><label>Ciudad</label><input value={propertyForm.city} onChange={e => setPropertyForm(f => ({ ...f, city: e.target.value }))} /></div>
-                <div className="form-group"><label>Estado</label><input value={propertyForm.state} onChange={e => setPropertyForm(f => ({ ...f, state: e.target.value }))} /></div>
-                <div className="form-group"><label>Zip</label><input value={propertyForm.zip} onChange={e => setPropertyForm(f => ({ ...f, zip: e.target.value }))} /></div>
-              </div>
+              {(clientProperties.length === 0 || showNewProperty || propertyForm.property_id) && (
+                <>
+                  {clientProperties.length > 0 && showNewProperty && (
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>‹ Usar propiedad existente</button>
+                  )}
+                  <div className="form-group">
+                    <label>Nombre de la propiedad</label>
+                    <input value={propertyForm.property_name} onChange={e => setPropertyForm(f => ({ ...f, property_name: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Dirección</label>
+                    <input value={propertyForm.street} onChange={e => setPropertyForm(f => ({ ...f, street: e.target.value }))} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
+                    <div className="form-group"><label>Ciudad</label><input value={propertyForm.city} onChange={e => setPropertyForm(f => ({ ...f, city: e.target.value }))} /></div>
+                    <div className="form-group"><label>Estado</label><input value={propertyForm.state} onChange={e => setPropertyForm(f => ({ ...f, state: e.target.value }))} /></div>
+                    <div className="form-group"><label>Zip</label><input value={propertyForm.zip} onChange={e => setPropertyForm(f => ({ ...f, zip: e.target.value }))} /></div>
+                  </div>
+                </>
+              )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-primary" disabled={savingProperty} onClick={saveProperty}>{savingProperty ? 'Guardando...' : 'Guardar'}</button>
-                <button className="btn btn-ghost" onClick={() => setEditingProperty(false)}>Cancelar</button>
+                <button className="btn btn-ghost" onClick={() => { setEditingProperty(false); setShowNewProperty(false); }}>Cancelar</button>
               </div>
             </>
           ) : (
