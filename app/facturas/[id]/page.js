@@ -290,7 +290,7 @@ export default async function FacturaDetail({ params }) {
                           </div>
                         );
                         return (
-                          <img key={idx} src={url} alt="Foto del trabajo" style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 8 }} />
+                          <img key={idx} src={url} alt="Foto del trabajo" style={{ width: '100%', height: 'auto', maxHeight: 420, objectFit: 'contain', borderRadius: 8, background: 'var(--surface-2)', display: 'block' }} />
                         );
                       })}
                     </div>

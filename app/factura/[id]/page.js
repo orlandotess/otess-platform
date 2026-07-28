@@ -251,7 +251,7 @@ export default async function FacturaPublica({ params }) {
                       );
                       return (
                         <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
-                          <img src={url} alt="Foto del trabajo" style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 8 }} />
+                          <img src={url} alt="Foto del trabajo" style={{ width: '100%', height: 'auto', maxHeight: 420, objectFit: 'contain', borderRadius: 8, background: '#fafafa', display: 'block' }} />
                         </a>
                       );
                     })}
