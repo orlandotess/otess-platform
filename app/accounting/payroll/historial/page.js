@@ -64,8 +64,8 @@ export default async function PayrollHistorial() {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
     const weekEndStr = weekEnd.toISOString().slice(0, 10);
-    const fridayDate = new Date(weekStart);
-    fridayDate.setDate(weekStart.getDate() + 2);
+    const fridayDate = new Date(weekEnd);
+    fridayDate.setDate(weekEnd.getDate() + 3); // Tue (period end) + 3 = following Fri
 
     techs.forEach(tech => {
       const techEntries = entries.filter(e => {
