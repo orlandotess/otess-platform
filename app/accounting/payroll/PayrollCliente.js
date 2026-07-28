@@ -20,9 +20,9 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
   const fmtH = h => `${Number(h).toFixed(1)}h`;
 
   const payDate = (() => {
-    const start = new Date(periodStart + 'T00:00:00');
-    const friday = new Date(start);
-    friday.setDate(start.getDate() + 2); // Wed + 2 = Fri
+    const end = new Date(periodEnd + 'T00:00:00');
+    const friday = new Date(end);
+    friday.setDate(end.getDate() + 3); // Tue (period end) + 3 = following Fri
     return friday.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   })();
 
