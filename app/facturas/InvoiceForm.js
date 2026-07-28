@@ -167,6 +167,7 @@ export default function InvoiceForm({ initialData = null }) {
     if (!form.client_id) { setError('Selecciona un cliente'); return; }
     if (!isEdit && !form.invoice_number.trim()) { setError('Ingresa un número de factura'); return; }
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
+    if (items.some(i => !i.description.trim())) { setError('Todas las líneas necesitan una descripción antes de guardar.'); return; }
 
     const shortages = items.filter(i => i.type === 'product' && i.catalog_item_id).map(i => {
       const cat = catalogItems.find(c => c.id === i.catalog_item_id);
