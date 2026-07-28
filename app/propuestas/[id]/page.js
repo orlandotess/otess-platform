@@ -9,7 +9,7 @@ import PropuestaDetailClient from './detail-client';
 export default async function PropuestaDetailPage({ params }) {
   const { data: proposal } = await supabase
     .from('proposals')
-    .select('*, clients(id, name, phone, email, company, client_type, report_name_source, client_addresses(*)), proposal_options(*, proposal_line_items(*))')
+    .select('*, clients(id, name, phone, email, company, client_type, report_name_source, client_addresses(*), client_properties(*)), proposal_options(*, proposal_line_items(*))')
     .eq('id', params.id)
     .single();
 
@@ -24,6 +24,9 @@ export default async function PropuestaDetailPage({ params }) {
   const { data: companyInfo } = await supabase.from('company_settings').select('*').limit(1).single();
   const rawAddr = proposal?.clients?.client_addresses?.find(a => a.is_primary) ?? proposal?.clients?.client_addresses?.[0] ?? null;
   const primaryAddress = rawAddr ? { street: rawAddr.line1, city: rawAddr.city, zip: rawAddr.zip } : null;
+  const property = proposal?.property_id
+    ? (proposal.clients?.client_properties ?? []).find(p => p.id === proposal.property_id) ?? null
+    : null;
 
   if (!proposal) {
     return (
@@ -54,7 +57,7 @@ export default async function PropuestaDetailPage({ params }) {
     <div className="admin-shell ds-propuestas">
       <Sidebar />
       <main className="main-content">
-        <PropuestaDetailClient proposal={proposal} options={options} taxRules={taxRules ?? []} payments={payments ?? []} paymentRequests={paymentRequests ?? []} companyInfo={companyInfo ?? null} primaryAddress={primaryAddress} />
+        <PropuestaDetailClient proposal={proposal} options={options} taxRules={taxRules ?? []} payments={payments ?? []} paymentRequests={paymentRequests ?? []} companyInfo={companyInfo ?? null} primaryAddress={primaryAddress} property={property} />
       </main>
     </div>
   );

@@ -105,6 +105,10 @@ export default function PropuestaForm({ initialData = null }) {
     company: initialData.proposal.clients?.company,
     client_type: initialData.proposal.clients?.client_type,
   } : null);
+  const [properties, setProperties] = useState([]);
+  const [propertyId, setPropertyId] = useState(initialData?.proposal.property_id ?? '');
+  const [propertyMode, setPropertyMode] = useState(initialData?.proposal.property_id ? 'existing' : 'none'); // none | existing | new
+  const [newProperty, setNewProperty] = useState({ name: '', street: '', city: '', state: 'PR', zip: '' });
   const [proposalNumber, setProposalNumber] = useState(initialData?.proposal.proposal_number ?? '');
   const [title, setTitle] = useState(initialData?.proposal.title ?? '');
   const [preparedBy, setPreparedBy] = useState(initialData?.proposal.prepared_by ?? '');
@@ -132,11 +136,6 @@ export default function PropuestaForm({ initialData = null }) {
     setPaymentSchedule(prev => prev.filter(p => p.key !== key));
   }
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
-  const materialOptions = [...new Map(
-    options.flatMap(o => o.areas.flatMap(a => a.items))
-      .filter(i => i.description)
-      .map(i => [i.description.trim().toLowerCase(), i.description.trim()])
-  ).values()];
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [cableCalcTarget, setCableCalcTarget] = useState(null); // { optKey, areaKey } — which area the calculator adds into, or null when closed
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — the item group currently being dragged
@@ -152,6 +151,11 @@ export default function PropuestaForm({ initialData = null }) {
       areas: itemsToAreas(opt.items),
     }));
   });
+  const materialOptions = [...new Map(
+    options.flatMap(o => o.areas.flatMap(a => a.items))
+      .filter(i => i.description)
+      .map(i => [i.description.trim().toLowerCase(), i.description.trim()])
+  ).values()];
   const [coverPhoto, setCoverPhoto] = useState(null);
   const [coverPreview, setCoverPreview] = useState(initialData?.proposal.cover_photo_signed_url ?? null);
   const [existingCoverPath, setExistingCoverPath] = useState(initialData?.proposal.cover_photo_url ?? null);
@@ -172,6 +176,12 @@ export default function PropuestaForm({ initialData = null }) {
       });
     }
   }, []);
+
+  useEffect(() => {
+    if (!selectedClient?.id) { setProperties([]); return; }
+    supabase.from('client_properties').select('*').eq('client_id', selectedClient.id).order('is_primary', { ascending: false })
+      .then(({ data }) => setProperties(data ?? []));
+  }, [selectedClient?.id]);
 
   useEffect(() => {
     if (!isEdit && clientIdParam && clients.length) {
@@ -405,6 +415,7 @@ export default function PropuestaForm({ initialData = null }) {
   async function handleSave() {
     if (!selectedClient || !title.trim()) { setError('Cliente y título son requeridos'); return; }
     if (isEdit && !proposalNumber.trim()) { setError('El número de propuesta es requerido'); return; }
+    if (propertyMode === 'new' && !newProperty.name.trim()) { setError('Ponle un nombre a la propiedad nueva'); return; }
     setSaving(true); setError('');
 
     let proposal;
@@ -415,6 +426,23 @@ export default function PropuestaForm({ initialData = null }) {
         setSaving(false);
         return;
       }
+    }
+
+    let resolvedPropertyId = null;
+    if (propertyMode === 'existing' && propertyId) {
+      resolvedPropertyId = propertyId;
+    } else if (propertyMode === 'new') {
+      const { data: newProp, error: propErr } = await supabase.from('client_properties').insert([{
+        client_id: selectedClient.id,
+        name: newProperty.name.trim(),
+        street: newProperty.street || null,
+        city: newProperty.city || null,
+        state: newProperty.state || null,
+        zip: newProperty.zip || null,
+        is_primary: properties.length === 0,
+      }]).select().single();
+      if (propErr) { setError(propErr.message); setSaving(false); return; }
+      resolvedPropertyId = newProp.id;
     }
 
     let coverPath = existingCoverPath;
@@ -428,6 +456,7 @@ export default function PropuestaForm({ initialData = null }) {
       const { data: updated, error: err } = await supabase.from('proposals').update({
         proposal_number: proposalNumber.trim(),
         client_id: selectedClient.id,
+        property_id: resolvedPropertyId,
         title: title.trim(),
         prepared_by: preparedBy.trim() || null,
         intro_note: introNote.trim() || null,
@@ -459,6 +488,7 @@ export default function PropuestaForm({ initialData = null }) {
       const { data: created, error: err } = await supabase.from('proposals').insert([{
         proposal_number: `PROP-${nextNum}`,
         client_id: selectedClient.id,
+        property_id: resolvedPropertyId,
         title: title.trim(),
         prepared_by: preparedBy.trim() || null,
         intro_note: introNote.trim() || null,
@@ -570,7 +600,7 @@ export default function PropuestaForm({ initialData = null }) {
               {selectedClient ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
                   <span style={{ flex: 1, fontWeight: 600 }}>{selectedClient.name}</span>
-                  <button type="button" onClick={() => setSelectedClient(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700 }}>Cambiar</button>
+                  <button type="button" onClick={() => { setSelectedClient(null); setPropertyId(''); setPropertyMode('none'); setNewProperty({ name: '', street: '', city: '', state: 'PR', zip: '' }); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700 }}>Cambiar</button>
                 </div>
               ) : (
                 <div style={{ position: 'relative' }}>
@@ -581,7 +611,7 @@ export default function PropuestaForm({ initialData = null }) {
                       <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowClientDropdown(false)} />
                       <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 220, overflowY: 'auto' }}>
                         {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(c => (
-                          <div key={c.id} onClick={() => { setSelectedClient(c); setTaxClientType(c.client_type === 'b2b' ? 'b2b' : 'final'); setClientSearch(''); setShowClientDropdown(false); }}
+                          <div key={c.id} onClick={() => { setSelectedClient(c); setTaxClientType(c.client_type === 'b2b' ? 'b2b' : 'final'); setClientSearch(''); setShowClientDropdown(false); setPropertyId(''); setPropertyMode('none'); setNewProperty({ name: '', street: '', city: '', state: 'PR', zip: '' }); }}
                             style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
                             {c.name}
                           </div>
@@ -655,6 +685,54 @@ export default function PropuestaForm({ initialData = null }) {
               </label>
             </div>
           </div>
+
+          {selectedClient && (
+            <div className="card">
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>📍 Propiedad (opcional)</p>
+              <div className="form-group">
+                <label>Dirección del trabajo</label>
+                <select
+                  value={propertyMode === 'existing' ? propertyId : (propertyMode === 'new' ? '__new__' : '')}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === '__new__') { setPropertyMode('new'); setPropertyId(''); }
+                    else if (v === '') { setPropertyMode('none'); setPropertyId(''); }
+                    else { setPropertyMode('existing'); setPropertyId(v); }
+                  }}>
+                  <option value="">— Sin propiedad —</option>
+                  {properties.map(p => <option key={p.id} value={p.id}>{p.name}{p.is_primary ? ' ★' : ''}</option>)}
+                  <option value="__new__">+ Dirección nueva</option>
+                </select>
+              </div>
+              {propertyMode === 'new' && (
+                <>
+                  <div className="form-group">
+                    <label>Nombre de la propiedad</label>
+                    <input value={newProperty.name} onChange={e => setNewProperty(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Oficina Principal, Almacén Caguas" />
+                  </div>
+                  <div className="form-group">
+                    <label>Dirección</label>
+                    <input value={newProperty.street} onChange={e => setNewProperty(p => ({ ...p, street: e.target.value }))} placeholder="Calle y número" />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
+                    <div className="form-group">
+                      <label>Ciudad</label>
+                      <input value={newProperty.city} onChange={e => setNewProperty(p => ({ ...p, city: e.target.value }))} placeholder="San Juan" />
+                    </div>
+                    <div className="form-group">
+                      <label>Estado</label>
+                      <input value={newProperty.state} onChange={e => setNewProperty(p => ({ ...p, state: e.target.value }))} placeholder="PR" />
+                    </div>
+                    <div className="form-group">
+                      <label>Zip</label>
+                      <input value={newProperty.zip} onChange={e => setNewProperty(p => ({ ...p, zip: e.target.value }))} placeholder="00901" />
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>Se guardará como propiedad del cliente para futuros estimados, facturas y trabajos.</p>
+                </>
+              )}
+            </div>
+          )}
 
           {selectedItemKeys.size > 0 && (() => {
             const optionsWithSelection = options.filter(o => o.areas.some(a => a.items.some(it => !it.parentKey && selectedItemKeys.has(it.key))));

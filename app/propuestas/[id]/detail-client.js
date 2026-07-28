@@ -13,7 +13,7 @@ const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'ba
 const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', cambios_requeridos: 'Cambios requeridos', expirada: 'Expirada', aprobada: 'Aprobada', rechazada: 'Rechazada', completada: 'Completada' };
 const STATUS_ORDER = ['borrador', 'enviada', 'vista', 'cambios_requeridos', 'expirada', 'aprobada', 'rechazada', 'completada'];
 
-export default function PropuestaDetailClient({ proposal, options, taxRules, payments, paymentRequests, companyInfo, primaryAddress }) {
+export default function PropuestaDetailClient({ proposal, options, taxRules, payments, paymentRequests, companyInfo, primaryAddress, property }) {
   const router = useRouter();
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -316,7 +316,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         <div>
           <div className="page-title">{proposal.title}</div>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-            {proposal.proposal_number} · {proposal.clients?.name}
+            {proposal.proposal_number} · {proposal.clients?.name}{property?.name ? ` · 📍 ${property.name}` : ''}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
