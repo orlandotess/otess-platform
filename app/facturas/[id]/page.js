@@ -23,6 +23,19 @@ export default async function FacturaDetail({ params }) {
 
   if (!inv) return <div style={{ padding: 40 }}>Factura no encontrada</div>;
 
+  let attachedNotes = [];
+  if (inv.attached_note_ids && inv.attached_note_ids.length > 0) {
+    const { data: notes } = await supabase.from('job_notes').select('*').in('id', inv.attached_note_ids);
+    attachedNotes = await Promise.all((notes ?? []).map(async n => {
+      const paths = n.photo_urls && n.photo_urls.length > 0 ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
+      const signedUrls = await Promise.all(paths.map(async p => {
+        const { data: sd } = await supabase.storage.from('Job-photos').createSignedUrl(p, 86400);
+        return sd?.signedUrl ?? null;
+      }));
+      return { ...n, signedUrls: signedUrls.filter(Boolean) };
+    }));
+  }
+
   const { data: clientContacts } = inv.client_id
     ? await supabase.from('client_contacts').select('id, name, email').eq('client_id', inv.client_id)
     : { data: [] };
@@ -251,6 +264,40 @@ export default async function FacturaDetail({ params }) {
           {inv.notes && (
             <div style={{ marginTop: 24, padding: '14px 18px', background: 'var(--surface-2)', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
               <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {inv.notes}
+            </div>
+          )}
+
+          {attachedNotes.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 14 }}>Fotos y documentos del trabajo</div>
+              {attachedNotes.map(n => (
+                <div key={n.id} style={{ marginBottom: 20 }}>
+                  {n.signedUrls.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: n.signedUrls.length === 1 ? '1fr' : n.signedUrls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 10, marginBottom: n.note ? 10 : 0 }}>
+                      {n.signedUrls.map((url, idx) => {
+                        const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+                        const isPdf = /\.pdf(\?|$)/i.test(url);
+                        if (isPdf) return (
+                          <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 160, background: 'var(--surface-2)', borderRadius: 8 }}>
+                            <span style={{ fontSize: 32 }}>📄</span>
+                            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, marginTop: 6 }}>Documento PDF</span>
+                          </div>
+                        );
+                        if (isVideo) return (
+                          <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 160, background: 'var(--surface-2)', borderRadius: 8 }}>
+                            <span style={{ fontSize: 32 }}>🎬</span>
+                            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, marginTop: 6 }}>Video</span>
+                          </div>
+                        );
+                        return (
+                          <img key={idx} src={url} alt="Foto del trabajo" style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 8 }} />
+                        );
+                      })}
+                    </div>
+                  )}
+                  {n.note && <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>{n.note}</p>}
+                </div>
+              ))}
             </div>
           )}
         </div>
