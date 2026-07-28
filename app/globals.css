@@ -864,6 +864,21 @@ body.sidebar-hidden .main-content {
   .dispatch-panel { width: 240px; }
 }
 
+/* Fila de un técnico con ausencia marcada ese día — bloqueada para nuevas asignaciones */
+.dispatch-row-absent .dispatch-slot.is-over { background: none; }
+.dispatch-absent-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--badge-red-bg),
+    var(--badge-red-bg) 10px,
+    transparent 10px,
+    transparent 20px
+  );
+}
+
 /* Fila "Sin técnico" — jobs con hora puesta para el día pero sin técnico asignado */
 .dispatch-row-unassigned {
   background: var(--badge-red-bg);

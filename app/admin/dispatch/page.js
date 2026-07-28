@@ -76,6 +76,16 @@ export default async function DispatchPage({ searchParams }) {
     .not('status', 'in', '(completed,cancelled)')
     .order('created_at', { ascending: false });
 
+  // Ausencias marcadas para este día (ver app/calendario/calendario-client.js) —
+  // bloquean la fila del técnico en el Gantt para que no se le asignen jobs.
+  const { data: absenceRows } = await supabase
+    .from('technician_absences')
+    .select('technician_id, reason')
+    .eq('date', day);
+
+  const absencesByTech = {};
+  for (const a of absenceRows ?? []) absencesByTech[a.technician_id] = a.reason || 'Ausente';
+
   return (
     <div className="admin-shell">
       <Sidebar />
@@ -84,6 +94,7 @@ export default async function DispatchPage({ searchParams }) {
           technicians={technicians ?? []}
           scheduledJobs={[...(scheduledJobs ?? []), ...extraDayJobs]}
           unassignedJobs={unassignedJobs ?? []}
+          absencesByTech={absencesByTech}
           day={day}
         />
       </main>

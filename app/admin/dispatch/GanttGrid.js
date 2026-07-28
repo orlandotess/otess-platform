@@ -2,7 +2,7 @@ import { HORA_INICIO, HORA_FIN, SLOT_WIDTH, formatHourLabel } from './dispatchUt
 import GanttRow from './GanttRow';
 import UnassignedLane from './UnassignedLane';
 
-export default function GanttGrid({ technicians, jobsByTech, sinTecnicoJobs = [] }) {
+export default function GanttGrid({ technicians, jobsByTech, sinTecnicoJobs = [], absencesByTech = {} }) {
   const hours = [];
   for (let h = HORA_INICIO; h < HORA_FIN; h++) hours.push(h);
 
@@ -23,7 +23,7 @@ export default function GanttGrid({ technicians, jobsByTech, sinTecnicoJobs = []
         </div>
       ) : (
         technicians.map((tech, i) => (
-          <GanttRow key={tech.id} tecnico={tech} colorIndex={i} jobs={jobsByTech[tech.id] ?? []} />
+          <GanttRow key={tech.id} tecnico={tech} colorIndex={i} jobs={jobsByTech[tech.id] ?? []} absence={absencesByTech[tech.id]} />
         ))
       )}
     </div>

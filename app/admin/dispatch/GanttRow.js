@@ -3,9 +3,9 @@ import { useDroppable } from '@dnd-kit/core';
 import JobCard from './JobCard';
 import { HORA_INICIO, HORA_FIN, SLOT_MINUTOS, SLOT_WIDTH, techColor, jobPosition } from './dispatchUtils';
 
-function GanttSlot({ technicianId, hour, minute }) {
+function GanttSlot({ technicianId, hour, minute, disabled }) {
   const id = `slot_${technicianId}_${hour}_${minute}`;
-  const { setNodeRef, isOver } = useDroppable({ id });
+  const { setNodeRef, isOver } = useDroppable({ id, disabled });
   return (
     <div
       ref={setNodeRef}
@@ -15,7 +15,7 @@ function GanttSlot({ technicianId, hour, minute }) {
   );
 }
 
-export default function GanttRow({ tecnico, colorIndex, jobs }) {
+export default function GanttRow({ tecnico, colorIndex, jobs, absence }) {
   const slots = [];
   for (let h = HORA_INICIO; h < HORA_FIN; h++) {
     for (let m = 0; m < 60; m += SLOT_MINUTOS) slots.push({ hour: h, minute: m });
@@ -23,19 +23,25 @@ export default function GanttRow({ tecnico, colorIndex, jobs }) {
   const color = techColor(colorIndex);
 
   return (
-    <div className="dispatch-row">
+    <div className={`dispatch-row${absence ? ' dispatch-row-absent' : ''}`}>
       <div className="dispatch-tech-name">
-        <div className="dispatch-tech-avatar" style={{ background: color }}>
+        <div className="dispatch-tech-avatar" style={{ background: absence ? 'var(--warn)' : color }}>
           {tecnico.name.charAt(0).toUpperCase()}
         </div>
         <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {tecnico.name}
         </span>
+        {absence && (
+          <span className="badge badge-red" style={{ flexShrink: 0 }} title={absence}>🚫 Ausente</span>
+        )}
       </div>
       <div className="dispatch-slots">
         {slots.map(s => (
-          <GanttSlot key={`${s.hour}-${s.minute}`} technicianId={tecnico.id} hour={s.hour} minute={s.minute} />
+          <GanttSlot key={`${s.hour}-${s.minute}`} technicianId={tecnico.id} hour={s.hour} minute={s.minute} disabled={!!absence} />
         ))}
+        {absence && (
+          <div className="dispatch-absent-overlay" title={`Ausente: ${absence}`} />
+        )}
         {jobs.map(job => {
           const pos = jobPosition(job);
           if (!pos) return null;
