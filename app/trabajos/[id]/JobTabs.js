@@ -145,6 +145,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   const [propertySearch, setPropertySearch] = useState('');
   const [propertyForm, setPropertyForm] = useState({ property_id: job.property_id ?? '', property_name: job.property_name ?? '', street: job.street ?? '', city: job.city ?? '', state: job.state ?? 'PR', zip: job.zip ?? '' });
   const [savingProperty, setSavingProperty] = useState(false);
+  const [showNewProperty, setShowNewProperty] = useState(false);
 
   function contactLabel(c) { return `${c.name}${c.phone ? ' — ' + c.phone : ''}`; }
   function handleContactSearchChange(value) {
@@ -195,6 +196,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     }).eq('id', job.id);
     setSavingProperty(false);
     setEditingProperty(false);
+    setShowNewProperty(false);
     router.refresh();
   }
 
@@ -1110,46 +1112,64 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => {
                     setPropertyForm({ property_id: job.property_id ?? '', property_name: job.property_name ?? '', street: job.street ?? '', city: job.city ?? '', state: job.state ?? 'PR', zip: job.zip ?? '' });
                     setPropertySearch('');
+                    setShowNewProperty(false);
                     setEditingProperty(true);
                   }}>✏️ Editar</button>
                 )}
               </div>
               {editingProperty ? (
                 <div>
-                  {clientProperties.length > 0 && (
+                  {clientProperties.length > 0 && !showNewProperty && (
                     <div className="form-group" style={{ marginBottom: 10 }}>
-                      <label>Buscar propiedad del cliente</label>
-                      <input list="job-property-datalist" value={propertySearch} onChange={e => handlePropertySearchChange(e.target.value)} placeholder="Escribe para buscar..." />
-                      <datalist id="job-property-datalist">
-                        {clientProperties.map(p => <option key={p.id} value={propertyLabel(p)} />)}
-                      </datalist>
+                      <label>Propiedad del cliente</label>
+                      {propertyForm.property_id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
+                          <span style={{ flex: 1, fontWeight: 600 }}>{propertyLabel(clientProperties.find(p => p.id === propertyForm.property_id) ?? { name: propertyForm.property_name })}</span>
+                          <button type="button" onClick={() => { setPropertyForm(f => ({ ...f, property_id: '' })); setPropertySearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>Cambiar</button>
+                        </div>
+                      ) : (
+                        <>
+                          <input list="job-property-datalist" value={propertySearch} onChange={e => handlePropertySearchChange(e.target.value)} placeholder="Escribe para buscar..." />
+                          <datalist id="job-property-datalist">
+                            {clientProperties.map(p => <option key={p.id} value={propertyLabel(p)} />)}
+                          </datalist>
+                          <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>+ Agregar propiedad nueva</button>
+                        </>
+                      )}
                     </div>
                   )}
-                  <div className="form-group" style={{ marginBottom: 10 }}>
-                    <label>Nombre de la propiedad</label>
-                    <input value={propertyForm.property_name} onChange={e => setPropertyForm(f => ({ ...f, property_name: e.target.value }))} placeholder="Ej: Oficina Principal" />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 10 }}>
-                    <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
-                    <input value={propertyForm.street} onChange={e => setPropertyForm(f => ({ ...f, street: e.target.value }))} placeholder="Calle y número" />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10, marginBottom: 10 }}>
-                    <div className="form-group">
-                      <label>Ciudad</label>
-                      <input value={propertyForm.city} onChange={e => setPropertyForm(f => ({ ...f, city: e.target.value }))} placeholder="San Juan" />
-                    </div>
-                    <div className="form-group">
-                      <label>Estado</label>
-                      <input value={propertyForm.state} onChange={e => setPropertyForm(f => ({ ...f, state: e.target.value }))} placeholder="PR" />
-                    </div>
-                    <div className="form-group">
-                      <label>Zip</label>
-                      <input value={propertyForm.zip} onChange={e => setPropertyForm(f => ({ ...f, zip: e.target.value }))} placeholder="00901" />
-                    </div>
-                  </div>
+                  {(clientProperties.length === 0 || showNewProperty || propertyForm.property_id) && (
+                    <>
+                      {clientProperties.length > 0 && showNewProperty && (
+                        <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>‹ Usar propiedad existente</button>
+                      )}
+                      <div className="form-group" style={{ marginBottom: 10 }}>
+                        <label>Nombre de la propiedad</label>
+                        <input value={propertyForm.property_name} onChange={e => setPropertyForm(f => ({ ...f, property_name: e.target.value }))} placeholder="Ej: Oficina Principal" />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 10 }}>
+                        <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
+                        <input value={propertyForm.street} onChange={e => setPropertyForm(f => ({ ...f, street: e.target.value }))} placeholder="Calle y número" />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10, marginBottom: 10 }}>
+                        <div className="form-group">
+                          <label>Ciudad</label>
+                          <input value={propertyForm.city} onChange={e => setPropertyForm(f => ({ ...f, city: e.target.value }))} placeholder="San Juan" />
+                        </div>
+                        <div className="form-group">
+                          <label>Estado</label>
+                          <input value={propertyForm.state} onChange={e => setPropertyForm(f => ({ ...f, state: e.target.value }))} placeholder="PR" />
+                        </div>
+                        <div className="form-group">
+                          <label>Zip</label>
+                          <input value={propertyForm.zip} onChange={e => setPropertyForm(f => ({ ...f, zip: e.target.value }))} placeholder="00901" />
+                        </div>
+                      </div>
+                    </>
+                  )}
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button className="btn btn-primary" onClick={saveProperty} disabled={savingProperty}>{savingProperty ? 'Guardando...' : '💾 Guardar'}</button>
-                    <button className="btn btn-ghost" onClick={() => setEditingProperty(false)}>Cancelar</button>
+                    <button className="btn btn-ghost" onClick={() => { setEditingProperty(false); setShowNewProperty(false); }}>Cancelar</button>
                   </div>
                 </div>
               ) : (job.street || job.city || job.property_name) ? (
