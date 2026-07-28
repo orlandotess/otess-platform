@@ -8,13 +8,22 @@ import EstimateActions from './EstimateActions';
 // Materials added by the cable/tubo calculator share a `title` (set per calculator
 // run) so multiple materials for the same area collapse into one client-facing row,
 // while the underlying rows stay separate for the purchase list / purchase orders.
-// Items without a title (manually added lines) always render on their own.
+// Items without a title, or whose title doesn't repeat for that area, always render
+// on their own with their real quantity/price — only an actual repeated title collapses.
 function groupItemsForDisplay(items) {
+  const rows = items ?? [];
+  const titleCounts = new Map();
+  for (const item of rows) {
+    if (!item.title) continue;
+    const key = `${item.area || ''}|||${item.title}`;
+    titleCounts.set(key, (titleCounts.get(key) || 0) + 1);
+  }
+
   const groups = new Map();
   const display = [];
-  for (const item of items ?? []) {
-    if (!item.title) { display.push({ kind: 'single', item }); continue; }
-    const key = `${item.area || ''}|||${item.title}`;
+  for (const item of rows) {
+    const key = item.title ? `${item.area || ''}|||${item.title}` : null;
+    if (!key || titleCounts.get(key) === 1) { display.push({ kind: 'single', item }); continue; }
     let group = groups.get(key);
     if (!group) {
       group = { kind: 'group', key, title: item.title, area: item.area, type: item.type, tax_rate: item.tax_rate, parts: [], line_total: 0, tax_amount: 0, supplier_total: 0 };
