@@ -22,16 +22,21 @@ function formatViewedAt(dateStr) {
   return formatDatePR(dateStr, { month: 'short', day: 'numeric' });
 }
 
-export default async function EstimadosPage() {
-  const [{ data: estimates }, { data: views }] = await Promise.all([
+export default async function EstimadosPage({ searchParams }) {
+  const showArchived = searchParams?.archived === '1';
+
+  const [{ data: allEstimates }, { data: views }] = await Promise.all([
     supabase
       .from('estimates')
-      .select('id, estimate_number, title, status, total, issued_at, valid_until, clients(name)')
+      .select('id, estimate_number, title, status, total, issued_at, valid_until, archived_at, clients(name)')
       .order('created_at', { ascending: false }),
     supabase
       .from('estimate_views')
       .select('estimate_id, viewed_at'),
   ]);
+
+  const archivedCount = (allEstimates ?? []).filter(e => e.archived_at).length;
+  const estimates = (allEstimates ?? []).filter(e => showArchived ? !!e.archived_at : !e.archived_at);
 
   // Agrupar vistas por estimado: conteo + última fecha
   const viewsByEstimate = {};
@@ -54,7 +59,14 @@ export default async function EstimadosPage() {
       <main className="main-content">
         <div className="page-header">
           <div className="page-title">Estimados</div>
-          <Link href="/estimados/nueva" className="btn btn-primary">+ Nuevo estimado</Link>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {showArchived ? (
+              <Link href="/estimados" className="btn btn-ghost">← Ver activos</Link>
+            ) : (
+              <Link href="/estimados?archived=1" className="btn btn-ghost">📦 Ver archivados{archivedCount ? ` (${archivedCount})` : ''}</Link>
+            )}
+            <Link href="/estimados/nueva" className="btn btn-primary">+ Nuevo estimado</Link>
+          </div>
         </div>
 
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
@@ -76,9 +88,9 @@ export default async function EstimadosPage() {
           {!estimates?.length ? (
             <div className="empty">
               <div className="empty-glyph">🧮</div>
-              <h3>No hay estimados aún</h3>
-              <p>Cuando crees un estimado para un cliente, aparecerá aquí.</p>
-              <Link href="/estimados/nueva" className="btn btn-primary btn-sm">+ Crear estimado</Link>
+              <h3>{showArchived ? 'No hay estimados archivados' : 'No hay estimados aún'}</h3>
+              <p>{showArchived ? 'Los estimados que archives aparecerán aquí.' : 'Cuando crees un estimado para un cliente, aparecerá aquí.'}</p>
+              {!showArchived && <Link href="/estimados/nueva" className="btn btn-primary btn-sm">+ Crear estimado</Link>}
             </div>
           ) : (
             <div className="table-wrap">

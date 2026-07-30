@@ -12,8 +12,10 @@ const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar sop
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
-export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, title: initialTitle = '', clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null }) {
+export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, title: initialTitle = '', clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null, archivedAt: initialArchivedAt = null }) {
   const router = useRouter();
+  const [archivedAt, setArchivedAt] = useState(initialArchivedAt);
+  const [archiving, setArchiving] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
   const [showEditNumber, setShowEditNumber] = useState(false);
   const [showEditTitle, setShowEditTitle] = useState(false);
@@ -205,6 +207,16 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
     router.refresh();
   }
 
+  async function toggleArchive() {
+    setArchiving(true);
+    const newValue = archivedAt ? null : new Date().toISOString();
+    const { error } = await supabase.from('estimates').update({ archived_at: newValue }).eq('id', estimateId);
+    setArchiving(false);
+    if (error) { alert('Error al archivar el estimado: ' + error.message); return; }
+    setArchivedAt(newValue);
+    router.refresh();
+  }
+
   async function deleteEstimate() {
     setDeleting(true);
     await supabase.from('estimate_views').delete().eq('estimate_id', estimateId);
@@ -266,6 +278,10 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
         </>
       )}
       {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Enviado</span>}
+      {archivedAt && <span className="badge badge-gray" style={{ padding: '8px 16px', fontSize: 13 }}>📦 Archivado</span>}
+      <button className="btn btn-ghost" onClick={toggleArchive} disabled={archiving}>
+        {archiving ? '⏳ Guardando...' : archivedAt ? '📤 Desarchivar' : '📦 Archivar'}
+      </button>
       <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
 
       {/* Edit terms */}

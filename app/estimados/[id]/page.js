@@ -99,6 +99,7 @@ export default async function EstimaDetail({ params }) {
             items={items ?? []}
             clientContacts={clientContacts ?? []}
             convertedToJobId={est.converted_to_job_id ?? null}
+            archivedAt={est.archived_at ?? null}
           />
         </div>
 
