@@ -578,7 +578,7 @@ textarea { resize: vertical; min-height: 80px; }
 /* ── Stats grid ── */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 28px;
 }
@@ -601,12 +601,14 @@ textarea { resize: vertical; min-height: 80px; }
 }
 
 .stat-value {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 800;
   color: var(--navy);
-  letter-spacing: -1px;
+  letter-spacing: -0.5px;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .stat-sub {
