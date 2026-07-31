@@ -11,7 +11,7 @@ function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder,
   const [open, setOpen] = useState(false);
   const q = (value || '').trim().toLowerCase();
   const results = (q
-    ? catalogOptions.filter(c => c.description?.toLowerCase().includes(q) || c.item_code?.toLowerCase().includes(q))
+    ? catalogOptions.filter(c => c.name?.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q) || c.item_code?.toLowerCase().includes(q))
     : catalogOptions
   ).slice(0, 8);
 
@@ -43,8 +43,8 @@ function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder,
               <div key={c.id} onMouseDown={e => e.preventDefault()} onClick={() => select(c)}
                 style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 12.5 }}>{c.item_code}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.description}</div>
+                  <div style={{ fontWeight: 700, fontSize: 12.5 }}>{c.name || c.item_code}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name && `${c.item_code} — `}{c.description}</div>
                 </div>
                 {c.price != null && <div style={{ fontSize: 12, fontWeight: 700, flexShrink: 0, alignSelf: 'center' }}>${Number(c.price).toFixed(2)}</div>}
               </div>

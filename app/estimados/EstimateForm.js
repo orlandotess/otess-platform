@@ -57,6 +57,22 @@ export default function EstimateForm({ initialData = null }) {
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
 
+  // Catalog is fetched once per mount with no realtime subscription, so an item added in
+  // /catalogo in another tab wouldn't show up in the line-item picker until a hard reload.
+  // Refetch whenever this tab/window comes back into focus to keep it current.
+  useEffect(() => {
+    function refreshCatalog() {
+      if (document.visibilityState !== 'visible') return;
+      supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+    }
+    document.addEventListener('visibilitychange', refreshCatalog);
+    window.addEventListener('focus', refreshCatalog);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshCatalog);
+      window.removeEventListener('focus', refreshCatalog);
+    };
+  }, []);
+
   useEffect(() => {
     if (!form.client_id) { setProperties([]); return; }
     supabase.from('client_properties').select('*').eq('client_id', form.client_id).order('is_primary', { ascending: false })
@@ -96,6 +112,7 @@ export default function EstimateForm({ initialData = null }) {
   const addItem = () => setItems(i => [...i, { type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
   const addPrefilledItem = item => setItems(i => [...i, { type: 'product', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null, ...item }]);
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
+  const duplicateItem = idx => setItems(i => [...i.slice(0, idx + 1), { ...i[idx] }, ...i.slice(idx + 1)]);
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
   function handleItemPhoto(idx, file) {
     if (!file) return;
@@ -431,7 +448,10 @@ export default function EstimateForm({ initialData = null }) {
                   onPhotoSelect={file => handleItemPhoto(idx, file)}
                   fmt={fmt}
                   actions={
-                    <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <button type="button" onClick={() => duplicateItem(idx)} title="Duplicar línea" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>⧉</button>
+                      <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
+                    </div>
                   }
                 />
               ))}
