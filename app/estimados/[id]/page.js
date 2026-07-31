@@ -26,7 +26,7 @@ function groupItemsForDisplay(items) {
     if (!key || titleCounts.get(key) === 1) { display.push({ kind: 'single', item }); continue; }
     let group = groups.get(key);
     if (!group) {
-      group = { kind: 'group', key, title: item.title, area: item.area, type: item.type, tax_rate: item.tax_rate, parts: [], line_total: 0, tax_amount: 0, supplier_total: 0 };
+      group = { kind: 'group', key, title: item.title, area: item.area, type: item.type, tax_rate: item.tax_rate, photo_signed_url: item.photo_signed_url ?? null, parts: [], line_total: 0, tax_amount: 0, supplier_total: 0 };
       groups.set(key, group);
       display.push(group);
     }
@@ -49,7 +49,14 @@ export default async function EstimaDetail({ params }) {
 
   if (!est) return <div style={{ padding: 40 }}>Estimado no encontrado</div>;
 
-  const { data: items } = await supabase.from('estimate_line_items').select('*').eq('estimate_id', id).order('sort_order');
+  const { data: rawItems } = await supabase.from('estimate_line_items').select('*').eq('estimate_id', id).order('sort_order');
+  const items = await Promise.all(
+    (rawItems ?? []).map(async it => {
+      if (!it.photo_url) return it;
+      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(it.photo_url, 3600);
+      return { ...it, photo_signed_url: data?.signedUrl ?? null };
+    })
+  );
   const displayItems = groupItemsForDisplay(items);
 
   const { data: clientContacts } = est.client_id
@@ -165,9 +172,16 @@ export default async function EstimaDetail({ params }) {
               {displayItems.map(entry => entry.kind === 'group' ? (
                 <tr key={entry.key}>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>
-                    <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.title}</div>
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{entry.parts.join(', ')}</div>
-                    {entry.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {entry.area}</div>}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {entry.photo_signed_url ? <img src={entry.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{entry.type === 'labor' ? '🔧' : '📦'}</span>}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.title}</div>
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{entry.parts.join(', ')}</div>
+                        {entry.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {entry.area}</div>}
+                      </div>
+                    </div>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                     <span className={`badge ${entry.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
@@ -189,9 +203,16 @@ export default async function EstimaDetail({ params }) {
               ) : (
                 <tr key={entry.item.id}>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>
-                    {entry.item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.item.title}</div>}
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{entry.item.description}</div>
-                    {entry.item.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {entry.item.area}</div>}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {entry.item.photo_signed_url ? <img src={entry.item.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{entry.item.type === 'labor' ? '🔧' : '📦'}</span>}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        {entry.item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.item.title}</div>}
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{entry.item.description}</div>
+                        {entry.item.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {entry.item.area}</div>}
+                      </div>
+                    </div>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                     <span className={`badge ${entry.item.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
