@@ -659,6 +659,62 @@ body.sidebar-hidden .main-content {
   border-color: var(--line-strong);
 }
 
+/* ── Shared hover affordances for bespoke clickable elements (raw styled
+   divs/buttons that predate the design system and never got a :hover rule).
+   Opt-in via className, additive — doesn't touch any existing inline styles. */
+.hover-lift {
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(22,34,61,0.14);
+}
+.hover-row {
+  transition: background 0.1s ease;
+}
+.hover-row:hover {
+  background: var(--surface-2);
+}
+
+/* ── Calendar entry chips (month/week/day views) — hover-only affordance.
+   Colors/borders stay inline (per-technician, dynamic); this just adds the
+   tactile feedback inline styles can't express without extra JS state. */
+.cal-entry {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.cal-entry:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(22,34,61,0.18);
+  z-index: 2;
+}
+
+/* ── Toolbar group divider — a thin rule between button clusters (view
+   switcher vs. actions, nav vs. filters) so dense rows of ghost buttons
+   read as groups instead of one wall of buttons. ── */
+.toolbar-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  flex-shrink: 0;
+}
+
+/* ── Stat card accents — a colored top edge that echoes the stat-value
+   color already used inline, so the card reads as ok/attention/urgent
+   before you even read the number. Opt-in via data-accent. ── */
+.admin-shell .stat-card {
+  transition: border-color 0.15s ease;
+}
+.admin-shell .stat-card:hover {
+  border-color: var(--line-strong);
+}
+.admin-shell .stat-card[data-accent] {
+  border-top-width: 3px;
+  border-top-style: solid;
+}
+.admin-shell .stat-card[data-accent="ok"]    { border-top-color: var(--ok); }
+.admin-shell .stat-card[data-accent="amber"] { border-top-color: var(--amber); }
+.admin-shell .stat-card[data-accent="warn"]  { border-top-color: var(--warn); }
+
 @media (max-width: 640px) {
   .page-header {
     flex-direction: column;
@@ -822,7 +878,9 @@ body.sidebar-hidden .main-content {
   overflow: hidden;
   cursor: grab;
   box-shadow: var(--shadow-card);
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
 }
+.dispatch-job:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.18); z-index: 6; }
 .dispatch-job:active { cursor: grabbing; }
 
 .dispatch-panel {
@@ -857,7 +915,9 @@ body.sidebar-hidden .main-content {
   padding: 10px 12px;
   font-size: 13px;
   cursor: grab;
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
 }
+.dispatch-panel-card:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.15); }
 .dispatch-panel-card:active { cursor: grabbing; }
 
 @media (max-width: 900px) {

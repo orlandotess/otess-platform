@@ -672,7 +672,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} disabled={archiving} onClick={toggleArchive}>
                 {archiving ? 'Guardando...' : solicitud.status === 'archivada' ? 'Desarchivar' : 'Archivar'}
               </button>
-              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginTop: 8, color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDeleteSolicitud(true)}>
+              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginTop: 8, color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setShowDeleteSolicitud(true)}>
                 🗑 Eliminar
               </button>
 

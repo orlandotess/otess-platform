@@ -240,7 +240,7 @@ function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt }
             </div>
             <div>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Margen</div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#0e8f7a' }}>{fmt(margin.margin)} {margin.marginPct != null ? `(${margin.marginPct.toFixed(0)}%)` : ''}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ok)' }}>{fmt(margin.margin)} {margin.marginPct != null ? `(${margin.marginPct.toFixed(0)}%)` : ''}</div>
             </div>
           </div>
         </div>

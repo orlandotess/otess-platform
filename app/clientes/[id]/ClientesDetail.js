@@ -505,7 +505,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               ))}
             </div>
             {canDeleteClient && (
-              <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5', justifyContent: 'center' }} onClick={handleDeleteClick}>
+              <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)', justifyContent: 'center' }} onClick={handleDeleteClick}>
                 🗑 Eliminar cliente
               </button>
             )}

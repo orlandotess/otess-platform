@@ -55,7 +55,7 @@ export default function TicketActions({ ticketId, status, clientId }) {
       {clientId ? (
         <Link href={`/trabajos/nuevo?client=${clientId}`} className="btn btn-ghost">🔧 Convertir a trabajo</Link>
       ) : (
-        <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowAssign(true)}>⚠️ Asignar cliente</button>
+        <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setShowAssign(true)}>⚠️ Asignar cliente</button>
       )}
 
       {status === 'abierto' && <button className="btn btn-primary" onClick={() => updateStatus('en_progreso')}>▶️ Marcar en progreso</button>}
@@ -69,7 +69,7 @@ export default function TicketActions({ ticketId, status, clientId }) {
         <button className="btn btn-ghost" onClick={() => updateStatus('en_progreso')}>Reabrir</button>
       )}
 
-      <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
+      <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setShowDelete(true)}>🗑</button>
 
       {showAssign && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>

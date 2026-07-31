@@ -59,7 +59,7 @@ export default async function BoletoDetailPage({ params }) {
         <div className="card" style={{ marginBottom: 20 }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Detalles</h2>
           {ticket.description ? (
-            <p style={{ fontSize: 14, color: '#444', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{ticket.description}</p>
+            <p style={{ fontSize: 14, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{ticket.description}</p>
           ) : (
             <p style={{ fontSize: 14, color: 'var(--muted)' }}>Sin detalles adicionales.</p>
           )}

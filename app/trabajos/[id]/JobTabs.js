@@ -1452,7 +1452,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                       {technicians.map(t => {
                         const checked = newDay.technician_ids.includes(t.id);
                         return (
-                          <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                          <label key={t.id} className="hover-lift" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
                             <input type="checkbox" checked={checked} onChange={() => toggleNewDayTechnician(t.id)} style={{ margin: 0 }} />
                             {t.name}
                           </label>
@@ -1668,7 +1668,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 <span>Total</span><span>{fmt(liveTotals.total)}</span>
               </div>
             </div>
-            <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5', width: '100%', justifyContent: 'center' }} onClick={() => setShowDelete(true)}>
+            <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)', width: '100%', justifyContent: 'center' }} onClick={() => setShowDelete(true)}>
               🗑 Eliminar trabajo
             </button>
           </div>
@@ -1724,7 +1724,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 </div>
               )}
               {noteError && (
-                <div style={{ background: 'var(--danger-tint)', border: '1px solid #fca5a5', color: 'var(--warn)', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
+                <div style={{ background: 'var(--danger-tint)', border: '1px solid var(--warn)', color: 'var(--warn)', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
                   ⚠️ {noteError}
                 </div>
               )}

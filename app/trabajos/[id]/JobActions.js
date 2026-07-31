@@ -81,7 +81,7 @@ export default function JobActions({ jobId, status, showTechOnly = false, techni
 
       <button
         className="btn btn-ghost"
-        style={{ color: 'var(--warn)', borderColor: '#fca5a5' }}
+        style={{ color: 'var(--warn)', borderColor: 'var(--warn)' }}
         onClick={() => setShowDelete(true)}
       >
         🗑 Eliminar

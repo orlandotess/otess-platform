@@ -1098,6 +1098,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div
+              className="hover-row"
               onClick={() => setActiveCableTypeId(null)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
@@ -1111,6 +1112,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             {cableTypesState.map(t => (
               <div
                 key={t.id}
+                className="hover-row"
                 onClick={() => setActiveCableTypeId(t.id)}
                 style={{
                   display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
@@ -1200,6 +1202,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div
+              className="hover-row"
               onClick={() => setActiveLayerId(null)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
@@ -1216,6 +1219,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             {layers.map((l, i) => (
               <div
                 key={l.id}
+                className="hover-row"
                 onClick={() => setActiveLayerId(l.id)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',

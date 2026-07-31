@@ -112,7 +112,7 @@ export default function CompraDetailClient({ order }) {
           {status === 'pendiente' && !editing && (
             <button className="btn btn-ghost" onClick={startEditing}>✏️ Editar</button>
           )}
-          <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
+          <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setShowDelete(true)}>🗑</button>
         </div>
       </div>
 

@@ -80,6 +80,7 @@ export default function AddElementPanel({ elementTypes, customIcons, onSelectEle
                     <button
                       key={el.id}
                       type="button"
+                      className="hover-lift"
                       onClick={() => onSelectElement(el.id)}
                       title={el.is_path_tool ? `${el.name} — traza una línea entre dos equipos` : el.name}
                       style={{
@@ -107,6 +108,7 @@ export default function AddElementPanel({ elementTypes, customIcons, onSelectEle
                   <button
                     key={ic.id}
                     type="button"
+                    className="hover-lift"
                     onClick={() => onSelectCustomIcon(ic.id)}
                     title={ic.name}
                     style={{

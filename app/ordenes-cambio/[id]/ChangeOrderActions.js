@@ -96,7 +96,7 @@ export default function ChangeOrderActions({ orderId, status, clientEmail, clien
       )}
       {status === 'aprobada' && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Aprobada</span>}
       {status === 'rechazada' && <span className="badge badge-red" style={{ padding: '8px 16px', fontSize: 13 }}>Rechazada</span>}
-      <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
+      <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setShowDelete(true)}>🗑</button>
 
       {showEmail && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>

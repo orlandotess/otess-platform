@@ -126,9 +126,9 @@ export default async function Home() {
 
         <DashboardCalendarWidget />
 
-        <div className="card">
+        <div className="card" style={{ marginTop: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>Trabajos recientes</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>🔧 Trabajos recientes</h2>
             <Link href="/trabajos/nuevo" className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }}>+ Nuevo trabajo</Link>
           </div>
           {recentJobs.length === 0 ? (
@@ -185,13 +185,13 @@ export default async function Home() {
           )}
         </div>
 
-        <div className="stats-grid">
-          <div className="stat-card">
+        <div className="stats-grid" style={{ marginTop: 20 }}>
+          <div className="stat-card" data-accent={stats.caja >= 0 ? 'ok' : 'warn'}>
             <div className="stat-label">Caja</div>
             <div className="stat-value" style={{ color: stats.caja >= 0 ? 'var(--ok)' : 'var(--warn)' }}>{fmt(stats.caja)}</div>
             <div className="stat-sub">Cobrado − gastos</div>
           </div>
-          <div className="stat-card">
+          <div className="stat-card" data-accent={stats.overdueCount > 0 ? 'warn' : 'amber'}>
             <div className="stat-label">Facturas pendientes</div>
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{fmt(stats.pendingTotal)}</div>
             <div className="stat-sub"><Link href="/accounting/facturas?status=sent" style={{ color: 'var(--amber)' }}>{stats.pendingCount} por cobrar →</Link></div>
@@ -213,7 +213,7 @@ export default async function Home() {
             <div className="stat-value">{stats.jobs}</div>
             <div className="stat-sub"><Link href="/trabajos" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
           </div>
-          <div className="stat-card">
+          <div className="stat-card" data-accent="amber">
             <div className="stat-label">En progreso</div>
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{stats.activeJobs}</div>
             <div className="stat-sub">Trabajos activos hoy</div>
@@ -223,7 +223,7 @@ export default async function Home() {
             <div className="stat-value">{stats.tickets}</div>
             <div className="stat-sub"><Link href="/boletos" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
           </div>
-          <div className="stat-card">
+          <div className="stat-card" data-accent="amber">
             <div className="stat-label">Boletos en progreso</div>
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{stats.activeTickets}</div>
             <div className="stat-sub"><Link href="/boletos" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
@@ -231,7 +231,7 @@ export default async function Home() {
         </div>
 
         <div className="card">
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Integraciones</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>🔌 Integraciones</h2>
           <div className="stats-grid">
             <div className="stat-card">
               <div className="stat-label">Pagos PayPal (30 días)</div>

@@ -142,7 +142,7 @@ export default function ProveedoresClient({ initialVendors }) {
       ) : (
         <div className="card" style={{ padding: 0 }}>
           {vendors.map((v, i) => (
-            <div key={v.id} onClick={() => startEdit(v)}
+            <div key={v.id} className="hover-row" onClick={() => startEdit(v)}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: i < vendors.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>{v.name}</div>

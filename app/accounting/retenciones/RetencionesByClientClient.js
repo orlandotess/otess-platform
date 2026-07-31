@@ -237,7 +237,7 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
           {selected.exemption && (
             <div style={{
               background: selected.exemption.exhausted ? 'var(--danger-tint)' : 'var(--ok-tint)',
-              border: `1.5px solid ${selected.exemption.exhausted ? '#f3b7b7' : '#a9dcc4'}`,
+              border: `1.5px solid ${selected.exemption.exhausted ? 'var(--warn)' : 'var(--ok)'}`,
               borderRadius: 10, padding: '14px 18px', marginBottom: 16, fontSize: 13,
             }}>
               <div style={{ fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>

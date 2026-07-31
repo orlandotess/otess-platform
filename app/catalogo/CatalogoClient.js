@@ -333,7 +333,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       {/* Category cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24, maxWidth: 400 }}>
         {Object.entries(TYPE_META).map(([key, meta]) => (
-          <div key={key} onClick={() => setTab(key)}
+          <div key={key} className="hover-lift" onClick={() => setTab(key)}
             style={{
               background: "var(--surface)", borderRadius: 14, padding: "20px 16px", cursor: "pointer", textAlign: "center",
               border: tab === key ? `2.5px solid ${meta.color}` : "2.5px solid transparent",
@@ -498,7 +498,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                       {item.type === "product" && item.supplier_price != null && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--warn)" }}>
                           <span>Costo: {fmt(item.supplier_price)}</span>
-                          {margin != null && <span title="Margen real (ganancia / precio)" style={{ color: margin >= 0 ? "#0e8f7a" : "var(--warn)", fontWeight: 700 }}>{margin}% margen</span>}
+                          {margin != null && <span title="Margen real (ganancia / precio)" style={{ color: margin >= 0 ? "var(--ok)" : "var(--warn)", fontWeight: 700 }}>{margin}% margen</span>}
                         </div>
                       )}
                       {item.type === "product" && item.markup_pct != null && (

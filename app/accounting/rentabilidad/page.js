@@ -144,7 +144,7 @@ export default async function RentabilidadPage() {
         </div>
 
         {lowMarginJobs.length > 0 && (
-          <div className="card" style={{ marginBottom: 20, background: 'var(--danger-tint)', border: '1px solid #f3b3ac' }}>
+          <div className="card" style={{ marginBottom: 20, background: 'var(--danger-tint)', border: '1px solid var(--warn)' }}>
             <div style={{ fontWeight: 700, color: 'var(--warn)', fontSize: 14, marginBottom: 4 }}>
               ⚠ {lowMarginJobs.length} trabajo{lowMarginJobs.length > 1 ? 's' : ''} con margen por debajo de {MARGIN_ALERT_THRESHOLD}%
             </div>

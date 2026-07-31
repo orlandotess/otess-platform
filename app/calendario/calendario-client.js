@@ -799,6 +799,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             {[['year','Anual'],['month','Mensual'],['week','Semanal'],['day','Día']].map(([v, l]) => (
               <button key={v} onClick={() => setView(v)} className={`btn ${v === view ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>
             ))}
+            <div className="toolbar-divider" />
             <div style={{ position: 'relative' }}>
               <button onClick={() => setShowRequests(s => !s)} className={`btn ${showRequests ? 'btn-primary' : 'btn-ghost'}`}>
                 Solicitudes {pendingRequests.length > 0 && `(${pendingRequests.length})`}
@@ -848,6 +849,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             <button className="btn btn-ghost" style={{ padding: '6px 12px' }} onClick={navNext}>→</button>
             <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }} onClick={navToday}>Hoy</button>
           </div>
+          <div className="toolbar-divider" />
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button onClick={() => setSelectedTech('all')} className={`btn ${selectedTech === 'all' ? 'btn-primary' : 'btn-ghost'}`} style={{ fontSize: 12, padding: '5px 12px' }}>Todos</button>
             {technicians.map(t => (
@@ -860,6 +862,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             ))}
           </div>
 
+          <div className="toolbar-divider" />
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {[['job', 'Trabajos'], ['visit', 'Visitas'], ['event', 'Eventos'], ['task', 'Tareas'], ['absence', 'Ausencias']].map(([k, l]) => (
               <button key={k} onClick={() => toggleType(k)}
@@ -1010,7 +1013,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       onDrop={(e) => { if (cell.current) { e.preventDefault(); handleDayDrop(cell.date); } }}>
                       <div style={{ fontSize: 13, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)', marginBottom: 4, width: 'fit-content' }}>{cell.day}</div>
                       {dayAbsences.slice(0, 5).map(a => (
-                        <div key={`a${a.id}`} onClick={(e) => showQuickPreview('absence', a, e)}
+                        <div key={`a${a.id}`} className="cal-entry" onClick={(e) => showQuickPreview('absence', a, e)}
                           style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--danger-tint)', color: 'var(--warn)', userSelect: 'none', WebkitUserSelect: 'none' }}>
@@ -1018,7 +1021,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         </div>
                       ))}
                       {dayVisits.slice(0, Math.max(5 - dayAbsences.length, 0)).map(v => (
-                        <div key={`v${v.id}`} onClick={(e) => showQuickPreview('visit', v, e)}
+                        <div key={`v${v.id}`} className="cal-entry" onClick={(e) => showQuickPreview('visit', v, e)}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)', userSelect: 'none', WebkitUserSelect: 'none' }}>
@@ -1026,7 +1029,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         </div>
                       ))}
                       {dayJobs.slice(0, Math.max(5 - dayAbsences.length - dayVisits.length, 0)).map(j => (
-                        <div key={j.id} onClick={(e) => { e.stopPropagation(); openEntry('job', j, e); }}
+                        <div key={j.id} className="cal-entry" onClick={(e) => { e.stopPropagation(); openEntry('job', j, e); }}
                           draggable={canQuickReschedule}
                           onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData('text/plain', j.id); e.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'job', item: j }); }}
                           onDragEnd={() => { setDraggingEntry(null); setDragOverDate(null); }}
@@ -1037,7 +1040,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         </div>
                       ))}
                       {dayEvents.slice(0, Math.max(5 - dayAbsences.length - dayVisits.length - dayJobs.length, 0)).map(e => (
-                        <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('event', e, ev); }}
+                        <div key={`e${e.id}`} className="cal-entry" onClick={(ev) => { ev.stopPropagation(); openEntry('event', e, ev); }}
                           draggable={canQuickReschedule}
                           onDragStart={(ev) => { ev.stopPropagation(); ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'event', item: e }); }}
                           onDragEnd={() => { setDraggingEntry(null); setDragOverDate(null); }}
@@ -1048,7 +1051,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         </div>
                       ))}
                       {dayTasks.slice(0, Math.max(5 - dayAbsences.length - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(t => (
-                        <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('task', t, ev); }}
+                        <div key={`t${t.id}`} className="cal-entry" onClick={(ev) => { ev.stopPropagation(); openEntry('task', t, ev); }}
                           draggable={canQuickReschedule}
                           onDragStart={(ev) => { ev.stopPropagation(); ev.dataTransfer.setData('text/plain', t.id); ev.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'task', item: t }); }}
                           onDragEnd={() => { setDraggingEntry(null); setDragOverDate(null); }}
@@ -1189,7 +1192,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                     return (
                       <div key={`abs${i}`} style={{ flex: 1, minWidth: 96, borderBottom: '1px solid var(--border)', padding: '2px 4px', display: 'flex', flexDirection: 'column', gap: 2 }}>
                         {dayAbsences.map(a => (
-                          <div key={a.id} onClick={(e) => showQuickPreview('absence', a, e)}
+                          <div key={a.id} className="cal-entry" onClick={(e) => showQuickPreview('absence', a, e)}
                             style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
                               overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                               background: 'var(--danger-tint)', color: 'var(--warn)', userSelect: 'none', WebkitUserSelect: 'none' }}>
@@ -1229,7 +1232,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             const widthPct = 100 / en.colCount;
                             const leftPct = en._col * widthPct;
                             return (
-                              <div key={en.key} onClick={en.onClick}
+                              <div key={en.key} className="cal-entry" onClick={en.onClick}
                                 style={{ position: 'absolute', top, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`, height,
                                   ...ENTRY_STYLES[en.type](en.techId), borderRadius: 5, padding: '2px 6px', fontSize: 11, fontWeight: 600,
                                   cursor: 'pointer', overflow: 'hidden', pointerEvents: 'auto', userSelect: 'none', WebkitUserSelect: 'none',
@@ -1274,7 +1277,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               {dayAbsencesList.length > 0 && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                   {dayAbsencesList.map(a => (
-                    <div key={a.id} onClick={(e) => showQuickPreview('absence', a, e)}
+                    <div key={a.id} className="cal-entry" onClick={(e) => showQuickPreview('absence', a, e)}
                       style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
                         background: 'var(--danger-tint)', color: 'var(--warn)' }}>
                       🚫 {a.technicians?.name ?? 'Técnico'} ausente
@@ -1295,28 +1298,28 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                     <div key={`d${hour}`} style={{ borderTop: '1px solid var(--border)', borderLeft: '1px solid var(--border)', minHeight: 56, padding: 4, cursor: canScheduleVisit ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', gap: 4 }}
                       onClick={() => { if (canScheduleVisit) setScheduleModal({ dateStr: dayDate, time: `${String(hour).padStart(2, '0')}:00` }); }}>
                       {hourVisits.map(v => (
-                        <div key={`v${v.id}`} onClick={(e) => showQuickPreview('visit', v, e)}
+                        <div key={`v${v.id}`} className="cal-entry" onClick={(e) => showQuickPreview('visit', v, e)}
                           style={{ background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)',
                             borderRadius: 4, padding: '3px 8px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>
                           <span style={{ fontSize: 10 }}>👁</span> {v.requests?.title ?? 'Visita'} · {fmtTime(v.scheduled_at)}
                         </div>
                       ))}
                       {hourJobs.map(j => (
-                        <div key={j.id} onClick={(e) => { e.stopPropagation(); openEntry('job', j, e); }}
+                        <div key={j.id} className="cal-entry" onClick={(e) => { e.stopPropagation(); openEntry('job', j, e); }}
                           style={{ background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff', borderRadius: 4, padding: '3px 8px',
                             fontSize: 12, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>
                           {j.title} · {fmtTime(j.scheduled_start)}
                         </div>
                       ))}
                       {hourEvents.map(e => (
-                        <div key={`e${e.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('event', e, ev); }}
+                        <div key={`e${e.id}`} className="cal-entry" onClick={(ev) => { ev.stopPropagation(); openEntry('event', e, ev); }}
                           style={{ background: 'var(--surface)', border: `2px solid ${techColors[e.technician_id] ?? 'var(--navy)'}`, color: techColors[e.technician_id] ?? 'var(--navy)',
                             borderRadius: 4, padding: '3px 8px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>
                           <span style={{ fontSize: 10 }}>{ENTRY_TYPE_ICONS.event}</span> {e.title} · {fmtTime(e.start_at)}
                         </div>
                       ))}
                       {hourTasks.map(t => (
-                        <div key={`t${t.id}`} onClick={(ev) => { ev.stopPropagation(); openEntry('task', t, ev); }}
+                        <div key={`t${t.id}`} className="cal-entry" onClick={(ev) => { ev.stopPropagation(); openEntry('task', t, ev); }}
                           style={{ background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)',
                             textDecoration: t.completed ? 'line-through' : 'none',
                             borderRadius: 4, padding: '3px 8px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>

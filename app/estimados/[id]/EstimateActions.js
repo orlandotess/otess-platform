@@ -282,7 +282,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       <button className="btn btn-ghost" onClick={toggleArchive} disabled={archiving}>
         {archiving ? '⏳ Guardando...' : archivedAt ? '📤 Desarchivar' : '📦 Archivar'}
       </button>
-      <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: '#fca5a5' }} onClick={() => setShowDelete(true)}>🗑</button>
+      <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setShowDelete(true)}>🗑</button>
 
       {/* Edit terms */}
       {showEditTerms && (

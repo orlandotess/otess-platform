@@ -324,6 +324,7 @@ export default function InventarioClient({ locations: initialLocations, location
     return (
       <div>
         <div
+          className="hover-row"
           onClick={() => setSelectedId(loc.id)}
           style={{
             display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", paddingLeft: 10 + depth * 18,
@@ -354,7 +355,7 @@ export default function InventarioClient({ locations: initialLocations, location
   function LocationRow({ l }) {
     const path = pathTo(l.id);
     return (
-      <div onClick={() => setSelectedId(l.id)}
+      <div className="hover-row" onClick={() => setSelectedId(l.id)}
         style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer", background: selectedId === l.id ? "var(--surface-2)" : "transparent", opacity: l.is_active ? 1 : 0.5 }}>
         <div style={{ fontSize: 13, fontWeight: 600 }}>{TYPE_META[l.type]?.icon} {l.name} {l.code && <span style={{ fontSize: 11, color: "var(--muted)", fontFamily: "monospace" }}>{l.code}</span>}</div>
         <div style={{ fontSize: 11, color: "var(--muted)" }}>{path.map(p => p.name).join(" › ")}</div>
@@ -695,7 +696,7 @@ export default function InventarioClient({ locations: initialLocations, location
                       {h.created_by ? ` · ${h.created_by}` : ""}
                     </div>
                   </div>
-                  <div style={{ fontWeight: 700, color: h.delta < 0 ? "var(--warn)" : "#0e8f7a" }}>{h.delta > 0 ? `+${h.delta}` : h.delta}</div>
+                  <div style={{ fontWeight: 700, color: h.delta < 0 ? "var(--warn)" : "var(--ok)" }}>{h.delta > 0 ? `+${h.delta}` : h.delta}</div>
                 </div>
               ))}
             </div>

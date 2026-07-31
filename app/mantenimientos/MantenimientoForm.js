@@ -152,7 +152,7 @@ export default function MantenimientoForm({ editing, technicians, clients, clien
             {technicians.map(t => {
               const checked = technicianIds.includes(t.id);
               return (
-                <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                <label key={t.id} className="hover-lift" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
                   <input type="checkbox" checked={checked} onChange={() => toggleTechnician(t.id)} style={{ margin: 0 }} />
                   {t.name}
                 </label>

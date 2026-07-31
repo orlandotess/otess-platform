@@ -54,7 +54,7 @@ export default function ClientCombobox({ clients, value, onChange }) {
             {results.length === 0 ? (
               <p style={{ padding: '12px 14px', fontSize: 13, color: 'var(--muted)' }}>Sin resultados.</p>
             ) : results.map(c => (
-              <div key={c.id} onClick={() => select(c)}
+              <div key={c.id} className="dropdown-item" onClick={() => select(c)}
                 style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{c.name}</div>
