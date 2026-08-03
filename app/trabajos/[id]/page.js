@@ -4,6 +4,7 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import JobTabs from './JobTabs';
+import JobTitleEditor from './JobTitleEditor';
 import { normalizeName } from '../../../lib/normalizeName';
 import { calcularIVU } from '../../../lib/tax';
 
@@ -151,7 +152,7 @@ export default async function TrabajoDetail({ params }) {
         <div className="page-header">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="page-title">{job.title}</div>
+              <JobTitleEditor jobId={job.id} title={job.title} />
               {job.job_number && <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace', background: 'var(--amber-tint)', padding: '4px 10px', borderRadius: 8 }}>{job.job_number}</span>}
             </div>
             <span className={`badge ${b.cls}`} style={{ marginTop: 6, display: 'inline-block' }}>{b.label}</span>
