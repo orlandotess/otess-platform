@@ -166,6 +166,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
             exempt_reason: it.exempt_reason,
             discount_amount: it.discount_amount,
             vendor: it.vendor,
+            combine_price: it.combine_price,
             photo_url: it.photo_url,
             sort_order: it.sort_order,
           }]).select().single();

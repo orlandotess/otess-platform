@@ -63,6 +63,7 @@ function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder,
 export default function LineItemRow({
   viewMode = false,
   isAccessory = false,
+  showPricing = false,
   type, onTypeChange,
   title, onTitleChange,
   description, onDescriptionChange, catalogOptions = [], datalistId, catalogItemId,
@@ -123,6 +124,7 @@ export default function LineItemRow({
   }
 
   if (isAccessory) {
+    const accessorySubtotal = (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
     return (
       <div style={{ display: 'flex', gap: 10, marginBottom: 8, marginLeft: 32, alignItems: 'center', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}>
         <label style={{ cursor: viewMode ? 'default' : 'pointer', flexShrink: 0 }}>
@@ -145,6 +147,69 @@ export default function LineItemRow({
               placeholder="Accesorio..." maxLength={200} fontSize={13} fontWeight={400} />
           )}
         </div>
+        {showPricing && (
+          <div style={{ textAlign: 'right', flexShrink: 0, width: 95 }}>
+            {viewMode ? (
+              <>
+                {onMsrpChange && (
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: msrp != null && msrp !== '' ? 'line-through' : 'none' }}>{msrp != null && msrp !== '' ? fmt(msrp) : '—'}</div>
+                )}
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{fmt(unitPrice)}</div>
+                {onSupplierPriceChange && <div style={{ fontSize: 10, color: 'var(--warn)' }}>{supplierPrice != null && supplierPrice !== '' ? fmt(supplierPrice) : '—'}</div>}
+              </>
+            ) : (
+              <>
+                {onMsrpChange && (
+                  <input type="number" value={msrp} onChange={e => onMsrpChange(e.target.value)} placeholder="MSRP" title="MSRP (referencia, solo interno)"
+                    style={{ fontSize: 10.5, padding: '3px 6px', color: 'var(--muted)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" />
+                )}
+                <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder="Precio" title="Precio de venta al cliente (no combinado)"
+                  style={{ fontSize: 12, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: onSupplierPriceChange ? 3 : 0 }} min="0" step="0.01" />
+                {onSupplierPriceChange && (
+                  <>
+                    <input type="number" value={supplierPrice} onChange={e => onSupplierPriceChange(e.target.value)} placeholder="Costo" title="Costo del suplidor (solo interno)"
+                      style={{ fontSize: 10.5, padding: '3px 6px', color: 'var(--warn)', textAlign: 'right', width: '100%' }} min="0" step="0.01" />
+                    {!showMargin ? (
+                      (parseFloat(supplierPrice) > 0) ? (
+                        <button type="button" onClick={openMargin} style={{ display: 'block', marginLeft: 'auto', marginTop: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 9.5, padding: 0, textDecoration: 'underline' }} title="Calcular precio de venta por margen (solo interno, no se muestra al cliente)">
+                          + Margen %
+                        </button>
+                      ) : (
+                        <div style={{ textAlign: 'right', marginTop: 3, fontSize: 9, color: 'var(--muted)' }} title="Escribe el costo para poder calcular el margen">
+                          + Margen % (ingresa costo)
+                        </div>
+                      )
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 3 }}>
+                        <input
+                          type="number"
+                          value={marginPct}
+                          onChange={e => {
+                            const v = e.target.value;
+                            setMarginPct(v);
+                            const cost = parseFloat(supplierPrice);
+                            const pct = parseFloat(v);
+                            if (!isNaN(cost) && cost > 0 && !isNaN(pct)) {
+                              onUnitPriceChange((cost * (1 + pct / 100)).toFixed(2));
+                            }
+                          }}
+                          placeholder="30"
+                          style={{ fontSize: 10, padding: '3px 4px', textAlign: 'right', width: '100%' }}
+                          min="0" step="1"
+                          title="Margen % sobre el costo (solo interno, calcula el precio de venta)"
+                        />
+                        <span style={{ fontSize: 9, color: 'var(--muted)', flexShrink: 0 }}>%</span>
+                        <button type="button" onClick={() => { setShowMargin(false); setMarginPct(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 11, padding: 0, flexShrink: 0 }} title="Cerrar calculadora de margen">
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
         <div style={{ textAlign: 'center', flexShrink: 0, width: 40 }}>
           {viewMode ? (
             <span style={{ fontSize: 13 }}>x{quantity}</span>
@@ -152,6 +217,11 @@ export default function LineItemRow({
             <input type="number" value={quantity} onChange={e => onQuantityChange(e.target.value)} style={{ fontSize: 13, padding: '4px 6px', textAlign: 'center', width: '100%' }} min="0" step="0.01" />
           )}
         </div>
+        {showPricing && (
+          <div style={{ textAlign: 'right', flexShrink: 0, width: 70 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--navy)' }}>{fmt(accessorySubtotal)}</div>
+          </div>
+        )}
         {actions}
       </div>
     );

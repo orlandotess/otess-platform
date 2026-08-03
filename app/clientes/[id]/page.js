@@ -24,7 +24,7 @@ export default async function ClienteDetailPage({ params }) {
     supabase.from('invoices').select('id, invoice_number, total, status, created_at, job_id, property_id').eq('client_id', id).order('created_at', { ascending: false }),
     supabase.from('client_properties').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
-    supabase.from('proposals').select('id, proposal_number, title, status, created_at, valid_until, proposal_options(id, name, proposal_line_items(quantity, unit_price))').eq('client_id', id).order('created_at', { ascending: false }),
+    supabase.from('proposals').select('id, proposal_number, title, status, created_at, valid_until, proposal_options(id, name, proposal_line_items(id, quantity, unit_price, parent_item_id, combine_price))').eq('client_id', id).order('created_at', { ascending: false }),
     supabase.from('client_notes').select('*').eq('client_id', id).order('created_at', { ascending: false }),
     supabase.from('service_tickets').select('id, subject, status, source, created_at').eq('client_id', id).order('created_at', { ascending: false }),
   ]);

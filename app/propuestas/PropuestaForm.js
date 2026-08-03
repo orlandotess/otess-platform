@@ -20,6 +20,7 @@ function emptyItem(parentKey = null, itemType = 'labor') {
     exempt: false,
     discount: '',
     vendor: '',
+    combinePrice: true, // only meaningful for parent (non-accessory) items
     photoFile: null,
     photoPreview: null,
     existingPhotoPath: null,
@@ -63,6 +64,7 @@ function itemsToAreas(items) {
       exempt: !!parent.exempt_reason,
       discount: parent.discount_amount ?? '',
       vendor: parent.vendor ?? '',
+      combinePrice: parent.combine_price !== false,
       photoFile: null,
       photoPreview: parent.photo_signed_url ?? null,
       existingPhotoPath: parent.photo_url ?? null,
@@ -75,11 +77,11 @@ function itemsToAreas(items) {
         item_type: child.item_type,
         description: child.description,
         quantity: child.quantity,
-        msrp: '',
-        unit_price: '',
-        supplier_price: '',
-        exempt: false,
-        discount: '',
+        msrp: child.msrp ?? '',
+        unit_price: child.unit_price ?? '',
+        supplier_price: child.supplier_price ?? '',
+        exempt: !!child.exempt_reason,
+        discount: child.discount_amount ?? '',
         photoFile: null,
         photoPreview: child.photo_signed_url ?? null,
         existingPhotoPath: child.photo_url ?? null,
@@ -238,12 +240,13 @@ export default function PropuestaForm({ initialData = null }) {
       ? { ...o, areas: o.areas.map(a => {
           if (a.key !== areaKey) return a;
           let insertAt = a.items.findIndex(it => it.key === parentKey);
+          const parentType = a.items[insertAt]?.item_type || 'product';
           for (let i = insertAt + 1; i < a.items.length; i++) {
             if (a.items[i].parentKey === parentKey) insertAt = i;
             else break;
           }
           const items = [...a.items];
-          items.splice(insertAt + 1, 0, emptyItem(parentKey));
+          items.splice(insertAt + 1, 0, emptyItem(parentKey, parentType));
           return { ...a, items };
         }) }
       : o));
@@ -385,12 +388,18 @@ export default function PropuestaForm({ initialData = null }) {
       : o));
   }
 
-  function itemLineTotal(it) {
-    if (it.parentKey) return 0;
+  // Accessories only carry their own weight in the total when their parent
+  // has opted out of "Combinar precio" — otherwise the parent's own price is
+  // assumed to already include them (today's default/legacy behavior).
+  function itemLineTotal(it, area) {
+    if (it.parentKey) {
+      const parent = area?.items.find(p => p.key === it.parentKey);
+      if (!parent || parent.combinePrice !== false) return 0;
+    }
     return (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0) - (parseFloat(it.discount) || 0);
   }
   function areaTotal(area) {
-    return area.items.reduce((s, it) => s + itemLineTotal(it), 0);
+    return area.items.reduce((s, it) => s + itemLineTotal(it, area), 0);
   }
   function optionTotal(opt) {
     return opt.areas.reduce((sum, a) => sum + areaTotal(a), 0);
@@ -537,6 +546,7 @@ export default function PropuestaForm({ initialData = null }) {
             exempt_reason: it.exempt ? 'Exento' : null,
             discount_amount: it.discount !== '' ? parseFloat(it.discount) : null,
             vendor: it.vendor || null,
+            combine_price: it.combinePrice !== false,
             photo_url: photoPath,
             sort_order: sortOrder++,
           }]).select().single();
@@ -547,6 +557,9 @@ export default function PropuestaForm({ initialData = null }) {
         const children = area.items.filter(it => it.parentKey && it.description.trim() && keyToId[it.parentKey]);
         for (const it of children) {
           const photoPath = await uploadItemPhoto(it, optRow.id, sortOrder);
+          // Same field shape as a parent — only zeroed out in practice when
+          // "Combinar precio" is on, since the price inputs stay hidden and
+          // it.unit_price/it.msrp/it.supplier_price never leave their emptyItem() defaults.
           await supabase.from('proposal_line_items').insert([{
             option_id: optRow.id,
             area: area.name,
@@ -554,11 +567,11 @@ export default function PropuestaForm({ initialData = null }) {
             item_type: it.item_type,
             description: it.description.trim(),
             quantity: parseFloat(it.quantity) || 1,
-            msrp: null,
-            unit_price: 0,
-            supplier_price: null,
-            exempt_reason: null,
-            discount_amount: null,
+            msrp: it.msrp !== '' ? parseFloat(it.msrp) : null,
+            unit_price: parseFloat(it.unit_price) || 0,
+            supplier_price: it.supplier_price !== '' ? parseFloat(it.supplier_price) : null,
+            exempt_reason: it.exempt ? 'Exento' : null,
+            discount_amount: it.discount !== '' ? parseFloat(it.discount) : null,
             photo_url: photoPath,
             sort_order: sortOrder++,
           }]);
@@ -811,24 +824,35 @@ export default function PropuestaForm({ initialData = null }) {
                   </div>
 
                   {area.items.map((it, itemIndex) => (
-                    it.parentKey ? (
-                      <LineItemRow
-                        key={it.key}
-                        isAccessory
-                        description={it.description}
-                        onDescriptionChange={v => updateItem(opt.key, area.key, it.key, 'description', v)}
-                        catalogOptions={catalogItems.filter(c => !c.internal_only)}
-                        datalistId={`cat-${optIndex}-${areaIndex}-${itemIndex}`}
-                        quantity={it.quantity}
-                        onQuantityChange={v => updateItem(opt.key, area.key, it.key, 'quantity', v)}
-                        photoUrl={it.photoPreview}
-                        onPhotoSelect={file => handleItemPhoto(opt.key, area.key, it.key, file)}
-                        fmt={fmt}
-                        actions={
-                          <button type="button" onClick={() => removeItem(opt.key, area.key, it.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 15 }}>×</button>
-                        }
-                      />
-                    ) : (
+                    it.parentKey ? (() => {
+                      const parent = area.items.find(p => p.key === it.parentKey);
+                      const showPricing = parent?.combinePrice === false;
+                      return (
+                        <LineItemRow
+                          key={it.key}
+                          isAccessory
+                          showPricing={showPricing}
+                          description={it.description}
+                          onDescriptionChange={v => updateItem(opt.key, area.key, it.key, 'description', v)}
+                          catalogOptions={catalogItems.filter(c => !c.internal_only)}
+                          datalistId={`cat-${optIndex}-${areaIndex}-${itemIndex}`}
+                          quantity={it.quantity}
+                          onQuantityChange={v => updateItem(opt.key, area.key, it.key, 'quantity', v)}
+                          msrp={it.msrp}
+                          onMsrpChange={v => updateItem(opt.key, area.key, it.key, 'msrp', v)}
+                          unitPrice={it.unit_price}
+                          onUnitPriceChange={v => updateItem(opt.key, area.key, it.key, 'unit_price', v)}
+                          supplierPrice={it.supplier_price}
+                          onSupplierPriceChange={v => updateItem(opt.key, area.key, it.key, 'supplier_price', v)}
+                          photoUrl={it.photoPreview}
+                          onPhotoSelect={file => handleItemPhoto(opt.key, area.key, it.key, file)}
+                          fmt={fmt}
+                          actions={
+                            <button type="button" onClick={() => removeItem(opt.key, area.key, it.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 15 }}>×</button>
+                          }
+                        />
+                      );
+                    })() : (
                       <div key={it.key}
                         onDragOver={e => { if (dragItem) e.preventDefault(); }}
                         onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragItem) { moveItemGroup(opt.key, dragItem.areaKey, dragItem.itemKey, area.key, it.key); setDragItem(null); } }}
@@ -876,10 +900,20 @@ export default function PropuestaForm({ initialData = null }) {
                             </>
                           }
                         />
-                        <button type="button" onClick={() => addAccessory(opt.key, area.key, it.key)}
-                          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, marginLeft: 32, marginBottom: 8, marginTop: -4 }}>
-                          + Accesorio
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 32, marginBottom: 8, marginTop: -4 }}>
+                          <button type="button" onClick={() => addAccessory(opt.key, area.key, it.key)}
+                            style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
+                            + Accesorio
+                          </button>
+                          {area.items.some(child => child.parentKey === it.key) && (
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
+                              title="Si está activo, el precio de los accesorios se combina en el total de este producto (no se muestran precios individuales). Si lo desactivas, cada accesorio se cotiza por separado.">
+                              <input type="checkbox" checked={it.combinePrice !== false}
+                                onChange={e => updateItem(opt.key, area.key, it.key, 'combinePrice', e.target.checked)} />
+                              Combinar precio de accesorios
+                            </label>
+                          )}
+                        </div>
                       </div>
                     )
                   ))}

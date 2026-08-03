@@ -1,4 +1,5 @@
-import { Fragment } from 'react';
+'use client';
+import { Fragment, useState, useEffect } from 'react';
 
 const NAVY = '#16223d';
 
@@ -29,9 +30,23 @@ function itemTotal(it) {
   return (it.quantity || 0) * (it.unit_price || 0) - (it.discount_amount || 0);
 }
 
+// Top-level items always bill. A child (parent_item_id set) only bills on
+// its own when its parent's combine_price is explicitly false — the default
+// (true/undefined) keeps the legacy behavior where the parent's own price is
+// assumed to already include its accessories.
+function billableItems(items) {
+  const all = items ?? [];
+  const parentById = new Map(all.filter(it => !it.parent_item_id).map(it => [it.id, it]));
+  return all.filter(it => {
+    if (!it.parent_item_id) return true;
+    const parent = parentById.get(it.parent_item_id);
+    return parent ? parent.combine_price === false : false;
+  });
+}
+
 export function financialBreakdown(items, clientType, taxRules) {
   let parts = 0, labor = 0, taxParts = 0, taxLabor = 0, totalDiscount = 0;
-  (items ?? []).filter(it => !it.parent_item_id).forEach(it => {
+  billableItems(items).forEach(it => {
     const base = itemTotal(it);
     totalDiscount += it.discount_amount || 0;
     const lineType = it.item_type === 'product' ? 'product' : 'labor';
@@ -49,7 +64,7 @@ export function financialBreakdown(items, clientType, taxRules) {
 // supplier_price are skipped rather than treated as zero cost.
 export function profitBreakdown(items) {
   let sell = 0, cost = 0;
-  (items ?? []).filter(it => !it.parent_item_id).forEach(it => {
+  billableItems(items).forEach(it => {
     sell += itemTotal(it);
     if (it.supplier_price == null) return;
     cost += (it.quantity || 0) * it.supplier_price;
@@ -63,6 +78,29 @@ const pageBreak = { ...page, breakBefore: 'page', pageBreakBefore: 'always' };
 const h2 = { fontSize: 22, fontWeight: 800, color: NAVY, marginBottom: 20 };
 
 export default function ProposalDocument({ proposal, option, companyInfo, primaryAddress, taxRules, payments, mode = 'client' }) {
+  // Attachments render collapsed by default (Portal.io-style "N Attachments
+  // Included" toggle). The PDF export only ever captures what's on screen at
+  // capture time, so openPdfPreview fires otess:print-start/-end around the
+  // html2canvas snapshot — force every attachment open for that window so the
+  // exported PDF still has the full item list, then restore whatever the
+  // viewer had expanded. Declared before the picklist early-return below so
+  // hook order stays fixed regardless of `mode` (Rules of Hooks).
+  const [expandedIds, setExpandedIds] = useState({});
+  const [printMode, setPrintMode] = useState(false);
+  useEffect(() => {
+    function onStart() { setPrintMode(true); }
+    function onEnd() { setPrintMode(false); }
+    window.addEventListener('otess:print-start', onStart);
+    window.addEventListener('otess:print-end', onEnd);
+    return () => {
+      window.removeEventListener('otess:print-start', onStart);
+      window.removeEventListener('otess:print-end', onEnd);
+    };
+  }, []);
+  function toggleExpanded(id) {
+    setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
+  }
+
   if (mode === 'picklist') return <PickListDocument proposal={proposal} option={option} />;
 
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
@@ -180,7 +218,10 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
 
       {/* Areas & Items */}
       {areas.map((area, areaIdx) => {
-        const areaTotal = area.items.reduce((s, it) => s + itemTotal(it), 0);
+        const areaTotal = area.items.reduce((s, it) => {
+          const childrenTotal = it.combine_price === false ? it.children.reduce((cs, c) => cs + itemTotal(c), 0) : 0;
+          return s + itemTotal(it) + childrenTotal;
+        }, 0);
         return (
           <div key={area.name} style={pageBreak}>
             {areaIdx === 0 && <div style={h2}>Areas & Items</div>}
@@ -196,7 +237,10 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
               </thead>
               <tbody>
                 {area.items.map(it => {
-                  const bundled = it.children.length > 0 || it.discount_amount > 0;
+                  const combined = it.children.length > 0 && it.combine_price !== false;
+                  const bundled = combined || it.discount_amount > 0;
+                  const isExpanded = printMode || !!expandedIds[it.id];
+                  const colCount = hidePricing ? 2 : 4;
                   return (
                     <Fragment key={it.id}>
                       <tr style={{ borderBottom: it.children.length ? 'none' : '1px solid #f4f4f4' }}>
@@ -214,22 +258,40 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                         {!hidePricing && (
                           <td style={{ textAlign: 'right', verticalAlign: 'top', paddingTop: 14 }}>
                             <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(itemTotal(it))}</div>
-                            {it.children.length > 0 && <div style={{ fontSize: 10.5, color: '#999' }}>Combined Price</div>}
+                            {combined && <div style={{ fontSize: 10.5, color: '#999' }}>Combined Price</div>}
                             {it.discount_amount > 0 && <div style={{ fontSize: 11, color: '#1a7a4a', fontWeight: 600 }}>{fmt(it.discount_amount)} Discount</div>}
                           </td>
                         )}
                       </tr>
-                      {it.children.map((child, ci) => (
-                        <tr key={child.id} style={{ borderBottom: ci === it.children.length - 1 ? '1px solid #f4f4f4' : 'none' }}>
-                          <td style={{ padding: '2px 10px 10px 52px', display: 'flex', gap: 12, alignItems: 'center' }}>
-                            <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                              {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 12 }}>🔩</span>}
-                            </div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#444' }}>{child.description}</div>
+                      {it.children.length > 0 && (
+                        <tr style={{ borderBottom: 'none' }}>
+                          <td colSpan={colCount} style={{ padding: '0 0 8px 52px' }}>
+                            <button
+                              type="button"
+                              onClick={() => toggleExpanded(it.id)}
+                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600, color: '#999' }}
+                            >
+                              <span style={{ fontSize: 9 }}>{isExpanded ? '▾' : '▸'}</span>
+                              {it.children.length} Attachment{it.children.length > 1 ? 's' : ''} Included
+                            </button>
                           </td>
-                          {!hidePricing && <td></td>}
-                          <td style={{ textAlign: 'center', fontSize: 13, color: '#999' }}>x{child.quantity}</td>
-                          {!hidePricing && <td></td>}
+                        </tr>
+                      )}
+                      {isExpanded && it.children.map((child, ci) => (
+                        <tr key={child.id} style={{ borderBottom: ci === it.children.length - 1 ? '1px solid #f4f4f4' : 'none' }}>
+                          <td style={{ padding: '10px 10px 10px 52px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                            <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{child.item_type === 'product' ? '📦' : '🔧'}</span>}
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 400, color: '#555', whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                          </td>
+                          {!hidePricing && <td style={{ textAlign: 'right', fontSize: 13.5, color: '#333', verticalAlign: 'top', paddingTop: 10 }}>{it.combine_price === false ? fmt(child.unit_price) : ''}</td>}
+                          <td style={{ textAlign: 'center', fontSize: 13.5, color: '#333', verticalAlign: 'top', paddingTop: 10 }}>x{child.quantity}</td>
+                          {!hidePricing && (
+                            <td style={{ textAlign: 'right', verticalAlign: 'top', paddingTop: 10 }}>
+                              {it.combine_price === false && <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(itemTotal(child))}</div>}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </Fragment>
@@ -311,7 +373,9 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
 // onto the area-by-area layout above would mean threading hidePricing-style
 // conditionals through code that doesn't otherwise apply to it.
 function PickListDocument({ proposal, option }) {
-  const products = (option.items ?? []).filter(it => it.item_type === 'product' && !it.parent_item_id);
+  // Includes attachments/accessories too — the warehouse still needs to pull
+  // a bundled part (e.g. a junction box) regardless of how it's priced.
+  const products = (option.items ?? []).filter(it => it.item_type === 'product');
   const grouped = new Map();
   products.forEach(it => {
     const key = it.description;

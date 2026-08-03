@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { buildMapsLinks, pickMapsLink } from '../../../lib/mapsLinks';
 import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
+import { sumBillableLineItems } from '../../../lib/proposalLineItemTotal';
 import SearchBox from '../../SearchBox';
 
 const statusJob = {
@@ -1185,7 +1186,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                   {proposals.map(p => {
                     const b = statusProp[p.status] ?? statusProp.borrador;
                     const opt = (p.proposal_options ?? []).find(o => o.is_recommended) ?? (p.proposal_options ?? [])[0];
-                    const total = (opt?.proposal_line_items ?? []).reduce((s, li) => s + Number(li.quantity ?? 0) * Number(li.unit_price ?? 0), 0);
+                    const total = sumBillableLineItems(opt?.proposal_line_items);
                     return (
                       <tr key={p.id}>
                         <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{p.proposal_number}</td>

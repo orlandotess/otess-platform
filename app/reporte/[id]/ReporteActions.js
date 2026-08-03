@@ -7,15 +7,14 @@ export default function ReporteActions({ filename }) {
 
   async function handlePdf() {
     setGenerating(true);
-    window.dispatchEvent(new Event('otess:print-start'));
+    // openPdfPreview itself fires otess:print-start/-end and waits for the
+    // phase selector (and anything else listening) to re-render before the
+    // html2canvas snapshot.
     try {
-      // Let listeners (e.g. the phase selector) re-render before the snapshot.
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       await openPdfPreview('report-doc', filename);
     } catch (err) {
       console.error('PDF error:', err);
     }
-    window.dispatchEvent(new Event('otess:print-end'));
     setGenerating(false);
   }
 

@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../lib/supabase';
+import { sumBillableLineItems } from '../../lib/proposalLineItemTotal';
 import Sidebar from '../Sidebar';
 
 const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', cambios_requeridos: 'badge-amber', expirada: 'badge-gray', aprobada: 'badge-green', rechazada: 'badge-red', completada: 'badge-dark' };
@@ -14,7 +15,7 @@ export default async function PropuestasPage({ searchParams }) {
 
   const { data: proposals } = await supabase
     .from('proposals')
-    .select('id, proposal_number, title, status, valid_until, archived_at, created_at, sent_at, approved_at, clients(name), proposal_options(id, name, is_recommended, proposal_line_items(quantity, unit_price))')
+    .select('id, proposal_number, title, status, valid_until, archived_at, created_at, sent_at, approved_at, clients(name), proposal_options(id, name, is_recommended, proposal_line_items(id, quantity, unit_price, parent_item_id, combine_price))')
     .order('created_at', { ascending: false });
 
   const today = new Date().toISOString().split('T')[0];
@@ -31,7 +32,7 @@ export default async function PropuestasPage({ searchParams }) {
   const rows = visible.map(p => {
     const totals = (p.proposal_options ?? []).map(o => ({
       name: o.name,
-      total: (o.proposal_line_items ?? []).reduce((sum, li) => sum + (li.quantity || 0) * (li.unit_price || 0), 0),
+      total: sumBillableLineItems(o.proposal_line_items),
     }));
     return { ...p, totals };
   });

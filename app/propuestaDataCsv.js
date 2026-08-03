@@ -7,13 +7,16 @@ export function exportProposalDataCSV(options, proposalNumber) {
 
   for (const opt of options ?? []) {
     const items = (opt.items ?? []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    const parentsById = new Map(items.filter(i => !i.parent_item_id).map(i => [i.id, i]));
     let optionTotal = 0;
     for (const it of items) {
       const isAccessory = !!it.parent_item_id;
+      const parent = isAccessory ? parentsById.get(it.parent_item_id) : null;
+      const combined = isAccessory && (!parent || parent.combine_price !== false);
       const quantity = Number(it.quantity) || 0;
       const unitPrice = Number(it.unit_price) || 0;
       const discount = Number(it.discount_amount) || 0;
-      const lineTotal = isAccessory ? 0 : (quantity * unitPrice - discount);
+      const lineTotal = combined ? 0 : (quantity * unitPrice - discount);
       optionTotal += lineTotal;
       csvRows.push([
         opt.name,
