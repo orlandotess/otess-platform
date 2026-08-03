@@ -1,10 +1,10 @@
 import { Resend } from 'resend';
 import { withRetry } from '../../../../lib/withRetry';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
+import { calcularIVU, tasaParaLinea } from '../../../../lib/tax';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 const APP_URL = 'https://app.otesspr.com';
 
 function todayPR() {
@@ -46,6 +46,7 @@ export async function GET(request) {
 
   if (dueErr) return Response.json({ error: dueErr.message }, { status: 500 });
 
+  const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
   const { data: allInvoices } = await supabase.from('invoices').select('invoice_number');
   let maxNum = 999;
   (allInvoices ?? []).forEach(inv => {
@@ -68,18 +69,26 @@ export async function GET(request) {
       }
 
       const clientType = client.client_type ?? 'final';
-      let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
+      const ivu = calcularIVU(r.recurring_invoice_items ?? [], clientType, taxRules);
       const lineItems = (r.recurring_invoice_items ?? []).map(it => {
         const base = (it.quantity || 0) * (it.unit_price || 0);
-        const rate = it.exempt ? 0 : (TAX[`${clientType}_${it.type}`] ?? 0.115);
-        if (it.type === 'product') { subProd += base; taxProd += base * rate; }
-        else { subLabor += base; taxLabor += base * rate; }
+        const rate = tasaParaLinea(it, clientType, taxRules);
         return {
-          type: it.type, description: it.description, quantity: it.quantity, unit_price: it.unit_price,
+          type: it.type, tax_category: it.tax_category || it.type, description: it.description, quantity: it.quantity, unit_price: it.unit_price,
           tax_rate: rate, line_total: base, tax_amount: base * rate, sort_order: it.sort_order,
         };
       });
-      const total = subProd + taxProd + subLabor + taxLabor;
+      // invoices no tiene columna propia para "reembolso" — se pliega en
+      // subtotal_products (tasa 0%, no afecta tax_products). Misma nota que
+      // en app/facturas/InvoiceForm.js.
+      const productCat = ivu.categorias.find(c => c.codigo === 'product');
+      const laborCat = ivu.categorias.find(c => c.codigo === 'labor');
+      const reembolsoCat = ivu.categorias.find(c => c.codigo === 'reembolso');
+      const subProd = productCat.base + reembolsoCat.base;
+      const taxProd = productCat.impuesto + reembolsoCat.impuesto;
+      const subLabor = laborCat.base;
+      const taxLabor = laborCat.impuesto;
+      const total = ivu.total;
 
       maxNum += 1;
       const invoiceNumber = `INV-${maxNum}`;

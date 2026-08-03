@@ -1,12 +1,25 @@
 "use client";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { supabase } from "../../lib/supabase";
+import ViewToggle, { useCatalogView } from "../ViewToggle";
+import CatalogoView from "../CatalogoView";
 
 const TYPE_META = {
   labor: { label: "Labor", icon: "🔧", color: "#e0972c" },
   product: { label: "Productos", icon: "📦", color: "#2a4cb5" },
+  fee: { label: "Fees", icon: "🧾", color: "#16223d" },
   catalog_view: { label: "Catálogo", icon: "🗂️", color: "#0e8f7a" },
 };
+
+// Fees es una agrupación de presentación (`type`), no una categoría fiscal —
+// tax_category (cómo se grava: labor/product/reembolso) es un eje aparte.
+// Ver migrations/2026-08-02-fees-tax-category.sql y lib/tax.js.
+const TAX_CATEGORY_META = {
+  labor: { label: "Labor (4% B2B / 11.5%)" },
+  product: { label: "Producto (11.5%)" },
+  reembolso: { label: "Reembolso (0%)" },
+};
+const RECURRENCIA_LABELS = { unica: "Única", mensual: "Mensual", anual: "Anual" };
 
 const LOCATION_ICONS = { warehouse: "🏢", site: "📍", van: "🚐", zone: "🗂️", shelf: "📚", bin: "🗃️" };
 
@@ -24,7 +37,8 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   const [editPhotoFile, setEditPhotoFile] = useState(null);
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [newItem, setNewItem] = useState({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false });
+  const [newItem, setNewItem] = useState({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "" });
+  const [feeView, setFeeView] = useCatalogView("list");
   const [newPhotoFile, setNewPhotoFile] = useState(null);
   const [newPhotoPreview, setNewPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -139,7 +153,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     });
   }
 
-  const counts = { labor: items.filter(i => i.type === "labor").length, product: items.filter(i => i.type === "product").length };
+  const counts = { labor: items.filter(i => i.type === "labor").length, product: items.filter(i => i.type === "product").length, fee: items.filter(i => i.type === "fee").length };
   counts.catalog_view = counts.product;
 
   const filtered = items.filter(i => i.type === dataType && (
@@ -164,7 +178,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
 
   function startEdit(item) {
     setEditingId(item.id);
-    setEditForm({ item_code: item.item_code, name: item.name ?? "", description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", markup_pct: item.markup_pct ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "", internal_only: item.internal_only ?? false });
+    setEditForm({ item_code: item.item_code, name: item.name ?? "", description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", markup_pct: item.markup_pct ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "", internal_only: item.internal_only ?? false, tax_category: item.tax_category ?? "labor", costo: item.costo ?? "", recurrencia: item.recurrencia ?? "unica", termino_meses: item.termino_meses ?? "" });
     setEditPhotoFile(null);
     setEditPhotoPreview(item.photo_url ? signedUrls[item.photo_url] ?? null : null);
   }
@@ -188,11 +202,19 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       supplier_price: editForm.supplier_price !== "" ? parseFloat(editForm.supplier_price) : null,
       vendor: editForm.vendor.trim() || null,
       internal_only: !!editForm.internal_only,
+      // tax_category es independiente de `type` solo para fees — Labor y
+      // Producto siguen gravando 1:1 con su propio tipo, igual que hoy.
+      tax_category: dataType === "fee" ? (editForm.tax_category || "labor") : dataType,
     };
     if (dataType === "product") {
       payload.stock_quantity = editForm.stock_quantity !== "" ? parseFloat(editForm.stock_quantity) : null;
       payload.default_location_id = editForm.default_location_id || null;
       payload.markup_pct = editForm.markup_pct !== "" ? parseFloat(editForm.markup_pct) : null;
+    }
+    if (dataType === "fee") {
+      payload.costo = editForm.costo !== "" ? parseFloat(editForm.costo) : null;
+      payload.recurrencia = editForm.recurrencia || "unica";
+      payload.termino_meses = editForm.termino_meses !== "" ? parseInt(editForm.termino_meses, 10) : null;
     }
     if (editPhotoFile) {
       const path = await uploadPhoto(editPhotoFile);
@@ -230,10 +252,14 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       stock_quantity: dataType === "product" && newItem.stock_quantity !== "" ? parseFloat(newItem.stock_quantity) : null,
       default_location_id: dataType === "product" ? (newItem.default_location_id || null) : null,
       internal_only: !!newItem.internal_only,
+      tax_category: dataType === "fee" ? (newItem.tax_category || "labor") : dataType,
+      costo: dataType === "fee" && newItem.costo !== "" ? parseFloat(newItem.costo) : null,
+      recurrencia: dataType === "fee" ? (newItem.recurrencia || "unica") : "unica",
+      termino_meses: dataType === "fee" && newItem.termino_meses !== "" ? parseInt(newItem.termino_meses, 10) : null,
       photo_url,
     }]).select().single();
     if (data) setItems(prev => [...prev, data]);
-    setNewItem({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false });
+    setNewItem({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "" });
     setNewPhotoFile(null);
     setNewPhotoPreview(null);
     setAdding(false);
@@ -241,15 +267,15 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   }
 
   function exportCSV() {
-    const rows = filtered.map(i => [i.item_code, i.name ?? "", i.description, i.price, i.msrp ?? "", i.supplier_price ?? "", i.markup_pct ?? "", i.vendor ?? "", i.stock_quantity ?? ""]);
-    const csvContent = [["Item Code", "Nombre", "Descripcion", "Precio", "MSRP", "Costo Suplidor", "Markup %", "Vendor", "Stock"], ...rows]
+    const rows = filtered.map(i => [i.item_code, i.name ?? "", i.description, i.price, i.msrp ?? "", i.supplier_price ?? "", i.markup_pct ?? "", i.vendor ?? "", i.stock_quantity ?? "", i.costo ?? "", i.recurrencia ?? "", i.termino_meses ?? "", i.tax_category ?? ""]);
+    const csvContent = [["Item Code", "Nombre", "Descripcion", "Precio", "MSRP", "Costo Suplidor", "Markup %", "Vendor", "Stock", "Costo", "Recurrencia", "Termino Meses", "Categoria Fiscal"], ...rows]
       .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
       .join("\n");
     const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${dataType === "labor" ? "Labor" : "Productos"}_OTESS.csv`;
+    link.download = `${dataType === "labor" ? "Labor" : dataType === "fee" ? "Fees" : "Productos"}_OTESS.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -299,7 +325,13 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     const dataRows = rows[0]?.[0]?.toLowerCase().includes("item code") ? rows.slice(1) : rows;
 
     const toInsert = dataRows.map(cols => {
-      return { type: dataType, item_code: cols[0] || "", name: cols[1] || "", description: cols[2] || "", price: parseFloat(cols[3]) || 0, msrp: cols[4] ? parseFloat(cols[4]) : null, supplier_price: cols[5] ? parseFloat(cols[5]) : null, markup_pct: dataType === "product" && cols[6] ? parseFloat(cols[6]) : null, vendor: cols[7] || null, stock_quantity: dataType === "product" && cols[8] ? parseFloat(cols[8]) : null };
+      return {
+        type: dataType, item_code: cols[0] || "", name: cols[1] || "", description: cols[2] || "", price: parseFloat(cols[3]) || 0, msrp: cols[4] ? parseFloat(cols[4]) : null, supplier_price: cols[5] ? parseFloat(cols[5]) : null, markup_pct: dataType === "product" && cols[6] ? parseFloat(cols[6]) : null, vendor: cols[7] || null, stock_quantity: dataType === "product" && cols[8] ? parseFloat(cols[8]) : null,
+        costo: dataType === "fee" && cols[9] ? parseFloat(cols[9]) : null,
+        recurrencia: dataType === "fee" && cols[10] ? cols[10] : "unica",
+        termino_meses: dataType === "fee" && cols[11] ? parseInt(cols[11], 10) : null,
+        tax_category: dataType === "fee" ? (cols[12] || "labor") : dataType,
+      };
     }).filter(i => i.item_code && i.name && i.description);
 
     if (toInsert.length === 0) { alert("No se encontraron filas válidas en el CSV."); return; }
@@ -352,6 +384,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
           {TYPE_META[tab].icon} {TYPE_META[tab].label} ({filtered.length})
         </p>
         <div style={{ display: "flex", gap: 8, position: "relative" }}>
+          {tab === "fee" && <ViewToggle view={feeView} onChange={setFeeView} />}
           <button className="btn btn-ghost" onClick={() => setShowMenu(m => !m)}>⋮ Más</button>
           {showMenu && (
             <>
@@ -411,6 +444,22 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                     {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                   </select>
                 )}
+                {dataType === "fee" && (
+                  <input type="number" value={newItem.costo} onChange={e => setNewItem(f => ({ ...f, costo: e.target.value }))} placeholder="Costo (Dealer Price)" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--warn)", width: 150 }} />
+                )}
+                {dataType === "fee" && (
+                  <select value={newItem.tax_category} onChange={e => setNewItem(f => ({ ...f, tax_category: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 200 }} title="Cómo se grava este fee — independiente de que se muestre en la sección Fees">
+                    {Object.entries(TAX_CATEGORY_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+                  </select>
+                )}
+                {dataType === "fee" && (
+                  <select value={newItem.recurrencia} onChange={e => setNewItem(f => ({ ...f, recurrencia: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 110 }}>
+                    {Object.entries(RECURRENCIA_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                )}
+                {dataType === "fee" && newItem.recurrencia !== "unica" && (
+                  <input type="number" value={newItem.termino_meses} onChange={e => setNewItem(f => ({ ...f, termino_meses: e.target.value }))} placeholder="Término (meses)" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 130 }} title="Término del contrato en meses (opcional)" />
+                )}
               </div>
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", cursor: "pointer" }} title="No aparece como opción al armar Facturas, Estimas, Propuestas u Órdenes de Cambio">
                 <input type="checkbox" checked={newItem.internal_only} onChange={e => setNewItem(f => ({ ...f, internal_only: e.target.checked }))} />
@@ -426,7 +475,96 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       )}
 
       {/* List of items (filas horizontales estilo Portal.io) */}
-      {filtered.length === 0 ? (
+      {tab === "fee" ? (
+        <CatalogoView
+          items={filtered}
+          view={feeView}
+          emptyLabel="No hay fees aún."
+          columns={[
+            { key: "item_code", label: "Código", render: item => editingId === item.id
+              ? <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace", width: 100 }} />
+              : <span style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--amber)" }}>{item.item_code}</span> },
+            { key: "desc", label: "Descripción", render: item => editingId === item.id
+              ? <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontWeight: 700 }} />
+                  <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
+                </div>
+              : <div>
+                  <div style={{ fontWeight: 700 }}>{item.name || item.description}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title="No visible en documentos de cliente">🔒</span>}</div>
+                  {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)" }}>{item.description}</div>}
+                </div> },
+            { key: "costo", label: "Costo", render: item => editingId === item.id
+              ? <input type="number" value={editForm.costo} onChange={e => setEditForm(f => ({ ...f, costo: e.target.value }))} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 90 }} />
+              : (item.costo != null ? fmt(item.costo) : "—") },
+            { key: "price", label: "Precio", render: item => editingId === item.id
+              ? <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 12, fontWeight: 700, width: 90 }} />
+              : <span style={{ fontWeight: 800, color: "var(--navy)" }}>{fmt(item.price)}</span> },
+            { key: "recurrencia", label: "Recurrencia", render: item => editingId === item.id
+              ? <div style={{ display: "flex", gap: 4 }}>
+                  <select value={editForm.recurrencia} onChange={e => setEditForm(f => ({ ...f, recurrencia: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }}>
+                    {Object.entries(RECURRENCIA_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                  {editForm.recurrencia !== "unica" && (
+                    <input type="number" value={editForm.termino_meses} onChange={e => setEditForm(f => ({ ...f, termino_meses: e.target.value }))} placeholder="meses" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 70 }} />
+                  )}
+                </div>
+              : `${RECURRENCIA_LABELS[item.recurrencia] ?? "Única"}${item.termino_meses ? ` · ${item.termino_meses}m` : ""}` },
+            { key: "tax_category", label: "Tasa %", render: item => editingId === item.id
+              ? <select value={editForm.tax_category} onChange={e => setEditForm(f => ({ ...f, tax_category: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }}>
+                  {Object.entries(TAX_CATEGORY_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+                </select>
+              : <span style={{ fontSize: 12 }}>{TAX_CATEGORY_META[item.tax_category]?.label ?? item.tax_category}</span> },
+            { key: "actions", label: "", render: item => editingId === item.id
+              ? <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "4px 10px" }}>💾</button>
+                  <button onClick={() => setEditingId(null)} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>✕</button>
+                </div>
+              : <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>✏️</button>
+                  <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px", color: "var(--warn)" }}>🗑</button>
+                </div> },
+          ]}
+          renderTile={item => editingId === item.id ? (
+            <div key={item.id} style={{ background: "var(--surface)", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", gap: 8 }}>
+              <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
+              <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
+              <div style={{ display: "flex", gap: 6 }}>
+                <input type="number" value={editForm.costo} onChange={e => setEditForm(f => ({ ...f, costo: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: "50%" }} />
+                <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "6px 8px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 12, fontWeight: 700, width: "50%" }} />
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <select value={editForm.recurrencia} onChange={e => setEditForm(f => ({ ...f, recurrencia: e.target.value }))} style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, flex: 1 }}>
+                  {Object.entries(RECURRENCIA_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+                {editForm.recurrencia !== "unica" && (
+                  <input type="number" value={editForm.termino_meses} onChange={e => setEditForm(f => ({ ...f, termino_meses: e.target.value }))} placeholder="meses" style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 70 }} />
+                )}
+              </div>
+              <select value={editForm.tax_category} onChange={e => setEditForm(f => ({ ...f, tax_category: e.target.value }))} style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }}>
+                {Object.entries(TAX_CATEGORY_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+              </select>
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 10px", flex: 1, justifyContent: "center" }}>💾 Guardar</button>
+                <button onClick={() => setEditingId(null)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }}>✕</button>
+              </div>
+            </div>
+          ) : (
+            <div key={item.id} style={{ background: "var(--surface)", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
+              {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)" }}>{item.description}</div>}
+              <div style={{ fontWeight: 800, fontSize: 18, color: "var(--navy)" }}>{fmt(item.price)}</div>
+              {item.costo != null && <div style={{ fontSize: 11, color: "var(--warn)" }}>Costo: {fmt(item.costo)}</div>}
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>{RECURRENCIA_LABELS[item.recurrencia] ?? "Única"}{item.termino_meses ? ` · ${item.termino_meses}m` : ""}</div>
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>{TAX_CATEGORY_META[item.tax_category]?.label ?? item.tax_category}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", flex: 1, justifyContent: "center" }}>✏️ Editar</button>
+                <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", color: "var(--warn)" }}>🗑</button>
+              </div>
+            </div>
+          )}
+        />
+      ) : filtered.length === 0 ? (
         <div className="empty"><p>No hay ítems {dataType === "labor" ? "de labor" : "de productos"} aún.</p></div>
       ) : isCardView ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>

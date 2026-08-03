@@ -5,7 +5,10 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import PhotoAnnotator from '../../PhotoAnnotator';
 import LineItemRow from '../../LineItemRow';
+import LineItemPicker from '../../LineItemPicker';
 import CableCalculator from '../../CableCalculator';
+import TaxBreakdown from '../../TaxBreakdown';
+import { calcularIVU } from '../../../lib/tax';
 import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
@@ -36,7 +39,7 @@ const expenseCategories = [
   { value: 'otro', label: 'Otro' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, checklistAreas = [], templates, clientType, totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, checklistAreas = [], templates, clientType, taxRules = [], totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
@@ -321,7 +324,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   // Line items state
   const [lineItems, setLineItems] = useState(items);
   const [addingLine, setAddingLine] = useState(false);
-  const [newLine, setNewLine] = useState({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
+  const [newLine, setNewLine] = useState({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
   const [catalogItems, setCatalogItems] = useState([]);
   const [showCableCalc, setShowCableCalc] = useState(false);
 
@@ -341,7 +344,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   function handleLineDescriptionSelect(value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
-      setNewLine(l => ({ ...l, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '', title: l.title || match.name || match.description }));
+      setNewLine(l => ({ ...l, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '', title: l.title || match.name || match.description }));
       applyNewLineCatalogPhoto(match);
     } else {
       setNewLine(l => ({ ...l, description: value }));
@@ -350,7 +353,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   function handleLineTitleSelect(value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
-      setNewLine(l => ({ ...l, type: match.type, title: match.name || match.description, description: l.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '' }));
+      setNewLine(l => ({ ...l, type: match.type, tax_category: match.tax_category, title: match.name || match.description, description: l.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '' }));
       applyNewLineCatalogPhoto(match);
     } else {
       setNewLine(l => ({ ...l, title: value }));
@@ -358,7 +361,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   }
 
   function addPrefilledLineItem(item) {
-    setNewLine(l => ({ ...l, type: 'product', ...item }));
+    setNewLine(l => ({ ...l, type: 'product', tax_category: 'product', ...item }));
     setAddingLine(true);
   }
   const [savingLine, setSavingLine] = useState(false);
@@ -369,6 +372,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     setEditingLineId(item.id);
     setEditLineForm({
       type: item.type,
+      tax_category: item.tax_category ?? item.type,
       title: item.title ?? '',
       description: item.description,
       quantity: item.quantity,
@@ -417,6 +421,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     }
     await supabase.from('job_line_items').update({
       type: editLineForm.type,
+      tax_category: editLineForm.tax_category || editLineForm.type,
       title: editLineForm.title?.trim() || null,
       description: editLineForm.description.trim(),
       quantity: parseFloat(editLineForm.quantity) || 1,
@@ -432,6 +437,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     setLineItems(prev => prev.map(i => i.id === id ? {
       ...i,
       type: editLineForm.type,
+      tax_category: editLineForm.tax_category || editLineForm.type,
       title: editLineForm.title?.trim() || null,
       description: editLineForm.description.trim(),
       quantity: parseFloat(editLineForm.quantity) || 1,
@@ -461,6 +467,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     const { data } = await supabase.from('job_line_items').insert([{
       job_id: job.id,
       type: newLine.type,
+      tax_category: newLine.tax_category || newLine.type,
       title: newLine.title.trim() || null,
       description: newLine.description.trim(),
       quantity: parseFloat(newLine.quantity) || 1,
@@ -475,7 +482,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
-    setNewLine({ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
+    setNewLine({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
     setAddingLine(false);
     setSavingLine(false);
   }
@@ -483,6 +490,36 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   async function deleteLineItem(itemId) {
     await supabase.from('job_line_items').delete().eq('id', itemId);
     setLineItems(prev => prev.filter(i => i.id !== itemId));
+  }
+
+  // Alta directa desde el catálogo (LineItemPicker) — se guarda de una vez,
+  // igual que addLineItem, en vez de pasar por el formulario "+ Agregar línea".
+  async function addLineItemFromCatalog(catalogItem) {
+    setSavingLine(true);
+    let photoPath = null, photoSignedUrl = null;
+    if (catalogItem.photo_url) {
+      const { data: signed } = await supabase.storage.from('Job-photos').createSignedUrl(catalogItem.photo_url, 3600);
+      photoPath = catalogItem.photo_url;
+      photoSignedUrl = signed?.signedUrl ?? null;
+    }
+    const { data } = await supabase.from('job_line_items').insert([{
+      job_id: job.id,
+      type: catalogItem.type,
+      tax_category: catalogItem.tax_category,
+      title: catalogItem.name || null,
+      description: catalogItem.description,
+      quantity: 1,
+      unit_price: catalogItem.price ?? 0,
+      msrp: catalogItem.msrp ?? null,
+      supplier_price: catalogItem.supplier_price ?? null,
+      exempt_reason: null,
+      area: null,
+      vendor: catalogItem.vendor || null,
+      photo_url: photoPath,
+      sort_order: lineItems.length,
+    }]).select().single();
+    if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: photoSignedUrl }]);
+    setSavingLine(false);
   }
 
   // Notes state
@@ -837,18 +874,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     if (data) setChecklistItems(prev => [...prev, ...data]);
     setShowTemplates(false);
   }
-
-  const TAX_RATES = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
-  const liveTotals = (() => {
-    let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
-    lineItems.forEach(it => {
-      const base = Number(it.quantity) * Number(it.unit_price);
-      const rate = it.exempt_reason ? 0 : (TAX_RATES[`${clientType}_${it.type}`] ?? 0.115);
-      if (it.type === 'product') { subProd += base; taxProd += base * rate; }
-      else { subLabor += base; taxLabor += base * rate; }
-    });
-    return { subProd, taxProd, subLabor, taxLabor, total: subProd + taxProd + subLabor + taxLabor };
-  })();
 
   const MARGIN_ALERT_THRESHOLD = 20; // margen % por debajo del cual se resalta el trabajo
 
@@ -1480,23 +1505,26 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingLine(true)}>+ Agregar línea</button>
                 </div>
               </div>
+              <div style={{ marginBottom: 14 }}>
+                <LineItemPicker catalogOptions={catalogItems} onSelect={addLineItemFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+              </div>
               {!lineItems?.length ? <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: addingLine ? 14 : 0 }}>Sin líneas.</p> : (
                 lineItems.map(it => (
                   editingLineId === it.id ? (
                     <LineItemRow
                       key={it.id}
                       type={editLineForm.type}
-                      onTypeChange={v => setEditLineForm(f => ({ ...f, type: v }))}
+                      onTypeChange={v => setEditLineForm(f => ({ ...f, type: v, tax_category: v === 'fee' ? (f.tax_category || 'labor') : v }))}
                       title={editLineForm.title}
                       onTitleChange={value => {
                         const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
-                        if (match) { setEditLineForm(f => ({ ...f, type: match.type, title: match.name || match.description, description: f.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' })); applyEditLineCatalogPhoto(match); }
+                        if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, title: match.name || match.description, description: f.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' })); applyEditLineCatalogPhoto(match); }
                         else setEditLineForm(f => ({ ...f, title: value }));
                       }}
                       description={editLineForm.description}
                       onDescriptionChange={value => {
                         const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
-                        if (match) { setEditLineForm(f => ({ ...f, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', title: f.title || match.name || match.description })); applyEditLineCatalogPhoto(match); }
+                        if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', title: f.title || match.name || match.description })); applyEditLineCatalogPhoto(match); }
                         else setEditLineForm(f => ({ ...f, description: value }));
                       }}
                       catalogOptions={catalogItems.filter(c => c.type === editLineForm.type)}
@@ -1557,7 +1585,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               {addingLine && (
                 <LineItemRow
                   type={newLine.type}
-                  onTypeChange={v => setNewLine(l => ({ ...l, type: v }))}
+                  onTypeChange={v => setNewLine(l => ({ ...l, type: v, tax_category: v === 'fee' ? (l.tax_category || 'labor') : v }))}
                   title={newLine.title}
                   onTitleChange={handleLineTitleSelect}
                   description={newLine.description}
@@ -1652,21 +1680,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               )}
             </div>
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Resumen IVU</p>
-              {clientType === 'b2b' && <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>Cliente B2B — Labor al 4%</div>}
-              {[
-                { label: 'Subtotal productos', value: liveTotals.subProd },
-                { label: 'IVU productos (11.5%)', value: liveTotals.taxProd },
-                { label: 'Subtotal labor', value: liveTotals.subLabor },
-                { label: `IVU labor (${clientType === 'b2b' ? '4%' : '11.5%'})`, value: liveTotals.taxLabor },
-              ].map(r => (
-                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--muted)' }}>{r.label}</span><span>{fmt(r.value)}</span>
-                </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: 18, fontWeight: 900, color: 'var(--navy)' }}>
-                <span>Total</span><span>{fmt(liveTotals.total)}</span>
-              </div>
+              <TaxBreakdown
+                lineas={lineItems} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                note={clientType === 'b2b' && <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>Cliente B2B — Labor al 4%</div>}
+              />
             </div>
             <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)', width: '100%', justifyContent: 'center' }} onClick={() => setShowDelete(true)}>
               🗑 Eliminar trabajo

@@ -5,6 +5,7 @@ import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import JobTabs from './JobTabs';
 import { normalizeName } from '../../../lib/normalizeName';
+import { calcularIVU } from '../../../lib/tax';
 
 const statusBadge = {
   estimate:    { cls: 'badge-gray',  label: 'Estimado' },
@@ -17,7 +18,7 @@ const statusBadge = {
 export default async function TrabajoDetail({ params }) {
   const { id } = params;
 
-  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: checklistAreas }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }, { data: planos }] = await Promise.all([
+  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: checklistAreas }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }, { data: planos }, { data: taxRules }] = await Promise.all([
     supabase.from('jobs').select('*, clients(name, email, phone, client_type, company), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
     supabase.from('job_line_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('technicians').select('*').order('name'),
@@ -32,6 +33,7 @@ export default async function TrabajoDetail({ params }) {
     supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at, lunch_minutes').eq('job_id', id).not('clocked_out_at', 'is', null),
     supabase.from('job_reports').select('*').eq('job_id', id).order('created_at', { ascending: false }),
     supabase.from('floor_plans').select('id, name, rendered_image_path').eq('job_id', id).order('updated_at', { ascending: false }),
+    supabase.from('tax_rules').select('client_type, line_item_type, rate'),
   ]);
 
   const jobInvoiceIds = (jobInvoices ?? []).map(i => i.id);
@@ -130,17 +132,16 @@ export default async function TrabajoDetail({ params }) {
   // shows up as an assignable field technician.
   const assignableTechnicians = (technicians ?? []).filter(t => normalizeName(t.name) !== 'otess');
 
-  const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
   const clientType = job.clients?.client_type ?? 'final';
-
-  let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
-  items?.forEach(it => {
-    const base = Number(it.quantity) * Number(it.unit_price);
-    const rate = TAX[`${clientType}_${it.type}`] ?? 0.115;
-    if (it.type === 'product') { subProd += base; taxProd += base * rate; }
-    else { subLabor += base; taxLabor += base * rate; }
-  });
-  const total = subProd + taxProd + subLabor + taxLabor;
+  const ivu = calcularIVU(items ?? [], clientType, taxRules ?? []);
+  const productCat = ivu.categorias.find(c => c.codigo === 'product');
+  const laborCat = ivu.categorias.find(c => c.codigo === 'labor');
+  const reembolsoCat = ivu.categorias.find(c => c.codigo === 'reembolso');
+  const subProd = productCat.base + reembolsoCat.base;
+  const taxProd = productCat.impuesto + reembolsoCat.impuesto;
+  const subLabor = laborCat.base;
+  const taxLabor = laborCat.impuesto;
+  const total = ivu.total;
   const b = statusBadge[job.status] ?? statusBadge.estimate;
 
   return (
@@ -172,6 +173,7 @@ export default async function TrabajoDetail({ params }) {
           checklistAreas={checklistAreasWithSignedUrls}
           templates={templates ?? []}
           clientType={clientType}
+          taxRules={taxRules ?? []}
           totals={{ subProd, taxProd, subLabor, taxLabor, total }}
           jobTechnicians={jobTechnicians ?? []}
           clientProperties={clientProperties ?? []}

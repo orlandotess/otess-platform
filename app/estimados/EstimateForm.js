@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
 import ClientCombobox from '../facturas/nueva/ClientCombobox';
 import LineItemRow from '../LineItemRow';
+import LineItemPicker from '../LineItemPicker';
 import CableCalculator from '../CableCalculator';
-
-const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
+import TaxBreakdown from '../TaxBreakdown';
+import { calcularIVU, tasaParaLinea } from '../../lib/tax';
 
 const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
 
@@ -22,6 +23,7 @@ export default function EstimateForm({ initialData = null }) {
   const [clients, setClients] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
+  const [taxRules, setTaxRules] = useState([]);
   const [properties, setProperties] = useState([]);
   const [propertyMode, setPropertyMode] = useState(initialData?.estimate?.property_id ? 'existing' : 'none'); // none | existing | new
   const [newProperty, setNewProperty] = useState({ name: '', street: '', city: '', state: 'PR', zip: '' });
@@ -40,12 +42,12 @@ export default function EstimateForm({ initialData = null }) {
   const [items, setItems] = useState(
     initialData?.items?.length
       ? initialData.items.map(li => ({
-          type: li.type, title: li.title ?? '', description: li.description, quantity: li.quantity, unit_price: li.unit_price,
+          type: li.type, tax_category: li.tax_category ?? li.type, title: li.title ?? '', description: li.description, quantity: li.quantity, unit_price: li.unit_price,
           msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
           area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
           photoFile: null, photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
         }))
-      : [{ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]
+      : [{ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -55,6 +57,7 @@ export default function EstimateForm({ initialData = null }) {
     supabase.from('clients').select('id, name, company, client_type').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('jobs').select('id, title, client_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+    supabase.from('tax_rules').select('client_type, line_item_type, rate').then(({ data }) => setTaxRules(data ?? []));
   }, []);
 
   // Catalog is fetched once per mount with no realtime subscription, so an item added in
@@ -92,7 +95,7 @@ export default function EstimateForm({ initialData = null }) {
               photoPreview = data?.signedUrl ?? null;
             }
             return {
-              type: li.type, title: li.title ?? '', description: li.description,
+              type: li.type, tax_category: li.tax_category ?? li.type, title: li.title ?? '', description: li.description,
               quantity: li.quantity, unit_price: li.unit_price,
               msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
               area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
@@ -109,11 +112,27 @@ export default function EstimateForm({ initialData = null }) {
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
-  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null, ...item }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', tax_category: 'product', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null, ...item }]);
+  async function addFromCatalog(catalogItem) {
+    let existingPhotoPath = null, photoPreview = null;
+    if (catalogItem.photo_url) {
+      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(catalogItem.photo_url, 3600);
+      existingPhotoPath = catalogItem.photo_url;
+      photoPreview = data?.signedUrl ?? null;
+    }
+    setItems(i => [...i, {
+      type: catalogItem.type, tax_category: catalogItem.tax_category,
+      title: catalogItem.name || '', description: catalogItem.description,
+      quantity: 1, unit_price: catalogItem.price ?? '', msrp: catalogItem.msrp ?? '', supplier_price: catalogItem.supplier_price ?? '',
+      exempt: false, area: '', vendor: catalogItem.vendor || '', catalog_item_id: catalogItem.id,
+      photoFile: null, photoPreview, existingPhotoPath,
+    }]);
+  }
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const duplicateItem = idx => setItems(i => [...i.slice(0, idx + 1), { ...i[idx] }, ...i.slice(idx + 1)]);
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
+  const setItemType = (idx, type) => setItems(i => i.map((it, n) => n === idx ? { ...it, type, tax_category: type === 'fee' ? (it.tax_category || 'labor') : type } : it));
   function handleItemPhoto(idx, file) {
     if (!file) return;
     setItems(i => i.map((it, n) => n === idx ? { ...it, photoFile: file, photoPreview: URL.createObjectURL(file), existingPhotoPath: null } : it));
@@ -129,7 +148,7 @@ export default function EstimateForm({ initialData = null }) {
     if (match) {
       setItems(i => i.map((it, n) => n === idx ? {
         ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, title: it.title || match.name || match.description,
+        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, title: it.title || match.name || match.description, tax_category: match.tax_category ?? it.tax_category,
       } : it));
       applyCatalogItemPhoto(idx, match);
     } else {
@@ -142,7 +161,7 @@ export default function EstimateForm({ initialData = null }) {
       setItems(i => i.map((it, n) => n === idx ? {
         ...it, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
         unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id,
+        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, tax_category: match.tax_category ?? it.tax_category,
       } : it));
       applyCatalogItemPhoto(idx, match);
     } else {
@@ -150,18 +169,7 @@ export default function EstimateForm({ initialData = null }) {
     }
   }
 
-  const calcTotals = () => {
-    let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
-    items.forEach(it => {
-      const base = (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0);
-      const rate = it.exempt ? 0 : (TAX[`${clientType}_${it.type}`] ?? 0.115);
-      if (it.type === 'product') { subProd += base; taxProd += base * rate; }
-      else { subLabor += base; taxLabor += base * rate; }
-    });
-    return { subProd, taxProd, subLabor, taxLabor, total: subProd + taxProd + subLabor + taxLabor };
-  };
-
-  const t = calcTotals();
+  const t = calcularIVU(items, clientType, taxRules);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
@@ -192,6 +200,20 @@ export default function EstimateForm({ initialData = null }) {
       propertyId = newProp.id;
     }
 
+    // estimates no tiene columna propia para "reembolso" — se pliega en
+    // subtotal_products (tasa 0%, no afecta tax_products). Ver la misma nota
+    // en app/facturas/InvoiceForm.js.
+    const productCat = t.categorias.find(c => c.codigo === 'product');
+    const laborCat = t.categorias.find(c => c.codigo === 'labor');
+    const reembolsoCat = t.categorias.find(c => c.codigo === 'reembolso');
+    const aggTotals = {
+      subtotal_products: productCat.base + reembolsoCat.base,
+      tax_products: productCat.impuesto + reembolsoCat.impuesto,
+      subtotal_labor: laborCat.base,
+      tax_labor: laborCat.impuesto,
+      total: t.total,
+    };
+
     let estimate;
     if (isEdit) {
       const { data: current } = await supabase.from('estimates').select('status').eq('id', initialData.estimate.id).single();
@@ -210,11 +232,7 @@ export default function EstimateForm({ initialData = null }) {
         issued_at: form.issued_at,
         valid_until: form.valid_until,
         bill_to: form.bill_to,
-        subtotal_products: t.subProd,
-        tax_products: t.taxProd,
-        subtotal_labor: t.subLabor,
-        tax_labor: t.taxLabor,
-        total: t.total,
+        ...aggTotals,
       }).eq('id', initialData.estimate.id).select().single();
       if (err) { setError(err.message); setSaving(false); return; }
       estimate = updated;
@@ -243,11 +261,7 @@ export default function EstimateForm({ initialData = null }) {
         valid_until: form.valid_until,
         status: 'draft',
         bill_to: form.bill_to,
-        subtotal_products: t.subProd,
-        tax_products: t.taxProd,
-        subtotal_labor: t.subLabor,
-        tax_labor: t.taxLabor,
-        total: t.total,
+        ...aggTotals,
       }]).select().single();
       if (err) { setError(err.message); setSaving(false); return; }
       estimate = created;
@@ -264,9 +278,9 @@ export default function EstimateForm({ initialData = null }) {
         if (!upErr) photoPath = path;
       }
       const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
-      const rate = i.exempt ? 0 : (TAX[`${clientType}_${i.type}`] ?? 0.115);
+      const rate = tasaParaLinea(i, clientType, taxRules);
       lineItems.push({
-        estimate_id: estimate.id, type: i.type, title: i.title || null, description: i.description,
+        estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description,
         quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
         msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
         supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -415,12 +429,15 @@ export default function EstimateForm({ initialData = null }) {
                   <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
                 </div>
               </div>
+              <div style={{ marginBottom: 16 }}>
+                <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+              </div>
 
               {items.map((item, idx) => (
                 <LineItemRow
                   key={idx}
                   type={item.type}
-                  onTypeChange={v => setItem(idx, 'type', v)}
+                  onTypeChange={v => setItemType(idx, v)}
                   title={item.title}
                   onTitleChange={v => handleTitleCatalogSelect(idx, v)}
                   description={item.description}
@@ -467,30 +484,14 @@ export default function EstimateForm({ initialData = null }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
-              {clientType === 'b2b' && (
-                <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
-                  Cliente B2B — Labor al 4%
-                </div>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>Subtotal productos</span><span>{fmt(t.subProd)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>IVU productos (11.5%)</span><span>{fmt(t.taxProd)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>Subtotal labor</span><span>{fmt(t.subLabor)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>IVU labor ({clientType === 'b2b' ? '4%' : '11.5%'})</span><span>{fmt(t.taxLabor)}</span>
-                </div>
-                <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '4px 0' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18 }}>
-                  <span>Total</span><span style={{ color: 'var(--navy)' }}>{fmt(t.total)}</span>
-                </div>
-              </div>
+              <TaxBreakdown
+                lineas={items} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                note={clientType === 'b2b' && (
+                  <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
+                    Cliente B2B — Labor al 4%
+                  </div>
+                )}
+              />
             </div>
             <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
               {saving ? 'Guardando...' : isEdit ? '💾 Guardar cambios' : '💾 Guardar estimado'}

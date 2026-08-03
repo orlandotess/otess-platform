@@ -4,11 +4,12 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../../Sidebar';
 import LineItemRow from '../../LineItemRow';
+import LineItemPicker from '../../LineItemPicker';
 import CableCalculator from '../../CableCalculator';
+import TaxBreakdown from '../../TaxBreakdown';
+import { calcularIVU } from '../../../lib/tax';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { localInputToIso } from '../../../lib/datetimeLocal';
-
-const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 
 export default function NuevoTrabajo() {
   return (
@@ -23,6 +24,7 @@ function NuevoTrabajoForm() {
   const searchParams = useSearchParams();
   const clientParam = searchParams.get('client');
   const [catalogItems, setCatalogItems] = useState([]);
+  const [taxRules, setTaxRules] = useState([]);
   const [clients, setClients] = useState([]);
   const [properties, setProperties] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -33,7 +35,7 @@ function NuevoTrabajoForm() {
     property_name: '', street: '', city: '', state: 'PR', zip: '',
     contact_name: '', contact_phone: '', contact_email: '',
   });
-  const [items, setItems] = useState([{ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
+  const [items, setItems] = useState([{ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showCableCalc, setShowCableCalc] = useState(false);
@@ -50,6 +52,7 @@ function NuevoTrabajoForm() {
   useEffect(() => {
     supabase.from('clients').select('id, name, client_type, company, report_name_source').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+    supabase.from('tax_rules').select('client_type, line_item_type, rate').then(({ data }) => setTaxRules(data ?? []));
   }, []);
 
   useEffect(() => {
@@ -70,7 +73,7 @@ function NuevoTrabajoForm() {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
       setItems(prev => prev.map((it, n) => n === idx ? {
-        ...it, type: match.type, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+        ...it, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
         vendor: it.vendor || match.vendor || '', title: it.title || match.name || match.description,
       } : it));
       applyCatalogItemPhoto(idx, match);
@@ -82,7 +85,7 @@ function NuevoTrabajoForm() {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
       setItems(prev => prev.map((it, n) => n === idx ? {
-        ...it, type: match.type, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
+        ...it, type: match.type, tax_category: match.tax_category, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
         unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
         vendor: it.vendor || match.vendor || '',
       } : it));
@@ -124,10 +127,26 @@ function NuevoTrabajoForm() {
   const hasCompany = !!selectedClient?.company;
   const selectedProperty = properties.find(p => p.id === form.property_id);
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null, existingPhotoPath: null }]);
-  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null, existingPhotoPath: null, ...item }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', tax_category: 'product', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null, existingPhotoPath: null, ...item }]);
+  async function addFromCatalog(catalogItem) {
+    let existingPhotoPath = null, photoPreview = null;
+    if (catalogItem.photo_url) {
+      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(catalogItem.photo_url, 3600);
+      existingPhotoPath = catalogItem.photo_url;
+      photoPreview = data?.signedUrl ?? null;
+    }
+    setItems(i => [...i, {
+      type: catalogItem.type, tax_category: catalogItem.tax_category,
+      title: catalogItem.name || '', description: catalogItem.description,
+      quantity: 1, unit_price: catalogItem.price ?? '', msrp: catalogItem.msrp ?? '', supplier_price: catalogItem.supplier_price ?? '',
+      exempt: false, area: '', vendor: catalogItem.vendor || '',
+      photoFile: null, photoPreview, existingPhotoPath,
+    }]);
+  }
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
+  const setItemType = (idx, type) => setItems(i => i.map((it, n) => n === idx ? { ...it, type, tax_category: type === 'fee' ? (it.tax_category || 'labor') : type } : it));
   function handleItemPhoto(idx, file) {
     if (!file) return;
     setItem(idx, 'photoFile', file);
@@ -135,19 +154,8 @@ function NuevoTrabajoForm() {
     setItem(idx, 'photoPreview', URL.createObjectURL(file));
   }
 
-  const calcTotals = () => {
-    let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
-    items.forEach(it => {
-      const base = (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0);
-      const rate = TAX[`${clientType}_${it.type}`] ?? 0.115;
-      if (it.type === 'product') { subProd += base; taxProd += base * rate; }
-      else { subLabor += base; taxLabor += base * rate; }
-    });
-    return { subProd, taxProd, subLabor, taxLabor, total: subProd + taxProd + subLabor + taxLabor };
-  };
-
-  const t = calcTotals();
-  const fmt = n => `$${n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+  const t = calcularIVU(items, clientType, taxRules);
+  const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
   const materialOptions = [...new Map(items.filter(i => i.description).map(i => [i.description.trim().toLowerCase(), i.description.trim()])).values()];
@@ -219,7 +227,7 @@ function NuevoTrabajoForm() {
             if (!upErr) photoPath = path;
           }
           lineItems.push({
-            job_id: job.id, type: i.type, title: i.title || null, description: i.description,
+            job_id: job.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description,
             quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
             msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
             supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -512,11 +520,14 @@ function NuevoTrabajoForm() {
                       <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
                     </div>
                   </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+                  </div>
                   {items.map((item, idx) => (
                     <LineItemRow
                       key={idx}
                       type={item.type}
-                      onTypeChange={v => setItem(idx, 'type', v)}
+                      onTypeChange={v => setItemType(idx, v)}
                       title={item.title}
                       onTitleChange={v => handleTitleSelect(idx, v)}
                       description={item.description}
@@ -565,30 +576,14 @@ function NuevoTrabajoForm() {
           {!quickMode && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div className="card">
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
-                {clientType === 'b2b' && (
-                  <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
-                    Cliente B2B — Labor al 4%
-                  </div>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
-                  {[
-                    { label: 'Subtotal productos', value: t.subProd },
-                    { label: 'IVU productos (11.5%)', value: t.taxProd },
-                    { label: 'Subtotal labor', value: t.subLabor },
-                    { label: `IVU labor (${clientType === 'b2b' ? '4%' : '11.5%'})`, value: t.taxLabor },
-                  ].map(r => (
-                    <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--muted)' }}>{r.label}</span>
-                      <span>{fmt(r.value)}</span>
+                <TaxBreakdown
+                  lineas={items} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                  note={clientType === 'b2b' && (
+                    <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
+                      Cliente B2B — Labor al 4%
                     </div>
-                  ))}
-                  <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '4px 0' }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 16 }}>
-                    <span>Total</span>
-                    <span style={{ color: 'var(--navy)' }}>{fmt(t.total)}</span>
-                  </div>
-                </div>
+                  )}
+                />
               </div>
               <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
                 {saving ? 'Guardando...' : 'Guardar trabajo'}

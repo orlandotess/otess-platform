@@ -177,7 +177,7 @@ export default function LineItemRow({
       <div style={{ flex: 1, minWidth: 0 }}>
         {viewMode ? (
           <>
-            <span className={`badge ${type === 'labor' ? 'badge-amber' : 'badge-gray'}`}>{type === 'labor' ? 'Labor' : 'Producto'}</span>
+            <span className={`badge ${type === 'labor' ? 'badge-amber' : type === 'fee' ? 'badge-dark' : 'badge-gray'}`}>{type === 'labor' ? 'Labor' : type === 'fee' ? 'Fee' : 'Producto'}</span>
             {exempt && <span className="badge badge-gray" style={{ marginLeft: 6 }}>Exento</span>}
             {warrantyStatus && (
               <span
@@ -200,6 +200,7 @@ export default function LineItemRow({
               <select value={type} onChange={e => onTypeChange(e.target.value)} style={{ fontSize: 11, padding: '3px 6px', width: 90 }}>
                 <option value="labor">Labor</option>
                 <option value="product">Producto</option>
+                <option value="fee">Fee</option>
               </select>
             </div>
             {onTitleChange && (

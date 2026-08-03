@@ -6,10 +6,11 @@ import Sidebar from '../../../Sidebar';
 import RecurringInvoiceDetailClient from './RecurringInvoiceDetailClient';
 
 export default async function FacturaRecurrenteDetailPage({ params }) {
-  const [{ data: recurring }, { data: clients }, { data: history }] = await Promise.all([
+  const [{ data: recurring }, { data: clients }, { data: history }, { data: taxRules }] = await Promise.all([
     supabase.from('recurring_invoices').select('*, clients(name, email, company, client_type), recurring_invoice_items(*)').eq('id', params.id).single(),
     supabase.from('clients').select('id, name, company, client_type, email').order('name'),
     supabase.from('invoices').select('id, invoice_number, status, total, issued_at, due_at').eq('recurring_invoice_id', params.id).order('issued_at', { ascending: false }),
+    supabase.from('tax_rules').select('client_type, line_item_type, rate'),
   ]);
 
   if (!recurring) {
@@ -27,7 +28,7 @@ export default async function FacturaRecurrenteDetailPage({ params }) {
     <div className="admin-shell ds-facturas">
       <Sidebar />
       <main className="main-content">
-        <RecurringInvoiceDetailClient recurring={recurring} clients={clients ?? []} history={history ?? []} />
+        <RecurringInvoiceDetailClient recurring={recurring} clients={clients ?? []} history={history ?? []} taxRules={taxRules ?? []} />
       </main>
     </div>
   );

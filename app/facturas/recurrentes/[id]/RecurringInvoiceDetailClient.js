@@ -1,19 +1,21 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '../../../../lib/supabase';
 import LineItemRow from '../../../LineItemRow';
+import LineItemPicker from '../../../LineItemPicker';
 import ClientCombobox from '../../nueva/ClientCombobox';
+import TaxBreakdown from '../../../TaxBreakdown';
+import { calcularIVU } from '../../../../lib/tax';
 
-const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
 const STATUS_BADGE = { draft: { cls: 'badge-gray', label: 'Borrador' }, sent: { cls: 'badge-blue', label: 'Enviada' }, paid: { cls: 'badge-green', label: 'Pagada' }, cancelled: { cls: 'badge-red', label: 'Cancelada' } };
 
 function toInputItem(it) {
-  return { key: it.id, type: it.type, description: it.description, quantity: it.quantity, unit_price: it.unit_price, exempt: it.exempt };
+  return { key: it.id, type: it.type, tax_category: it.tax_category ?? it.type, description: it.description, quantity: it.quantity, unit_price: it.unit_price, exempt: it.exempt };
 }
 
-export default function RecurringInvoiceDetailClient({ recurring, clients, history }) {
+export default function RecurringInvoiceDetailClient({ recurring, clients, history, taxRules = [] }) {
   const router = useRouter();
   const [form, setForm] = useState({
     client_id: recurring.client_id, bill_to: recurring.bill_to, notes: recurring.notes ?? '', terms: recurring.terms ?? '',
@@ -23,28 +25,27 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [catalogItems, setCatalogItems] = useState([]);
+
+  useEffect(() => {
+    supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+  }, []);
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaved(false); };
   const selectedClient = clients.find(c => c.id === form.client_id);
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { key: Math.random().toString(36).slice(2), type: 'labor', description: '', quantity: 1, unit_price: '', exempt: false }]);
+  const addItem = () => setItems(i => [...i, { key: Math.random().toString(36).slice(2), type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', exempt: false }]);
+  const addFromCatalog = catalogItem => setItems(i => [...i, {
+    key: Math.random().toString(36).slice(2), type: catalogItem.type, tax_category: catalogItem.tax_category,
+    description: catalogItem.description, quantity: 1, unit_price: catalogItem.price ?? '', exempt: false,
+  }]);
   const removeItem = key => setItems(i => i.filter(it => it.key !== key));
   const setItem = (key, k, v) => { setItems(i => i.map(it => it.key === key ? { ...it, [k]: v } : it)); setSaved(false); };
+  const setItemType = (key, type) => { setItems(i => i.map(it => it.key === key ? { ...it, type, tax_category: type === 'fee' ? (it.tax_category || 'labor') : type } : it)); setSaved(false); };
 
-  const calcTotals = () => {
-    let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
-    items.forEach(it => {
-      const base = (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0);
-      const rate = it.exempt ? 0 : (TAX[`${clientType}_${it.type}`] ?? 0.115);
-      if (it.type === 'product') { subProd += base; taxProd += base * rate; }
-      else { subLabor += base; taxLabor += base * rate; }
-    });
-    return { subProd, taxProd, subLabor, taxLabor, total: subProd + taxProd + subLabor + taxLabor };
-  };
-
-  const t = calcTotals();
+  const t = calcularIVU(items, clientType, taxRules);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   async function handleSave() {
@@ -71,7 +72,7 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
 
     await supabase.from('recurring_invoice_items').delete().eq('recurring_invoice_id', recurring.id);
     const lineItems = items.filter(i => i.description.trim()).map((i, idx) => ({
-      recurring_invoice_id: recurring.id, type: i.type, description: i.description,
+      recurring_invoice_id: recurring.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description,
       quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
       exempt: i.exempt, sort_order: idx,
     }));
@@ -161,11 +162,14 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de factura</p>
               <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
             </div>
+            <div style={{ marginBottom: 16 }}>
+              <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+            </div>
             {items.map(item => (
               <LineItemRow
                 key={item.key}
                 type={item.type}
-                onTypeChange={v => setItem(item.key, 'type', v)}
+                onTypeChange={v => setItemType(item.key, v)}
                 description={item.description}
                 onDescriptionChange={v => setItem(item.key, 'description', v)}
                 quantity={item.quantity}
@@ -218,22 +222,14 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
-            {clientType === 'b2b' && (
-              <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
-                Cliente B2B — Labor al 4%
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Subtotal productos</span><span>{fmt(t.subProd)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>IVU productos (11.5%)</span><span>{fmt(t.taxProd)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>Subtotal labor</span><span>{fmt(t.subLabor)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--muted)' }}>IVU labor ({clientType === 'b2b' ? '4%' : '11.5%'})</span><span>{fmt(t.taxLabor)}</span></div>
-              <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '4px 0' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18 }}>
-                <span>Total por envío</span><span style={{ color: 'var(--navy)' }}>{fmt(t.total)}</span>
-              </div>
-            </div>
+            <TaxBreakdown
+              lineas={items} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+              note={clientType === 'b2b' && (
+                <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
+                  Cliente B2B — Labor al 4%
+                </div>
+              )}
+            />
           </div>
           <button type="button" className="btn btn-primary" disabled={saving} onClick={handleSave} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
             {saving ? 'Guardando...' : saved ? '✓ Guardado' : 'Guardar cambios'}

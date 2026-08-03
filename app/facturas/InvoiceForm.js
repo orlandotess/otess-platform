@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
 import ClientCombobox from './nueva/ClientCombobox';
 import LineItemRow from '../LineItemRow';
-
-const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
+import LineItemPicker from '../LineItemPicker';
+import TaxBreakdown from '../TaxBreakdown';
+import { calcularIVU, tasaParaLinea } from '../../lib/tax';
 
 const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
 
@@ -25,6 +26,7 @@ export default function InvoiceForm({ initialData = null }) {
   const [clients, setClients] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
+  const [taxRules, setTaxRules] = useState([]);
   const [form, setForm] = useState(initialData ? {
     client_id: initialData.invoice.client_id ?? '', job_id: initialData.invoice.job_id ?? '',
     notes: initialData.invoice.notes ?? '', work_description: initialData.invoice.work_description ?? '',
@@ -40,12 +42,12 @@ export default function InvoiceForm({ initialData = null }) {
   const [items, setItems] = useState(
     initialData?.items?.length
       ? initialData.items.map(li => ({
-          type: li.type, title: li.title ?? '', description: li.description, quantity: li.quantity, unit_price: li.unit_price,
+          type: li.type, tax_category: li.tax_category ?? li.type, title: li.title ?? '', description: li.description, quantity: li.quantity, unit_price: li.unit_price,
           msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
           catalog_item_id: li.catalog_item_id ?? null,
           photoFile: null, photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
         }))
-      : [{ type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]
+      : [{ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -62,6 +64,7 @@ export default function InvoiceForm({ initialData = null }) {
     supabase.from('clients').select('id, name, company, client_type, report_name_source').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('jobs').select('id, title, description, client_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+    supabase.from('tax_rules').select('client_type, line_item_type, rate').then(({ data }) => setTaxRules(data ?? []));
     if (!isEdit) {
       supabase.from('invoices').select('invoice_number').then(({ data }) => {
         let maxNum = 999;
@@ -90,7 +93,7 @@ export default function InvoiceForm({ initialData = null }) {
               photoPreview = data?.signedUrl ?? null;
             }
             return {
-              type: li.type, title: li.title ?? '', description: li.description,
+              type: li.type, tax_category: li.tax_category ?? li.type, title: li.title ?? '', description: li.description,
               quantity: li.quantity, unit_price: li.unit_price,
               msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
               catalog_item_id: li.catalog_item_id ?? null,
@@ -107,9 +110,29 @@ export default function InvoiceForm({ initialData = null }) {
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
+  async function addFromCatalog(catalogItem) {
+    let existingPhotoPath = null, photoPreview = null;
+    if (catalogItem.photo_url) {
+      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(catalogItem.photo_url, 3600);
+      existingPhotoPath = catalogItem.photo_url;
+      photoPreview = data?.signedUrl ?? null;
+    }
+    setItems(i => [...i, {
+      type: catalogItem.type, tax_category: catalogItem.tax_category,
+      title: catalogItem.name || '', description: catalogItem.description,
+      quantity: 1, unit_price: catalogItem.price ?? '', msrp: catalogItem.msrp ?? '', supplier_price: catalogItem.supplier_price ?? '',
+      exempt: false, catalog_item_id: catalogItem.id,
+      photoFile: null, photoPreview, existingPhotoPath,
+    }]);
+  }
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
+  // Labor/Producto gravan 1:1 con su propio tipo — tax_category sigue al tipo
+  // automáticamente. Fee puede gravar como cualquiera de las 3 categorías, así
+  // que al cambiar a "fee" a mano se conserva la categoría que ya tuviera (o
+  // 'labor' por defecto) hasta que el usuario la ajuste o elija del catálogo.
+  const setItemType = (idx, type) => setItems(i => i.map((it, n) => n === idx ? { ...it, type, tax_category: type === 'fee' ? (it.tax_category || 'labor') : type } : it));
   function handleItemPhoto(idx, file) {
     if (!file) return;
     setItems(i => i.map((it, n) => n === idx ? { ...it, photoFile: file, photoPreview: URL.createObjectURL(file), existingPhotoPath: null } : it));
@@ -127,7 +150,7 @@ export default function InvoiceForm({ initialData = null }) {
     if (match) {
       setItems(i => i.map((it, n) => n === idx ? {
         ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        catalog_item_id: match.id, title: it.title || match.name || match.description,
+        catalog_item_id: match.id, title: it.title || match.name || match.description, tax_category: match.tax_category ?? it.tax_category,
       } : it));
       applyCatalogItemPhoto(idx, match);
     } else {
@@ -140,7 +163,7 @@ export default function InvoiceForm({ initialData = null }) {
       setItems(i => i.map((it, n) => n === idx ? {
         ...it, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
         unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        catalog_item_id: match.id,
+        catalog_item_id: match.id, tax_category: match.tax_category ?? it.tax_category,
       } : it));
       applyCatalogItemPhoto(idx, match);
     } else {
@@ -148,18 +171,7 @@ export default function InvoiceForm({ initialData = null }) {
     }
   }
 
-  const calcTotals = () => {
-    let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
-    items.forEach(it => {
-      const base = (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0);
-      const rate = it.exempt ? 0 : (TAX[`${clientType}_${it.type}`] ?? 0.115);
-      if (it.type === 'product') { subProd += base; taxProd += base * rate; }
-      else { subLabor += base; taxLabor += base * rate; }
-    });
-    return { subProd, taxProd, subLabor, taxLabor, total: subProd + taxProd + subLabor + taxLabor };
-  };
-
-  const t = calcTotals();
+  const t = calcularIVU(items, clientType, taxRules);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   async function handleSubmit(e) {
@@ -183,6 +195,23 @@ export default function InvoiceForm({ initialData = null }) {
 
     setSaving(true); setError('');
 
+    // invoices no tiene columnas propias para "reembolso" — se pliega en
+    // subtotal_products (pass-through a costo, tasa 0% así que no afecta
+    // tax_products) en vez de abrir una migración más grande sobre las 7
+    // tablas de documentos solo para esta categoría, hoy usada por 1 de 11
+    // fees. El total de la factura sigue siendo exacto; lib/ivu.js (reportes
+    // de /accounting) no cambia su comportamiento.
+    const productCat = t.categorias.find(c => c.codigo === 'product');
+    const laborCat = t.categorias.find(c => c.codigo === 'labor');
+    const reembolsoCat = t.categorias.find(c => c.codigo === 'reembolso');
+    const aggTotals = {
+      subtotal_products: productCat.base + reembolsoCat.base,
+      tax_products: productCat.impuesto + reembolsoCat.impuesto,
+      subtotal_labor: laborCat.base,
+      tax_labor: laborCat.impuesto,
+      total: t.total,
+    };
+
     let invoice;
     if (isEdit) {
       const { data: current } = await supabase.from('invoices').select('status').eq('id', initialData.invoice.id).single();
@@ -200,11 +229,7 @@ export default function InvoiceForm({ initialData = null }) {
         issued_at: form.issued_at,
         due_at: form.due_at,
         bill_to: form.bill_to,
-        subtotal_products: t.subProd,
-        tax_products: t.taxProd,
-        subtotal_labor: t.subLabor,
-        tax_labor: t.taxLabor,
-        total: t.total,
+        ...aggTotals,
       }).eq('id', initialData.invoice.id).select().single();
       if (err) { setError(err.message); setSaving(false); return; }
       invoice = updated;
@@ -238,11 +263,7 @@ export default function InvoiceForm({ initialData = null }) {
         due_at: form.due_at,
         status: 'draft',
         bill_to: form.bill_to,
-        subtotal_products: t.subProd,
-        tax_products: t.taxProd,
-        subtotal_labor: t.subLabor,
-        tax_labor: t.taxLabor,
-        total: t.total,
+        ...aggTotals,
       }]).select().single();
       if (err) { setError(err.message); setSaving(false); return; }
       invoice = created;
@@ -259,9 +280,9 @@ export default function InvoiceForm({ initialData = null }) {
         if (!upErr) photoPath = path;
       }
       const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
-      const rate = i.exempt ? 0 : (TAX[`${clientType}_${i.type}`] ?? 0.115);
+      const rate = tasaParaLinea(i, clientType, taxRules);
       lineItems.push({
-        invoice_id: invoice.id, type: i.type, title: i.title || null, description: i.description,
+        invoice_id: invoice.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description,
         quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
         msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
         supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -372,12 +393,15 @@ export default function InvoiceForm({ initialData = null }) {
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de factura</p>
                 <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
               </div>
+              <div style={{ marginBottom: 16 }}>
+                <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+              </div>
 
               {items.map((item, idx) => (
                 <LineItemRow
                   key={idx}
                   type={item.type}
-                  onTypeChange={v => setItem(idx, 'type', v)}
+                  onTypeChange={v => setItemType(idx, v)}
                   title={item.title}
                   onTitleChange={v => handleTitleCatalogSelect(idx, v)}
                   description={item.description}
@@ -426,30 +450,14 @@ export default function InvoiceForm({ initialData = null }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
-              {clientType === 'b2b' && (
-                <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
-                  Cliente B2B — Labor al 4%
-                </div>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>Subtotal productos</span><span>{fmt(t.subProd)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>IVU productos (11.5%)</span><span>{fmt(t.taxProd)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>Subtotal labor</span><span>{fmt(t.subLabor)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>IVU labor ({clientType === 'b2b' ? '4%' : '11.5%'})</span><span>{fmt(t.taxLabor)}</span>
-                </div>
-                <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '4px 0' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18 }}>
-                  <span>Total</span><span style={{ color: 'var(--navy)' }}>{fmt(t.total)}</span>
-                </div>
-              </div>
+              <TaxBreakdown
+                lineas={items} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                note={clientType === 'b2b' && (
+                  <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
+                    Cliente B2B — Labor al 4%
+                  </div>
+                )}
+              />
             </div>
             <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
               {saving ? 'Guardando...' : isEdit ? '💾 Guardar cambios' : '💾 Guardar factura'}

@@ -1,8 +1,11 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import LineItemRow from '../../LineItemRow';
+import LineItemPicker from '../../LineItemPicker';
+import TaxBreakdown from '../../TaxBreakdown';
+import { calcularIVU } from '../../../lib/tax';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDateTimePR } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
@@ -13,9 +16,7 @@ const statusOptions = [
   { value: 'evaluacion_completa', label: 'Evaluación completa' },
 ];
 
-const TAX_RATES = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
-
-export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls, clientProperties = [], clientContacts = [], technicians = [], currentRole = null }) {
+export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls, clientProperties = [], clientContacts = [], technicians = [], taxRules = [], currentRole = null }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const clientType = solicitud.clients?.client_type ?? 'final';
@@ -248,12 +249,41 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
   // --- Líneas ---
   const [lineItems, setLineItems] = useState(items);
   const [addingLine, setAddingLine] = useState(false);
-  const [newLine, setNewLine] = useState({ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
+  const [newLine, setNewLine] = useState({ type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
   const [savingLine, setSavingLine] = useState(false);
+  const [catalogItems, setCatalogItems] = useState([]);
+
+  useEffect(() => {
+    supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+  }, []);
+
+  // Alta directa desde el catálogo (LineItemPicker) — se guarda de una vez,
+  // igual que addLineItem, en vez de pasar por el formulario "+ Agregar línea".
+  async function addLineItemFromCatalog(catalogItem) {
+    setSavingLine(true);
+    let photoPath = null, photoSignedUrl = null;
+    if (catalogItem.photo_url) {
+      const { data: signed } = await supabase.storage.from('Job-photos').createSignedUrl(catalogItem.photo_url, 3600);
+      photoPath = catalogItem.photo_url;
+      photoSignedUrl = signed?.signedUrl ?? null;
+    }
+    const { data } = await supabase.from('solicitud_line_items').insert([{
+      solicitud_id: solicitud.id, type: catalogItem.type, tax_category: catalogItem.tax_category,
+      description: catalogItem.description, quantity: 1, unit_price: catalogItem.price ?? 0,
+      msrp: catalogItem.msrp ?? null, supplier_price: catalogItem.supplier_price ?? null,
+      exempt_reason: null, area: null, vendor: catalogItem.vendor || null,
+      photo_url: photoPath, sort_order: lineItems.length,
+    }]).select().single();
+    if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: photoSignedUrl }]);
+    setSavingLine(false);
+  }
 
   function handleNewLinePhoto(file) {
     if (!file) return;
     setNewLine(l => ({ ...l, photoFile: file, photoPreview: URL.createObjectURL(file) }));
+  }
+  function setNewLineType(type) {
+    setNewLine(l => ({ ...l, type, tax_category: type === 'fee' ? (l.tax_category || 'labor') : type }));
   }
 
   async function addLineItem() {
@@ -267,7 +297,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
       if (!upErr) photoPath = path;
     }
     const { data } = await supabase.from('solicitud_line_items').insert([{
-      solicitud_id: solicitud.id, type: newLine.type, description: newLine.description.trim(),
+      solicitud_id: solicitud.id, type: newLine.type, tax_category: newLine.tax_category || newLine.type, description: newLine.description.trim(),
       quantity: parseFloat(newLine.quantity) || 1, unit_price: parseFloat(newLine.unit_price) || 0,
       msrp: newLine.msrp !== '' ? parseFloat(newLine.msrp) : null,
       supplier_price: newLine.supplier_price !== '' ? parseFloat(newLine.supplier_price) : null,
@@ -276,7 +306,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
       photo_url: photoPath, sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
-    setNewLine({ type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
+    setNewLine({ type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
     setAddingLine(false);
     setSavingLine(false);
   }
@@ -286,14 +316,6 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
     setLineItems(prev => prev.filter(i => i.id !== itemId));
   }
 
-  let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
-  lineItems.forEach(it => {
-    const base = Number(it.quantity) * Number(it.unit_price);
-    const rate = it.exempt_reason ? 0 : (TAX_RATES[`${clientType}_${it.type}`] ?? 0.115);
-    if (it.type === 'product') { subProd += base; taxProd += base * rate; }
-    else { subLabor += base; taxLabor += base * rate; }
-  });
-  const total = subProd + taxProd + subLabor + taxLabor;
 
   // --- Notas ---
   const [notesList, setNotesList] = useState(notes);
@@ -569,6 +591,11 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
             <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Producto / Servicio</p>
             <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setAddingLine(true)}>+ Agregar línea</button>
           </div>
+          {!isTecnico && (
+            <div style={{ marginBottom: 16 }}>
+              <LineItemPicker catalogOptions={catalogItems} onSelect={addLineItemFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+            </div>
+          )}
           {lineItems.map(item => (
             <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
               <div>
@@ -586,9 +613,9 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
           {addingLine && (
             <div style={{ marginTop: 12, overflowX: 'auto' }}>
               <LineItemRow
-                type={newLine.type} onTypeChange={v => setNewLine(l => ({ ...l, type: v }))}
+                type={newLine.type} onTypeChange={setNewLineType}
                 description={newLine.description} onDescriptionChange={v => setNewLine(l => ({ ...l, description: v }))}
-                catalogOptions={[]} datalistId="new-line"
+                catalogOptions={catalogItems} datalistId="new-line"
                 quantity={newLine.quantity} onQuantityChange={v => setNewLine(l => ({ ...l, quantity: v }))}
                 msrp={newLine.msrp} onMsrpChange={v => setNewLine(l => ({ ...l, msrp: v }))}
                 unitPrice={newLine.unit_price} onUnitPriceChange={v => setNewLine(l => ({ ...l, unit_price: v }))}
@@ -697,25 +724,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
 
         {!isTecnico && lineItems.length > 0 && (
           <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
-              {[
-                { label: 'Subtotal productos', value: subProd },
-                { label: 'IVU productos', value: taxProd },
-                { label: 'Subtotal labor', value: subLabor },
-                { label: 'IVU labor', value: taxLabor },
-              ].map(r => (
-                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>{r.label}</span>
-                  <span>{fmt(r.value)}</span>
-                </div>
-              ))}
-              <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '4px 0' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 16 }}>
-                <span>Total</span>
-                <span style={{ color: 'var(--navy)' }}>{fmt(total)}</span>
-              </div>
-            </div>
+            <TaxBreakdown lineas={lineItems} clientType={clientType} taxRules={taxRules} title="Resumen IVU" />
           </div>
         )}
       </div>

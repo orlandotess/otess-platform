@@ -19,11 +19,12 @@ export default async function SolicitudDetail({ params }) {
   const currentRole = await getCurrentRole();
   const isTecnico = currentRole === 'tecnico';
 
-  const [{ data: solicitud }, { data: items }, { data: notes }, { data: technicians }] = await Promise.all([
+  const [{ data: solicitud }, { data: items }, { data: notes }, { data: technicians }, { data: taxRules }] = await Promise.all([
     supabase.from('solicitudes').select('*, clients(name, email, phone, client_type, company), jobs:converted_to_job_id(id, job_number, title), technicians(name), solicitud_technicians(technician_id, technicians(name))').eq('id', id).single(),
     supabase.from('solicitud_line_items').select('*').eq('solicitud_id', id).order('sort_order'),
     supabase.from('solicitud_notes').select('*').eq('solicitud_id', id).order('created_at', { ascending: false }),
     supabase.from('technicians').select('id, name').order('name'),
+    supabase.from('tax_rules').select('client_type, line_item_type, rate'),
   ]);
 
   if (!solicitud) {
@@ -113,6 +114,7 @@ export default async function SolicitudDetail({ params }) {
         clientProperties={clientProperties ?? []}
         clientContacts={clientContacts ?? []}
         technicians={technicians ?? []}
+        taxRules={taxRules ?? []}
         currentRole={currentRole}
       />
     </>

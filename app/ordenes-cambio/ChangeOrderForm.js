@@ -4,13 +4,14 @@ import { supabase } from '../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
 import LineItemRow from '../LineItemRow';
-
-const TAX = { final_product: 0.115, final_labor: 0.115, b2b_product: 0.115, b2b_labor: 0.04 };
+import LineItemPicker from '../LineItemPicker';
+import TaxBreakdown from '../TaxBreakdown';
+import { calcularIVU, tasaParaLinea } from '../../lib/tax';
 
 const DEFAULT_TERMS = `Esta orden de cambio representa trabajo adicional o modificado fuera del alcance original acordado. Al aprobarla, el cliente autoriza a OTESS a proceder con el trabajo descrito y acepta el cargo adicional indicado.`;
 
 function emptyItem() {
-  return { type: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
+  return { type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
 }
 
 export default function ChangeOrderForm({ initialData = null }) {
@@ -27,6 +28,7 @@ export default function ChangeOrderForm({ initialData = null }) {
     client_type: initialData.order.clients?.client_type,
   } : null);
   const [catalogItems, setCatalogItems] = useState([]);
+  const [taxRules, setTaxRules] = useState([]);
   const [title, setTitle] = useState(initialData?.order.title ?? '');
   const [preparedBy, setPreparedBy] = useState(initialData?.order.prepared_by ?? '');
   const [introNote, setIntroNote] = useState(initialData?.order.intro_note ?? '');
@@ -37,7 +39,7 @@ export default function ChangeOrderForm({ initialData = null }) {
   const [items, setItems] = useState(
     initialData?.items?.length
       ? initialData.items.map(li => ({
-          type: li.type, description: li.description, quantity: li.quantity, unit_price: li.unit_price,
+          type: li.type, tax_category: li.tax_category ?? li.type, description: li.description, quantity: li.quantity, unit_price: li.unit_price,
           msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
           area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
           photoFile: null, photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
@@ -49,6 +51,7 @@ export default function ChangeOrderForm({ initialData = null }) {
 
   useEffect(() => {
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
+    supabase.from('tax_rules').select('client_type, line_item_type, rate').then(({ data }) => setTaxRules(data ?? []));
     if (!isEdit && jobIdParam) {
       supabase.from('jobs').select('id, title, client_id, bill_to, clients(name, client_type)').eq('id', jobIdParam).single().then(({ data }) => {
         if (data) { setJob({ id: data.id, title: data.title, client_id: data.client_id, client_name: data.clients?.name, client_type: data.clients?.client_type }); setBillTo(data.bill_to ?? 'person'); }
@@ -57,8 +60,24 @@ export default function ChangeOrderForm({ initialData = null }) {
   }, []);
 
   const addItem = () => setItems(i => [...i, emptyItem()]);
+  async function addFromCatalog(catalogItem) {
+    let existingPhotoPath = null, photoPreview = null;
+    if (catalogItem.photo_url) {
+      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(catalogItem.photo_url, 3600);
+      existingPhotoPath = catalogItem.photo_url;
+      photoPreview = data?.signedUrl ?? null;
+    }
+    setItems(i => [...i, {
+      type: catalogItem.type, tax_category: catalogItem.tax_category,
+      description: catalogItem.description, quantity: 1, unit_price: catalogItem.price ?? '',
+      msrp: catalogItem.msrp ?? '', supplier_price: catalogItem.supplier_price ?? '',
+      exempt: false, area: '', vendor: catalogItem.vendor || '', catalog_item_id: catalogItem.id,
+      photoFile: null, photoPreview, existingPhotoPath,
+    }]);
+  }
   const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
+  const setItemType = (idx, type) => setItems(i => i.map((it, n) => n === idx ? { ...it, type, tax_category: type === 'fee' ? (it.tax_category || 'labor') : type } : it));
   function handleItemPhoto(idx, file) {
     if (!file) return;
     setItems(i => i.map((it, n) => n === idx ? { ...it, photoFile: file, photoPreview: URL.createObjectURL(file), existingPhotoPath: null } : it));
@@ -74,7 +93,7 @@ export default function ChangeOrderForm({ initialData = null }) {
     if (match) {
       setItems(i => i.map((it, n) => n === idx ? {
         ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id,
+        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, tax_category: match.tax_category ?? it.tax_category,
       } : it));
       applyCatalogItemPhoto(idx, match);
     } else {
@@ -83,17 +102,7 @@ export default function ChangeOrderForm({ initialData = null }) {
   }
 
   const clientType = job?.client_type === 'b2b' ? 'b2b' : 'final';
-  const calcTotals = () => {
-    let subProd = 0, taxProd = 0, subLabor = 0, taxLabor = 0;
-    items.forEach(it => {
-      const base = (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0);
-      const rate = it.exempt ? 0 : (TAX[`${clientType}_${it.type}`] ?? 0.115);
-      if (it.type === 'product') { subProd += base; taxProd += base * rate; }
-      else { subLabor += base; taxLabor += base * rate; }
-    });
-    return { subProd, taxProd, subLabor, taxLabor, total: subProd + taxProd + subLabor + taxLabor };
-  };
-  const t = calcTotals();
+  const t = calcularIVU(items, clientType, taxRules);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
@@ -105,6 +114,20 @@ export default function ChangeOrderForm({ initialData = null }) {
     if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
     if (items.some(i => !i.description.trim())) { setError('Todas las líneas necesitan una descripción antes de guardar.'); return; }
     setSaving(true); setError('');
+
+    // change_orders no tiene columna propia para "reembolso" — se pliega en
+    // subtotal_products (tasa 0%, no afecta tax_products). Misma nota que en
+    // app/facturas/InvoiceForm.js.
+    const productCat = t.categorias.find(c => c.codigo === 'product');
+    const laborCat = t.categorias.find(c => c.codigo === 'labor');
+    const reembolsoCat = t.categorias.find(c => c.codigo === 'reembolso');
+    const aggTotals = {
+      subtotal_products: productCat.base + reembolsoCat.base,
+      tax_products: productCat.impuesto + reembolsoCat.impuesto,
+      subtotal_labor: laborCat.base,
+      tax_labor: laborCat.impuesto,
+      total: t.total,
+    };
 
     let order;
     if (isEdit) {
@@ -122,8 +145,7 @@ export default function ChangeOrderForm({ initialData = null }) {
         bill_to: billTo,
         valid_until: validUntil || null,
         terms: terms || null,
-        subtotal_products: t.subProd, tax_products: t.taxProd,
-        subtotal_labor: t.subLabor, tax_labor: t.taxLabor, total: t.total,
+        ...aggTotals,
       }).eq('id', initialData.order.id).select().single();
       if (err) { setError(err.message); setSaving(false); return; }
       order = updated;
@@ -147,8 +169,7 @@ export default function ChangeOrderForm({ initialData = null }) {
         bill_to: billTo,
         valid_until: validUntil || null,
         terms: terms || null,
-        subtotal_products: t.subProd, tax_products: t.taxProd,
-        subtotal_labor: t.subLabor, tax_labor: t.taxLabor, total: t.total,
+        ...aggTotals,
       }]).select().single();
       if (err) { setError(err.message); setSaving(false); return; }
       order = created;
@@ -165,9 +186,9 @@ export default function ChangeOrderForm({ initialData = null }) {
         if (!upErr) photoPath = path;
       }
       const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
-      const rate = i.exempt ? 0 : (TAX[`${clientType}_${i.type}`] ?? 0.115);
+      const rate = tasaParaLinea(i, clientType, taxRules);
       lineItems.push({
-        change_order_id: order.id, type: i.type, description: i.description,
+        change_order_id: order.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description,
         quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
         msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
         supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -236,11 +257,14 @@ export default function ChangeOrderForm({ initialData = null }) {
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de la orden de cambio</p>
                 <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
               </div>
+              <div style={{ marginBottom: 16 }}>
+                <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+              </div>
               {items.map((item, idx) => (
                 <LineItemRow
                   key={idx}
                   type={item.type}
-                  onTypeChange={v => setItem(idx, 'type', v)}
+                  onTypeChange={v => setItemType(idx, v)}
                   description={item.description}
                   onDescriptionChange={v => handleCatalogSelect(idx, v)}
                   catalogOptions={catalogItems.filter(c => c.type === item.type && !c.internal_only)}
@@ -275,25 +299,7 @@ export default function ChangeOrderForm({ initialData = null }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Resumen IVU</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>Subtotal productos</span><span>{fmt(t.subProd)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>IVU productos (11.5%)</span><span>{fmt(t.taxProd)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>Subtotal labor</span><span>{fmt(t.subLabor)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--muted)' }}>IVU labor ({clientType === 'b2b' ? '4%' : '11.5%'})</span><span>{fmt(t.taxLabor)}</span>
-                </div>
-                <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '4px 0' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18 }}>
-                  <span>Total</span><span style={{ color: 'var(--navy)' }}>{fmt(t.total)}</span>
-                </div>
-              </div>
+              <TaxBreakdown lineas={items} clientType={clientType} taxRules={taxRules} title="Resumen IVU" />
             </div>
             <button type="submit" className="btn btn-primary" disabled={saving || !job} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
               {saving ? 'Guardando...' : isEdit ? '💾 Guardar cambios' : '💾 Guardar orden de cambio'}
