@@ -68,7 +68,7 @@ export default async function AccountingFacturas({ searchParams }) {
   const today = nowPR().toISOString().slice(0, 10);
 
   let query = supabase.from('invoices')
-    .select('id, invoice_number, status, bill_to, subtotal_products, tax_products, subtotal_labor, tax_labor, total, issued_at, due_at, clients(name, company, client_type)')
+    .select('id, invoice_number, status, bill_to, subtotal_products, tax_products, subtotal_labor, tax_labor, total, issued_at, due_at, reminders_paused_at, clients(name, company, client_type)')
     .gte('issued_at', dateStart)
     .lte('issued_at', dateEnd)
     .order('issued_at', { ascending: false });

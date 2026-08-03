@@ -96,7 +96,8 @@ export async function GET(request) {
     .from('invoices')
     .select('*, clients(name, email), payments(amount)')
     .eq('status', 'sent')
-    .lt('due_at', today);
+    .lt('due_at', today)
+    .is('reminders_paused_at', null);
 
   if (qErr) return Response.json({ error: qErr.message }, { status: 500 });
 

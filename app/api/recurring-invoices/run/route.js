@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import { withRetry } from '../../../../lib/withRetry';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { calcularIVU, tasaParaLinea } from '../../../../lib/tax';
+import { nextBusinessDay } from '../../../../lib/businessDays';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -21,13 +22,13 @@ function computeNextRun(current, frequency, dayOfMonth, dayOfWeek) {
   const d = new Date(current + 'T00:00:00');
   if (frequency === 'weekly') {
     d.setDate(d.getDate() + 7);
-    return d.toISOString().split('T')[0];
+    return nextBusinessDay(d.toISOString().split('T')[0]);
   }
   const monthsToAdd = frequency === 'quarterly' ? 3 : frequency === 'yearly' ? 12 : 1;
   d.setMonth(d.getMonth() + monthsToAdd);
   const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
   d.setDate(Math.min(dayOfMonth || 1, lastDay));
-  return d.toISOString().split('T')[0];
+  return nextBusinessDay(d.toISOString().split('T')[0]);
 }
 
 export async function GET(request) {
@@ -100,7 +101,7 @@ export async function GET(request) {
         notes: r.notes,
         terms: r.terms,
         issued_at: today,
-        due_at: addDays(today, r.due_days ?? 15),
+        due_at: nextBusinessDay(addDays(today, r.due_days ?? 15)),
         status: 'draft',
         bill_to: r.bill_to,
         subtotal_products: subProd,

@@ -17,8 +17,9 @@ const TERMS_TEMPLATES = [
   { key: 'standard', label: 'Garantía estándar', text: DEFAULT_TERMS },
 ];
 
-export default function InvoiceActions({ invoiceId, status, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [], internalNotes: initialInternalNotes = '', internalAttachments: initialInternalAttachments = [], clientId = null, subtotalLabor = 0, existingRetenciones = [], issuedAt = null, clientContacts = [] }) {
+export default function InvoiceActions({ invoiceId, status, isOverdue = false, remindersPausedAt: initialRemindersPausedAt = null, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [], internalNotes: initialInternalNotes = '', internalAttachments: initialInternalAttachments = [], clientId = null, subtotalLabor = 0, existingRetenciones = [], issuedAt = null, clientContacts = [] }) {
   const router = useRouter();
+  const [remindersPausedAt, setRemindersPausedAt] = useState(initialRemindersPausedAt);
   const [showPayment, setShowPayment] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
   const [showEditNumber, setShowEditNumber] = useState(false);
@@ -88,6 +89,13 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
   async function updateStatus(newStatus) {
     if (newStatus === 'cancelled') await restoreInventoryForInvoice('invoice_cancelled');
     await supabase.from('invoices').update({ status: newStatus }).eq('id', invoiceId);
+    router.refresh();
+  }
+
+  async function toggleRemindersPaused() {
+    const next = remindersPausedAt ? null : new Date().toISOString();
+    setRemindersPausedAt(next);
+    await supabase.from('invoices').update({ reminders_paused_at: next }).eq('id', invoiceId);
     router.refresh();
   }
 
@@ -302,6 +310,7 @@ export default function InvoiceActions({ invoiceId, status, clientEmail, invoice
     { key: 'checks', label: `📷 Fotos de cheques${checkPhotos.length > 0 ? ` (${checkPhotos.length})` : ''}`, onClick: openCheckPhotos },
     jobId && { key: 'attach', label: `📎 Adjuntos${selectedNoteIds.length > 0 ? ` (${selectedNoteIds.length})` : ''}`, onClick: openAttachments },
     selectedNoteIds.length > 0 && { key: 'clearattach', label: '🗑 Quitar adjuntos', onClick: clearAttachments, warn: true },
+    isOverdue && { key: 'pauseReminders', label: remindersPausedAt ? '▶️ Reanudar recordatorios' : '⏸ Pausar recordatorios', onClick: toggleRemindersPaused },
     status === 'sent' && { key: 'cancel', label: '✕ Cancelar factura', onClick: () => updateStatus('cancelled'), warn: true },
     status === 'paid' && { key: 'revert', label: '↩ Revertir a enviada', onClick: () => updateStatus('sent') },
     { key: 'delete', label: '🗑 Eliminar factura', onClick: () => setShowDelete(true), warn: true },

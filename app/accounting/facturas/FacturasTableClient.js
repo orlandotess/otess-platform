@@ -80,7 +80,12 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
                     <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{inv.invoice_number}</td>
                     <td style={{ fontWeight: 600 }}>{clientDisplay(inv)}</td>
                     <td><span className={`badge ${inv.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`}>{inv.clients?.client_type === 'b2b' ? 'B2B' : 'Final'}</span></td>
-                    <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                    <td>
+                      <span className={`badge ${b.cls}`}>{b.label}</span>
+                      {overdue && inv.reminders_paused_at && (
+                        <span className="badge badge-gray" style={{ marginLeft: 4 }} title="Recordatorios pausados">⏸</span>
+                      )}
+                    </td>
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at ?? '—'}</td>
                     <td style={{ color: overdue ? 'var(--warn)' : 'var(--muted)', fontSize: 13, fontWeight: overdue ? 700 : 400 }}>{inv.due_at ?? '—'}</td>
                     <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(subtotal)}</td>

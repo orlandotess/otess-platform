@@ -33,7 +33,7 @@ export default async function FacturasPage() {
   const [{ data: invoices }, { data: views }] = await Promise.all([
     supabase
       .from('invoices')
-      .select('id, invoice_number, status, total, issued_at, due_at, clients(name)')
+      .select('id, invoice_number, status, total, issued_at, due_at, reminders_paused_at, clients(name)')
       .order('created_at', { ascending: false }),
     supabase
       .from('invoice_views')
@@ -113,7 +113,12 @@ export default async function FacturasPage() {
                       <tr key={inv.id}>
                         <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{inv.invoice_number}</td>
                         <td>{inv.clients?.name ?? '—'}</td>
-                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                        <td>
+                          <span className={`badge ${b.cls}`}>{b.label}</span>
+                          {b.label === 'Vencida' && inv.reminders_paused_at && (
+                            <span className="badge badge-gray" style={{ marginLeft: 4 }} title="Recordatorios pausados">⏸</span>
+                          )}
+                        </td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at ?? '—'}</td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.due_at ?? '—'}</td>
                         <td style={{ fontWeight: 700 }}>${Number(inv.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>

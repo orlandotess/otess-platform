@@ -94,6 +94,11 @@ export default async function FacturaDetail({ params }) {
             <span className={`badge ${isOverdue ? 'badge-red' : statusCls[inv.status]}`} style={{ marginTop: 6, display: 'inline-block' }}>
               {isOverdue ? 'Vencida' : statusLabel[inv.status]}
             </span>
+            {isOverdue && inv.reminders_paused_at && (
+              <span className="badge badge-gray" style={{ marginTop: 6, marginLeft: 6, display: 'inline-block' }}>
+                ⏸ Recordatorios pausados
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             {inv.job_id && (
@@ -104,6 +109,8 @@ export default async function FacturaDetail({ params }) {
             <InvoiceActions
               invoiceId={id}
               status={inv.status}
+              isOverdue={isOverdue}
+              remindersPausedAt={inv.reminders_paused_at ?? null}
               balance={balance}
               invoiceNumber={inv.invoice_number}
               clientEmail={inv.clients?.email}
