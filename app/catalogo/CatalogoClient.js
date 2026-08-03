@@ -267,8 +267,8 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   }
 
   function exportCSV() {
-    const rows = filtered.map(i => [i.item_code, i.name ?? "", i.description, i.price, i.msrp ?? "", i.supplier_price ?? "", i.markup_pct ?? "", i.vendor ?? "", i.stock_quantity ?? "", i.costo ?? "", i.recurrencia ?? "", i.termino_meses ?? "", i.tax_category ?? ""]);
-    const csvContent = [["Item Code", "Nombre", "Descripcion", "Precio", "MSRP", "Costo Suplidor", "Markup %", "Vendor", "Stock", "Costo", "Recurrencia", "Termino Meses", "Categoria Fiscal"], ...rows]
+    const rows = filtered.map(i => [i.item_code, i.name ?? "", i.description, i.price, i.msrp ?? "", i.supplier_price ?? "", i.markup_pct ?? "", i.vendor ?? "", i.stock_quantity ?? "", i.costo ?? "", i.recurrencia ?? "", i.termino_meses ?? "", i.tax_category ?? "", i.type]);
+    const csvContent = [["Item Code", "Nombre", "Descripcion", "Precio", "MSRP", "Costo Suplidor", "Markup %", "Vendor", "Stock", "Costo", "Recurrencia", "Termino Meses", "Categoria Fiscal", "Tipo"], ...rows]
       .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
       .join("\n");
     const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
@@ -323,25 +323,57 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     const text = await file.text();
     const rows = parseCsv(text);
     const dataRows = rows[0]?.[0]?.toLowerCase().includes("item code") ? rows.slice(1) : rows;
+    const VALID_TYPES = ["labor", "product", "fee"];
 
-    const toInsert = dataRows.map(cols => {
+    const parsed = dataRows.map(cols => {
+      // Columna "Tipo" (índice 13) es opcional — CSVs exportados antes de que
+      // existiera caen de vuelta a la pestaña activa, como antes.
+      const csvType = (cols[13] || "").toLowerCase().trim();
+      const type = VALID_TYPES.includes(csvType) ? csvType : dataType;
       return {
-        type: dataType, item_code: cols[0] || "", name: cols[1] || "", description: cols[2] || "", price: parseFloat(cols[3]) || 0, msrp: cols[4] ? parseFloat(cols[4]) : null, supplier_price: cols[5] ? parseFloat(cols[5]) : null, markup_pct: dataType === "product" && cols[6] ? parseFloat(cols[6]) : null, vendor: cols[7] || null, stock_quantity: dataType === "product" && cols[8] ? parseFloat(cols[8]) : null,
-        costo: dataType === "fee" && cols[9] ? parseFloat(cols[9]) : null,
-        recurrencia: dataType === "fee" && cols[10] ? cols[10] : "unica",
-        termino_meses: dataType === "fee" && cols[11] ? parseInt(cols[11], 10) : null,
-        tax_category: dataType === "fee" ? (cols[12] || "labor") : dataType,
+        type, item_code: cols[0] || "", name: cols[1] || "", description: cols[2] || "", price: parseFloat(cols[3]) || 0, msrp: cols[4] ? parseFloat(cols[4]) : null, supplier_price: cols[5] ? parseFloat(cols[5]) : null, markup_pct: type === "product" && cols[6] ? parseFloat(cols[6]) : null, vendor: cols[7] || null, stock_quantity: type === "product" && cols[8] ? parseFloat(cols[8]) : null,
+        costo: type === "fee" && cols[9] ? parseFloat(cols[9]) : null,
+        recurrencia: type === "fee" && cols[10] ? cols[10] : "unica",
+        termino_meses: type === "fee" && cols[11] ? parseInt(cols[11], 10) : null,
+        tax_category: type === "fee" ? (cols[12] || "labor") : type,
       };
     }).filter(i => i.item_code && i.name && i.description);
 
-    if (toInsert.length === 0) { alert("No se encontraron filas válidas en el CSV."); return; }
+    if (parsed.length === 0) { alert("No se encontraron filas válidas en el CSV."); return; }
+
+    // Filas con el mismo Item Code dentro del mismo archivo: la última gana,
+    // para no mandar dos filas apuntando al mismo id en el upsert de abajo.
+    const byCode = new Map();
+    for (const i of parsed) byCode.set(i.item_code, i);
+    const uniqueRows = [...byCode.values()];
 
     setSaving(true);
-    const { data, error } = await supabase.from("catalog_items").insert(toInsert).select();
+
+    // Upsert por Item Code: si ya existe un ítem con ese código se actualiza
+    // en vez de duplicarlo — re-importar un CSV exportado y editado en Excel
+    // es el caso de uso real, no solo cargar un catálogo desde cero.
+    const { data: existing, error: lookupError } = await supabase.from("catalog_items").select("id, item_code").in("item_code", uniqueRows.map(i => i.item_code));
+    if (lookupError) { setSaving(false); alert("Error: " + lookupError.message); return; }
+    const existingIdByCode = new Map((existing || []).map(r => [r.item_code, r.id]));
+
+    const toUpsert = uniqueRows.map(i => {
+      const id = existingIdByCode.get(i.item_code);
+      return id ? { ...i, id } : i;
+    });
+    const updatedCount = toUpsert.filter(i => i.id).length;
+
+    const { data, error } = await supabase.from("catalog_items").upsert(toUpsert).select();
     setSaving(false);
     if (error) { alert("Error: " + error.message); return; }
-    if (data) setItems(prev => [...prev, ...data]);
-    alert(`${data.length} ítems importados correctamente.`);
+
+    if (data) {
+      setItems(prev => {
+        const byId = new Map(prev.map(p => [p.id, p]));
+        for (const row of data) byId.set(row.id, row);
+        return [...byId.values()];
+      });
+    }
+    alert(`${data.length - updatedCount} ítems nuevos, ${updatedCount} actualizados.`);
     e.target.value = "";
     setShowMenu(false);
   }
