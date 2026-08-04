@@ -31,7 +31,8 @@ export default async function ClienteDetailPage({ params }) {
 
   const invoiceIds = (invoices ?? []).map(i => i.id);
   const jobIds = (jobs ?? []).map(j => j.id);
-  const [{ data: payments }, { data: retenciones }, { data: scheduleDayRows }, { data: calendarEvents }, { data: tasks }] = await Promise.all([
+  const propertyIds = (properties ?? []).map(p => p.id);
+  const [{ data: payments }, { data: retenciones }, { data: scheduleDayRows }, { data: calendarEvents }, { data: tasks }, { data: propertyContacts }] = await Promise.all([
     invoiceIds.length ? supabase.from('payments').select('id, invoice_id, amount, paid_at').in('invoice_id', invoiceIds) : Promise.resolve({ data: [] }),
     supabase.from('retenciones').select('id, invoice_id, retencion_aplicada, fecha').eq('client_id', id),
     // Extra work days for jobs spanning multiple (possibly non-consecutive) days -
@@ -39,6 +40,9 @@ export default async function ClienteDetailPage({ params }) {
     jobIds.length ? supabase.from('job_schedule_days').select('id, job_id, scheduled_start, scheduled_end, technician_id, technicians(name)').in('job_id', jobIds) : Promise.resolve({ data: [] }),
     supabase.from('calendar_events').select('id, title, notes, address, start_at, end_at, technician_id, technicians(name), calendar_event_technicians(technician_id, technicians(name))').eq('client_id', id),
     supabase.from('tasks').select('id, task_type, title, notes, due_at, technician_id, completed, technicians(name)').eq('client_id', id),
+    // Extra contact <-> property links beyond a contact's own primary property_id -
+    // lets one contact (e.g. a building owner) show up under multiple properties.
+    propertyIds.length ? supabase.from('client_property_contacts').select('id, property_id, contact_id').in('property_id', propertyIds) : Promise.resolve({ data: [] }),
   ]);
 
   // Generate signed URLs for internal notes with photos (1 hour expiry) — same
@@ -129,6 +133,7 @@ export default async function ClienteDetailPage({ params }) {
           tasks={tasks ?? []}
           properties={properties ?? []}
           contacts={contacts ?? []}
+          propertyContacts={propertyContacts ?? []}
           proposals={proposals ?? []}
           internalNotes={internalNotesWithSignedUrls}
           serviceTickets={serviceTickets ?? []}

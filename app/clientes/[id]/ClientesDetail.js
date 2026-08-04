@@ -123,12 +123,16 @@ async function resolveShortLink(url) {
   }
 }
 
-export default function ClientesDetail({ client, jobs, invoices, payments = [], retenciones = [], scheduleDays = [], calendarEvents = [], tasks = [], properties: initProps, contacts: initContacts, proposals, internalNotes: initInternalNotes, serviceTickets = [], currentRole, invoiceReconciliation }) {
+export default function ClientesDetail({ client, jobs, invoices, payments = [], retenciones = [], scheduleDays = [], calendarEvents = [], tasks = [], properties: initProps, contacts: initContacts, propertyContacts: initPropertyContacts = [], proposals, internalNotes: initInternalNotes, serviceTickets = [], currentRole, invoiceReconciliation }) {
   const canDeleteClient = currentRole === 'admin' || currentRole === 'secretaria';
   const router = useRouter();
   const [tab, setTab] = useState('info');
   const [properties, setProperties] = useState(initProps);
   const [contacts, setContacts] = useState(initContacts);
+  const [propertyContacts, setPropertyContacts] = useState(initPropertyContacts);
+  const [addingContactToProp, setAddingContactToProp] = useState(null);
+  const [pickedExistingContactId, setPickedExistingContactId] = useState('');
+  const [linkingContact, setLinkingContact] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState('');
@@ -297,6 +301,29 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
     await supabase.from('client_properties').update({ is_primary: false }).eq('client_id', client.id);
     await supabase.from('client_properties').update({ is_primary: true }).eq('id', propId);
     setProperties(prev => prev.map(p => ({ ...p, is_primary: p.id === propId })));
+  }
+
+  function contactsForProperty(propId) {
+    const linkedIds = new Set(propertyContacts.filter(pc => pc.property_id === propId).map(pc => pc.contact_id));
+    return sortedContacts.filter(c => c.property_id === propId || linkedIds.has(c.id));
+  }
+
+  async function linkExistingContact(propId) {
+    if (!pickedExistingContactId) return;
+    setLinkingContact(true);
+    const { data } = await supabase.from('client_property_contacts').insert([{
+      property_id: propId,
+      contact_id: pickedExistingContactId,
+    }]).select().single();
+    if (data) setPropertyContacts(prev => [...prev, data]);
+    setPickedExistingContactId('');
+    setAddingContactToProp(null);
+    setLinkingContact(false);
+  }
+
+  async function unlinkContact(linkId) {
+    await supabase.from('client_property_contacts').delete().eq('id', linkId);
+    setPropertyContacts(prev => prev.filter(pc => pc.id !== linkId));
   }
 
   async function saveContact(e) {
@@ -790,18 +817,46 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       )}
                       {/* Contactos asociados */}
                       <div>
-                        <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Contactos asociados</p>
-                        {sortedContacts.filter(c => c.property_id === p.id).length === 0
-                          ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin contactos asociados.</p>
-                          : sortedContacts.filter(c => c.property_id === p.id).map(c => (
-                            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
-                              </div>
-                              <PhonePills phone={c.phone} extraPhones={c.extra_phones} />
-                              {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'var(--navy)', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', margin: 0 }}>Contactos asociados</p>
+                          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }}
+                            onClick={() => { setAddingContactToProp(addingContactToProp === p.id ? null : p.id); setPickedExistingContactId(''); }}>
+                            {addingContactToProp === p.id ? 'Cancelar' : '+ Agregar contacto existente'}
+                          </button>
+                        </div>
+                        {addingContactToProp === p.id && (() => {
+                          const linkedIds = new Set(propertyContacts.filter(pc => pc.property_id === p.id).map(pc => pc.contact_id));
+                          const availableContacts = sortedContacts.filter(c => c.property_id !== p.id && !linkedIds.has(c.id));
+                          return (
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                              <select value={pickedExistingContactId} onChange={e => setPickedExistingContactId(e.target.value)} style={{ flex: 1 }}>
+                                <option value="">— Elige un contacto —</option>
+                                {availableContacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                              </select>
+                              <button className="btn btn-primary" disabled={!pickedExistingContactId || linkingContact} onClick={() => linkExistingContact(p.id)}>
+                                {linkingContact ? 'Agregando...' : 'Agregar'}
+                              </button>
                             </div>
-                          ))
+                          );
+                        })()}
+                        {contactsForProperty(p.id).length === 0
+                          ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin contactos asociados.</p>
+                          : contactsForProperty(p.id).map(c => {
+                            const link = propertyContacts.find(pc => pc.property_id === p.id && pc.contact_id === c.id);
+                            return (
+                              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
+                                </div>
+                                <PhonePills phone={c.phone} extraPhones={c.extra_phones} />
+                                {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'var(--navy)', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
+                                {link && (
+                                  <button onClick={() => unlinkContact(link.id)} title="Quitar de esta propiedad"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
+                                )}
+                              </div>
+                            );
+                          })
                         }
                       </div>
                     </div>
