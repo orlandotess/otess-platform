@@ -97,7 +97,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
 
   // Property form
   const [showPropForm, setShowPropForm] = useState(false);
-  const [prop, setProp] = useState({ name: '', street: '', city: '', state: 'PR', zip: '' });
+  const [prop, setProp] = useState({ name: '', street: '', city: '', state: 'PR', zip: '', note: '' });
   const [savingProp, setSavingProp] = useState(false);
 
   // Contact form
@@ -197,7 +197,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
     }]).select().single();
     if (data) {
       setProperties(prev => [...prev, data]);
-      setProp({ name: '', street: '', city: '', state: 'PR', zip: '' });
+      setProp({ name: '', street: '', city: '', state: 'PR', zip: '', note: '' });
       setShowPropForm(false);
     }
     setSavingProp(false);
@@ -551,6 +551,10 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     <label>Zip</label>
                     <input value={prop.zip} onChange={e => setProp(p => ({ ...p, zip: e.target.value }))} placeholder="00901" />
                   </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label>Nota (opcional)</label>
+                    <input value={prop.note} onChange={e => setProp(p => ({ ...p, note: e.target.value }))} placeholder="Ej: S4311 numero de propiedad" />
+                  </div>
                 </div>
                 <button type="submit" className="btn btn-primary" disabled={savingProp}>
                   {savingProp ? 'Guardando...' : '💾 Guardar propiedad'}
@@ -570,6 +574,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     {p.is_primary && <span className="badge badge-green">Principal</span>}
                   </div>
                   {p.street && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{p.street}{p.city ? `, ${p.city}` : ''}{p.state ? `, ${p.state}` : ''}</div>}
+                  {p.note && <div style={{ fontSize: 13, color: 'var(--amber)', marginTop: 2 }}>📝 {p.note}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   {!p.is_primary && (
@@ -579,7 +584,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     onClick={() => {
                       setExpandedProp(p.id);
                       setEditingProp(p.id);
-                      setEditPropData({ name: p.name, street: p.street ?? '', city: p.city ?? '', state: p.state ?? 'PR', zip: p.zip ?? '' });
+                      setEditPropData({ name: p.name, street: p.street ?? '', city: p.city ?? '', state: p.state ?? 'PR', zip: p.zip ?? '', note: p.note ?? '' });
                     }}
                     className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}
                   >
@@ -621,6 +626,10 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           <label>Zip</label>
                           <input value={editPropData.zip ?? ''} onChange={e => setEditPropData(d => ({ ...d, zip: e.target.value }))} placeholder="00901" />
                         </div>
+                        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                          <label>Nota (opcional)</label>
+                          <input value={editPropData.note ?? ''} onChange={e => setEditPropData(d => ({ ...d, note: e.target.value }))} placeholder="Ej: S4311 numero de propiedad" />
+                        </div>
                       </div>
                       <div style={{ display: 'flex', gap: 10 }}>
                         <button className="btn btn-primary" onClick={() => saveEditProperty(p.id)} disabled={savingEditProp}>
@@ -636,6 +645,13 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           ✏️ Editar
                         </button>
                       </div>
+                      {/* Nota */}
+                      {p.note && (
+                        <div style={{ marginBottom: 16 }}>
+                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Nota</p>
+                          <div style={{ fontSize: 14 }}>{p.note}</div>
+                        </div>
+                      )}
                       {/* Dirección y mapas */}
                       {(p.street || p.city) && (
                         <div style={{ marginBottom: 16 }}>
@@ -797,17 +813,15 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                   ) : (
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-                        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => { setEditingContact(c.id); setEditContactData({ name: c.name, phone: c.phone ?? '', email: c.email ?? '', property_id: c.property_id ?? '' }); }}>
+                        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => { setEditingContact(c.id); setEditContactData({ name: c.name, phone: c.phone ?? '', extra_phones: c.extra_phones ?? [], email: c.email ?? '', property_id: c.property_id ?? '' }); }}>
                           ✏️ Editar
                         </button>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                        {c.phone && (
+                        {(c.phone || c.extra_phones?.length > 0) && (
                           <div>
                             <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Teléfono</p>
-                            <a href={`tel:${c.phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                              📞 {c.phone}
-                            </a>
+                            <PhonePills phone={c.phone} extraPhones={c.extra_phones} />
                           </div>
                         )}
                         {c.email && (
