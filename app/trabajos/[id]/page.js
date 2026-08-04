@@ -158,7 +158,6 @@ export default async function TrabajoDetail({ params }) {
             <span className={`badge ${b.cls}`} style={{ marginTop: 6, display: 'inline-block' }}>{b.label}</span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Link href="/trabajos" className="btn btn-ghost">← Trabajos</Link>
             <Link href={`/estimados/nueva?job=${job.id}`} className="btn btn-ghost">🧮 Crear estimado</Link>
             <Link href={`/ordenes-cambio/nuevo?job=${job.id}`} className="btn btn-ghost">📝 Orden de cambio</Link>
             <Link href={`/facturas/nueva?job=${job.id}`} className="btn btn-amber">🧾 Crear factura</Link>

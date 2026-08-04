@@ -345,6 +345,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   const [newLine, setNewLine] = useState({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
   const [catalogItems, setCatalogItems] = useState([]);
   const [showCableCalc, setShowCableCalc] = useState(false);
+  const [showLineMenu, setShowLineMenu] = useState(false);
 
   useEffect(() => {
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
@@ -1073,8 +1074,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   </span>
                   {(job.clients?.phone || job.clients?.email) && (
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                      {job.clients?.phone && <a href={`tel:${job.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.clients.phone}</a>}
-                      {job.clients?.email && <a href={`mailto:${job.clients.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.clients.email}</a>}
+                      {job.clients?.phone && <a href={`tel:${job.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--ok-tint)', color: 'var(--ok)', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.clients.phone}</a>}
+                      {job.clients?.email && <a href={`mailto:${job.clients.email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--info-tint)', color: 'var(--info)', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.clients.email}</a>}
                     </div>
                   )}
                 </>
@@ -1094,9 +1095,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   </div>
                 </div>
               )}
-            </div>
 
-            <div className="card">
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>👤 Contacto encargado</p>
                 {!editingContact && (
@@ -1139,8 +1139,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 <div>
                   {job.contact_name && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>{job.contact_name}</div>}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {job.contact_phone && <a href={`tel:${job.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.contact_phone}</a>}
-                    {job.contact_email && <a href={`mailto:${job.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.contact_email}</a>}
+                    {job.contact_phone && <a href={`tel:${job.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--ok-tint)', color: 'var(--ok)', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.contact_phone}</a>}
+                    {job.contact_email && <a href={`mailto:${job.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--info-tint)', color: 'var(--info)', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.contact_email}</a>}
                   </div>
                 </div>
               ) : (
@@ -1148,7 +1148,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               )}
             </div>
 
-            <div className="card">
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>📍 Propiedad</p>
                 {!editingProperty && (
@@ -1242,19 +1242,20 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin propiedad asignada.</p>
               )}
             </div>
+            </div>
 
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Detalles</p>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                   {!editingDetails && (
-                    <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingDetails(true)}>✏️ Título/Desc.</button>
+                    <button style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: 'none', borderRight: '1.5px solid var(--border)', cursor: 'pointer', color: 'var(--navy)', fontWeight: 600 }} onClick={() => setEditingDetails(true)}>✏️ Título/Desc.</button>
                   )}
                   {!editingNumber && (
-                    <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingNumber(true)}>✏️ # Job</button>
+                    <button style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: 'none', borderRight: '1.5px solid var(--border)', cursor: 'pointer', color: 'var(--navy)', fontWeight: 600 }} onClick={() => setEditingNumber(true)}>✏️ # Job</button>
                   )}
                   {!editingSchedule && (
-                    <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingSchedule(true)}>✏️ Editar fechas</button>
+                    <button style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy)', fontWeight: 600 }} onClick={() => setEditingSchedule(true)}>✏️ Editar fechas</button>
                   )}
                 </div>
               </div>
@@ -1517,10 +1518,21 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de trabajo</p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => exportPurchaseListCSV(lineItems, job.job_number)}>📦 Lista de compra</button>
-                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} disabled={generatingPO} onClick={generarOrdenCompra}>{generatingPO ? '⏳ Generando...' : '🛒 Generar orden de compra'}</button>
-                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setShowCableCalc(true)}>🧮 Calcular cable/tubo</button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ position: 'relative' }}>
+                    <button onClick={() => setShowLineMenu(o => !o)}
+                      style={{ background: 'none', border: '1.5px solid var(--border)', borderRadius: 8, cursor: 'pointer', color: 'var(--navy)', fontSize: 18, lineHeight: 1, padding: '4px 10px' }}>⋯</button>
+                    {showLineMenu && (
+                      <>
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowLineMenu(false)} />
+                        <div style={{ position: 'absolute', right: 0, top: 34, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 200, overflow: 'hidden' }}>
+                          <button onClick={() => { exportPurchaseListCSV(lineItems, job.job_number); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📦 Lista de compra</button>
+                          <button disabled={generatingPO} onClick={() => { generarOrdenCompra(); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>{generatingPO ? '⏳ Generando...' : '🛒 Generar orden de compra'}</button>
+                          <button onClick={() => { setShowCableCalc(true); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🧮 Calcular cable/tubo</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingLine(true)}>+ Agregar línea</button>
                 </div>
               </div>
@@ -1651,8 +1663,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               <select value={status} onChange={e => updateStatus(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}>
                 {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-            </div>
-            <div className="card">
+
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Técnicos asignados</p>
               {assignedTechs.length === 0 ? (
                 <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>Sin técnicos asignados.</p>
@@ -1676,6 +1688,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 <button onClick={() => addTechnician(addingTech)} disabled={!addingTech || savingTech} className="btn btn-primary" style={{ fontSize: 13, padding: '8px 14px' }}>
                   {savingTech ? '...' : '+'}
                 </button>
+              </div>
               </div>
             </div>
             <div className="card">
