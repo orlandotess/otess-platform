@@ -268,7 +268,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       lunch_minutes: newDay.lunch_minutes,
     }));
     const { data } = await supabase.from('job_schedule_days').insert(rows).select('*, technicians(name)');
-    if (data) setScheduleDays(prev => [...prev, ...data].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
+    if (data) {
+      setScheduleDays(prev => [...prev, ...data].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
+      newDay.technician_ids.forEach(techId => {
+        fetch('/api/trabajos/notify-assignment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: job.id, technicianId: techId }),
+        }).catch(() => {});
+      });
+    }
     setNewDay({ start: '', end: '', technician_ids: [], lunch_minutes: 0 });
     setAddingDay(false);
     setSavingDay(false);
@@ -316,7 +325,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       lunch_minutes: editDayForm.lunch_minutes,
     };
     const { data } = await supabase.from('job_schedule_days').update(payload).eq('id', dayId).select('*, technicians(name)').single();
-    if (data) setScheduleDays(prev => prev.map(d => d.id === dayId ? data : d).sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
+    if (data) {
+      setScheduleDays(prev => prev.map(d => d.id === dayId ? data : d).sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
+      if (payload.technician_id) {
+        fetch('/api/trabajos/notify-assignment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: job.id, technicianId: payload.technician_id }),
+        }).catch(() => {});
+      }
+    }
     setEditingDayId(null);
     setSavingEditDay(false);
   }
@@ -1350,9 +1368,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Días de trabajo</p>
-                {!addingDay && (
-                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingDay(true)}>+ Añadir día</button>
-                )}
               </div>
 
               {scheduleDays.length === 0 && !addingDay && (
@@ -1448,6 +1463,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     </div>
                   )}
                 </div>
+              )}
+
+              {!addingDay && (
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px', marginTop: scheduleDays.length > 0 ? 14 : 0 }} onClick={() => setAddingDay(true)}>+ Añadir día</button>
               )}
 
               {addingDay && (
