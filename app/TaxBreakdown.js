@@ -7,14 +7,14 @@ const fmtPct = rate => `${(rate * 100).toFixed(rate * 100 % 1 === 0 ? 0 : 1)}%`;
 // Un solo componente, dos usos:
 // - scope="bucket": dentro de la sección Fees, muestra Labor/Producto/Reembolso
 //   con sus subtotales (composición del bucket, sin total destacado).
-// - scope="documento": en el pie de trabajo/factura/estimado — "Labor · $X @ 4%"
-//   → $Y por categoría. Labor y Producto siempre se listan por separado, aunque
-//   alguna tenga base $0 (mismo criterio que ya usan las vistas de solo-lectura
-//   de factura/estima — nunca se combinan en una sola línea). Reembolso solo
-//   aparece cuando tiene base > 0, por ser una categoría poco frecuente.
+// - scope="documento": en el pie de trabajo/factura/estimado — "Subtotal Labor"
+//   / "IVU Labor (4%)" por categoría. Labor y Producto siempre se listan por
+//   separado, aunque alguna tenga base $0 (mismo criterio que ya usan las
+//   vistas de solo-lectura de factura/estima — nunca se combinan en una sola
+//   línea). Reembolso solo aparece cuando tiene base > 0, por ser poco frecuente.
 export default function TaxBreakdown({ lineas, clientType, taxRules, scope = 'documento', title, note }) {
   const resultado = calcularIVU(lineas, clientType, taxRules);
-  const { categorias, ivu, total } = resultado;
+  const { categorias, total } = resultado;
 
   if (scope === 'bucket') {
     return (
@@ -38,9 +38,15 @@ export default function TaxBreakdown({ lineas, clientType, taxRules, scope = 'do
       {note}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
         {visibles.map(c => (
-          <div key={c.codigo} style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--muted)' }}>{c.nombre} · {fmt(c.base)} @ {fmtPct(c.tasa)}</span>
-            <span>{fmt(c.impuesto)}</span>
+          <div key={c.codigo} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--muted)' }}>Subtotal {c.nombre}</span>
+              <span>{fmt(c.base)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--muted)' }}>IVU {c.nombre} ({fmtPct(c.tasa)})</span>
+              <span>{fmt(c.impuesto)}</span>
+            </div>
           </div>
         ))}
         <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '4px 0' }} />
