@@ -134,6 +134,17 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
   const [invoiceSearch, setInvoiceSearch] = useState('');
   const [propertySearch, setPropertySearch] = useState('');
   const [contactSearch, setContactSearch] = useState('');
+  const [jobSearch, setJobSearch] = useState('');
+  const visibleJobs = useMemo(() => {
+    const query = jobSearch.trim().toLowerCase();
+    return query
+      ? jobs.filter(j =>
+          j.job_number?.toLowerCase().includes(query) ||
+          j.title?.toLowerCase().includes(query) ||
+          (statusJob[j.status]?.label ?? '').toLowerCase().includes(query)
+        )
+      : jobs;
+  }, [jobs, jobSearch]);
   const sortedProperties = useMemo(() => [...properties].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es')), [properties]);
   const sortedContacts = useMemo(() => [...contacts].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es')), [contacts]);
   const visibleProperties = useMemo(() => {
@@ -1055,12 +1066,19 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       {/* JOBS TAB */}
       {tab === 'jobs' && (
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Trabajos</h2>
-            <Link href={`/trabajos/nuevo?client=${client.id}`} className="btn btn-primary">+ Nuevo trabajo</Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {jobs.length > 0 && (
+                <SearchBox value={jobSearch} onChange={setJobSearch} placeholder="Buscar # trabajo, título o estado..." />
+              )}
+              <Link href={`/trabajos/nuevo?client=${client.id}`} className="btn btn-primary">+ Nuevo trabajo</Link>
+            </div>
           </div>
           {jobs.length === 0 ? (
             <div className="empty"><p>No hay trabajos para este cliente.</p></div>
+          ) : visibleJobs.length === 0 ? (
+            <div className="empty"><p>Sin resultados para "{jobSearch}".</p></div>
           ) : (
             <div className="table-wrap">
               <table>
@@ -1068,12 +1086,15 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                   <tr><th>Título</th><th>Propiedad</th><th>Estado</th><th>Fecha</th><th></th></tr>
                 </thead>
                 <tbody>
-                  {jobs.map(j => {
+                  {visibleJobs.map(j => {
                     const b = statusJob[j.status] ?? statusJob.estimate;
                     const loc = jobLocation(j);
                     return (
                       <tr key={j.id}>
-                        <td style={{ fontWeight: 600 }}>{j.title}</td>
+                        <td style={{ fontWeight: 600 }}>
+                          {j.job_number && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace', background: 'var(--amber-tint)', padding: '2px 6px', borderRadius: 6, marginRight: 8 }}>{j.job_number}</span>}
+                          {j.title}
+                        </td>
                         <td style={{ fontSize: 13 }}>
                           {loc ? (
                             (j.street || j.city) ? (
