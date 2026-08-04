@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+import { Fragment } from 'react';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import EstimateActions from './EstimateActions';
@@ -38,6 +39,31 @@ function groupItemsForDisplay(items) {
   return display;
 }
 
+// Buckets the already-consolidated display rows into area sections, in the
+// order each area first appears — mirrors ProposalDocument.js's groupByArea()
+// so estimates render the same "Área / Área Total" sectioned layout.
+function groupDisplayByArea(displayItems) {
+  const areas = [];
+  for (const entry of displayItems) {
+    const name = (entry.kind === 'group' ? entry.area : entry.item.area) || 'General';
+    let area = areas.find(a => a.name === name);
+    if (!area) { area = { name, entries: [] }; areas.push(area); }
+    area.entries.push(entry);
+  }
+  return areas;
+}
+// A parent's line_total/tax_amount already reflects its own price only; its
+// accessories' own rows are summed in separately here. Bundled accessories
+// don't need special-casing — their line_total/tax_amount were already
+// persisted as 0 at save time (see EstimateForm.js's itemLineTotal), so
+// summing them in unconditionally is safe either way.
+function entryTotal(entry) {
+  if (entry.kind === 'group') return entry.line_total + entry.tax_amount;
+  const own = Number(entry.item.line_total) + Number(entry.item.tax_amount);
+  const childrenTotal = (entry.item.children ?? []).reduce((s, c) => s + Number(c.line_total) + Number(c.tax_amount), 0);
+  return own + childrenTotal;
+}
+
 export default async function EstimaDetail({ params }) {
   const { id } = params;
 
@@ -57,7 +83,19 @@ export default async function EstimaDetail({ params }) {
       return { ...it, photo_signed_url: data?.signedUrl ?? null };
     })
   );
-  const displayItems = groupItemsForDisplay(items);
+  const topLevelItems = items.filter(it => !it.parent_item_id);
+  const childrenByParentId = new Map();
+  for (const it of items) {
+    if (!it.parent_item_id) continue;
+    if (!childrenByParentId.has(it.parent_item_id)) childrenByParentId.set(it.parent_item_id, []);
+    childrenByParentId.get(it.parent_item_id).push(it);
+  }
+  const displayItems = groupItemsForDisplay(topLevelItems);
+  for (const entry of displayItems) {
+    if (entry.kind === 'single') entry.item.children = childrenByParentId.get(entry.item.id) ?? [];
+  }
+  const displayAreas = groupDisplayByArea(displayItems);
+  const multiArea = displayAreas.length > 1 || (displayAreas[0]?.name && displayAreas[0].name !== 'General');
 
   const { data: clientContacts } = est.client_id
     ? await supabase.from('client_contacts').select('id, name, email').eq('client_id', est.client_id)
@@ -157,7 +195,12 @@ export default async function EstimaDetail({ params }) {
             )}
           </div>
 
-          <table style={{ marginBottom: 24 }}>
+          {displayAreas.map(area => (
+          <div key={area.name} style={{ marginBottom: 24 }}>
+            {multiArea && (
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 10 }}>📍 {area.name}</div>
+            )}
+          <table style={{ marginBottom: multiArea ? 8 : 0 }}>
             <thead>
               <tr style={{ background: 'var(--navy)' }}>
                 <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'left', fontSize: 11 }}>Descripción</th>
@@ -169,7 +212,7 @@ export default async function EstimaDetail({ params }) {
               </tr>
             </thead>
             <tbody>
-              {displayItems.map(entry => entry.kind === 'group' ? (
+              {area.entries.map(entry => entry.kind === 'group' ? (
                 <tr key={entry.key}>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -179,7 +222,6 @@ export default async function EstimaDetail({ params }) {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.title}</div>
                         <div style={{ whiteSpace: 'pre-wrap' }}>{entry.parts.join(', ')}</div>
-                        {entry.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {entry.area}</div>}
                       </div>
                     </div>
                   </td>
@@ -201,7 +243,8 @@ export default async function EstimaDetail({ params }) {
                   <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(entry.line_total + entry.tax_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
               ) : (
-                <tr key={entry.item.id}>
+                <Fragment key={entry.item.id}>
+                <tr>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                       <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -210,7 +253,11 @@ export default async function EstimaDetail({ params }) {
                       <div style={{ minWidth: 0 }}>
                         {entry.item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.item.title}</div>}
                         <div style={{ whiteSpace: 'pre-wrap' }}>{entry.item.description}</div>
-                        {entry.item.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {entry.item.area}</div>}
+                        {childrenByParentId.get(entry.item.id)?.length > 0 && (
+                          <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>
+                            {childrenByParentId.get(entry.item.id).length} accesorio{childrenByParentId.get(entry.item.id).length > 1 ? 's' : ''} incluido{childrenByParentId.get(entry.item.id).length > 1 ? 's' : ''}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -234,9 +281,37 @@ export default async function EstimaDetail({ params }) {
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(Number(entry.item.line_total) + Number(entry.item.tax_amount)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
+                {(childrenByParentId.get(entry.item.id) ?? []).map(child => {
+                  const bundled = entry.item.combine_price !== false;
+                  return (
+                    <tr key={child.id} style={{ background: 'var(--surface-2)' }}>
+                      <td style={{ padding: '8px 14px 8px 46px', fontWeight: 400, fontSize: 12.5 }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                          <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 11 }}>{child.type === 'labor' ? '🔧' : '📦'}</span>}
+                          </div>
+                          <div style={{ whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                        </div>
+                      </td>
+                      <td />
+                      <td style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12.5 }}>{child.quantity}</td>
+                      <td style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12.5 }}>{bundled ? '—' : `$${Number(child.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}</td>
+                      <td />
+                      <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 600, fontSize: 12.5 }}>{bundled ? '—' : `$${(Number(child.line_total) + Number(child.tax_amount)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}</td>
+                    </tr>
+                  );
+                })}
+                </Fragment>
               ))}
             </tbody>
           </table>
+          {multiArea && (
+            <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: 'var(--muted)' }}>
+              {area.name} Total: ${area.entries.reduce((s, e) => s + entryTotal(e), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          )}
+          </div>
+          ))}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <div style={{ width: 320 }}>

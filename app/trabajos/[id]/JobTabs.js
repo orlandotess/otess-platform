@@ -27,6 +27,32 @@ const statusOptions = [
   { value: 'cancelled', label: 'Cancelado' },
 ];
 
+// Bucket name for job_line_items with no `area` set — matches the sentinel
+// ProposalDocument.js/estimados use ('General'), scoped to Trabajos' own label.
+const SIN_AREA = 'Sin área';
+
+// Groups persisted job_line_items into area sections, in sort_order — same
+// grouping estimados/[id]/page.js and ProposalDocument.js use for display.
+// Accessories (parent_item_id children) are nested under their parent's own
+// `children` array instead of appearing as their own top-level row.
+function groupLineItemsByArea(items) {
+  const childrenByParent = new Map();
+  items.forEach(it => {
+    if (!it.parent_item_id) return;
+    if (!childrenByParent.has(it.parent_item_id)) childrenByParent.set(it.parent_item_id, []);
+    childrenByParent.get(it.parent_item_id).push(it);
+  });
+  const areas = [];
+  items.filter(it => !it.parent_item_id).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).forEach(it => {
+    const name = it.area || SIN_AREA;
+    let area = areas.find(a => a.name === name);
+    if (!area) { area = { name, items: [] }; areas.push(area); }
+    const children = (childrenByParent.get(it.id) ?? []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    area.items.push({ ...it, children });
+  });
+  return areas;
+}
+
 const expenseCategories = [
   { value: 'materiales', label: 'Materiales' },
   { value: 'gasolina', label: 'Gasolina' },
@@ -339,21 +365,78 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     setSavingEditDay(false);
   }
 
-  // Line items state
+  // Line items state — grouped into area sections for display/editing, but
+  // each item still persists individually to job_line_items as before.
   const [lineItems, setLineItems] = useState(items);
-  const [addingLine, setAddingLine] = useState(false);
-  const [newLine, setNewLine] = useState({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
+  const [extraAreas, setExtraAreas] = useState(() => items.length ? [] : [{ name: 'Área 1' }]);
+  const [areaMenuOpen, setAreaMenuOpen] = useState(null);
+  const [renamingArea, setRenamingArea] = useState(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [dragLineItem, setDragLineItem] = useState(null);
+  const [addingLineFor, setAddingLineFor] = useState(null); // area name currently showing the add-line form, or null
+  const [addingAccessoryFor, setAddingAccessoryFor] = useState(null); // parent item id currently showing the accessory add-form, or null
+  const [newLine, setNewLine] = useState({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
   const [catalogItems, setCatalogItems] = useState([]);
-  const [showCableCalc, setShowCableCalc] = useState(false);
+  const [cableCalcTarget, setCableCalcTarget] = useState(null); // area name currently targeted, or null
   const [showLineMenu, setShowLineMenu] = useState(false);
+
+  const derivedAreas = groupLineItemsByArea(lineItems);
+  const displayAreas = [
+    ...derivedAreas,
+    ...extraAreas.filter(ea => !derivedAreas.some(d => d.name === ea.name)).map(ea => ({ name: ea.name, items: [] })),
+  ];
+  function addExtraArea() {
+    setExtraAreas(prev => [...prev, { name: `Área ${derivedAreas.length + prev.length + 1}` }]);
+  }
+  function startRenameArea(area) { setRenamingArea(area.name); setRenameDraft(area.name); }
+  async function commitRenameArea(area) {
+    const newName = renameDraft.trim();
+    setRenamingArea(null);
+    if (!newName || newName === area.name) return;
+    if (area.items.length > 0) {
+      const q = supabase.from('job_line_items').update({ area: newName }).eq('job_id', job.id);
+      await (area.name === SIN_AREA ? q.is('area', null) : q.eq('area', area.name));
+      setLineItems(prev => prev.map(i => (area.name === SIN_AREA ? !i.area : i.area === area.name) ? { ...i, area: newName } : i));
+    } else {
+      setExtraAreas(prev => prev.map(a => a.name === area.name ? { ...a, name: newName } : a));
+    }
+  }
+  function removeExtraArea(name) {
+    setExtraAreas(prev => prev.filter(a => a.name !== name));
+  }
+  // Moving a top-level item drags its accessories along with it.
+  async function moveLineItemToArea(item, toAreaName) {
+    const newArea = toAreaName === SIN_AREA ? null : toAreaName;
+    if ((item.area || null) === newArea) return;
+    const ids = [item.id, ...lineItems.filter(i => i.parent_item_id === item.id).map(i => i.id)];
+    setLineItems(prev => prev.map(i => ids.includes(i.id) ? { ...i, area: newArea } : i));
+    await supabase.from('job_line_items').update({ area: newArea }).in('id', ids);
+  }
 
   useEffect(() => {
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
 
-  const areaOptions = [...new Set(lineItems.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
   const materialOptions = [...new Map(lineItems.filter(i => i.description).map(i => [i.description.trim().toLowerCase(), i.description.trim()])).values()];
+  // An accessory only carries its own weight in the total when its parent has
+  // opted out of "Combinar precio" — otherwise the parent's own price is
+  // assumed to already include it.
+  function itemLineTotal(it) {
+    if (it.parent_item_id) {
+      const parent = lineItems.find(p => p.id === it.parent_item_id);
+      if (!parent || parent.combine_price !== false) return 0;
+    }
+    return (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0);
+  }
+  // calcularIVU/TaxBreakdown sum quantity*unit_price directly with no
+  // parent/child awareness, so bundled accessories need their price zeroed
+  // out here before they're fed in.
+  const lineItemsForTax = lineItems.map(it => it.parent_item_id && itemLineTotal(it) === 0 ? { ...it, unit_price: 0 } : it);
+  async function toggleCombinePrice(item, checked) {
+    setLineItems(prev => prev.map(i => i.id === item.id ? { ...i, combine_price: checked } : i));
+    await supabase.from('job_line_items').update({ combine_price: checked }).eq('id', item.id);
+  }
 
   async function applyNewLineCatalogPhoto(match) {
     if (newLine.photoFile || newLine.existingPhotoPath || !match.photo_url) return;
@@ -379,9 +462,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     }
   }
 
-  function addPrefilledLineItem(item) {
+  // The calculator's own `area` field is dropped since grouping here already
+  // happens structurally, by area section — the item is added to whichever
+  // area's "Calcular cable/tubo" button was clicked.
+  function addPrefilledLineItem({ area, ...item }, areaName) {
     setNewLine(l => ({ ...l, type: 'product', tax_category: 'product', ...item }));
-    setAddingLine(true);
+    setAddingLineFor(areaName);
   }
   const [savingLine, setSavingLine] = useState(false);
   const [editingLineId, setEditingLineId] = useState(null);
@@ -399,7 +485,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       msrp: item.msrp ?? '',
       supplier_price: item.supplier_price ?? '',
       exempt: !!item.exempt_reason,
-      area: item.area ?? '',
       vendor: item.vendor ?? '',
       warranty_expires_at: item.warranty_expires_at ?? null,
       photoFile: null,
@@ -448,7 +533,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       msrp: editLineForm.msrp !== '' ? parseFloat(editLineForm.msrp) : null,
       supplier_price: editLineForm.supplier_price !== '' ? parseFloat(editLineForm.supplier_price) : null,
       exempt_reason: editLineForm.exempt ? 'Exento' : null,
-      area: editLineForm.area || null,
       vendor: editLineForm.vendor || null,
       warranty_expires_at: editLineForm.warranty_expires_at || null,
       photo_url: photoPath,
@@ -464,7 +548,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       msrp: editLineForm.msrp !== '' ? parseFloat(editLineForm.msrp) : null,
       supplier_price: editLineForm.supplier_price !== '' ? parseFloat(editLineForm.supplier_price) : null,
       exempt_reason: editLineForm.exempt ? 'Exento' : null,
-      area: editLineForm.area || null,
       vendor: editLineForm.vendor || null,
       warranty_expires_at: editLineForm.warranty_expires_at || null,
       photo_url: photoPath, photo_signed_url: photoSignedUrl,
@@ -494,26 +577,55 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       msrp: newLine.msrp !== '' ? parseFloat(newLine.msrp) : null,
       supplier_price: newLine.supplier_price !== '' ? parseFloat(newLine.supplier_price) : null,
       exempt_reason: newLine.exempt ? 'Exento' : null,
-      area: newLine.area || null,
+      area: addingLineFor && addingLineFor !== SIN_AREA ? addingLineFor : null,
       vendor: newLine.vendor || null,
       warranty_expires_at: newLine.warranty_expires_at || null,
       photo_url: photoPath,
       sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
-    setNewLine({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
-    setAddingLine(false);
+    setNewLine({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
+    setAddingLineFor(null);
     setSavingLine(false);
   }
 
   async function deleteLineItem(itemId) {
     await supabase.from('job_line_items').delete().eq('id', itemId);
-    setLineItems(prev => prev.filter(i => i.id !== itemId));
+    setLineItems(prev => prev.filter(i => i.id !== itemId && i.parent_item_id !== itemId));
+  }
+
+  async function addAccessoryLine(parent) {
+    if (!newLine.description.trim()) return;
+    setSavingLine(true);
+    let photoPath = newLine.existingPhotoPath ?? null;
+    if (newLine.photoFile) {
+      const ext = newLine.photoFile.name.split('.').pop();
+      const path = `${job.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, newLine.photoFile);
+      if (!upErr) photoPath = path;
+    }
+    const { data } = await supabase.from('job_line_items').insert([{
+      job_id: job.id,
+      type: parent.type, tax_category: parent.tax_category || parent.type,
+      description: newLine.description.trim(),
+      quantity: parseFloat(newLine.quantity) || 1, unit_price: parseFloat(newLine.unit_price) || 0,
+      msrp: newLine.msrp !== '' ? parseFloat(newLine.msrp) : null,
+      supplier_price: newLine.supplier_price !== '' ? parseFloat(newLine.supplier_price) : null,
+      exempt_reason: newLine.exempt ? 'Exento' : null,
+      area: parent.area || null,
+      parent_item_id: parent.id,
+      photo_url: photoPath,
+      sort_order: lineItems.length,
+    }]).select().single();
+    if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
+    setNewLine({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
+    setAddingAccessoryFor(null);
+    setSavingLine(false);
   }
 
   // Alta directa desde el catálogo (LineItemPicker) — se guarda de una vez,
   // igual que addLineItem, en vez de pasar por el formulario "+ Agregar línea".
-  async function addLineItemFromCatalog(catalogItem) {
+  async function addLineItemFromCatalog(catalogItem, areaName) {
     setSavingLine(true);
     let photoPath = null, photoSignedUrl = null;
     if (catalogItem.photo_url) {
@@ -532,7 +644,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       msrp: catalogItem.msrp ?? null,
       supplier_price: catalogItem.supplier_price ?? null,
       exempt_reason: null,
-      area: null,
+      area: areaName && areaName !== SIN_AREA ? areaName : null,
       vendor: catalogItem.vendor || null,
       photo_url: photoPath,
       sort_order: lineItems.length,
@@ -1518,142 +1630,294 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de trabajo</p>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <div style={{ position: 'relative' }}>
-                    <button onClick={() => setShowLineMenu(o => !o)}
-                      style={{ background: 'none', border: '1.5px solid var(--border)', borderRadius: 8, cursor: 'pointer', color: 'var(--navy)', fontSize: 18, lineHeight: 1, padding: '4px 10px' }}>⋯</button>
-                    {showLineMenu && (
-                      <>
-                        <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowLineMenu(false)} />
-                        <div style={{ position: 'absolute', right: 0, top: 34, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 200, overflow: 'hidden' }}>
-                          <button onClick={() => { exportPurchaseListCSV(lineItems, job.job_number); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📦 Lista de compra</button>
-                          <button disabled={generatingPO} onClick={() => { generarOrdenCompra(); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>{generatingPO ? '⏳ Generando...' : '🛒 Generar orden de compra'}</button>
-                          <button onClick={() => { setShowCableCalc(true); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🧮 Calcular cable/tubo</button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingLine(true)}>+ Agregar línea</button>
+                <div style={{ position: 'relative' }}>
+                  <button onClick={() => setShowLineMenu(o => !o)}
+                    style={{ background: 'none', border: '1.5px solid var(--border)', borderRadius: 8, cursor: 'pointer', color: 'var(--navy)', fontSize: 18, lineHeight: 1, padding: '4px 10px' }}>⋯</button>
+                  {showLineMenu && (
+                    <>
+                      <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowLineMenu(false)} />
+                      <div style={{ position: 'absolute', right: 0, top: 34, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 200, overflow: 'hidden' }}>
+                        <button onClick={() => { exportPurchaseListCSV(lineItems, job.job_number); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📦 Lista de compra</button>
+                        <button disabled={generatingPO} onClick={() => { generarOrdenCompra(); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>{generatingPO ? '⏳ Generando...' : '🛒 Generar orden de compra'}</button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
-              <div style={{ marginBottom: 14 }}>
-                <LineItemPicker catalogOptions={catalogItems} onSelect={addLineItemFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
-              </div>
-              {!lineItems?.length ? <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: addingLine ? 14 : 0 }}>Sin líneas.</p> : (
-                lineItems.map(it => (
-                  editingLineId === it.id ? (
-                    <LineItemRow
-                      key={it.id}
-                      type={editLineForm.type}
-                      onTypeChange={v => setEditLineForm(f => ({ ...f, type: v, tax_category: v === 'fee' ? (f.tax_category || 'labor') : v }))}
-                      title={editLineForm.title}
-                      onTitleChange={value => {
-                        const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
-                        if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, title: match.name || match.description, description: f.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' })); applyEditLineCatalogPhoto(match); }
-                        else setEditLineForm(f => ({ ...f, title: value }));
-                      }}
-                      description={editLineForm.description}
-                      onDescriptionChange={value => {
-                        const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
-                        if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', title: f.title || match.name || match.description })); applyEditLineCatalogPhoto(match); }
-                        else setEditLineForm(f => ({ ...f, description: value }));
-                      }}
-                      catalogOptions={catalogItems.filter(c => c.type === editLineForm.type)}
-                      datalistId="job-catalog-edit"
-                      quantity={editLineForm.quantity}
-                      onQuantityChange={v => setEditLineForm(f => ({ ...f, quantity: v }))}
-                      msrp={editLineForm.msrp}
-                      onMsrpChange={v => setEditLineForm(f => ({ ...f, msrp: v }))}
-                      unitPrice={editLineForm.unit_price}
-                      onUnitPriceChange={v => setEditLineForm(f => ({ ...f, unit_price: v }))}
-                      supplierPrice={editLineForm.supplier_price}
-                      onSupplierPriceChange={v => setEditLineForm(f => ({ ...f, supplier_price: v }))}
-                      exempt={editLineForm.exempt}
-                      onExemptChange={v => setEditLineForm(f => ({ ...f, exempt: v }))}
-                      area={editLineForm.area}
-                      onAreaChange={v => setEditLineForm(f => ({ ...f, area: v }))}
-                      areaOptions={areaOptions}
-                      vendor={editLineForm.vendor}
-                      onVendorChange={v => setEditLineForm(f => ({ ...f, vendor: v }))}
-                      vendorOptions={vendorOptions}
-                      warrantyExpiresAt={editLineForm.warranty_expires_at}
-                      onWarrantyExpiresAtChange={v => setEditLineForm(f => ({ ...f, warranty_expires_at: v }))}
-                      photoUrl={editLineForm.photoPreview}
-                      onPhotoSelect={handleEditLinePhoto}
-                      fmt={fmt}
-                      actions={
+
+              {displayAreas.map((area, areaIndex) => {
+                const areaLineTotal = area.items.reduce((s, it) => s + itemLineTotal(it) + (it.children ?? []).reduce((cs, c) => cs + itemLineTotal(c), 0), 0);
+                return (
+                  <div key={area.name}
+                    onDragOver={e => { if (dragLineItem) e.preventDefault(); }}
+                    onDrop={e => { e.preventDefault(); if (dragLineItem) { moveLineItemToArea(dragLineItem, area.name); setDragLineItem(null); } }}
+                    style={{ background: 'var(--surface-2)', border: dragLineItem ? '1px dashed var(--border-strong)' : '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 10 }}>
+                      {renamingArea === area.name ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1 }}>
+                          <input autoFocus value={renameDraft} onChange={e => setRenameDraft(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') commitRenameArea(area); if (e.key === 'Escape') setRenamingArea(null); }}
+                            style={{ fontWeight: 700, fontSize: 13, flex: 1 }} />
+                          <button type="button" onClick={() => commitRenameArea(area)} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: 11 }}>✓</button>
+                          <button type="button" onClick={() => setRenamingArea(null)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }}>✕</button>
+                        </div>
+                      ) : (
                         <>
-                          <button onClick={() => saveEditLine(it.id)} disabled={savingLine} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: 11 }}>💾</button>
-                          <button onClick={() => setEditingLineId(null)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }}>✕</button>
+                          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>{area.name}</p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{area.name} Total: {fmt(areaLineTotal)}</span>
+                            <div style={{ position: 'relative' }}>
+                              <button type="button" onClick={() => setAreaMenuOpen(o => o === area.name ? null : area.name)}
+                                style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, padding: '2px 6px' }}>⋮</button>
+                              {areaMenuOpen === area.name && (
+                                <>
+                                  <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setAreaMenuOpen(null)} />
+                                  <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 4, minWidth: 170, whiteSpace: 'nowrap' }}>
+                                    <button type="button" onClick={() => { startRenameArea(area); setAreaMenuOpen(null); }}
+                                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' }}>
+                                      ✏️ Renombrar área
+                                    </button>
+                                    {area.items.length === 0 && (
+                                      <button type="button" disabled={displayAreas.length <= 1}
+                                        onClick={() => { removeExtraArea(area.name); setAreaMenuOpen(null); }}
+                                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: displayAreas.length <= 1 ? 'default' : 'pointer', borderRadius: 6, color: displayAreas.length <= 1 ? 'var(--muted)' : 'var(--warn)' }}>
+                                        🗑 Eliminar área
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </>
-                      }
-                    />
-                  ) : (
-                    <LineItemRow
-                      key={it.id}
-                      viewMode
-                      type={it.type}
-                      title={it.title}
-                      description={it.description}
-                      quantity={it.quantity}
-                      msrp={it.msrp}
-                      unitPrice={it.unit_price}
-                      supplierPrice={it.supplier_price}
-                      exempt={!!it.exempt_reason}
-                      warrantyExpiresAt={it.warranty_expires_at}
-                      photoUrl={it.photo_signed_url}
-                      fmt={fmt}
-                      actions={
-                        <>
-                          <button onClick={() => startEditLine(it)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, padding: '2px 6px' }}>✏️</button>
-                          <button onClick={() => deleteLineItem(it.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, padding: '2px 6px' }}>×</button>
-                        </>
-                      }
-                    />
-                  )
-                ))
-              )}
-              {addingLine && (
-                <LineItemRow
-                  type={newLine.type}
-                  onTypeChange={v => setNewLine(l => ({ ...l, type: v, tax_category: v === 'fee' ? (l.tax_category || 'labor') : v }))}
-                  title={newLine.title}
-                  onTitleChange={handleLineTitleSelect}
-                  description={newLine.description}
-                  onDescriptionChange={handleLineDescriptionSelect}
-                  catalogOptions={catalogItems.filter(c => c.type === newLine.type)}
-                  datalistId="job-catalog"
-                  quantity={newLine.quantity}
-                  onQuantityChange={v => setNewLine(l => ({ ...l, quantity: v }))}
-                  msrp={newLine.msrp}
-                  onMsrpChange={v => setNewLine(l => ({ ...l, msrp: v }))}
-                  unitPrice={newLine.unit_price}
-                  onUnitPriceChange={v => setNewLine(l => ({ ...l, unit_price: v }))}
-                  supplierPrice={newLine.supplier_price}
-                  onSupplierPriceChange={v => setNewLine(l => ({ ...l, supplier_price: v }))}
-                  exempt={newLine.exempt}
-                  onExemptChange={v => setNewLine(l => ({ ...l, exempt: v }))}
-                  area={newLine.area}
-                  onAreaChange={v => setNewLine(l => ({ ...l, area: v }))}
-                  areaOptions={areaOptions}
-                  vendor={newLine.vendor}
-                  onVendorChange={v => setNewLine(l => ({ ...l, vendor: v }))}
-                  vendorOptions={vendorOptions}
-                  warrantyExpiresAt={newLine.warranty_expires_at}
-                  onWarrantyExpiresAtChange={v => setNewLine(l => ({ ...l, warranty_expires_at: v }))}
-                  photoUrl={newLine.photoPreview}
-                  onPhotoSelect={handleNewLinePhoto}
-                  fmt={fmt}
-                  actions={
-                    <button onClick={addLineItem} disabled={savingLine} style={{ background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
-                      {savingLine ? '...' : '✓'}
-                    </button>
-                  }
-                />
-              )}
-              {addingLine && (
-                <button onClick={() => setAddingLine(false)} style={{ marginTop: 10, background: 'none', border: 'none', color: 'var(--muted)', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>Cancelar</button>
-              )}
+                      )}
+                    </div>
+
+                    <div style={{ marginBottom: 10 }}>
+                      <LineItemPicker catalogOptions={catalogItems} onSelect={item => addLineItemFromCatalog(item, area.name)} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+                    </div>
+
+                    {area.items.length === 0 && addingLineFor !== area.name && (
+                      <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 8 }}>Sin líneas en esta área.</p>
+                    )}
+
+                    {area.items.map(it => (
+                      editingLineId === it.id ? (
+                        <LineItemRow
+                          key={it.id}
+                          type={editLineForm.type}
+                          onTypeChange={v => setEditLineForm(f => ({ ...f, type: v, tax_category: v === 'fee' ? (f.tax_category || 'labor') : v }))}
+                          title={editLineForm.title}
+                          onTitleChange={value => {
+                            const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+                            if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, title: match.name || match.description, description: f.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' })); applyEditLineCatalogPhoto(match); }
+                            else setEditLineForm(f => ({ ...f, title: value }));
+                          }}
+                          description={editLineForm.description}
+                          onDescriptionChange={value => {
+                            const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+                            if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', title: f.title || match.name || match.description })); applyEditLineCatalogPhoto(match); }
+                            else setEditLineForm(f => ({ ...f, description: value }));
+                          }}
+                          catalogOptions={catalogItems.filter(c => c.type === editLineForm.type)}
+                          datalistId="job-catalog-edit"
+                          quantity={editLineForm.quantity}
+                          onQuantityChange={v => setEditLineForm(f => ({ ...f, quantity: v }))}
+                          msrp={editLineForm.msrp}
+                          onMsrpChange={v => setEditLineForm(f => ({ ...f, msrp: v }))}
+                          unitPrice={editLineForm.unit_price}
+                          onUnitPriceChange={v => setEditLineForm(f => ({ ...f, unit_price: v }))}
+                          supplierPrice={editLineForm.supplier_price}
+                          onSupplierPriceChange={v => setEditLineForm(f => ({ ...f, supplier_price: v }))}
+                          exempt={editLineForm.exempt}
+                          onExemptChange={v => setEditLineForm(f => ({ ...f, exempt: v }))}
+                          vendor={editLineForm.vendor}
+                          onVendorChange={v => setEditLineForm(f => ({ ...f, vendor: v }))}
+                          vendorOptions={vendorOptions}
+                          warrantyExpiresAt={editLineForm.warranty_expires_at}
+                          onWarrantyExpiresAtChange={v => setEditLineForm(f => ({ ...f, warranty_expires_at: v }))}
+                          photoUrl={editLineForm.photoPreview}
+                          onPhotoSelect={handleEditLinePhoto}
+                          fmt={fmt}
+                          actions={
+                            <>
+                              <button onClick={() => saveEditLine(it.id)} disabled={savingLine} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: 11 }}>💾</button>
+                              <button onClick={() => setEditingLineId(null)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }}>✕</button>
+                            </>
+                          }
+                        />
+                      ) : (
+                        <div key={it.id}>
+                          <LineItemRow
+                            viewMode
+                            type={it.type}
+                            title={it.title}
+                            description={it.description}
+                            quantity={it.quantity}
+                            msrp={it.msrp}
+                            unitPrice={it.unit_price}
+                            supplierPrice={it.supplier_price}
+                            exempt={!!it.exempt_reason}
+                            warrantyExpiresAt={it.warranty_expires_at}
+                            photoUrl={it.photo_signed_url}
+                            fmt={fmt}
+                            actions={
+                              <>
+                                <span
+                                  draggable
+                                  onDragStart={() => setDragLineItem(it)}
+                                  onDragEnd={() => setDragLineItem(null)}
+                                  title="Arrastrar para mover a otra área"
+                                  style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 15, padding: '0 4px', userSelect: 'none' }}
+                                >⠿</span>
+                                <button onClick={() => startEditLine(it)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, padding: '2px 6px' }}>✏️</button>
+                                <button onClick={() => deleteLineItem(it.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, padding: '2px 6px' }}>×</button>
+                              </>
+                            }
+                          />
+                          {(it.children ?? []).map(child => (
+                            editingLineId === child.id ? (
+                              <LineItemRow
+                                key={child.id}
+                                isAccessory
+                                showPricing={it.combine_price === false}
+                                description={editLineForm.description}
+                                onDescriptionChange={v => setEditLineForm(f => ({ ...f, description: v }))}
+                                catalogOptions={catalogItems}
+                                datalistId={`job-catalog-child-edit`}
+                                quantity={editLineForm.quantity}
+                                onQuantityChange={v => setEditLineForm(f => ({ ...f, quantity: v }))}
+                                msrp={editLineForm.msrp}
+                                onMsrpChange={v => setEditLineForm(f => ({ ...f, msrp: v }))}
+                                unitPrice={editLineForm.unit_price}
+                                onUnitPriceChange={v => setEditLineForm(f => ({ ...f, unit_price: v }))}
+                                supplierPrice={editLineForm.supplier_price}
+                                onSupplierPriceChange={v => setEditLineForm(f => ({ ...f, supplier_price: v }))}
+                                photoUrl={editLineForm.photoPreview}
+                                onPhotoSelect={handleEditLinePhoto}
+                                fmt={fmt}
+                                actions={
+                                  <>
+                                    <button onClick={() => saveEditLine(child.id)} disabled={savingLine} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: 11 }}>💾</button>
+                                    <button onClick={() => setEditingLineId(null)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 11 }}>✕</button>
+                                  </>
+                                }
+                              />
+                            ) : (
+                              <LineItemRow
+                                key={child.id}
+                                isAccessory
+                                viewMode
+                                showPricing={it.combine_price === false}
+                                description={child.description}
+                                quantity={child.quantity}
+                                msrp={child.msrp}
+                                unitPrice={child.unit_price}
+                                supplierPrice={child.supplier_price}
+                                photoUrl={child.photo_signed_url}
+                                fmt={fmt}
+                                actions={
+                                  <>
+                                    <button onClick={() => startEditLine(child)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 13 }}>✏️</button>
+                                    <button onClick={() => deleteLineItem(child.id)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 15 }}>×</button>
+                                  </>
+                                }
+                              />
+                            )
+                          ))}
+                          {addingAccessoryFor === it.id && (
+                            <LineItemRow
+                              isAccessory
+                              showPricing={it.combine_price === false}
+                              description={newLine.description}
+                              onDescriptionChange={v => setNewLine(l => ({ ...l, description: v }))}
+                              catalogOptions={catalogItems}
+                              datalistId="job-catalog-accessory-new"
+                              quantity={newLine.quantity}
+                              onQuantityChange={v => setNewLine(l => ({ ...l, quantity: v }))}
+                              msrp={newLine.msrp}
+                              onMsrpChange={v => setNewLine(l => ({ ...l, msrp: v }))}
+                              unitPrice={newLine.unit_price}
+                              onUnitPriceChange={v => setNewLine(l => ({ ...l, unit_price: v }))}
+                              supplierPrice={newLine.supplier_price}
+                              onSupplierPriceChange={v => setNewLine(l => ({ ...l, supplier_price: v }))}
+                              photoUrl={newLine.photoPreview}
+                              onPhotoSelect={handleNewLinePhoto}
+                              fmt={fmt}
+                              actions={
+                                <>
+                                  <button onClick={() => addAccessoryLine(it)} disabled={savingLine} style={{ background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+                                    {savingLine ? '...' : '✓'}
+                                  </button>
+                                  <button onClick={() => setAddingAccessoryFor(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 15 }}>✕</button>
+                                </>
+                              }
+                            />
+                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 32, marginBottom: 8, marginTop: -4 }}>
+                            <button type="button" onClick={() => setAddingAccessoryFor(it.id)}
+                              style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
+                              + Accesorio
+                            </button>
+                            {it.children?.length > 0 && (
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
+                                title="Si está activo, el precio de los accesorios se combina en el total de este producto (no se muestran precios individuales). Si lo desactivas, cada accesorio se cotiza por separado.">
+                                <input type="checkbox" checked={it.combine_price !== false}
+                                  onChange={e => toggleCombinePrice(it, e.target.checked)} />
+                                Combinar precio de accesorios
+                              </label>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    ))}
+
+                    {addingLineFor === area.name && (
+                      <LineItemRow
+                        type={newLine.type}
+                        onTypeChange={v => setNewLine(l => ({ ...l, type: v, tax_category: v === 'fee' ? (l.tax_category || 'labor') : v }))}
+                        title={newLine.title}
+                        onTitleChange={handleLineTitleSelect}
+                        description={newLine.description}
+                        onDescriptionChange={handleLineDescriptionSelect}
+                        catalogOptions={catalogItems.filter(c => c.type === newLine.type)}
+                        datalistId={`job-catalog-${areaIndex}`}
+                        quantity={newLine.quantity}
+                        onQuantityChange={v => setNewLine(l => ({ ...l, quantity: v }))}
+                        msrp={newLine.msrp}
+                        onMsrpChange={v => setNewLine(l => ({ ...l, msrp: v }))}
+                        unitPrice={newLine.unit_price}
+                        onUnitPriceChange={v => setNewLine(l => ({ ...l, unit_price: v }))}
+                        supplierPrice={newLine.supplier_price}
+                        onSupplierPriceChange={v => setNewLine(l => ({ ...l, supplier_price: v }))}
+                        exempt={newLine.exempt}
+                        onExemptChange={v => setNewLine(l => ({ ...l, exempt: v }))}
+                        vendor={newLine.vendor}
+                        onVendorChange={v => setNewLine(l => ({ ...l, vendor: v }))}
+                        vendorOptions={vendorOptions}
+                        warrantyExpiresAt={newLine.warranty_expires_at}
+                        onWarrantyExpiresAtChange={v => setNewLine(l => ({ ...l, warranty_expires_at: v }))}
+                        photoUrl={newLine.photoPreview}
+                        onPhotoSelect={handleNewLinePhoto}
+                        fmt={fmt}
+                        actions={
+                          <>
+                            <button onClick={addLineItem} disabled={savingLine} style={{ background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                              {savingLine ? '...' : '✓'}
+                            </button>
+                            <button onClick={() => setAddingLineFor(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>✕</button>
+                          </>
+                        }
+                      />
+                    )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setAddingLineFor(area.name)}>+ Agregar línea</button>
+                      <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget(area.name)}>🧮 Calcular cable/tubo</button>
+                    </div>
+                  </div>
+                );
+              })}
+              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addExtraArea}>+ Agregar área</button>
             </div>
           </div>
 
@@ -1713,7 +1977,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
             </div>
             <div className="card">
               <TaxBreakdown
-                lineas={lineItems} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                lineas={lineItemsForTax} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
                 note={clientType === 'b2b' && <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>Cliente B2B — Labor al 4%</div>}
               />
             </div>
@@ -2658,13 +2922,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
         </div>
       )}
 
-      {showCableCalc && (
+      {cableCalcTarget && (
         <CableCalculator
-          areaOptions={areaOptions}
           vendorOptions={vendorOptions}
           materialOptions={materialOptions}
-          onAdd={item => { addPrefilledLineItem(item); setShowCableCalc(false); }}
-          onClose={() => setShowCableCalc(false)}
+          onAdd={item => { addPrefilledLineItem(item, cableCalcTarget); setCableCalcTarget(null); }}
+          onClose={() => setCableCalcTarget(null)}
         />
       )}
     </div>

@@ -14,6 +14,55 @@ const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar sop
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
+function emptyItem(overrides = {}) {
+  return {
+    key: Math.random().toString(36).slice(2),
+    parentKey: null, combinePrice: true,
+    type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1,
+    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null,
+    photoFile: null, photoPreview: null, existingPhotoPath: null,
+    ...overrides,
+  };
+}
+function emptyArea(name = 'Área 1') {
+  return { key: Math.random().toString(36).slice(2), name, items: [emptyItem()] };
+}
+// Rebuilds the local {areas: [{name, items}]} builder shape from a flat list
+// of line items (loaded from estimate_line_items or job_line_items), grouping
+// by each item's `area` tag — same grouping ProposalDocument.js's area
+// sections use, so edit mode reconstructs what will render. Accessories
+// (parent_item_id children) are re-linked to their parent's freshly-minted
+// local key right after it, same two-pass shape PropuestaForm.js uses.
+function itemsToAreas(items) {
+  const rows = items ?? [];
+  const topLevel = rows.filter(li => !li.parent_item_id).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const areas = [];
+  topLevel.forEach(li => {
+    const name = li.area || 'General';
+    let area = areas.find(a => a.name === name);
+    if (!area) { area = { key: Math.random().toString(36).slice(2), name, items: [] }; areas.push(area); }
+    const parent = emptyItem({
+      type: li.type, tax_category: li.tax_category ?? li.type, title: li.title ?? '', description: li.description,
+      quantity: li.quantity, unit_price: li.unit_price,
+      msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
+      vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
+      combinePrice: li.combine_price !== false,
+      photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
+    });
+    area.items.push(parent);
+    rows.filter(c => c.parent_item_id === li.id).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).forEach(child => {
+      area.items.push(emptyItem({
+        parentKey: parent.key,
+        type: child.type, tax_category: child.tax_category ?? child.type, description: child.description,
+        quantity: child.quantity, unit_price: child.unit_price,
+        msrp: child.msrp ?? '', supplier_price: child.supplier_price ?? '', exempt: !!child.exempt_reason,
+        photoPreview: child.photo_signed_url ?? null, existingPhotoPath: child.photo_url ?? null,
+      }));
+    });
+  });
+  return areas.length ? areas : [emptyArea()];
+}
+
 export default function EstimateForm({ initialData = null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,19 +88,12 @@ export default function EstimateForm({ initialData = null }) {
     issued_at: new Date().toISOString().split('T')[0],
     valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
-  const [items, setItems] = useState(
-    initialData?.items?.length
-      ? initialData.items.map(li => ({
-          type: li.type, tax_category: li.tax_category ?? li.type, title: li.title ?? '', description: li.description, quantity: li.quantity, unit_price: li.unit_price,
-          msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
-          area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
-          photoFile: null, photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
-        }))
-      : [{ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]
-  );
+  const [areas, setAreas] = useState(initialData?.items?.length ? itemsToAreas(initialData.items) : [emptyArea()]);
+  const [areaMenuOpen, setAreaMenuOpen] = useState(null);
+  const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — item currently being dragged
+  const [cableCalcTarget, setCableCalcTarget] = useState(null); // { areaKey } — which area the calculator adds into, or null when closed
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [showCableCalc, setShowCableCalc] = useState(false);
 
   useEffect(() => {
     supabase.from('clients').select('id, name, company, client_type').order('name').then(({ data }) => setClients(data ?? []));
@@ -94,14 +136,8 @@ export default function EstimateForm({ initialData = null }) {
               const { data } = await supabase.storage.from('Job-photos').createSignedUrl(li.photo_url, 3600);
               photoPreview = data?.signedUrl ?? null;
             }
-            return {
-              type: li.type, tax_category: li.tax_category ?? li.type, title: li.title ?? '', description: li.description,
-              quantity: li.quantity, unit_price: li.unit_price,
-              msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
-              area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
-              photoFile: null, photoPreview, existingPhotoPath: li.photo_url ?? null,
-            };
-          })).then(setItems);
+            return { ...li, photo_signed_url: photoPreview };
+          })).then(loaded => setAreas(itemsToAreas(loaded)));
         }
       }
     }
@@ -112,74 +148,175 @@ export default function EstimateForm({ initialData = null }) {
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null }]);
-  const addPrefilledItem = item => setItems(i => [...i, { type: 'product', tax_category: 'product', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null, ...item }]);
-  async function addFromCatalog(catalogItem) {
+  function addArea() {
+    setAreas(prev => [...prev, emptyArea(`Área ${prev.length + 1}`)]);
+  }
+  function removeArea(areaKey) {
+    setAreas(prev => prev.filter(a => a.key !== areaKey));
+  }
+  function updateAreaName(areaKey, name) {
+    setAreas(prev => prev.map(a => a.key === areaKey ? { ...a, name } : a));
+  }
+  function addItem(areaKey, overrides = {}) {
+    setAreas(prev => prev.map(a => a.key === areaKey ? { ...a, items: [...a.items, emptyItem(overrides)] } : a));
+  }
+  // Used by the cable/tubo calculator — merges a prefilled item into a specific
+  // area instead of appending a blank one. The calculator's own `area` field is
+  // dropped since grouping here already happens structurally, by area section.
+  function addPrefilledItem(areaKey, { area, ...item }) {
+    addItem(areaKey, { type: 'product', tax_category: 'product', ...item });
+  }
+  async function addFromCatalog(areaKey, catalogItem) {
     let existingPhotoPath = null, photoPreview = null;
     if (catalogItem.photo_url) {
       const { data } = await supabase.storage.from('Job-photos').createSignedUrl(catalogItem.photo_url, 3600);
       existingPhotoPath = catalogItem.photo_url;
       photoPreview = data?.signedUrl ?? null;
     }
-    setItems(i => [...i, {
+    addItem(areaKey, {
       type: catalogItem.type, tax_category: catalogItem.tax_category,
       title: catalogItem.name || '', description: catalogItem.description,
-      quantity: 1, unit_price: catalogItem.price ?? '', msrp: catalogItem.msrp ?? '', supplier_price: catalogItem.supplier_price ?? '',
-      exempt: false, area: '', vendor: catalogItem.vendor || '', catalog_item_id: catalogItem.id,
-      photoFile: null, photoPreview, existingPhotoPath,
-    }]);
+      unit_price: catalogItem.price ?? '', msrp: catalogItem.msrp ?? '', supplier_price: catalogItem.supplier_price ?? '',
+      vendor: catalogItem.vendor || '', catalog_item_id: catalogItem.id,
+      photoPreview, existingPhotoPath,
+    });
   }
-  const removeItem = idx => setItems(i => i.filter((_, n) => n !== idx));
-  const duplicateItem = idx => setItems(i => [...i.slice(0, idx + 1), { ...i[idx] }, ...i.slice(idx + 1)]);
-  const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
-  const setItemType = (idx, type) => setItems(i => i.map((it, n) => n === idx ? { ...it, type, tax_category: type === 'fee' ? (it.tax_category || 'labor') : type } : it));
-  function handleItemPhoto(idx, file) {
+  // Accessories are inserted right after the last item already belonging to
+  // their parent's group, so they stay visually grouped under it.
+  function addAccessory(areaKey, parentKey) {
+    setAreas(prev => prev.map(a => {
+      if (a.key !== areaKey) return a;
+      let insertAt = a.items.findIndex(it => it.key === parentKey);
+      const parentType = a.items[insertAt]?.type || 'product';
+      for (let i = insertAt + 1; i < a.items.length; i++) {
+        if (a.items[i].parentKey === parentKey) insertAt = i;
+        else break;
+      }
+      const items = [...a.items];
+      items.splice(insertAt + 1, 0, emptyItem({ parentKey, type: parentType, tax_category: parentType === 'fee' ? 'labor' : parentType }));
+      return { ...a, items };
+    }));
+  }
+  function removeItem(areaKey, itemKey) {
+    setAreas(prev => prev.map(a => a.key === areaKey ? { ...a, items: a.items.filter(it => it.key !== itemKey && it.parentKey !== itemKey) } : a));
+  }
+  function duplicateItem(areaKey, itemKey) {
+    setAreas(prev => prev.map(a => {
+      if (a.key !== areaKey) return a;
+      const idx = a.items.findIndex(it => it.key === itemKey);
+      if (idx === -1) return a;
+      const clone = { ...a.items[idx], key: Math.random().toString(36).slice(2) };
+      return { ...a, items: [...a.items.slice(0, idx + 1), clone, ...a.items.slice(idx + 1)] };
+    }));
+  }
+  // Moves a top-level item + its trailing accessory block (contiguous in the
+  // items array, linked by parentKey) from one area to another, or reorders
+  // it within the same area. beforeItemKey is where to insert — null appends
+  // at the end of the target area.
+  function moveItem(fromAreaKey, itemKey, toAreaKey, beforeItemKey) {
+    setAreas(prev => {
+      const fromArea = prev.find(a => a.key === fromAreaKey);
+      if (!fromArea) return prev;
+      const startIdx = fromArea.items.findIndex(it => it.key === itemKey);
+      if (startIdx === -1) return prev;
+      let endIdx = startIdx;
+      while (endIdx + 1 < fromArea.items.length && fromArea.items[endIdx + 1].parentKey === itemKey) endIdx++;
+      const block = fromArea.items.slice(startIdx, endIdx + 1);
+      const blockKeys = new Set(block.map(it => it.key));
+      if (beforeItemKey && blockKeys.has(beforeItemKey)) return prev; // dropped onto itself/its own accessory
+
+      const afterRemoval = prev.map(a => a.key === fromAreaKey ? { ...a, items: a.items.filter(it => !blockKeys.has(it.key)) } : a);
+      return afterRemoval.map(a => {
+        if (a.key !== toAreaKey) return a;
+        const items = [...a.items];
+        const insertIdx = beforeItemKey ? items.findIndex(it => it.key === beforeItemKey) : -1;
+        items.splice(insertIdx === -1 ? items.length : insertIdx, 0, ...block);
+        return { ...a, items };
+      });
+    });
+  }
+  function setItem(areaKey, itemKey, k, v) {
+    setAreas(prev => prev.map(a => a.key === areaKey ? { ...a, items: a.items.map(it => it.key === itemKey ? { ...it, [k]: v } : it) } : a));
+  }
+  function setItemType(areaKey, itemKey, type) {
+    setAreas(prev => prev.map(a => a.key === areaKey
+      ? { ...a, items: a.items.map(it => it.key === itemKey ? { ...it, type, tax_category: type === 'fee' ? (it.tax_category || 'labor') : type } : it) }
+      : a));
+  }
+  function handleItemPhoto(areaKey, itemKey, file) {
     if (!file) return;
-    setItems(i => i.map((it, n) => n === idx ? { ...it, photoFile: file, photoPreview: URL.createObjectURL(file), existingPhotoPath: null } : it));
+    setItem(areaKey, itemKey, 'photoFile', file);
+    setAreas(prev => prev.map(a => a.key === areaKey
+      ? { ...a, items: a.items.map(it => it.key === itemKey ? { ...it, photoFile: file, photoPreview: URL.createObjectURL(file), existingPhotoPath: null } : it) }
+      : a));
   }
-  async function applyCatalogItemPhoto(idx, match) {
-    const current = items[idx];
+  async function applyCatalogItemPhoto(areaKey, itemKey, match) {
+    const current = areas.find(a => a.key === areaKey)?.items.find(it => it.key === itemKey);
     if (!current || current.photoFile || current.existingPhotoPath || !match.photo_url) return;
     const { data } = await supabase.storage.from('Job-photos').createSignedUrl(match.photo_url, 3600);
-    setItems(i => i.map((it, n) => n === idx && !it.photoFile && !it.existingPhotoPath ? { ...it, existingPhotoPath: match.photo_url, photoPreview: data?.signedUrl ?? it.photoPreview } : it));
+    setAreas(prev => prev.map(a => a.key === areaKey
+      ? { ...a, items: a.items.map(it => it.key === itemKey && !it.photoFile && !it.existingPhotoPath ? { ...it, existingPhotoPath: match.photo_url, photoPreview: data?.signedUrl ?? it.photoPreview } : it) }
+      : a));
   }
-  function handleCatalogSelect(idx, value) {
+  function handleCatalogSelect(areaKey, itemKey, value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
-      setItems(i => i.map((it, n) => n === idx ? {
-        ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, title: it.title || match.name || match.description, tax_category: match.tax_category ?? it.tax_category,
-      } : it));
-      applyCatalogItemPhoto(idx, match);
+      setAreas(prev => prev.map(a => a.key === areaKey
+        ? { ...a, items: a.items.map(it => it.key === itemKey ? {
+              ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+              vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, title: it.title || match.name || match.description, tax_category: match.tax_category ?? it.tax_category,
+            } : it) }
+        : a));
+      applyCatalogItemPhoto(areaKey, itemKey, match);
     } else {
-      setItems(i => i.map((it, n) => n === idx ? { ...it, description: value, catalog_item_id: null } : it));
+      setItem(areaKey, itemKey, 'description', value);
+      setItem(areaKey, itemKey, 'catalog_item_id', null);
     }
   }
-  function handleTitleCatalogSelect(idx, value) {
+  function handleTitleCatalogSelect(areaKey, itemKey, value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
-      setItems(i => i.map((it, n) => n === idx ? {
-        ...it, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
-        unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-        vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, tax_category: match.tax_category ?? it.tax_category,
-      } : it));
-      applyCatalogItemPhoto(idx, match);
+      setAreas(prev => prev.map(a => a.key === areaKey
+        ? { ...a, items: a.items.map(it => it.key === itemKey ? {
+              ...it, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
+              unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+              vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, tax_category: match.tax_category ?? it.tax_category,
+            } : it) }
+        : a));
+      applyCatalogItemPhoto(areaKey, itemKey, match);
     } else {
-      setItems(i => i.map((it, n) => n === idx ? { ...it, title: value } : it));
+      setItem(areaKey, itemKey, 'title', value);
     }
   }
 
-  const t = calcularIVU(items, clientType, taxRules);
+  const flatItems = areas.flatMap(a => a.items);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
-  const materialOptions = [...new Map(items.filter(i => i.description).map(i => [i.description.trim().toLowerCase(), i.description.trim()])).values()];
+  const materialOptions = [...new Map(flatItems.filter(i => i.description).map(i => [i.description.trim().toLowerCase(), i.description.trim()])).values()];
+  // Accessories only carry their own weight in the total when their parent
+  // has opted out of "Combinar precio" — otherwise the parent's own price is
+  // assumed to already include them.
+  function itemLineTotal(it, area) {
+    if (it.parentKey) {
+      const parent = area?.items.find(p => p.key === it.parentKey);
+      if (!parent || parent.combinePrice !== false) return 0;
+    }
+    return (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0);
+  }
+  function areaTotal(area) {
+    return area.items.reduce((s, it) => s + itemLineTotal(it, area), 0);
+  }
+  // calcularIVU/TaxBreakdown sum quantity*unit_price directly with no
+  // parent/child awareness, so bundled accessories need their price zeroed
+  // out here before they're fed in — same net effect as itemLineTotal above.
+  const flatItemsForTax = areas.flatMap(a => a.items.map(it => it.parentKey && itemLineTotal(it, a) === 0 ? { ...it, unit_price: 0 } : it));
+  const t = calcularIVU(flatItemsForTax, clientType, taxRules);
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.client_id) { setError('Selecciona un cliente'); return; }
-    if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
-    if (items.some(i => !i.description.trim())) { setError('Todas las líneas necesitan una descripción antes de guardar.'); return; }
+    if (!flatItems.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
+    if (flatItems.some(i => !i.description.trim())) { setError('Todas las líneas necesitan una descripción antes de guardar.'); return; }
     if (propertyMode === 'new' && !newProperty.name.trim()) { setError('Ponle un nombre a la propiedad nueva'); return; }
     setSaving(true); setError('');
 
@@ -267,32 +404,63 @@ export default function EstimateForm({ initialData = null }) {
       estimate = created;
     }
 
-    const lineItems = [];
-    let sortOrder = 0;
-    for (const i of items.filter(i => i.description.trim())) {
-      let photoPath = i.existingPhotoPath ?? null;
-      if (i.photoFile) {
-        const ext = i.photoFile.name.split('.').pop();
-        const path = `${estimate.id}/${Date.now()}-${sortOrder}.${ext}`;
-        const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, i.photoFile);
-        if (!upErr) photoPath = path;
-      }
-      const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
-      const rate = tasaParaLinea(i, clientType, taxRules);
-      lineItems.push({
-        estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description,
-        quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
-        msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
-        supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
-        exempt_reason: i.exempt ? 'Exento' : null,
-        area: i.area || null, vendor: i.vendor || null, catalog_item_id: i.catalog_item_id || null,
-        photo_url: photoPath,
-        tax_rate: rate, line_total: base, tax_amount: base * rate,
-        sort_order: sortOrder++,
-      });
+    async function uploadItemPhoto(i, sortOrder) {
+      if (!i.photoFile) return i.existingPhotoPath ?? null;
+      const ext = i.photoFile.name.split('.').pop();
+      const path = `${estimate.id}/${Date.now()}-${sortOrder}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, i.photoFile);
+      return upErr ? null : path;
     }
 
-    const { error: liErr } = await supabase.from('estimate_line_items').insert(lineItems);
+    // Parents are inserted first so their DB ids can be attached to their
+    // accessories' parent_item_id in a second pass.
+    let sortOrder = 0;
+    let liErr = null;
+    const keyToId = {};
+    for (const area of areas) {
+      for (const i of area.items.filter(it => !it.parentKey && it.description.trim())) {
+        const photoPath = await uploadItemPhoto(i, sortOrder);
+        const base = itemLineTotal(i, area);
+        const rate = tasaParaLinea(i, clientType, taxRules);
+        const { data: row, error: err } = await supabase.from('estimate_line_items').insert([{
+          estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description,
+          quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
+          msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
+          supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
+          exempt_reason: i.exempt ? 'Exento' : null,
+          area: area.name || null, vendor: i.vendor || null, catalog_item_id: i.catalog_item_id || null,
+          combine_price: i.combinePrice !== false,
+          photo_url: photoPath,
+          tax_rate: rate, line_total: base, tax_amount: base * rate,
+          sort_order: sortOrder++,
+        }]).select().single();
+        if (err) { liErr = err; break; }
+        if (row) keyToId[i.key] = row.id;
+      }
+      if (liErr) break;
+    }
+    if (!liErr) {
+      for (const area of areas) {
+        for (const i of area.items.filter(it => it.parentKey && it.description.trim() && keyToId[it.parentKey])) {
+          const photoPath = await uploadItemPhoto(i, sortOrder);
+          const base = itemLineTotal(i, area);
+          const rate = tasaParaLinea(i, clientType, taxRules);
+          const { error: err } = await supabase.from('estimate_line_items').insert([{
+            estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description,
+            quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
+            msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
+            supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
+            exempt_reason: i.exempt ? 'Exento' : null,
+            area: area.name || null, parent_item_id: keyToId[i.parentKey],
+            photo_url: photoPath,
+            tax_rate: rate, line_total: base, tax_amount: base * rate,
+            sort_order: sortOrder++,
+          }]);
+          if (err) { liErr = err; break; }
+        }
+        if (liErr) break;
+      }
+    }
     if (liErr) {
       setError(`El estimado ${estimate.estimate_number} se guardó pero no se pudieron guardar sus líneas: ${liErr.message}. Ábrelo y agrégalas manualmente.`);
       setSaving(false);
@@ -422,56 +590,141 @@ export default function EstimateForm({ initialData = null }) {
             )}
 
             <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas del estimado</p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setShowCableCalc(true)}>🧮 Calcular cable/tubo</button>
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
-                </div>
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
-              </div>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Áreas del estimado</p>
 
-              {items.map((item, idx) => (
-                <LineItemRow
-                  key={idx}
-                  type={item.type}
-                  onTypeChange={v => setItemType(idx, v)}
-                  title={item.title}
-                  onTitleChange={v => handleTitleCatalogSelect(idx, v)}
-                  description={item.description}
-                  onDescriptionChange={v => handleCatalogSelect(idx, v)}
-                  catalogOptions={catalogItems.filter(c => c.type === item.type && !c.internal_only)}
-                  catalogItemId={item.catalog_item_id}
-                  datalistId={`est-cat-${idx}`}
-                  quantity={item.quantity}
-                  onQuantityChange={v => setItem(idx, 'quantity', v)}
-                  msrp={item.msrp}
-                  onMsrpChange={v => setItem(idx, 'msrp', v)}
-                  unitPrice={item.unit_price}
-                  onUnitPriceChange={v => setItem(idx, 'unit_price', v)}
-                  supplierPrice={item.supplier_price}
-                  onSupplierPriceChange={v => setItem(idx, 'supplier_price', v)}
-                  exempt={item.exempt}
-                  onExemptChange={v => setItem(idx, 'exempt', v)}
-                  area={item.area}
-                  onAreaChange={v => setItem(idx, 'area', v)}
-                  areaOptions={areaOptions}
-                  vendor={item.vendor}
-                  onVendorChange={v => setItem(idx, 'vendor', v)}
-                  vendorOptions={vendorOptions}
-                  photoUrl={item.photoPreview}
-                  onPhotoSelect={file => handleItemPhoto(idx, file)}
-                  fmt={fmt}
-                  actions={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <button type="button" onClick={() => duplicateItem(idx)} title="Duplicar línea" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>⧉</button>
-                      <button type="button" onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
+              {areas.map((area, areaIndex) => (
+                <div key={area.key}
+                  onDragOver={e => { if (dragItem) e.preventDefault(); }}
+                  onDrop={e => { e.preventDefault(); if (dragItem) { moveItem(dragItem.areaKey, dragItem.itemKey, area.key, null); setDragItem(null); } }}
+                  style={{ background: 'var(--surface-2)', border: dragItem ? '1px dashed var(--border-strong)' : '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <input value={area.name} onChange={e => updateAreaName(area.key, e.target.value)}
+                      style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{area.name} Total: {fmt(areaTotal(area))}</span>
+                      <div style={{ position: 'relative' }}>
+                        <button type="button" onClick={() => setAreaMenuOpen(o => o === area.key ? null : area.key)}
+                          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, padding: '2px 6px' }}>⋮</button>
+                        {areaMenuOpen === area.key && (
+                          <>
+                            <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setAreaMenuOpen(null)} />
+                            <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 4, minWidth: 160, whiteSpace: 'nowrap' }}>
+                              <button type="button" disabled={areas.length <= 1}
+                                onClick={() => { removeArea(area.key); setAreaMenuOpen(null); }}
+                                style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: areas.length <= 1 ? 'default' : 'pointer', borderRadius: 6, color: areas.length <= 1 ? 'var(--muted)' : 'var(--warn)' }}>
+                                🗑 Eliminar área
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  }
-                />
+                  </div>
+
+                  <div style={{ marginBottom: 10 }}>
+                    <LineItemPicker catalogOptions={catalogItems.filter(c => !c.internal_only)} onSelect={item => addFromCatalog(area.key, item)} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+                  </div>
+
+                  {area.items.map((item, itemIndex) => (
+                    item.parentKey ? (() => {
+                      const parent = area.items.find(p => p.key === item.parentKey);
+                      const showPricing = parent?.combinePrice === false;
+                      return (
+                        <LineItemRow
+                          key={item.key}
+                          isAccessory
+                          showPricing={showPricing}
+                          description={item.description}
+                          onDescriptionChange={v => setItem(area.key, item.key, 'description', v)}
+                          catalogOptions={catalogItems.filter(c => !c.internal_only)}
+                          datalistId={`est-cat-${areaIndex}-${itemIndex}`}
+                          quantity={item.quantity}
+                          onQuantityChange={v => setItem(area.key, item.key, 'quantity', v)}
+                          msrp={item.msrp}
+                          onMsrpChange={v => setItem(area.key, item.key, 'msrp', v)}
+                          unitPrice={item.unit_price}
+                          onUnitPriceChange={v => setItem(area.key, item.key, 'unit_price', v)}
+                          supplierPrice={item.supplier_price}
+                          onSupplierPriceChange={v => setItem(area.key, item.key, 'supplier_price', v)}
+                          photoUrl={item.photoPreview}
+                          onPhotoSelect={file => handleItemPhoto(area.key, item.key, file)}
+                          fmt={fmt}
+                          actions={
+                            <button type="button" onClick={() => removeItem(area.key, item.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 15 }}>×</button>
+                          }
+                        />
+                      );
+                    })() : (
+                    <div key={item.key}
+                      onDragOver={e => { if (dragItem) e.preventDefault(); }}
+                      onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragItem) { moveItem(dragItem.areaKey, dragItem.itemKey, area.key, item.key); setDragItem(null); } }}
+                      style={{ opacity: dragItem?.itemKey === item.key ? 0.4 : 1 }}
+                    >
+                      <LineItemRow
+                        type={item.type}
+                        onTypeChange={v => setItemType(area.key, item.key, v)}
+                        title={item.title}
+                        onTitleChange={v => handleTitleCatalogSelect(area.key, item.key, v)}
+                        description={item.description}
+                        onDescriptionChange={v => handleCatalogSelect(area.key, item.key, v)}
+                        catalogOptions={catalogItems.filter(c => c.type === item.type && !c.internal_only)}
+                        catalogItemId={item.catalog_item_id}
+                        datalistId={`est-cat-${areaIndex}-${itemIndex}`}
+                        quantity={item.quantity}
+                        onQuantityChange={v => setItem(area.key, item.key, 'quantity', v)}
+                        msrp={item.msrp}
+                        onMsrpChange={v => setItem(area.key, item.key, 'msrp', v)}
+                        unitPrice={item.unit_price}
+                        onUnitPriceChange={v => setItem(area.key, item.key, 'unit_price', v)}
+                        supplierPrice={item.supplier_price}
+                        onSupplierPriceChange={v => setItem(area.key, item.key, 'supplier_price', v)}
+                        exempt={item.exempt}
+                        onExemptChange={v => setItem(area.key, item.key, 'exempt', v)}
+                        vendor={item.vendor}
+                        onVendorChange={v => setItem(area.key, item.key, 'vendor', v)}
+                        vendorOptions={vendorOptions}
+                        photoUrl={item.photoPreview}
+                        onPhotoSelect={file => handleItemPhoto(area.key, item.key, file)}
+                        fmt={fmt}
+                        actions={
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <button type="button" onClick={() => duplicateItem(area.key, item.key)} title="Duplicar línea" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>⧉</button>
+                            <span
+                              draggable
+                              onDragStart={() => setDragItem({ areaKey: area.key, itemKey: item.key })}
+                              onDragEnd={() => setDragItem(null)}
+                              title="Arrastrar para mover a otra área"
+                              style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 15, padding: '0 4px', userSelect: 'none' }}
+                            >⠿</span>
+                            <button type="button" onClick={() => removeItem(area.key, item.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
+                          </div>
+                        }
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 32, marginBottom: 8, marginTop: -4 }}>
+                        <button type="button" onClick={() => addAccessory(area.key, item.key)}
+                          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
+                          + Accesorio
+                        </button>
+                        {area.items.some(child => child.parentKey === item.key) && (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
+                            title="Si está activo, el precio de los accesorios se combina en el total de este producto (no se muestran precios individuales). Si lo desactivas, cada accesorio se cotiza por separado.">
+                            <input type="checkbox" checked={item.combinePrice !== false}
+                              onChange={e => setItem(area.key, item.key, 'combinePrice', e.target.checked)} />
+                            Combinar precio de accesorios
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                    )
+                  ))}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key, { type: 'product', tax_category: 'product' })}>+ Añadir producto</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key)}>+ Añadir labor</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ areaKey: area.key })}>🧮 Calcular cable/tubo</button>
+                  </div>
+                </div>
               ))}
+              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addArea}>+ Agregar área</button>
             </div>
 
             <div className="card">
@@ -485,7 +738,7 @@ export default function EstimateForm({ initialData = null }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
               <TaxBreakdown
-                lineas={items} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                lineas={flatItemsForTax} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
                 note={clientType === 'b2b' && (
                   <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
                     Cliente B2B — Labor al 4%
@@ -499,13 +752,12 @@ export default function EstimateForm({ initialData = null }) {
             <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>Cancelar</button>
           </div>
         </form>
-        {showCableCalc && (
+        {cableCalcTarget && (
           <CableCalculator
-            areaOptions={areaOptions}
             vendorOptions={vendorOptions}
             materialOptions={materialOptions}
-            onAdd={item => { addPrefilledItem(item); setShowCableCalc(false); }}
-            onClose={() => setShowCableCalc(false)}
+            onAdd={item => { addPrefilledItem(cableCalcTarget.areaKey, item); setCableCalcTarget(null); }}
+            onClose={() => setCableCalcTarget(null)}
           />
         )}
       </main>
