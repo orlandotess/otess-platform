@@ -135,6 +135,8 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
   const [propertySearch, setPropertySearch] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [jobSearch, setJobSearch] = useState('');
+  const [billingSearch, setBillingSearch] = useState('');
+  const [proposalSearch, setProposalSearch] = useState('');
   const visibleJobs = useMemo(() => {
     const query = jobSearch.trim().toLowerCase();
     return query
@@ -1260,12 +1262,26 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
         ].sort((a, b) => new Date(b.date ?? 0) - new Date(a.date ?? 0));
 
         const balanceDeCuenta = invoiceReconciliation?.balanceDeCuenta ?? 0;
+        const billingQuery = billingSearch.trim().toLowerCase();
+        const visibleLedger = billingQuery
+          ? ledger.filter(row =>
+              row.item.toLowerCase().includes(billingQuery) ||
+              row.appliedTo.toLowerCase().includes(billingQuery)
+            )
+          : ledger;
 
         return (
           <div className="card">
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Facturación</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Facturación</h2>
+              {ledger.length > 0 && (
+                <SearchBox value={billingSearch} onChange={setBillingSearch} placeholder="Buscar # factura o movimiento..." />
+              )}
+            </div>
             {ledger.length === 0 ? (
               <div className="empty"><p>No hay movimientos de facturación para este cliente.</p></div>
+            ) : visibleLedger.length === 0 ? (
+              <div className="empty"><p>Sin resultados para "{billingSearch}".</p></div>
             ) : (
               <div className="table-wrap">
                 <table>
@@ -1273,7 +1289,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     <tr><th>Item</th><th>Aplicado a</th><th>Fecha</th><th style={{ textAlign: 'right' }}>Monto</th></tr>
                   </thead>
                   <tbody>
-                    {ledger.map(row => (
+                    {visibleLedger.map(row => (
                       <tr key={row.key}>
                         <td style={{ fontWeight: 600 }}>
                           {row.href ? <Link href={row.href} style={{ color: 'inherit', textDecoration: 'none' }}>{row.item}</Link> : row.item}
@@ -1302,42 +1318,59 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       })()}
 
       {/* PROPOSALS TAB */}
-      {tab === 'proposals' && (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Propuestas</h2>
-            <Link href={`/propuestas/nuevo?client=${client.id}`} className="btn btn-primary">+ Nueva propuesta</Link>
-          </div>
-          {proposals.length === 0 ? (
-            <div className="empty"><p>No hay propuestas para este cliente.</p></div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>#</th><th>Título</th><th>Estado</th><th>Total</th><th>Fecha</th><th></th></tr>
-                </thead>
-                <tbody>
-                  {proposals.map(p => {
-                    const b = statusProp[p.status] ?? statusProp.borrador;
-                    const opt = (p.proposal_options ?? []).find(o => o.is_recommended) ?? (p.proposal_options ?? [])[0];
-                    const total = sumBillableLineItems(opt?.proposal_line_items);
-                    return (
-                      <tr key={p.id}>
-                        <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{p.proposal_number}</td>
-                        <td style={{ fontWeight: 600 }}>{p.title}</td>
-                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
-                        <td style={{ fontWeight: 700 }}>{fmt(total)}</td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(p.created_at)}</td>
-                        <td><Link href={`/propuestas/${p.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+      {tab === 'proposals' && (() => {
+        const proposalQuery = proposalSearch.trim().toLowerCase();
+        const visibleProposals = proposalQuery
+          ? proposals.filter(p =>
+              p.proposal_number?.toLowerCase().includes(proposalQuery) ||
+              p.title?.toLowerCase().includes(proposalQuery) ||
+              (statusProp[p.status]?.label ?? '').toLowerCase().includes(proposalQuery)
+            )
+          : proposals;
+        return (
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Propuestas</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {proposals.length > 0 && (
+                  <SearchBox value={proposalSearch} onChange={setProposalSearch} placeholder="Buscar # propuesta, título o estado..." />
+                )}
+                <Link href={`/propuestas/nuevo?client=${client.id}`} className="btn btn-primary">+ Nueva propuesta</Link>
+              </div>
             </div>
-          )}
-        </div>
-      )}
+            {proposals.length === 0 ? (
+              <div className="empty"><p>No hay propuestas para este cliente.</p></div>
+            ) : visibleProposals.length === 0 ? (
+              <div className="empty"><p>Sin resultados para "{proposalSearch}".</p></div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>#</th><th>Título</th><th>Estado</th><th>Total</th><th>Fecha</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {visibleProposals.map(p => {
+                      const b = statusProp[p.status] ?? statusProp.borrador;
+                      const opt = (p.proposal_options ?? []).find(o => o.is_recommended) ?? (p.proposal_options ?? [])[0];
+                      const total = sumBillableLineItems(opt?.proposal_line_items);
+                      return (
+                        <tr key={p.id}>
+                          <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{p.proposal_number}</td>
+                          <td style={{ fontWeight: 600 }}>{p.title}</td>
+                          <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                          <td style={{ fontWeight: 700 }}>{fmt(total)}</td>
+                          <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(p.created_at)}</td>
+                          <td><Link href={`/propuestas/${p.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* TICKETS TAB */}
       {tab === 'tickets' && (
