@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { getCurrentRole } from '../../../../lib/supabase-server';
 import { resolveTechEmail } from '../../../../lib/technicianEmail';
+import { buildMapsAddress, buildMapsLinks } from '../../../../lib/mapsLinks';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = 'https://app.otesspr.com';
@@ -19,7 +20,7 @@ export async function POST(request) {
   if (!jobId || !technicianId) return Response.json({ error: 'jobId y technicianId son requeridos' }, { status: 400 });
 
   const [{ data: job }, { data: tech }, { data: profiles }, { data: scheduleDays }] = await Promise.all([
-    supabase.from('jobs').select('id, title, description, scheduled_start, scheduled_end, street, city, state, zip, clients(name)').eq('id', jobId).single(),
+    supabase.from('jobs').select('id, title, description, scheduled_start, scheduled_end, property_name, street, city, state, zip, clients(name)').eq('id', jobId).single(),
     supabase.from('technicians').select('id, name, profile_id').eq('id', technicianId).single(),
     supabase.from('profiles').select('id, name, email'),
     // A job can have more than one visit (job_schedule_days, added via "+
@@ -46,13 +47,23 @@ export async function POST(request) {
     ? `<li>Visitas programadas:<ul style="margin:4px 0 0 0">${visits.map(v => `<li>${fmtDateTime(v.start)}</li>`).join('')}</ul></li>`
     : visits.length === 1 ? `<li>Programado: ${fmtDateTime(visits[0].start)}</li>` : '';
 
-  const address = [job.street, job.city, job.state, job.zip].filter(Boolean).join(', ');
+  // job.street can hold a plain address, raw coordinates, or a Google Plus
+  // Code (see lib/mapsLinks.js) depending on how the location was entered —
+  // never show it as plain text; buildMapsAddress degenerates to the raw
+  // street value in that case, so fall back to city/state/zip for the label.
+  const joinedAddress = [job.street, job.city, job.state, job.zip].filter(Boolean).join(', ');
+  const readableAddress = buildMapsAddress(job.street, job.city, job.state, job.zip) === joinedAddress
+    ? joinedAddress
+    : [job.city, job.state, job.zip].filter(Boolean).join(', ');
+  const addressLabel = job.property_name || readableAddress;
+  const links = (job.street || job.city) ? buildMapsLinks(job.street, job.city, job.state, job.zip) : null;
+  const mapsLink = links ? (links.direct || links.google) : null;
   const html = `<div style="font-family:Arial,sans-serif;padding:20px;max-width:560px">
     <p style="font-size:15px;color:#16223d;font-weight:700">Se te asignó un trabajo</p>
     <p style="font-size:14px;color:#333"><strong>${job.title}</strong></p>
     <ul style="font-size:14px;color:#333;padding-left:18px">
       ${job.clients?.name ? `<li>Cliente: ${job.clients.name}</li>` : ''}
-      ${address ? `<li>Dirección: ${address}</li>` : ''}
+      ${addressLabel ? `<li>Dirección: ${addressLabel}${mapsLink ? ` — <a href="${mapsLink}" style="color:#e0972c">Ver en mapa →</a>` : ''}</li>` : mapsLink ? `<li>Ubicación: <a href="${mapsLink}" style="color:#e0972c">Ver en mapa →</a></li>` : ''}
       ${scheduleLine}
       ${job.description ? `<li>Descripción: ${job.description}</li>` : ''}
     </ul>
