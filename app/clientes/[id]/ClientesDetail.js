@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -37,6 +37,50 @@ const statusTicket = {
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 function jobLocation(j) {
   return [j.property_name, j.city].filter(Boolean).join(' — ');
+}
+
+function cleanPhones(list) {
+  return (list ?? []).filter(p => p.number?.trim()).map(p => ({ label: p.label?.trim() ?? '', number: p.number.trim() }));
+}
+
+function PhoneListEditor({ phones, onChange }) {
+  const list = phones ?? [];
+  return (
+    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+      <label>Teléfonos adicionales</label>
+      {list.map((p, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <input value={p.label} onChange={e => onChange(list.map((row, j) => j === i ? { ...row, label: e.target.value } : row))}
+            placeholder="Ej: Oficina, Móvil" style={{ flex: '0 0 140px' }} />
+          <input value={p.number} onChange={e => onChange(list.map((row, j) => j === i ? { ...row, number: e.target.value } : row))}
+            placeholder="787-000-0000" style={{ flex: 1 }} />
+          <button type="button" onClick={() => onChange(list.filter((_, j) => j !== i))}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
+        </div>
+      ))}
+      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}
+        onClick={() => onChange([...list, { label: '', number: '' }])}>
+        + Agregar teléfono
+      </button>
+    </div>
+  );
+}
+
+function PhonePills({ phone, extraPhones }) {
+  const all = [
+    ...(phone ? [{ label: '', number: phone }] : []),
+    ...(extraPhones ?? []),
+  ];
+  if (all.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {all.map((p, i) => (
+        <a key={i} href={`tel:${p.number}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#1a7a4a', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+          📞 {p.label ? `${p.label}: ` : ''}{p.number}
+        </a>
+      ))}
+    </div>
+  );
 }
 
 function extractCoordsFromInput(text) {
@@ -88,6 +132,31 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [propertySearch, setPropertySearch] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
+  const sortedProperties = useMemo(() => [...properties].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es')), [properties]);
+  const sortedContacts = useMemo(() => [...contacts].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es')), [contacts]);
+  const visibleProperties = useMemo(() => {
+    const query = propertySearch.trim().toLowerCase();
+    return query
+      ? sortedProperties.filter(p =>
+          p.name?.toLowerCase().includes(query) ||
+          p.street?.toLowerCase().includes(query) ||
+          p.city?.toLowerCase().includes(query) ||
+          p.note?.toLowerCase().includes(query)
+        )
+      : sortedProperties;
+  }, [sortedProperties, propertySearch]);
+  const visibleContacts = useMemo(() => {
+    const query = contactSearch.trim().toLowerCase();
+    return query
+      ? sortedContacts.filter(c =>
+          c.name?.toLowerCase().includes(query) ||
+          c.phone?.toLowerCase().includes(query) ||
+          c.email?.toLowerCase().includes(query)
+        )
+      : sortedContacts;
+  }, [sortedContacts, contactSearch]);
 
   // Info tab edit
   const [editingInfo, setEditingInfo] = useState(false);
@@ -102,7 +171,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
 
   // Contact form
   const [showContactForm, setShowContactForm] = useState(false);
-  const [contact, setContact] = useState({ name: '', phone: '', email: '', property_id: '' });
+  const [contact, setContact] = useState({ name: '', phone: '', extra_phones: [], email: '', property_id: '' });
   const [savingContact, setSavingContact] = useState(false);
 
   const [editingProp, setEditingProp] = useState(null);
@@ -122,8 +191,9 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
 
   async function saveEditContact(contactId) {
     setSavingEditContact(true);
-    await supabase.from('client_contacts').update(editContactData).eq('id', contactId);
-    setContacts(prev => prev.map(c => c.id === contactId ? { ...c, ...editContactData } : c));
+    const payload = { ...editContactData, extra_phones: cleanPhones(editContactData.extra_phones) };
+    await supabase.from('client_contacts').update(payload).eq('id', contactId);
+    setContacts(prev => prev.map(c => c.id === contactId ? { ...c, ...payload } : c));
     setEditingContact(null);
     setSavingEditContact(false);
   }
@@ -138,6 +208,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       company: client.company ?? '',
       email: client.email ?? '',
       phone: client.phone ?? '',
+      extra_phones: client.extra_phones ?? [],
       client_type: client.client_type ?? 'final',
       notes: client.notes ?? '',
       report_name_source: client.report_name_source ?? 'client',
@@ -150,9 +221,10 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
     e.preventDefault();
     if (editKind === 'empresa' && !editInfoData.company.trim()) return;
     setSavingInfo(true);
+    const base = { ...editInfoData, extra_phones: cleanPhones(editInfoData.extra_phones) };
     const payload = editKind === 'empresa'
-      ? { ...editInfoData, name: editInfoData.company.trim(), report_name_source: 'company' }
-      : editInfoData;
+      ? { ...base, name: base.company.trim(), report_name_source: 'company' }
+      : base;
     await supabase.from('clients').update(payload).eq('id', client.id);
     setSavingInfo(false);
     setEditingInfo(false);
@@ -220,11 +292,12 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
     const { data } = await supabase.from('client_contacts').insert([{
       client_id: client.id,
       ...contact,
+      extra_phones: cleanPhones(contact.extra_phones),
       property_id: contact.property_id || null,
       is_primary: contacts.length === 0,
     }]).select().single();
     if (data) setContacts(prev => [...prev, data]);
-    setContact({ name: '', phone: '', email: '', property_id: '' });
+    setContact({ name: '', phone: '', extra_phones: [], email: '', property_id: '' });
     setShowContactForm(false);
     setSavingContact(false);
   }
@@ -420,6 +493,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       <label>Teléfono</label>
                       <input value={editInfoData.phone} onChange={e => setEditInfoData(d => ({ ...d, phone: e.target.value }))} />
                     </div>
+                    <PhoneListEditor phones={editInfoData.extra_phones} onChange={list => setEditInfoData(d => ({ ...d, extra_phones: list }))} />
                     <div className="form-group">
                       <label>Tipo de cliente</label>
                       <select value={editInfoData.client_type} onChange={e => setEditInfoData(d => ({ ...d, client_type: e.target.value }))}>
@@ -458,7 +532,6 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     { label: 'Nombre', value: client.name },
                     { label: 'Empresa', value: client.company },
                     { label: 'Email', value: client.email },
-                    { label: 'Teléfono', value: client.phone },
                     { label: 'Tipo', value: client.client_type === 'b2b' ? 'Comerciante Registrado (B2B)' : 'Consumidor final' },
                     { label: 'Nombre en reportes', value: client.company ? (client.report_name_source === 'company' ? client.company : client.name) : null },
                   ].map(f => f.value ? (
@@ -467,6 +540,12 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       <div style={{ fontSize: 14 }}>{f.value}</div>
                     </div>
                   ) : null)}
+                  {(client.phone || client.extra_phones?.length > 0) && (
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Teléfono</div>
+                      <PhonePills phone={client.phone} extraPhones={client.extra_phones} />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -518,11 +597,16 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       {tab === 'properties' && (
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showPropForm ? 20 : 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: showPropForm ? 20 : 0 }}>
               <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Propiedades ({properties.length})</h2>
-              <button className="btn btn-primary" onClick={() => setShowPropForm(!showPropForm)}>
-                {showPropForm ? 'Cancelar' : '+ Agregar propiedad'}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {properties.length > 0 && (
+                  <SearchBox value={propertySearch} onChange={setPropertySearch} placeholder="Buscar propiedad..." />
+                )}
+                <button className="btn btn-primary" onClick={() => setShowPropForm(!showPropForm)}>
+                  {showPropForm ? 'Cancelar' : '+ Agregar propiedad'}
+                </button>
+              </div>
             </div>
             {showPropForm && (
               <form onSubmit={saveProperty}>
@@ -565,7 +649,9 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
 
           {properties.length === 0 ? (
             <div className="card empty"><p>No hay propiedades. Agrega la primera arriba.</p></div>
-          ) : properties.map(p => (
+          ) : visibleProperties.length === 0 ? (
+            <div className="card empty"><p>Sin resultados para "{propertySearch}".</p></div>
+          ) : visibleProperties.map(p => (
             <div key={p.id} className="card" style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ flex: 1 }}>
@@ -692,14 +778,14 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       {/* Contactos asociados */}
                       <div>
                         <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Contactos asociados</p>
-                        {contacts.filter(c => c.property_id === p.id).length === 0
+                        {sortedContacts.filter(c => c.property_id === p.id).length === 0
                           ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin contactos asociados.</p>
-                          : contacts.filter(c => c.property_id === p.id).map(c => (
+                          : sortedContacts.filter(c => c.property_id === p.id).map(c => (
                             <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
                               </div>
-                              {c.phone && <a href={`tel:${c.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#1a7a4a', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {c.phone}</a>}
+                              <PhonePills phone={c.phone} extraPhones={c.extra_phones} />
                               {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'var(--navy)', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
                             </div>
                           ))
@@ -718,11 +804,16 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       {tab === 'contacts' && (
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showContactForm ? 20 : 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: showContactForm ? 20 : 0 }}>
               <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Contactos ({contacts.length})</h2>
-              <button className="btn btn-primary" onClick={() => setShowContactForm(!showContactForm)}>
-                {showContactForm ? 'Cancelar' : '+ Agregar contacto'}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {contacts.length > 0 && (
+                  <SearchBox value={contactSearch} onChange={setContactSearch} placeholder="Buscar contacto..." />
+                )}
+                <button className="btn btn-primary" onClick={() => setShowContactForm(!showContactForm)}>
+                  {showContactForm ? 'Cancelar' : '+ Agregar contacto'}
+                </button>
+              </div>
             </div>
             {showContactForm && (
               <form onSubmit={saveContact}>
@@ -739,12 +830,13 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     <label>Email</label>
                     <input type="email" value={contact.email} onChange={e => setContact(c => ({ ...c, email: e.target.value }))} placeholder="contacto@email.com" />
                   </div>
+                  <PhoneListEditor phones={contact.extra_phones} onChange={list => setContact(c => ({ ...c, extra_phones: list }))} />
                   {properties.length > 0 && (
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label>Propiedad asociada</label>
                       <select value={contact.property_id} onChange={e => setContact(c => ({ ...c, property_id: e.target.value }))}>
                         <option value="">— Sin propiedad —</option>
-                        {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {sortedProperties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
                   )}
@@ -758,7 +850,9 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
 
           {contacts.length === 0 ? (
             <div className="card empty"><p>No hay contactos. Agrega el primero arriba.</p></div>
-          ) : contacts.map(c => (
+          ) : visibleContacts.length === 0 ? (
+            <div className="card empty"><p>Sin resultados para "{contactSearch}".</p></div>
+          ) : visibleContacts.map(c => (
             <div key={c.id} className="card" style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ flex: 1 }}>
@@ -766,7 +860,11 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{c.name}</div>
                     {c.is_primary && <span className="badge badge-green">Principal</span>}
                   </div>
-                  {c.phone && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{c.phone}</div>}
+                  {(c.phone || c.extra_phones?.length > 0) && (
+                    <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+                      {[c.phone, ...(c.extra_phones ?? []).map(p => p.label ? `${p.label}: ${p.number}` : p.number)].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button onClick={() => setExpandedContact(expandedContact === c.id ? null : c.id)} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -793,12 +891,13 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           <label>Email</label>
                           <input type="email" value={editContactData.email ?? ''} onChange={e => setEditContactData(d => ({ ...d, email: e.target.value }))} placeholder="contacto@email.com" />
                         </div>
+                        <PhoneListEditor phones={editContactData.extra_phones} onChange={list => setEditContactData(d => ({ ...d, extra_phones: list }))} />
                         {properties.length > 0 && (
                           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                             <label>Propiedad asociada</label>
                             <select value={editContactData.property_id ?? ''} onChange={e => setEditContactData(d => ({ ...d, property_id: e.target.value || null }))}>
                               <option value="">— Sin propiedad —</option>
-                              {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              {sortedProperties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                           </div>
                         )}
