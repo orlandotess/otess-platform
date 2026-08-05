@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
+import { buildChecklistItemsFromLineItems } from '../../../lib/generateChecklistFromLineItems';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { localInputToIso } from '../../../lib/datetimeLocal';
 
@@ -121,15 +122,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
         }
 
         try {
-          const checklistItems = (insertedItems ?? [])
-            .filter(it => it.area)
-            .map((it, idx) => ({
-              job_id: job.id,
-              group_name: it.area,
-              description: Number(it.quantity) > 1 ? `${it.description} (x${it.quantity})` : it.description,
-              completed: false,
-              sort_order: idx,
-            }));
+          const checklistItems = buildChecklistItemsFromLineItems(insertedItems, job.id);
           if (checklistItems.length) {
             const { error: checklistErr } = await supabase.from('job_checklist_items').insert(checklistItems);
             if (checklistErr) throw checklistErr;

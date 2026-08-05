@@ -2518,6 +2518,8 @@ export default function FieldApp() {
                                 ) : (
                                   <>
                                     <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? '#aaa' : '#333' }}>
+                                      {item.item_type === 'product' && <span title="Producto" style={{ marginRight: 5 }}>📦</span>}
+                                      {item.item_type === 'labor' && <span title="Labor" style={{ marginRight: 5 }}>🔧</span>}
                                       {item.description}
                                       {children.length > 0 && (
                                         <span style={{ fontSize: 11, fontWeight: 600, color: '#aaa', marginLeft: 6 }}>
@@ -2527,7 +2529,7 @@ export default function FieldApp() {
                                     </div>
                                     {item.completed && item.completed_at && (
                                       <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                                        {formatDatePR(item.completed_at)}
+                                        {item.item_type === 'product' ? 'Entregado' : 'Completado'} {formatDatePR(item.completed_at)}
                                       </div>
                                     )}
                                     {item.assigned_technician_id && (

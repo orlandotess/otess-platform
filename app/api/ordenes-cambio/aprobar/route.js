@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { formatDateTimePR } from '../../../../lib/datetimeLocal';
 import { generatePurchaseOrders } from '../../../../lib/generatePurchaseOrders';
+import { buildChecklistItemsFromLineItems } from '../../../../lib/generateChecklistFromLineItems';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -60,15 +61,7 @@ export async function POST(request) {
             .from('job_checklist_items')
             .select('id', { count: 'exact', head: true })
             .eq('job_id', order.job_id);
-          const checklistItems = insertedJobItems
-            .filter(it => it.area)
-            .map((it, idx) => ({
-              job_id: order.job_id,
-              group_name: it.area,
-              description: Number(it.quantity) > 1 ? `${it.description} (x${it.quantity})` : it.description,
-              completed: false,
-              sort_order: (existingChecklistCount ?? 0) + idx,
-            }));
+          const checklistItems = buildChecklistItemsFromLineItems(insertedJobItems, order.job_id, existingChecklistCount ?? 0);
           if (checklistItems.length) {
             const { error: checklistErr } = await supabase.from('job_checklist_items').insert(checklistItems);
             if (checklistErr) console.error('Error generando checklist automático desde orden de cambio:', checklistErr);

@@ -6,6 +6,7 @@ import LineItemRow from '../../LineItemRow';
 import LineItemPicker from '../../LineItemPicker';
 import TaxBreakdown from '../../TaxBreakdown';
 import { calcularIVU } from '../../../lib/tax';
+import { buildChecklistItemsFromLineItems } from '../../../lib/generateChecklistFromLineItems';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDateTimePR } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
@@ -71,12 +72,18 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
       }
 
       if (items.length) {
-        await supabase.from('job_line_items').insert(items.map(i => ({
-          job_id: job.id, type: i.type, description: i.description,
+        const { data: insertedItems } = await supabase.from('job_line_items').insert(items.map(i => ({
+          job_id: job.id, type: i.type, title: i.title, tax_category: i.tax_category, description: i.description,
           quantity: i.quantity, unit_price: i.unit_price, msrp: i.msrp,
           supplier_price: i.supplier_price, exempt_reason: i.exempt_reason,
           area: i.area, vendor: i.vendor, photo_url: i.photo_url, sort_order: i.sort_order,
-        })));
+        }))).select();
+
+        const checklistItems = buildChecklistItemsFromLineItems(insertedItems, job.id);
+        if (checklistItems.length) {
+          const { error: checklistErr } = await supabase.from('job_checklist_items').insert(checklistItems);
+          if (checklistErr) console.error('Error generando checklist automático:', checklistErr);
+        }
       }
 
       const carriedNotes = [];

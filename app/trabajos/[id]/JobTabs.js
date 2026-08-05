@@ -2400,6 +2400,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                         ) : (
                           <>
                             <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--muted)' : 'var(--text)' }}>
+                              {item.item_type === 'product' && <span title="Producto" style={{ marginRight: 5 }}>📦</span>}
+                              {item.item_type === 'labor' && <span title="Labor" style={{ marginRight: 5 }}>🔧</span>}
                               {item.description}
                               {children.length > 0 && (
                                 <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginLeft: 6 }}>
@@ -2409,7 +2411,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                             </div>
                             {item.completed && item.completed_at && (
                               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                                Completado el {formatDatePR(item.completed_at)}
+                                {item.item_type === 'product' ? 'Entregado el' : 'Completado el'} {formatDatePR(item.completed_at)}
                               </div>
                             )}
                             {item.assigned_technician_id && (
