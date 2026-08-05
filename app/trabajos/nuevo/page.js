@@ -45,10 +45,11 @@ function NuevoTrabajoForm() {
   const [form, setForm] = useState({
     client_id: '', title: '', description: '', status: 'estimate',
     scheduled_start: '', scheduled_end: '', notes: '', bill_to: 'person',
-    property_id: '', contact_id: '',
+    property_id: '', contacts: [],
     property_name: '', street: '', city: '', state: 'PR', zip: '',
-    contact_name: '', contact_phone: '', contact_email: '',
   });
+  const [contactDraft, setContactDraft] = useState({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+  const [editingContactKey, setEditingContactKey] = useState(null);
   const [areas, setAreas] = useState([emptyArea()]);
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — item currently being dragged
@@ -82,7 +83,9 @@ function NuevoTrabajoForm() {
   useEffect(() => {
     if (!form.client_id) { setProperties([]); setContacts([]); return; }
     setShowNewProperty(false);
-    setForm(f => ({ ...f, property_id: '', contact_id: '' }));
+    setForm(f => ({ ...f, property_id: '', contacts: [] }));
+    setContactDraft({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+    setEditingContactKey(null);
     supabase.from('client_properties').select('*').eq('client_id', form.client_id).order('is_primary', { ascending: false })
       .then(({ data }) => setProperties(data ?? []));
     supabase.from('client_contacts').select('*').eq('client_id', form.client_id).order('is_primary', { ascending: false })
@@ -97,15 +100,37 @@ function NuevoTrabajoForm() {
     }
   }, [form.property_id]);
 
-  useEffect(() => {
-    if (!form.contact_id) return;
-    const c = contacts.find(c => c.id === form.contact_id);
-    if (c) {
-      setForm(f => ({ ...f, contact_name: c.name ?? '', contact_phone: c.phone ?? '', contact_email: c.email ?? '' }));
-    }
-  }, [form.contact_id]);
-
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  function pickExistingContact(contactId) {
+    const c = contacts.find(c => c.id === contactId);
+    if (c) setContactDraft(d => ({ ...d, contact_id: c.id, name: c.name ?? '', phone: c.phone ?? '', email: c.email ?? '' }));
+    else setContactDraft(d => ({ ...d, contact_id: '' }));
+  }
+  function addContact() {
+    if (!contactDraft.name.trim()) return;
+    if (editingContactKey) {
+      setForm(f => ({ ...f, contacts: f.contacts.map(c => c.key === editingContactKey ? { ...contactDraft, key: c.key } : c) }));
+      setEditingContactKey(null);
+    } else {
+      setForm(f => ({ ...f, contacts: [...f.contacts, { ...contactDraft, key: Math.random().toString(36).slice(2) }] }));
+    }
+    setContactDraft({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+  }
+  function editContact(key) {
+    const c = form.contacts.find(c => c.key === key);
+    if (!c) return;
+    setContactDraft({ contact_id: c.contact_id, name: c.name, phone: c.phone, email: c.email, cargo: c.cargo });
+    setEditingContactKey(key);
+  }
+  function cancelEditContact() {
+    setEditingContactKey(null);
+    setContactDraft({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+  }
+  function removeContact(key) {
+    setForm(f => ({ ...f, contacts: f.contacts.filter(c => c.key !== key) }));
+    if (editingContactKey === key) cancelEditContact();
+  }
   const selectedClient = clients.find(c => c.id === form.client_id);
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
@@ -303,18 +328,25 @@ function NuevoTrabajoForm() {
         scheduled_start: quickMode ? null : localInputToIso(form.scheduled_start),
         scheduled_end: quickMode ? null : localInputToIso(form.scheduled_end),
         property_id: form.property_id || null,
-        contact_id: form.contact_id || null,
         property_name: form.property_name || null,
         street: form.street || null,
         city: form.city || null,
         state: form.state || null,
         zip: form.zip || null,
-        contact_name: form.contact_name || null,
-        contact_phone: form.contact_phone || null,
-        contact_email: form.contact_email || null,
       }]).select().single();
 
       if (err) { setError(err.message); return; }
+
+      if (form.contacts.length > 0) {
+        await supabase.from('job_contacts').insert(form.contacts.map(c => ({
+          job_id: job.id,
+          contact_id: c.contact_id || null,
+          name: c.name.trim(),
+          phone: c.phone.trim() || null,
+          email: c.email.trim() || null,
+          cargo: c.cargo.trim() || null,
+        })));
+      }
 
       if (!quickMode) {
         async function uploadItemPhoto(i, sortOrder) {
@@ -367,10 +399,11 @@ function NuevoTrabajoForm() {
         setForm({
           client_id: '', title: '', description: '', status: 'estimate',
           scheduled_start: '', scheduled_end: '', notes: '', bill_to: 'person',
-          property_id: '', contact_id: '',
+          property_id: '', contacts: [],
           property_name: '', street: '', city: '', state: 'PR', zip: '',
-          contact_name: '', contact_phone: '', contact_email: '',
         });
+        setContactDraft({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+        setEditingContactKey(null);
         setClientSearch('');
         setShowNewClient(false);
         setQuickSuccess(true);
@@ -608,11 +641,33 @@ function NuevoTrabajoForm() {
 
                 {/* Contacto */}
                 <div className="card">
-                  <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>👤 Contacto encargado</p>
+                  <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>👤 Contactos encargados</p>
+                  {form.contacts.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                      {form.contacts.map(c => (
+                        <div key={c.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: c.key === editingContactKey ? 'var(--amber-tint)' : 'var(--surface-2)', borderRadius: 8 }}>
+                          <div>
+                            <span style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</span>
+                            {c.cargo && <span style={{ fontSize: 13, color: 'var(--muted)' }}> — {c.cargo}</span>}
+                            {(c.phone || c.email) && (
+                              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{[c.phone, c.email].filter(Boolean).join(' · ')}</div>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                            <button type="button" onClick={() => editContact(c.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️ Editar</button>
+                            <button type="button" onClick={() => removeContact(c.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warn)', fontSize: 14 }}>✕</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {editingContactKey && (
+                    <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>Editando contacto — cambia los datos y guarda, o cancela.</p>
+                  )}
                   {contacts.length > 0 && (
                     <div className="form-group">
                       <label>Seleccionar contacto del cliente</label>
-                      <select value={form.contact_id} onChange={e => set('contact_id', e.target.value)}>
+                      <select value={contactDraft.contact_id} onChange={e => pickExistingContact(e.target.value)}>
                         <option value="">— Seleccionar contacto —</option>
                         {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_primary ? ' ★' : ''}</option>)}
                       </select>
@@ -620,17 +675,29 @@ function NuevoTrabajoForm() {
                   )}
                   <div className="form-group">
                     <label>Nombre</label>
-                    <input value={form.contact_name} onChange={e => set('contact_name', e.target.value)} placeholder="Nombre del contacto" />
+                    <input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} placeholder="Nombre del contacto" />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div className="form-group">
                       <label>Teléfono</label>
-                      <input value={form.contact_phone} onChange={e => set('contact_phone', e.target.value)} placeholder="787-000-0000" />
+                      <input value={contactDraft.phone} onChange={e => setContactDraft(d => ({ ...d, phone: e.target.value }))} placeholder="787-000-0000" />
                     </div>
                     <div className="form-group">
                       <label>Email</label>
-                      <input type="email" value={form.contact_email} onChange={e => set('contact_email', e.target.value)} placeholder="contacto@email.com" />
+                      <input type="email" value={contactDraft.email} onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))} placeholder="contacto@email.com" />
                     </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Cargo</label>
+                    <input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder="Ej: Project Manager" />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addContact} disabled={!contactDraft.name.trim()}>
+                      {editingContactKey ? '💾 Guardar cambios' : '+ Agregar contacto'}
+                    </button>
+                    {editingContactKey && (
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={cancelEditContact}>Cancelar</button>
+                    )}
                   </div>
                 </div>
 

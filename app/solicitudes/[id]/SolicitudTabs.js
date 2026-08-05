@@ -53,15 +53,11 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
         notes: solicitud.notes || null,
         bill_to: 'person',
         property_id: solicitud.property_id || null,
-        contact_id: solicitud.contact_id || null,
         property_name: solicitud.property_name || null,
         street: solicitud.street || null,
         city: solicitud.city || null,
         state: solicitud.state || null,
         zip: solicitud.zip || null,
-        contact_name: solicitud.contact_name || null,
-        contact_phone: solicitud.contact_phone || null,
-        contact_email: solicitud.contact_email || null,
         technician_id: solicitud.technician_id || null,
       }]).select().single();
       if (jobErr) { alert(jobErr.message); return; }
@@ -69,6 +65,12 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
       const allTechIds = [solicitud.technician_id, ...(solicitud.solicitud_technicians ?? []).map(st => st.technician_id)].filter(Boolean);
       if (allTechIds.length) {
         await supabase.from('job_technicians').insert(allTechIds.map(techId => ({ job_id: job.id, technician_id: techId })));
+      }
+
+      if (assignedContacts.length) {
+        await supabase.from('job_contacts').insert(assignedContacts.map(c => ({
+          job_id: job.id, contact_id: c.contact_id || null, name: c.name, phone: c.phone, email: c.email, cargo: c.cargo,
+        })));
       }
 
       if (items.length) {
@@ -228,29 +230,59 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
   const mapsLinks = buildMapsLinks(solicitud.street, solicitud.city, solicitud.state, solicitud.zip);
 
   // --- Contacto ---
-  const [editingContact, setEditingContact] = useState(false);
-  const [contactForm, setContactForm] = useState({
-    contact_id: solicitud.contact_id ?? '', contact_name: solicitud.contact_name ?? '',
-    contact_phone: solicitud.contact_phone ?? '', contact_email: solicitud.contact_email ?? '',
-  });
+  const [assignedContacts, setAssignedContacts] = useState(solicitud.solicitud_contacts ?? []);
+  const [contactDraft, setContactDraft] = useState({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+  const [editingContactId, setEditingContactId] = useState(null);
   const [savingContact, setSavingContact] = useState(false);
 
   function contactLabel(c) { return `${c.name}${c.phone ? ' — ' + c.phone : ''}`; }
-  function selectContact(c) {
-    setContactForm({ contact_id: c.id, contact_name: c.name ?? '', contact_phone: c.phone ?? '', contact_email: c.email ?? '' });
+  function pickExistingContact(contactId) {
+    const c = clientContacts.find(c => c.id === contactId);
+    if (c) setContactDraft(d => ({ ...d, contact_id: c.id, name: c.name ?? '', phone: c.phone ?? '', email: c.email ?? '' }));
+    else setContactDraft(d => ({ ...d, contact_id: '' }));
   }
-
-  async function saveContact() {
+  async function addContact() {
+    if (!contactDraft.name.trim()) return;
     setSavingContact(true);
-    await supabase.from('solicitudes').update({
-      contact_id: contactForm.contact_id || null,
-      contact_name: contactForm.contact_name.trim() || null,
-      contact_phone: contactForm.contact_phone.trim() || null,
-      contact_email: contactForm.contact_email.trim() || null,
-    }).eq('id', solicitud.id);
+    if (editingContactId) {
+      const payload = {
+        contact_id: contactDraft.contact_id || null,
+        name: contactDraft.name.trim(),
+        phone: contactDraft.phone.trim() || null,
+        email: contactDraft.email.trim() || null,
+        cargo: contactDraft.cargo.trim() || null,
+      };
+      await supabase.from('solicitud_contacts').update(payload).eq('id', editingContactId);
+      setAssignedContacts(prev => prev.map(c => c.id === editingContactId ? { ...c, ...payload } : c));
+      setEditingContactId(null);
+    } else {
+      const { data } = await supabase.from('solicitud_contacts').insert([{
+        solicitud_id: solicitud.id,
+        contact_id: contactDraft.contact_id || null,
+        name: contactDraft.name.trim(),
+        phone: contactDraft.phone.trim() || null,
+        email: contactDraft.email.trim() || null,
+        cargo: contactDraft.cargo.trim() || null,
+      }]).select().single();
+      if (data) setAssignedContacts(prev => [...prev, data]);
+    }
+    setContactDraft({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
     setSavingContact(false);
-    setEditingContact(false);
-    router.refresh();
+  }
+  function editContact(rowId) {
+    const c = assignedContacts.find(c => c.id === rowId);
+    if (!c) return;
+    setContactDraft({ contact_id: c.contact_id ?? '', name: c.name ?? '', phone: c.phone ?? '', email: c.email ?? '', cargo: c.cargo ?? '' });
+    setEditingContactId(rowId);
+  }
+  function cancelEditContact() {
+    setEditingContactId(null);
+    setContactDraft({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+  }
+  async function removeContact(rowId) {
+    if (editingContactId === rowId) cancelEditContact();
+    await supabase.from('solicitud_contacts').delete().eq('id', rowId);
+    setAssignedContacts(prev => prev.filter(c => c.id !== rowId));
   }
 
   // --- Líneas ---
@@ -554,42 +586,52 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
 
         {/* Contacto */}
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>👤 Contacto encargado</p>
-            {!editingContact && <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditingContact(true)}>Editar</button>}
-          </div>
-          {editingContact ? (
-            <>
-              {clientContacts.length > 0 && (
-                <div className="form-group">
-                  <label>Seleccionar contacto del cliente</label>
-                  <select value={contactForm.contact_id} onChange={e => {
-                    const c = clientContacts.find(c => c.id === e.target.value);
-                    if (c) selectContact(c); else setContactForm(f => ({ ...f, contact_id: '' }));
-                  }}>
-                    <option value="">— Seleccionar contacto —</option>
-                    {clientContacts.map(c => <option key={c.id} value={c.id}>{contactLabel(c)}</option>)}
-                  </select>
-                </div>
-              )}
-              <div className="form-group"><label>Nombre</label><input value={contactForm.contact_name} onChange={e => setContactForm(f => ({ ...f, contact_name: e.target.value }))} /></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div className="form-group"><label>Teléfono</label><input value={contactForm.contact_phone} onChange={e => setContactForm(f => ({ ...f, contact_phone: e.target.value }))} /></div>
-                <div className="form-group"><label>Email</label><input type="email" value={contactForm.contact_email} onChange={e => setContactForm(f => ({ ...f, contact_email: e.target.value }))} /></div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary" disabled={savingContact} onClick={saveContact}>{savingContact ? 'Guardando...' : 'Guardar'}</button>
-                <button className="btn btn-ghost" onClick={() => setEditingContact(false)}>Cancelar</button>
-              </div>
-            </>
+          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>👤 Contactos encargados</p>
+          {assignedContacts.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Sin contactos asignados.</p>
           ) : (
-            <>
-              {solicitud.contact_name && <p style={{ fontWeight: 600, fontSize: 14 }}>{solicitud.contact_name}</p>}
-              {solicitud.contact_phone && <a href={`tel:${solicitud.contact_phone}`} style={{ display: 'block', fontSize: 13, color: 'var(--amber)' }}>{solicitud.contact_phone}</a>}
-              {solicitud.contact_email && <p style={{ fontSize: 13, color: 'var(--muted)' }}>{solicitud.contact_email}</p>}
-              {!solicitud.contact_name && !solicitud.contact_phone && <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin contacto</p>}
-            </>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              {assignedContacts.map(c => (
+                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: c.id === editingContactId ? 'var(--amber-tint)' : 'var(--surface-2)', borderRadius: 8 }}>
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</span>
+                    {c.cargo && <span style={{ fontSize: 13, color: 'var(--muted)' }}> — {c.cargo}</span>}
+                    {(c.phone || c.email) && (
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{[c.phone, c.email].filter(Boolean).join(' · ')}</div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <button onClick={() => editContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️ Editar</button>
+                    <button onClick={() => removeContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warn)', fontSize: 14 }}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
+          {editingContactId && (
+            <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>Editando contacto — cambia los datos y guarda, o cancela.</p>
+          )}
+          {clientContacts.length > 0 && (
+            <div className="form-group">
+              <label>Seleccionar contacto del cliente</label>
+              <select value={contactDraft.contact_id} onChange={e => pickExistingContact(e.target.value)}>
+                <option value="">— Seleccionar contacto —</option>
+                {clientContacts.map(c => <option key={c.id} value={c.id}>{contactLabel(c)}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="form-group"><label>Nombre</label><input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="form-group"><label>Teléfono</label><input value={contactDraft.phone} onChange={e => setContactDraft(d => ({ ...d, phone: e.target.value }))} /></div>
+            <div className="form-group"><label>Email</label><input type="email" value={contactDraft.email} onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))} /></div>
+          </div>
+          <div className="form-group"><label>Cargo</label><input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder="Ej: Project Manager" /></div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary" disabled={!contactDraft.name.trim() || savingContact} onClick={addContact}>
+              {savingContact ? 'Guardando...' : editingContactId ? '💾 Guardar cambios' : '+ Agregar contacto'}
+            </button>
+            {editingContactId && <button className="btn btn-ghost" onClick={cancelEditContact}>Cancelar</button>}
+          </div>
         </div>
 
         {/* Líneas */}

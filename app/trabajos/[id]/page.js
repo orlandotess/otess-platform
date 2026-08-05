@@ -19,7 +19,7 @@ const statusBadge = {
 export default async function TrabajoDetail({ params }) {
   const { id } = params;
 
-  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: checklistAreas }, { data: templates }, { data: jobTechnicians }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }, { data: planos }, { data: taxRules }] = await Promise.all([
+  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: checklistAreas }, { data: templates }, { data: jobTechnicians }, { data: jobContacts }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }, { data: planos }, { data: taxRules }] = await Promise.all([
     supabase.from('jobs').select('*, clients(name, email, phone, client_type, company), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
     supabase.from('job_line_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('technicians').select('*').order('name'),
@@ -28,6 +28,7 @@ export default async function TrabajoDetail({ params }) {
     supabase.from('job_checklist_areas').select('*').eq('job_id', id),
     supabase.from('checklist_templates').select('*, checklist_template_items(*)').order('name'),
     supabase.from('job_technicians').select('*, technicians(name)').eq('job_id', id),
+    supabase.from('job_contacts').select('*').eq('job_id', id).order('created_at'),
     supabase.from('job_schedule_days').select('*, technicians(name)').eq('job_id', id).order('scheduled_start'),
     supabase.from('expenses').select('*').eq('job_id', id).order('expense_date', { ascending: false }),
     supabase.from('invoices').select('id, invoice_number, total, status, issued_at').eq('job_id', id).order('issued_at', { ascending: false }),
@@ -176,6 +177,7 @@ export default async function TrabajoDetail({ params }) {
           taxRules={taxRules ?? []}
           totals={{ subProd, taxProd, subLabor, taxLabor, total }}
           jobTechnicians={jobTechnicians ?? []}
+          jobContacts={jobContacts ?? []}
           clientProperties={clientProperties ?? []}
           clientContacts={clientContacts ?? []}
           scheduleDays={scheduleDays ?? []}

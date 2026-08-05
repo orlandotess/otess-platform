@@ -65,7 +65,7 @@ const expenseCategories = [
   { value: 'otro', label: 'Otro' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, checklistAreas = [], templates, clientType, taxRules = [], totals, jobTechnicians = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, checklistAreas = [], templates, clientType, taxRules = [], totals, jobTechnicians = [], jobContacts = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [] }) {
   const router = useRouter();
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
@@ -158,17 +158,22 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       client_id: newClientId,
       bill_to: 'person',
       property_id: null, property_name: null, street: null, city: null, state: null, zip: null,
-      contact_id: null, contact_name: null, contact_phone: null, contact_email: null,
     }).eq('id', job.id);
+    if (assignedContacts.length) {
+      await supabase.from('job_contacts').delete().eq('job_id', job.id);
+      setAssignedContacts([]);
+      setEditingContactId(null);
+      setContactDraft({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+    }
     setSavingClient(false);
     setEditingClient(false);
     setClientPickerSearch('');
     router.refresh();
   }
 
-  const [editingContact, setEditingContact] = useState(false);
-  const [contactSearch, setContactSearch] = useState('');
-  const [contactForm, setContactForm] = useState({ contact_name: job.contact_name ?? '', contact_phone: job.contact_phone ?? '', contact_email: job.contact_email ?? '' });
+  const [assignedContacts, setAssignedContacts] = useState(jobContacts);
+  const [contactDraft, setContactDraft] = useState({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+  const [editingContactId, setEditingContactId] = useState(null);
   const [savingContact, setSavingContact] = useState(false);
   const [editingProperty, setEditingProperty] = useState(false);
   const [propertySearch, setPropertySearch] = useState('');
@@ -177,10 +182,53 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   const [showNewProperty, setShowNewProperty] = useState(false);
 
   function contactLabel(c) { return `${c.name}${c.phone ? ' — ' + c.phone : ''}`; }
-  function handleContactSearchChange(value) {
-    setContactSearch(value);
-    const match = clientContacts.find(c => contactLabel(c) === value);
-    if (match) setContactForm({ contact_name: match.name ?? '', contact_phone: match.phone ?? '', contact_email: match.email ?? '' });
+  function pickExistingContact(contactId) {
+    const c = clientContacts.find(c => c.id === contactId);
+    if (c) setContactDraft(d => ({ ...d, contact_id: c.id, name: c.name ?? '', phone: c.phone ?? '', email: c.email ?? '' }));
+    else setContactDraft(d => ({ ...d, contact_id: '' }));
+  }
+  async function addContact() {
+    if (!contactDraft.name.trim()) return;
+    setSavingContact(true);
+    if (editingContactId) {
+      const payload = {
+        contact_id: contactDraft.contact_id || null,
+        name: contactDraft.name.trim(),
+        phone: contactDraft.phone.trim() || null,
+        email: contactDraft.email.trim() || null,
+        cargo: contactDraft.cargo.trim() || null,
+      };
+      await supabase.from('job_contacts').update(payload).eq('id', editingContactId);
+      setAssignedContacts(prev => prev.map(c => c.id === editingContactId ? { ...c, ...payload } : c));
+      setEditingContactId(null);
+    } else {
+      const { data } = await supabase.from('job_contacts').insert([{
+        job_id: job.id,
+        contact_id: contactDraft.contact_id || null,
+        name: contactDraft.name.trim(),
+        phone: contactDraft.phone.trim() || null,
+        email: contactDraft.email.trim() || null,
+        cargo: contactDraft.cargo.trim() || null,
+      }]).select().single();
+      if (data) setAssignedContacts(prev => [...prev, data]);
+    }
+    setContactDraft({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+    setSavingContact(false);
+  }
+  function editContact(rowId) {
+    const c = assignedContacts.find(c => c.id === rowId);
+    if (!c) return;
+    setContactDraft({ contact_id: c.contact_id ?? '', name: c.name ?? '', phone: c.phone ?? '', email: c.email ?? '', cargo: c.cargo ?? '' });
+    setEditingContactId(rowId);
+  }
+  function cancelEditContact() {
+    setEditingContactId(null);
+    setContactDraft({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
+  }
+  async function removeContact(rowId) {
+    await supabase.from('job_contacts').delete().eq('id', rowId);
+    setAssignedContacts(prev => prev.filter(c => c.id !== rowId));
+    if (editingContactId === rowId) cancelEditContact();
   }
 
   function propertyLabel(p) { return `${p.name}${p.city ? ' — ' + p.city : ''}`; }
@@ -201,17 +249,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     router.refresh();
   }
 
-  async function saveContact() {
-    setSavingContact(true);
-    await supabase.from('jobs').update({
-      contact_name: contactForm.contact_name.trim() || null,
-      contact_phone: contactForm.contact_phone.trim() || null,
-      contact_email: contactForm.contact_email.trim() || null,
-    }).eq('id', job.id);
-    setSavingContact(false);
-    setEditingContact(false);
-    router.refresh();
-  }
 
   async function saveProperty() {
     setSavingProperty(true);
@@ -1209,55 +1246,62 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               )}
 
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>👤 Contacto encargado</p>
-                {!editingContact && (
-                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => {
-                    setContactForm({ contact_name: job.contact_name ?? '', contact_phone: job.contact_phone ?? '', contact_email: job.contact_email ?? '' });
-                    setContactSearch('');
-                    setEditingContact(true);
-                  }}>✏️ Editar</button>
-                )}
-              </div>
-              {editingContact ? (
-                <div>
-                  {clientContacts.length > 0 && (
-                    <div className="form-group" style={{ marginBottom: 10 }}>
-                      <label>Buscar contacto del cliente</label>
-                      <input list="job-contact-datalist" value={contactSearch} onChange={e => handleContactSearchChange(e.target.value)} placeholder="Escribe para buscar..." />
-                      <datalist id="job-contact-datalist">
-                        {clientContacts.map(c => <option key={c.id} value={contactLabel(c)} />)}
-                      </datalist>
-                    </div>
-                  )}
-                  <div className="form-group" style={{ marginBottom: 10 }}>
-                    <label>Nombre</label>
-                    <input value={contactForm.contact_name} onChange={e => setContactForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="Nombre del contacto" />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 10 }}>
-                    <label>Teléfono</label>
-                    <input value={contactForm.contact_phone} onChange={e => setContactForm(f => ({ ...f, contact_phone: e.target.value }))} placeholder="787-000-0000" />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 10 }}>
-                    <label>Email</label>
-                    <input type="email" value={contactForm.contact_email} onChange={e => setContactForm(f => ({ ...f, contact_email: e.target.value }))} placeholder="contacto@email.com" />
-                  </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button className="btn btn-primary" onClick={saveContact} disabled={savingContact}>{savingContact ? 'Guardando...' : '💾 Guardar'}</button>
-                    <button className="btn btn-ghost" onClick={() => setEditingContact(false)}>Cancelar</button>
-                  </div>
-                </div>
-              ) : (job.contact_name || job.contact_phone || job.contact_email) ? (
-                <div>
-                  {job.contact_name && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>{job.contact_name}</div>}
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {job.contact_phone && <a href={`tel:${job.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--ok-tint)', color: 'var(--ok)', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>📞 {job.contact_phone}</a>}
-                    {job.contact_email && <a href={`mailto:${job.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--info-tint)', color: 'var(--info)', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>✉️ {job.contact_email}</a>}
-                  </div>
-                </div>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>👤 Contactos encargados</p>
+              {assignedContacts.length === 0 ? (
+                <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>Sin contactos asignados.</p>
               ) : (
-                <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin contacto asignado.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  {assignedContacts.map(c => (
+                    <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: c.id === editingContactId ? 'var(--amber-tint)' : 'var(--surface-2)', borderRadius: 8 }}>
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</span>
+                        {c.cargo && <span style={{ fontSize: 13, color: 'var(--muted)' }}> — {c.cargo}</span>}
+                        {(c.phone || c.email) && (
+                          <div style={{ fontSize: 12, color: 'var(--muted)' }}>{[c.phone, c.email].filter(Boolean).join(' · ')}</div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <button onClick={() => editContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️ Editar</button>
+                        <button onClick={() => removeContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warn)', fontSize: 14 }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
+              {editingContactId && (
+                <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>Editando contacto — cambia los datos y guarda, o cancela.</p>
+              )}
+              {clientContacts.length > 0 && (
+                <div className="form-group" style={{ marginBottom: 10 }}>
+                  <label>Seleccionar contacto del cliente</label>
+                  <select value={contactDraft.contact_id} onChange={e => pickExistingContact(e.target.value)}>
+                    <option value="">— Seleccionar contacto —</option>
+                    {clientContacts.map(c => <option key={c.id} value={c.id}>{contactLabel(c)}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="form-group" style={{ marginBottom: 10 }}>
+                <label>Nombre</label>
+                <input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} placeholder="Nombre del contacto" />
+              </div>
+              <div className="form-group" style={{ marginBottom: 10 }}>
+                <label>Teléfono</label>
+                <input value={contactDraft.phone} onChange={e => setContactDraft(d => ({ ...d, phone: e.target.value }))} placeholder="787-000-0000" />
+              </div>
+              <div className="form-group" style={{ marginBottom: 10 }}>
+                <label>Email</label>
+                <input type="email" value={contactDraft.email} onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))} placeholder="contacto@email.com" />
+              </div>
+              <div className="form-group" style={{ marginBottom: 10 }}>
+                <label>Cargo</label>
+                <input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder="Ej: Project Manager" />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-primary" onClick={addContact} disabled={!contactDraft.name.trim() || savingContact}>
+                  {savingContact ? 'Guardando...' : editingContactId ? '💾 Guardar cambios' : '+ Agregar contacto'}
+                </button>
+                {editingContactId && <button className="btn btn-ghost" onClick={cancelEditContact}>Cancelar</button>}
+              </div>
             </div>
 
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>

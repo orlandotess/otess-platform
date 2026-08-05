@@ -33,7 +33,7 @@ function FieldIcon({ name }) {
     </svg>
   );
 }
-const JOB_FIELDS = 'id, title, status, client_id, scheduled_start, scheduled_end, street, city, state, zip, property_name, contact_name, contact_phone, contact_email, clients(name, phone, email)';
+const JOB_FIELDS = 'id, title, status, client_id, scheduled_start, scheduled_end, street, city, state, zip, property_name, clients(name, phone, email), job_contacts(id, name, phone, email, cargo)';
 const EXPENSE_CATEGORIES = [
   { value: 'materiales', label: 'Materiales' },
   { value: 'gasolina', label: 'Gasolina' },
@@ -400,6 +400,7 @@ export default function FieldApp() {
   const [invLocations, setInvLocations] = useState([]);
   const [invStock, setInvStock] = useState([]);
   const [invProducts, setInvProducts] = useState([]);
+  const [invCatalogPhotoUrls, setInvCatalogPhotoUrls] = useState({}); // path -> signed url, para foto de catalog_items en Stock/Cajas de cable
   const [invLocationId, setInvLocationId] = useState('');
   const [invLocationQuery, setInvLocationQuery] = useState('');
   const [invLocationOpen, setInvLocationOpen] = useState(false);
@@ -1274,10 +1275,10 @@ export default function FieldApp() {
     (async () => {
       const [{ data: locs }, { data: stockRows }, { data: prods }, { data: unitRows }, { data: reelRows }] = await Promise.all([
         supabase.from('locations').select('*').eq('is_active', true).order('name'),
-        supabase.from('location_stock').select('*, catalog_items(item_code, description)'),
-        supabase.from('catalog_items').select('id, item_code, description').eq('type', 'product').order('item_code'),
-        supabase.from('location_stock_units').select('*, catalog_items(item_code, description)').order('created_at', { ascending: false }),
-        supabase.from('location_stock_reels').select('*, catalog_items(item_code, description)').order('created_at', { ascending: false }),
+        supabase.from('location_stock').select('*, catalog_items(item_code, name, description, photo_url)'),
+        supabase.from('catalog_items').select('id, item_code, name, description, photo_url').eq('type', 'product').order('item_code'),
+        supabase.from('location_stock_units').select('*, catalog_items(item_code, name, description, photo_url)').order('created_at', { ascending: false }),
+        supabase.from('location_stock_reels').select('*, catalog_items(item_code, name, description, photo_url)').order('created_at', { ascending: false }),
       ]);
       setInvLocations(locs ?? []);
       setInvStock(stockRows ?? []);
@@ -1285,6 +1286,13 @@ export default function FieldApp() {
       const unitsWithUrls = await Promise.all((unitRows ?? []).map(async u => ({ ...u, photo_signed_url: u.photo_path ? await getSignedUrl(u.photo_path) : null })));
       setInvUnits(unitsWithUrls);
       setInvReels(reelRows ?? []);
+      const catalogPhotoPaths = [...new Set([
+        ...(stockRows ?? []).map(s => s.catalog_items?.photo_url),
+        ...(reelRows ?? []).map(r => r.catalog_items?.photo_url),
+        ...(prods ?? []).map(p => p.photo_url),
+      ].filter(Boolean))];
+      const photoUrlEntries = await Promise.all(catalogPhotoPaths.map(async path => [path, await getSignedUrl(path)]));
+      setInvCatalogPhotoUrls(Object.fromEntries(photoUrlEntries));
       const savedLocationId = localStorage.getItem('otess-crew-inv-location');
       if (savedLocationId && (locs ?? []).some(l => l.id === savedLocationId)) {
         setInvLocationId(savedLocationId);
@@ -1328,10 +1336,10 @@ export default function FieldApp() {
 
   const invStockSearchTerm = invStockSearch.trim().toLowerCase();
   const invSelectedStock = invStock.filter(s => s.location_id === invLocationId
-    && (!invStockSearchTerm || s.catalog_items?.description?.toLowerCase().includes(invStockSearchTerm) || s.catalog_items?.item_code?.toLowerCase().includes(invStockSearchTerm)));
+    && (!invStockSearchTerm || s.catalog_items?.name?.toLowerCase().includes(invStockSearchTerm) || s.catalog_items?.description?.toLowerCase().includes(invStockSearchTerm) || s.catalog_items?.item_code?.toLowerCase().includes(invStockSearchTerm)));
   const invUnitSearchTerm = invUnitSearch.trim().toLowerCase();
   const invSelectedUnits = invUnits.filter(u => u.location_id === invLocationId
-    && (!invUnitSearchTerm || u.catalog_items?.description?.toLowerCase().includes(invUnitSearchTerm) || u.catalog_items?.item_code?.toLowerCase().includes(invUnitSearchTerm) || u.serial_number.toLowerCase().includes(invUnitSearchTerm)));
+    && (!invUnitSearchTerm || u.catalog_items?.name?.toLowerCase().includes(invUnitSearchTerm) || u.catalog_items?.description?.toLowerCase().includes(invUnitSearchTerm) || u.catalog_items?.item_code?.toLowerCase().includes(invUnitSearchTerm) || u.serial_number.toLowerCase().includes(invUnitSearchTerm)));
   const invSelectedReels = invReels.filter(r => r.location_id === invLocationId);
 
   function closeInvAddReelModal() {
@@ -1360,7 +1368,7 @@ export default function FieldApp() {
     setInvReels(prev => [{
       id: data, location_id: invLocationId, catalog_item_id: invReelForm.catalog_item_id,
       code: invReelForm.code.trim() || null, total_footage: footage, remaining_footage: footage,
-      catalog_items: prod ? { item_code: prod.item_code, description: prod.description } : null,
+      catalog_items: prod ? { item_code: prod.item_code, name: prod.name, description: prod.description, photo_url: prod.photo_url } : null,
     }, ...prev]);
     closeInvAddReelModal();
   }
@@ -1438,7 +1446,7 @@ export default function FieldApp() {
       photo_path,
       notes: invUnitForm.notes.trim() || null,
       created_by: profileId,
-    }]).select('*, catalog_items(item_code, description)').single();
+    }]).select('*, catalog_items(item_code, name, description, photo_url)').single();
     setInvSavingUnit(false);
     if (error) {
       setInvUnitError(error.code === '23505' ? 'Ese serial number ya existe en el sistema.' : 'No se pudo guardar. Intenta de nuevo.');
@@ -1466,7 +1474,7 @@ export default function FieldApp() {
       const idx = prev.findIndex(s => s.location_id === invLocationId && s.catalog_item_id === invAdjustForm.catalog_item_id);
       if (idx === -1) {
         const prod = invProducts.find(p => p.id === invAdjustForm.catalog_item_id);
-        return [...prev, { id: `tmp-${Date.now()}`, location_id: invLocationId, catalog_item_id: invAdjustForm.catalog_item_id, quantity: delta, catalog_items: prod ? { item_code: prod.item_code, description: prod.description } : null }];
+        return [...prev, { id: `tmp-${Date.now()}`, location_id: invLocationId, catalog_item_id: invAdjustForm.catalog_item_id, quantity: delta, catalog_items: prod ? { item_code: prod.item_code, name: prod.name, description: prod.description, photo_url: prod.photo_url } : null }];
       }
       return prev.map((s, i) => i === idx ? { ...s, quantity: s.quantity + delta } : s);
     });
@@ -2114,15 +2122,27 @@ export default function FieldApp() {
                 {invSelectedStock.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin productos en esta ubicación.</div>
                 ) : (
-                  invSelectedStock.map((s, idx) => (
-                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: idx < invSelectedStock.length - 1 ? '1px solid #eee' : 'none' }}>
-                      <div>
-                        <div style={{ fontFamily: 'monospace', fontSize: 11, color: AMBER }}>{s.catalog_items?.item_code}</div>
-                        <div style={{ fontSize: 14 }}>{s.catalog_items?.description}</div>
+                  invSelectedStock.map((s, idx) => {
+                    const photoUrl = invCatalogPhotoUrls[s.catalog_items?.photo_url];
+                    return (
+                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: idx < invSelectedStock.length - 1 ? '1px solid #eee' : 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                        {photoUrl ? (
+                          <img src={photoUrl} alt="" onClick={() => setLightbox({ urls: [photoUrl], index: 0 })}
+                            style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in', flexShrink: 0 }} />
+                        ) : (
+                          <div style={{ width: 44, height: 44, borderRadius: 8, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>📦</div>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: 'monospace', fontSize: 11, color: AMBER }}>{s.catalog_items?.item_code}</div>
+                          <div style={{ fontSize: 14, fontWeight: 600 }}>{s.catalog_items?.name || s.catalog_items?.description}</div>
+                          {s.catalog_items?.name && s.catalog_items?.description && <div style={{ fontSize: 12, color: '#888' }}>{s.catalog_items.description}</div>}
+                        </div>
                       </div>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: s.quantity <= 0 ? '#b52a2a' : '#16223d' }}>{s.quantity}</div>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: s.quantity <= 0 ? '#b52a2a' : '#16223d', flexShrink: 0 }}>{s.quantity}</div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
@@ -2142,21 +2162,25 @@ export default function FieldApp() {
                 {invSelectedUnits.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin equipo registrado en esta ubicación.</div>
                 ) : (
-                  invSelectedUnits.map((u, idx) => (
+                  invSelectedUnits.map((u, idx) => {
+                    const photoUrl = u.photo_signed_url || invCatalogPhotoUrls[u.catalog_items?.photo_url];
+                    return (
                     <div key={u.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: idx < invSelectedUnits.length - 1 ? '1px solid #eee' : 'none' }}>
-                      {u.photo_signed_url ? (
-                        <img src={u.photo_signed_url} alt={u.serial_number} onClick={() => setLightbox({ urls: [u.photo_signed_url], index: 0 })}
+                      {photoUrl ? (
+                        <img src={photoUrl} alt={u.serial_number} onClick={() => setLightbox({ urls: [photoUrl], index: 0 })}
                           style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in', flexShrink: 0 }} />
                       ) : (
                         <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📦</div>
                       )}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600 }}>{u.catalog_items?.description}</div>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>{u.catalog_items?.name || u.catalog_items?.description}</div>
+                        {u.catalog_items?.name && u.catalog_items?.description && <div style={{ fontSize: 12, color: '#888' }}>{u.catalog_items.description}</div>}
                         <div style={{ fontFamily: 'monospace', fontSize: 12, color: AMBER }}>SN: {u.serial_number}</div>
                         {u.notes && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{u.notes}</div>}
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
@@ -2172,11 +2196,20 @@ export default function FieldApp() {
                 ) : (
                   invSelectedReels.map((r, idx) => {
                     const pct = r.total_footage > 0 ? Math.max(0, Math.min(100, (r.remaining_footage / r.total_footage) * 100)) : 0;
+                    const photoUrl = invCatalogPhotoUrls[r.catalog_items?.photo_url];
                     return (
                       <div key={r.id} style={{ padding: '10px 0', borderBottom: idx < invSelectedReels.length - 1 ? '1px solid #eee' : 'none' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600 }}>{r.catalog_items?.description}{r.code ? ` · ${r.code}` : ''}</div>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: pct <= 15 ? '#b52a2a' : '#16223d' }}>{r.remaining_footage} / {r.total_footage} pies</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                            {photoUrl ? (
+                              <img src={photoUrl} alt="" onClick={() => setLightbox({ urls: [photoUrl], index: 0 })}
+                                style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in', flexShrink: 0 }} />
+                            ) : (
+                              <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>🧵</div>
+                            )}
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>{r.catalog_items?.name || r.catalog_items?.description}{r.code ? ` · ${r.code}` : ''}</div>
+                          </div>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: pct <= 15 ? '#b52a2a' : '#16223d', flexShrink: 0 }}>{r.remaining_footage} / {r.total_footage} pies</div>
                         </div>
                         <div style={{ background: '#eee', borderRadius: 20, height: 6, overflow: 'hidden', marginBottom: 8 }}>
                           <div style={{ background: pct <= 15 ? '#b52a2a' : ORANGE, height: '100%', width: `${pct}%` }} />
@@ -2337,15 +2370,20 @@ export default function FieldApp() {
                   </div>
                 )}
 
-                {/* Contacto encargado */}
-                {(detailJob.contact_name || detailJob.contact_phone || detailJob.contact_email) && (
+                {/* Contactos encargados */}
+                {(detailJob.job_contacts ?? []).length > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>👤 Contacto encargado</div>
-                    {detailJob.contact_name && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>{detailJob.contact_name}</div>}
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {detailJob.contact_phone && <a href={`tel:${detailJob.contact_phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {detailJob.contact_phone}</a>}
-                      {detailJob.contact_email && <a href={`mailto:${detailJob.contact_email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#16223d', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {detailJob.contact_email}</a>}
-                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>👤 Contactos encargados</div>
+                    {detailJob.job_contacts.map((c, idx) => (
+                      <div key={c.id} style={{ marginTop: idx > 0 ? 14 : 0 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: c.cargo ? 2 : 10 }}>{c.name}</div>
+                        {c.cargo && <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>{c.cargo}</div>}
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {c.phone && <a href={`tel:${c.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {c.phone}</a>}
+                          {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#16223d', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -3318,7 +3356,7 @@ export default function FieldApp() {
             <select value={invAdjustForm.catalog_item_id} onChange={e => setInvAdjustForm(f => ({ ...f, catalog_item_id: e.target.value }))}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
               <option value="">Selecciona un producto...</option>
-              {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+              {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
             </select>
             <input type="number" value={invAdjustForm.delta} onChange={e => setInvAdjustForm(f => ({ ...f, delta: e.target.value }))} placeholder="Cantidad (negativo para restar)"
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
@@ -3346,7 +3384,7 @@ export default function FieldApp() {
                 <select value={invUnitForm.catalog_item_id} onChange={e => setInvUnitForm(f => ({ ...f, catalog_item_id: e.target.value }))}
                   style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
                   <option value="">Selecciona un producto...</option>
-                  {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+                  {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
                 </select>
                 <button type="button" onClick={() => setShowInvNewProduct(true)}
                   style={{ background: 'none', border: 'none', color: ORANGE, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, marginBottom: 12 }}>
@@ -3421,7 +3459,7 @@ export default function FieldApp() {
             <select value={invReelForm.catalog_item_id} onChange={e => setInvReelForm(f => ({ ...f, catalog_item_id: e.target.value }))}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
               <option value="">Selecciona un producto...</option>
-              {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.description}</option>)}
+              {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
             </select>
             <input value={invReelForm.code} onChange={e => setInvReelForm(f => ({ ...f, code: e.target.value }))} placeholder="Código de la caja (opcional)"
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
