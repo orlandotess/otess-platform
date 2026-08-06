@@ -220,7 +220,12 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       const path = await uploadPhoto(editPhotoFile);
       if (path) payload.photo_url = path;
     }
-    await supabase.from("catalog_items").update(payload).eq("id", id);
+    const { error } = await supabase.from("catalog_items").update(payload).eq("id", id);
+    if (error) {
+      alert("Error al guardar: " + error.message);
+      setSaving(false);
+      return;
+    }
     setItems(prev => prev.map(i => i.id === id ? { ...i, ...payload } : i));
     setEditingId(null);
     setEditPhotoFile(null);
@@ -235,11 +240,14 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   }
 
   async function addItem() {
-    if (!newItem.item_code.trim() || !newItem.name.trim() || !newItem.description.trim()) return;
+    if (!newItem.item_code.trim() || !newItem.name.trim() || !newItem.description.trim()) {
+      alert("Item Code, Nombre y Descripción son requeridos.");
+      return;
+    }
     setSaving(true);
     let photo_url = null;
     if (newPhotoFile) photo_url = await uploadPhoto(newPhotoFile);
-    const { data } = await supabase.from("catalog_items").insert([{
+    const { data, error } = await supabase.from("catalog_items").insert([{
       type: dataType,
       item_code: newItem.item_code.trim(),
       name: newItem.name.trim(),
@@ -258,6 +266,11 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       termino_meses: dataType === "fee" && newItem.termino_meses !== "" ? parseInt(newItem.termino_meses, 10) : null,
       photo_url,
     }]).select().single();
+    if (error) {
+      alert("Error al guardar: " + error.message);
+      setSaving(false);
+      return;
+    }
     if (data) setItems(prev => [...prev, data]);
     setNewItem({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "" });
     setNewPhotoFile(null);
