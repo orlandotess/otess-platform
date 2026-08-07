@@ -11,7 +11,7 @@ import { calcularIVU, tasaParaLinea } from '../../lib/tax';
 const DEFAULT_TERMS = `Esta orden de cambio representa trabajo adicional o modificado fuera del alcance original acordado. Al aprobarla, el cliente autoriza a OTESS a proceder con el trabajo descrito y acepta el cargo adicional indicado.`;
 
 function emptyItem() {
-  return { type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
+  return { type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, saveToCatalog: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
 }
 
 export default function ChangeOrderForm({ initialData = null }) {
@@ -175,6 +175,34 @@ export default function ChangeOrderForm({ initialData = null }) {
       order = created;
     }
 
+    // Ítems marcados "☑ Guardar en catálogo" se crean en catalog_items aquí,
+    // mismo criterio que /catalogo e InvoiceForm.js. Órdenes de Cambio no
+    // tiene un campo "Título" separado como Facturas/Estimados — se usa la
+    // Descripción como código (truncada a 150 char, igual que el límite del
+    // campo Nombre en /catalogo) y como descripción completa. Si ya existe
+    // un ítem con ese código+tipo se reusa. No bloquea el guardado si falla.
+    for (const i of items) {
+      if (!i.saveToCatalog || i.catalog_item_id) continue;
+      if (i.type !== 'labor' && i.type !== 'product') continue;
+      const desc = i.description.trim();
+      if (!desc) continue;
+      const code = desc.slice(0, 150);
+      const { data: existing } = await supabase.from('catalog_items').select('id').eq('type', i.type).ilike('item_code', code).maybeSingle();
+      if (existing) { i.catalog_item_id = existing.id; continue; }
+      const { data: createdCatalogItem, error: catErr } = await supabase.from('catalog_items').insert([{
+        type: i.type, item_code: code, description: desc,
+        price: parseFloat(i.unit_price) || 0,
+        msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
+        supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
+        vendor: i.vendor || null,
+        tax_category: i.type,
+      }]).select().single();
+      if (!catErr && createdCatalogItem) {
+        i.catalog_item_id = createdCatalogItem.id;
+        setCatalogItems(prev => [...prev, createdCatalogItem]);
+      }
+    }
+
     const lineItems = [];
     let sortOrder = 0;
     for (const i of items.filter(i => i.description.trim())) {
@@ -285,6 +313,8 @@ export default function ChangeOrderForm({ initialData = null }) {
                   onSupplierPriceChange={v => setItem(idx, 'supplier_price', v)}
                   exempt={item.exempt}
                   onExemptChange={v => setItem(idx, 'exempt', v)}
+                  saveToCatalog={item.saveToCatalog}
+                  onSaveToCatalogChange={v => setItem(idx, 'saveToCatalog', v)}
                   area={item.area}
                   onAreaChange={v => setItem(idx, 'area', v)}
                   areaOptions={areaOptions}

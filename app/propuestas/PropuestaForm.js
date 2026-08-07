@@ -18,6 +18,7 @@ function emptyItem(parentKey = null, itemType = 'labor') {
     unit_price: '',
     supplier_price: '',
     exempt: false,
+    saveToCatalog: false,
     discount: '',
     vendor: '',
     combinePrice: true, // only meaningful for parent (non-accessory) items
@@ -513,6 +514,33 @@ export default function PropuestaForm({ initialData = null }) {
       proposal = created;
     }
 
+    // Ítems marcados "☑ Guardar en catálogo" se crean en catalog_items aquí,
+    // mismo criterio que /catalogo e InvoiceForm.js: código = título, nombre
+    // en blanco. Si ya existe un ítem con ese código+tipo se reusa (no-op —
+    // Propuestas no trackea catalog_item_id en su línea, así que no hay
+    // nada que enlazar de vuelta). No bloquea el guardado si falla.
+    for (const opt of options) {
+      for (const area of opt.areas) {
+        for (const it of area.items) {
+          if (!it.saveToCatalog || it.parentKey) continue;
+          if (it.item_type !== 'labor' && it.item_type !== 'product') continue;
+          const code = (it.title || '').trim();
+          if (!code || !it.description.trim()) continue;
+          const { data: existing } = await supabase.from('catalog_items').select('id').eq('type', it.item_type).ilike('item_code', code).maybeSingle();
+          if (existing) continue;
+          const { data: createdCatalogItem } = await supabase.from('catalog_items').insert([{
+            type: it.item_type, item_code: code, description: it.description.trim(),
+            price: parseFloat(it.unit_price) || 0,
+            msrp: it.msrp !== '' ? parseFloat(it.msrp) : null,
+            supplier_price: it.supplier_price !== '' ? parseFloat(it.supplier_price) : null,
+            vendor: it.vendor || null,
+            tax_category: it.item_type,
+          }]).select().single();
+          if (createdCatalogItem) setCatalogItems(prev => [...prev, createdCatalogItem]);
+        }
+      }
+    }
+
     for (let i = 0; i < options.length; i++) {
       const opt = options[i];
       const { data: optRow, error: optErr } = await supabase.from('proposal_options').insert([{
@@ -877,6 +905,8 @@ export default function PropuestaForm({ initialData = null }) {
                           onSupplierPriceChange={v => updateItem(opt.key, area.key, it.key, 'supplier_price', v)}
                           exempt={it.exempt}
                           onExemptChange={v => updateItem(opt.key, area.key, it.key, 'exempt', v)}
+                          saveToCatalog={it.saveToCatalog}
+                          onSaveToCatalogChange={v => updateItem(opt.key, area.key, it.key, 'saveToCatalog', v)}
                           discount={it.discount}
                           onDiscountChange={v => updateItem(opt.key, area.key, it.key, 'discount', v)}
                           vendor={it.vendor}

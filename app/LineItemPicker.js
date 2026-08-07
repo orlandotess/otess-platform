@@ -52,7 +52,7 @@ export default function LineItemPicker({ onSelect, tipos = ['labor', 'product', 
                     {c.type === 'labor' ? 'Labor' : c.type === 'fee' ? 'Fee' : 'Producto'}
                   </span>
                   <span style={{ fontWeight: 700, fontSize: 12.5 }}>{c.name || c.item_code}</span>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name && `${c.item_code} — `}{c.description}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name && c.name !== c.item_code && `${c.item_code} — `}{c.description}</div>
                 </div>
                 {c.price != null && <div style={{ fontSize: 12, fontWeight: 700, flexShrink: 0, alignSelf: 'center' }}>${Number(c.price).toFixed(2)}</div>}
               </div>

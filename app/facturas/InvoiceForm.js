@@ -22,7 +22,7 @@ function emptyItem(overrides = {}) {
     key: Math.random().toString(36).slice(2),
     parentKey: null, combinePrice: true,
     type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1,
-    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null,
+    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: false,
     photoFile: null, photoPreview: null, existingPhotoPath: null,
     ...overrides,
   };
@@ -423,6 +423,34 @@ export default function InvoiceForm({ initialData = null }) {
       return upErr ? null : path;
     }
 
+    // Ítems marcados "☑ Guardar en catálogo" que no vienen de una selección
+    // del picker (catalog_item_id vacío) se crean en catalog_items aquí,
+    // mismo criterio que /catalogo: código = título, nombre en blanco. Si ya
+    // existe un ítem con ese código+tipo se reusa en vez de duplicar. No
+    // bloquea el guardado de la factura si la creación falla.
+    for (const area of areas) {
+      for (const i of area.items) {
+        if (!i.saveToCatalog || i.catalog_item_id || i.parentKey) continue;
+        if (i.type !== 'labor' && i.type !== 'product') continue;
+        const code = (i.title || '').trim();
+        if (!code || !i.description.trim()) continue;
+        const { data: existing } = await supabase.from('catalog_items').select('id').eq('type', i.type).ilike('item_code', code).maybeSingle();
+        if (existing) { i.catalog_item_id = existing.id; continue; }
+        const { data: createdCatalogItem, error: catErr } = await supabase.from('catalog_items').insert([{
+          type: i.type, item_code: code, description: i.description.trim(),
+          price: parseFloat(i.unit_price) || 0,
+          msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
+          supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
+          vendor: i.vendor || null,
+          tax_category: i.type,
+        }]).select().single();
+        if (!catErr && createdCatalogItem) {
+          i.catalog_item_id = createdCatalogItem.id;
+          setCatalogItems(prev => [...prev, createdCatalogItem]);
+        }
+      }
+    }
+
     // Parents are inserted first so their DB ids can be attached to their
     // accessories' parent_item_id in a second pass. Stock deductions for both
     // parents and accessories (an accessory can itself be a catalog product)
@@ -663,6 +691,8 @@ export default function InvoiceForm({ initialData = null }) {
                         onSupplierPriceChange={v => setItem(area.key, item.key, 'supplier_price', v)}
                         exempt={item.exempt}
                         onExemptChange={v => setItem(area.key, item.key, 'exempt', v)}
+                        saveToCatalog={item.saveToCatalog}
+                        onSaveToCatalogChange={v => setItem(area.key, item.key, 'saveToCatalog', v)}
                         vendor={item.vendor}
                         onVendorChange={v => setItem(area.key, item.key, 'vendor', v)}
                         vendorOptions={vendorOptions}

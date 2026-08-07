@@ -44,7 +44,7 @@ function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder,
                 style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 12.5 }}>{c.name || c.item_code}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name && `${c.item_code} — `}{c.description}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name && c.name !== c.item_code && `${c.item_code} — `}{c.description}</div>
                 </div>
                 {c.price != null && <div style={{ fontSize: 12, fontWeight: 700, flexShrink: 0, alignSelf: 'center' }}>${Number(c.price).toFixed(2)}</div>}
               </div>
@@ -72,6 +72,7 @@ export default function LineItemRow({
   unitPrice, onUnitPriceChange,
   supplierPrice, onSupplierPriceChange,
   exempt, onExemptChange,
+  saveToCatalog, onSaveToCatalogChange,
   discount, onDiscountChange,
   area, onAreaChange, areaOptions = [],
   vendor, onVendorChange, vendorOptions = [],
@@ -376,6 +377,13 @@ export default function LineItemRow({
                     style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' }}>
                     {exempt ? '☑ Exento de IVU' : '☐ Marcar exento de IVU'}
                   </button>
+                  {onSaveToCatalogChange && !catalogItemId && (type === 'labor' || type === 'product') && (
+                    <button type="button" onClick={() => { onSaveToCatalogChange(!saveToCatalog); setMenuOpen(false); }}
+                      title="Crea este ítem en el catálogo (Labor/Producto) al guardar, para reutilizarlo en futuros documentos"
+                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' }}>
+                      {saveToCatalog ? '☑ Guardar en catálogo' : '☐ Guardar en catálogo'}
+                    </button>
+                  )}
                   {onDiscountChange && (
                     <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
                       <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Descuento ($)</label>
