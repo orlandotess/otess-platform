@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { fallbackLineItems } from '../../../lib/ivu';
@@ -93,6 +94,29 @@ export default async function FacturaPublica({ params }) {
   const displayStatus = isOverdue ? 'Vencida' : statusLabel[inv.status];
   const displayColor = isOverdue ? '#b52a2a' : statusColor[inv.status];
 
+  // Groups top-level items into named area sections and links each accessory
+  // (parent_item_id child) under its parent — mirrors app/facturas/[id]/page.js.
+  const topLevelItems = displayItems.filter(it => !it.parent_item_id);
+  const childrenByParentId = new Map();
+  for (const it of displayItems) {
+    if (!it.parent_item_id) continue;
+    if (!childrenByParentId.has(it.parent_item_id)) childrenByParentId.set(it.parent_item_id, []);
+    childrenByParentId.get(it.parent_item_id).push(it);
+  }
+  const displayAreas = [];
+  topLevelItems.forEach(it => {
+    const name = it.area || 'General';
+    let area = displayAreas.find(a => a.name === name);
+    if (!area) { area = { name, items: [] }; displayAreas.push(area); }
+    area.items.push(it);
+  });
+  const multiArea = displayAreas.length > 1 || (displayAreas[0]?.name && displayAreas[0].name !== 'General');
+  function entryTotal(item) {
+    const own = Number(item.line_total) + Number(item.tax_amount);
+    const childrenTotal = (childrenByParentId.get(item.id) ?? []).reduce((s, c) => s + Number(c.line_total) + Number(c.tax_amount), 0);
+    return own + childrenTotal;
+  }
+
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
@@ -145,42 +169,86 @@ export default async function FacturaPublica({ params }) {
             )}
 
             {/* Line items */}
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Items</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
-              <thead>
-                <tr style={{ borderBottom: '1.5px solid #eee' }}>
-                  <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 0', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Descripción</th>
-                  <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cant.</th>
-                  <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Precio</th>
-                  <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>IVU</th>
-                  <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 0', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayItems.map(item => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #f4f4f4' }}>
-                    <td style={{ padding: '14px 10px 14px 0' }}>
-                      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                        <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                          {item.photo_signed_url ? <img src={item.photo_signed_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{item.type === 'labor' ? '🔧' : '📦'}</span>}
-                        </div>
-                        <div>
-                          {item.title && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
-                          <div style={{ fontWeight: item.title ? 400 : 700, fontSize: item.title ? 13 : 14, color: item.title ? '#555' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
-                          <span style={{ fontSize: 10.5, fontWeight: 600, color: item.type === 'labor' ? '#92600a' : '#999', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            {item.type === 'labor' ? 'Labor' : 'Producto'}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '14px 12px', textAlign: 'center', color: '#999', fontSize: 13.5, verticalAlign: 'top' }}>x{item.quantity}</td>
-                    <td style={{ padding: '14px 12px', textAlign: 'right', color: '#999', fontSize: 13.5, verticalAlign: 'top' }}>{fmt(item.unit_price)}</td>
-                    <td style={{ padding: '14px 12px', textAlign: 'right', color: '#999', fontSize: 12, verticalAlign: 'top' }}>{item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}</td>
-                    <td style={{ padding: '14px 0', textAlign: 'right', fontWeight: 700, fontSize: 14, verticalAlign: 'top' }}>{fmt(Number(item.line_total) + Number(item.tax_amount))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {displayAreas.map(area => (
+              <div key={area.name} style={{ marginBottom: 24 }}>
+                {multiArea && (
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#16223d', marginBottom: 8 }}>📍 {area.name}</div>
+                )}
+                {!multiArea && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Items</div>
+                )}
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: multiArea ? 6 : 0 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1.5px solid #eee' }}>
+                      <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 0', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Descripción</th>
+                      <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cant.</th>
+                      <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Precio</th>
+                      <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>IVU</th>
+                      <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 0', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {area.items.map(item => {
+                      const children = childrenByParentId.get(item.id) ?? [];
+                      return (
+                      <Fragment key={item.id}>
+                        <tr style={{ borderBottom: children.length ? 'none' : '1px solid #f4f4f4' }}>
+                          <td style={{ padding: '14px 10px 14px 0' }}>
+                            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                              <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                {item.photo_signed_url ? <img src={item.photo_signed_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{item.type === 'labor' ? '🔧' : '📦'}</span>}
+                              </div>
+                              <div>
+                                {item.title && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
+                                <div style={{ fontWeight: item.title ? 400 : 700, fontSize: item.title ? 13 : 14, color: item.title ? '#555' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                                <span style={{ fontSize: 10.5, fontWeight: 600, color: item.type === 'labor' ? '#92600a' : '#999', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  {item.type === 'labor' ? 'Labor' : 'Producto'}
+                                </span>
+                                {children.length > 0 && (
+                                  <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>
+                                    {children.length} accesorio{children.length > 1 ? 's' : ''} incluido{children.length > 1 ? 's' : ''}
+                                    {item.combine_price !== false && ' — Precio combinado'}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 12px', textAlign: 'center', color: '#999', fontSize: 13.5, verticalAlign: 'top' }}>x{item.quantity}</td>
+                          <td style={{ padding: '14px 12px', textAlign: 'right', color: '#999', fontSize: 13.5, verticalAlign: 'top' }}>{fmt(item.unit_price)}</td>
+                          <td style={{ padding: '14px 12px', textAlign: 'right', color: '#999', fontSize: 12, verticalAlign: 'top' }}>{item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}</td>
+                          <td style={{ padding: '14px 0', textAlign: 'right', fontWeight: 700, fontSize: 14, verticalAlign: 'top' }}>{fmt(Number(item.line_total) + Number(item.tax_amount))}</td>
+                        </tr>
+                        {children.map((child, ci) => {
+                          const bundled = item.combine_price !== false;
+                          return (
+                            <tr key={child.id} style={{ borderBottom: ci === children.length - 1 ? '1px solid #f4f4f4' : 'none' }}>
+                              <td style={{ padding: '8px 10px 8px 52px' }}>
+                                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                  <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                    {child.photo_signed_url ? <img src={child.photo_signed_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 11 }}>{child.type === 'labor' ? '🔧' : '📦'}</span>}
+                                  </div>
+                                  <div style={{ fontSize: 12.5, color: '#999', whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                                </div>
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: 12.5, color: '#999' }}>x{child.quantity}</td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12.5, color: '#999' }}>{bundled ? '—' : fmt(child.unit_price)}</td>
+                              <td />
+                              <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 600, fontSize: 12.5 }}>{bundled ? '—' : fmt(Number(child.line_total) + Number(child.tax_amount))}</td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {multiArea && (
+                  <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#999' }}>
+                    {area.name} Total: {fmt(area.items.reduce((s, it) => s + entryTotal(it), 0))}
+                  </div>
+                )}
+              </div>
+            ))}
 
             {/* Totals */}
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

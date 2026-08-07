@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { fallbackLineItems } from '../../../lib/ivu';
@@ -89,6 +90,34 @@ export default async function FacturaDetail({ params }) {
   const today = new Date().toISOString().slice(0, 10);
   const isOverdue = inv.status === 'sent' && inv.due_at && inv.due_at < today;
   const fmt = n => Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Groups top-level items into named area sections (Piso 1, Piso 2...) and links
+  // each accessory (parent_item_id child) under its parent — same shape as
+  // app/estimados/[id]/page.js so Facturas renders the same sectioned layout.
+  const topLevelItems = displayItems.filter(it => !it.parent_item_id);
+  const childrenByParentId = new Map();
+  for (const it of displayItems) {
+    if (!it.parent_item_id) continue;
+    if (!childrenByParentId.has(it.parent_item_id)) childrenByParentId.set(it.parent_item_id, []);
+    childrenByParentId.get(it.parent_item_id).push(it);
+  }
+  const displayAreas = [];
+  topLevelItems.forEach(it => {
+    const name = it.area || 'General';
+    let area = displayAreas.find(a => a.name === name);
+    if (!area) { area = { name, items: [] }; displayAreas.push(area); }
+    area.items.push(it);
+  });
+  const multiArea = displayAreas.length > 1 || (displayAreas[0]?.name && displayAreas[0].name !== 'General');
+  // A parent's own line_total/tax_amount already reflect only its own price;
+  // bundled accessories were persisted with line_total/tax_amount of 0 at save
+  // time (InvoiceForm.js's itemLineTotal), so summing children in unconditionally
+  // is safe whether or not "Combinar precio" is on.
+  function entryTotal(item) {
+    const own = Number(item.line_total) + Number(item.tax_amount);
+    const childrenTotal = (childrenByParentId.get(item.id) ?? []).reduce((s, c) => s + Number(c.line_total) + Number(c.tax_amount), 0);
+    return own + childrenTotal;
+  }
 
   return (
     <div className="admin-shell ds-facturas">
@@ -185,52 +214,96 @@ export default async function FacturaDetail({ params }) {
             )}
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Items</div>
-          <table style={{ marginBottom: 24 }}>
-            <thead>
-              <tr style={{ borderBottom: '1.5px solid var(--border)' }}>
-                <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Descripción</th>
-                <th style={{ textAlign: 'center', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cant.</th>
-                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Precio</th>
-                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>IVU</th>
-                <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayItems.map(item => (
-                <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '14px 10px 14px 0' }}>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                      <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                        {item.photo_signed_url ? <img src={item.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{item.type === 'labor' ? '🔧' : '📦'}</span>}
-                      </div>
-                      <div>
-                        {item.title && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
-                        <div style={{ fontWeight: item.title ? 400 : 700, fontSize: item.title ? 13 : 14, color: item.title ? 'var(--muted)' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
-                        <span style={{ fontSize: 10.5, fontWeight: 600, color: item.type === 'labor' ? 'var(--amber)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          {item.type === 'labor' ? 'Labor' : 'Producto'}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13.5, color: 'var(--muted)', verticalAlign: 'top' }}>x{item.quantity}</td>
-                  <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: 13.5, color: 'var(--muted)', verticalAlign: 'top' }}>
-                    {item.msrp != null && (
-                      <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${fmt(item.msrp)}</div>
-                    )}
-                    ${fmt(item.unit_price)}
-                    {item.supplier_price != null && (
-                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${fmt(item.supplier_price)}</div>
-                    )}
-                  </td>
-                  <td style={{ padding: '14px 12px', textAlign: 'right', color: 'var(--muted)', fontSize: 12, verticalAlign: 'top' }}>
-                    {item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}
-                  </td>
-                  <td style={{ padding: '14px 0', textAlign: 'right', fontWeight: 700, fontSize: 14, verticalAlign: 'top' }}>${fmt(Number(item.line_total) + Number(item.tax_amount))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {displayAreas.map(area => (
+            <div key={area.name} style={{ marginBottom: 24 }}>
+              {multiArea && (
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>📍 {area.name}</div>
+              )}
+              {!multiArea && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Items</div>
+              )}
+              <table style={{ marginBottom: multiArea ? 6 : 0 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1.5px solid var(--border)' }}>
+                    <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Descripción</th>
+                    <th style={{ textAlign: 'center', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cant.</th>
+                    <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Precio</th>
+                    <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>IVU</th>
+                    <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {area.items.map(item => {
+                    const children = childrenByParentId.get(item.id) ?? [];
+                    return (
+                    <Fragment key={item.id}>
+                      <tr style={{ borderBottom: children.length ? 'none' : '1px solid var(--border)' }}>
+                        <td style={{ padding: '14px 10px 14px 0' }}>
+                          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                            <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {item.photo_signed_url ? <img src={item.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{item.type === 'labor' ? '🔧' : '📦'}</span>}
+                            </div>
+                            <div>
+                              {item.title && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
+                              <div style={{ fontWeight: item.title ? 400 : 700, fontSize: item.title ? 13 : 14, color: item.title ? 'var(--muted)' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                              <span style={{ fontSize: 10.5, fontWeight: 600, color: item.type === 'labor' ? 'var(--amber)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                {item.type === 'labor' ? 'Labor' : 'Producto'}
+                              </span>
+                              {children.length > 0 && (
+                                <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>
+                                  {children.length} accesorio{children.length > 1 ? 's' : ''} incluido{children.length > 1 ? 's' : ''}
+                                  {item.combine_price !== false && ' — Precio combinado'}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13.5, color: 'var(--muted)', verticalAlign: 'top' }}>x{item.quantity}</td>
+                        <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: 13.5, color: 'var(--muted)', verticalAlign: 'top' }}>
+                          {item.msrp != null && (
+                            <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${fmt(item.msrp)}</div>
+                          )}
+                          ${fmt(item.unit_price)}
+                          {item.supplier_price != null && (
+                            <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${fmt(item.supplier_price)}</div>
+                          )}
+                        </td>
+                        <td style={{ padding: '14px 12px', textAlign: 'right', color: 'var(--muted)', fontSize: 12, verticalAlign: 'top' }}>
+                          {item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}
+                        </td>
+                        <td style={{ padding: '14px 0', textAlign: 'right', fontWeight: 700, fontSize: 14, verticalAlign: 'top' }}>${fmt(Number(item.line_total) + Number(item.tax_amount))}</td>
+                      </tr>
+                      {children.map((child, ci) => {
+                        const bundled = item.combine_price !== false;
+                        return (
+                          <tr key={child.id} style={{ borderBottom: ci === children.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                            <td style={{ padding: '8px 10px 8px 52px' }}>
+                              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                  {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 11 }}>{child.type === 'labor' ? '🔧' : '📦'}</span>}
+                                </div>
+                                <div style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                              </div>
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: 12.5, color: 'var(--muted)' }}>x{child.quantity}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12.5, color: 'var(--muted)' }}>{bundled ? '—' : `$${fmt(child.unit_price)}`}</td>
+                            <td />
+                            <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 600, fontSize: 12.5 }}>{bundled ? '—' : `$${fmt(Number(child.line_total) + Number(child.tax_amount))}`}</td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {multiArea && (
+                <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: 'var(--muted)' }}>
+                  {area.name} Total: ${fmt(area.items.reduce((s, it) => s + entryTotal(it), 0))}
+                </div>
+              )}
+            </div>
+          ))}
           {isFallbackItems && (
             <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: -14, marginBottom: 24 }}>
               ⚠️ Líneas detalladas no disponibles para esta factura — se muestra un resumen por labor/producto.
