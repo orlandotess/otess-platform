@@ -825,7 +825,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   }
 
   function handleFileSelect(e) {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files || []).filter(f => !f.type.startsWith('video/'));
     if (!files.length) return;
     setPendingPhotos(prev => [...prev, ...files]);
     setPendingPhotoPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
@@ -2052,15 +2052,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
                   {pendingPhotoPreviews.map((preview, idx) => (
                     <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
-                      {pendingPhotos[idx]?.type?.startsWith('video') ? (
-                        <video src={preview} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10, background: '#000' }} />
-                      ) : (
-                        <>
-                          <img src={preview} alt="preview" onClick={() => setAnnotatingIdx(idx)} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10, cursor: 'pointer' }} />
-                          <button type="button" onClick={() => setAnnotatingIdx(idx)}
-                            style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
-                        </>
-                      )}
+                      <img src={preview} alt="preview" onClick={() => setAnnotatingIdx(idx)} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10, cursor: 'pointer' }} />
+                      <button type="button" onClick={() => setAnnotatingIdx(idx)}
+                        style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
                       {uploadingPhoto && (
                         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', borderRadius: '0 0 10px 10px', padding: '4px 6px' }}>
                           <div style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 20, height: 5, overflow: 'hidden' }}>
@@ -2085,9 +2079,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   ⚠️ {noteError}
                 </div>
               )}
-              <input ref={fileRef} type="file" accept="image/*,video/*,application/pdf" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
+              <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 Foto / Video{pendingPhotos.length > 0 ? ` (${pendingPhotos.length})` : ''}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 Foto{pendingPhotos.length > 0 ? ` (${pendingPhotos.length})` : ''}</button>
                 <button type="submit" className="btn btn-primary" disabled={savingNote || uploadingPhoto} style={{ flex: 1, justifyContent: 'center' }}>
                   {uploadingPhoto ? 'Subiendo...' : savingNote ? 'Guardando...' : '💾 Guardar'}
                 </button>

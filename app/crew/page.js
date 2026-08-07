@@ -986,7 +986,7 @@ export default function FieldApp() {
 
   async function uploadFabPhoto(e) {
     const file = e.target.files?.[0];
-    if (!file || !fabSelectedJob) return;
+    if (!file || file.type.startsWith('video/') || !fabSelectedJob) return;
     setUploadingPhoto(true);
     setPhotoError('');
     setFabUploadProgress(0);
@@ -2722,12 +2722,8 @@ export default function FieldApp() {
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                         {detailPhotoPreviews.map((preview, idx) => (
                           <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
-                            {detailPhotos[idx]?.type?.startsWith('video') ? (
-                              <video src={preview} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
-                            ) : (
-                              <img src={preview} onClick={() => setAnnotatingIdx(idx)} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }} />
-                            )}
-                            {!detailPhotos[idx]?.type?.startsWith('video') && !savingDetailNote && (
+                            <img src={preview} onClick={() => setAnnotatingIdx(idx)} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }} />
+                            {!savingDetailNote && (
                               <button type="button" onClick={() => setAnnotatingIdx(idx)}
                                 style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
                             )}
@@ -2755,9 +2751,9 @@ export default function FieldApp() {
                         ⚠️ {detailNoteError}
                       </div>
                     )}
-                    <input ref={fileRef2} type="file" accept="image/*,video/*,application/pdf" multiple
+                    <input ref={fileRef2} type="file" accept="image/*,application/pdf" multiple
                       onChange={e => {
-                        const files = Array.from(e.target.files || []);
+                        const files = Array.from(e.target.files || []).filter(f => !f.type.startsWith('video/'));
                         if (files.length) {
                           setDetailPhotos(prev => [...prev, ...files]);
                           setDetailPhotoPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
@@ -3330,7 +3326,7 @@ export default function FieldApp() {
                       ⚠️ {photoError}
                     </div>
                   )}
-                  <input ref={fileRef} type="file" accept="image/*,video/*,application/pdf" onChange={uploadFabPhoto} style={{ display: 'none' }} />
+                  <input ref={fileRef} type="file" accept="image/*,application/pdf" onChange={uploadFabPhoto} style={{ display: 'none' }} />
                   <button onClick={() => fileRef.current?.click()} disabled={uploadingPhoto} style={{ width: '100%', padding: 16, background: '#f0f0f0', border: '2px dashed #dde1e7', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', color: '#555' }}>
                     {uploadingPhoto ? `📤 Subiendo... ${fabUploadProgress}%` : '📷 Tomar foto o elegir de galería'}
                   </button>

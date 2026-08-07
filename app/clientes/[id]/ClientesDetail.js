@@ -363,7 +363,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
   const sortedInternalNotes = [...internalNotes].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0));
 
   function handleNotePhotoSelect(e) {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files || []).filter(f => !f.type.startsWith('video/'));
     if (!files.length) return;
     setPendingNotePhotos(prev => [...prev, ...files]);
     setPendingNotePhotoPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
@@ -1480,11 +1480,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
                   {pendingNotePhotoPreviews.map((preview, idx) => (
                     <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
-                      {pendingNotePhotos[idx]?.type?.startsWith('video') ? (
-                        <video src={preview} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
-                      ) : (
-                        <img src={preview} alt="preview" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8 }} />
-                      )}
+                      <img src={preview} alt="preview" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8 }} />
                       {uploadingNotePhoto ? (
                         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', borderRadius: '0 0 8px 8px', padding: '3px 5px' }}>
                           <div style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 20, height: 4, overflow: 'hidden' }}>
@@ -1502,7 +1498,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                   ))}
                 </div>
               )}
-              <input ref={noteFileRef} type="file" accept="image/*,video/*,application/pdf" multiple onChange={handleNotePhotoSelect} style={{ display: 'none' }} />
+              <input ref={noteFileRef} type="file" accept="image/*,application/pdf" multiple onChange={handleNotePhotoSelect} style={{ display: 'none' }} />
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" className="btn btn-ghost" onClick={() => noteFileRef.current?.click()}>📷 Foto{pendingNotePhotos.length > 0 ? ` (${pendingNotePhotos.length})` : ''}</button>
                 <button type="submit" className="btn btn-primary" disabled={savingInternalNote || uploadingNotePhoto || (!newInternalNote.trim() && pendingNotePhotos.length === 0)}>
