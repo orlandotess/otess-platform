@@ -6,7 +6,12 @@ import { supabase } from '../../../lib/supabase';
 import GanttGrid from './GanttGrid';
 import JobsPanel from './JobsPanel';
 import JobCard from './JobCard';
-import { slotToIso, todayPR, dayPR, assignedTechIds } from './dispatchUtils';
+import { slotToIso, todayPR, dayPR, assignedTechIds, HORA_INICIO, SLOT_MINUTOS, SLOT_WIDTH } from './dispatchUtils';
+
+// El Gantt cubre 24h para poder ver días extra a cualquier hora, pero casi siempre
+// lo que importa es el horario laboral — sin esto, el board abre en medianoche y
+// hay que scrollear a mano para ver los jobs del día (bug reportado en vivo).
+const BUSINESS_HOUR_START = 7;
 
 export default function DispatchBoard({ technicians, scheduledJobs, unassignedJobs, absencesByTech = {}, openEntryByTech = {}, day }) {
   const router = useRouter();
@@ -14,6 +19,13 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
   const [activeJob, setActiveJob] = useState(null);
   const isDraggingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
+  const ganttRef = useRef(null);
+
+  useEffect(() => {
+    if (ganttRef.current) {
+      ganttRef.current.scrollLeft = ((BUSINESS_HOUR_START - HORA_INICIO) * 60 / SLOT_MINUTOS) * SLOT_WIDTH;
+    }
+  }, [day]);
 
   // El día pudo haber cambiado (navegación) y el server component ya trajo los jobs correctos.
   useEffect(() => {
@@ -192,7 +204,7 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
         </div>
       </div>
       <div className="dispatch-body">
-        <div className="dispatch-gantt">
+        <div className="dispatch-gantt" ref={ganttRef}>
           <GanttGrid technicians={technicians} jobsByTech={jobsByTech} sinTecnicoJobs={sinTecnicoHoy} absencesByTech={absencesByTech} openEntryByTech={openEntryByTech} />
         </div>
         <JobsPanel jobs={unassigned} />
