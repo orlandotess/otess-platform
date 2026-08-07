@@ -35,7 +35,7 @@ export default function ChangeOrderForm({ initialData = null }) {
   const [requiresSignature, setRequiresSignature] = useState(initialData?.order.requires_signature ?? false);
   const [billTo, setBillTo] = useState(initialData?.order.bill_to ?? 'person');
   const [validUntil, setValidUntil] = useState(initialData?.order.valid_until ?? '');
-  const [terms, setTerms] = useState(initialData?.order.terms ?? DEFAULT_TERMS);
+  const [terms, setTerms] = useState(initialData?.order.terms ?? '');
   const [items, setItems] = useState(
     initialData?.items?.length
       ? initialData.items.map(li => ({
@@ -247,7 +247,12 @@ export default function ChangeOrderForm({ initialData = null }) {
                 Requiere firma del cliente
               </label>
               <div className="form-group" style={{ marginTop: 16 }}>
-                <label>Términos</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label>Términos</label>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setTerms(DEFAULT_TERMS)}>
+                    Usar plantilla predeterminada
+                  </button>
+                </div>
                 <textarea value={terms} onChange={e => setTerms(e.target.value)} rows={5} style={{ fontSize: 13, lineHeight: 1.6 }} />
               </div>
             </div>

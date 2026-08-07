@@ -14,6 +14,10 @@ const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar sop
 
 Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
 
+const TERMS_TEMPLATES = [
+  { key: 'standard', label: 'Garantía estándar', text: DEFAULT_TERMS },
+];
+
 function emptyItem(overrides = {}) {
   return {
     key: Math.random().toString(36).slice(2),
@@ -80,11 +84,11 @@ export default function EstimateForm({ initialData = null }) {
     client_id: initialData.estimate.client_id ?? '', job_id: initialData.estimate.job_id ?? '',
     property_id: initialData.estimate.property_id ?? '', title: initialData.estimate.title ?? '',
     notes: initialData.estimate.notes ?? '', bill_to: initialData.estimate.bill_to ?? 'person',
-    terms: initialData.estimate.terms ?? DEFAULT_TERMS,
+    terms: initialData.estimate.terms ?? '',
     issued_at: initialData.estimate.issued_at ?? new Date().toISOString().split('T')[0],
     valid_until: initialData.estimate.valid_until ?? new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   } : {
-    client_id: '', job_id: '', property_id: '', title: '', notes: '', bill_to: 'person', terms: DEFAULT_TERMS,
+    client_id: '', job_id: '', property_id: '', title: '', notes: '', bill_to: 'person', terms: '',
     issued_at: new Date().toISOString().split('T')[0],
     valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
   });
@@ -730,6 +734,17 @@ export default function EstimateForm({ initialData = null }) {
             <div className="card">
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Términos del proyecto</p>
               <div className="form-group">
+                <select
+                  value=""
+                  onChange={e => {
+                    const tpl = TERMS_TEMPLATES.find(t => t.key === e.target.value);
+                    if (tpl) set('terms', tpl.text);
+                  }}
+                  style={{ marginBottom: 8 }}
+                >
+                  <option value="">— Elegir plantilla —</option>
+                  {TERMS_TEMPLATES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
                 <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={6} style={{ fontSize: 13, lineHeight: 1.6 }} />
               </div>
             </div>

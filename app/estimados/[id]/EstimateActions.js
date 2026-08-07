@@ -29,7 +29,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
   const [title, setTitle] = useState(initialTitle || '');
   const [billTo, setBillTo] = useState(initialBillTo);
   const [propertyId, setPropertyId] = useState(initialPropertyId || '');
-  const [terms, setTerms] = useState(initialTerms || DEFAULT_TERMS);
+  const [terms, setTerms] = useState(initialTerms || '');
   const [emailTo, setEmailTo] = useState(clientEmail || '');
   const [emailCc, setEmailCc] = useState([]);
   const [emailCcExtra, setEmailCcExtra] = useState('');
@@ -288,7 +288,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
                 <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setTerms(DEFAULT_TERMS)}>
-                  Restaurar predeterminado
+                  Usar plantilla predeterminada
                 </button>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center' }}>Guardar</button>
