@@ -77,12 +77,18 @@ export default async function FacturaDetail({ params }) {
     ? inv.clients.company
     : inv.clients?.name;
 
-  const displayItems = items?.length ? items : fallbackLineItems(inv);
-  const isFallbackItems = !items?.length && displayItems.length > 0;
+  const rawItems = items?.length ? items : fallbackLineItems(inv);
+  const isFallbackItems = !items?.length && rawItems.length > 0;
+  const displayItems = await Promise.all(rawItems.map(async item => {
+    if (!item.photo_url) return item;
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(item.photo_url, 3600);
+    return { ...item, photo_signed_url: data?.signedUrl ?? null };
+  }));
   const statusLabel = { draft: 'Borrador', sent: 'Enviada', paid: 'Pagada', cancelled: 'Cancelada' };
   const statusCls = { draft: 'badge-gray', sent: 'badge-blue', paid: 'badge-green', cancelled: 'badge-red' };
   const today = new Date().toISOString().slice(0, 10);
   const isOverdue = inv.status === 'sent' && inv.due_at && inv.due_at < today;
+  const fmt = n => Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="admin-shell ds-facturas">
@@ -179,43 +185,48 @@ export default async function FacturaDetail({ params }) {
             )}
           </div>
 
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Items</div>
           <table style={{ marginBottom: 24 }}>
             <thead>
-              <tr style={{ background: 'var(--navy)' }}>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'left', fontSize: 11 }}>Descripción</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'center', fontSize: 11 }}>Tipo</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Cant.</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Precio</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>IVU</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Total</th>
+              <tr style={{ borderBottom: '1.5px solid var(--border)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Descripción</th>
+                <th style={{ textAlign: 'center', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cant.</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Precio</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>IVU</th>
+                <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</th>
               </tr>
             </thead>
             <tbody>
               {displayItems.map(item => (
-                <tr key={item.id}>
-                  <td style={{ padding: '12px 14px', fontWeight: 500 }}>
-                    {item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '14px 10px 14px 0' }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                      <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {item.photo_signed_url ? <img src={item.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{item.type === 'labor' ? '🔧' : '📦'}</span>}
+                      </div>
+                      <div>
+                        {item.title && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
+                        <div style={{ fontWeight: item.title ? 400 : 700, fontSize: item.title ? 13 : 14, color: item.title ? 'var(--muted)' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                        <span style={{ fontSize: 10.5, fontWeight: 600, color: item.type === 'labor' ? 'var(--amber)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          {item.type === 'labor' ? 'Labor' : 'Producto'}
+                        </span>
+                      </div>
+                    </div>
                   </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                    <span className={`badge ${item.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
-                      {item.type === 'labor' ? 'Labor' : 'Producto'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>{item.quantity}</td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>
+                  <td style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13.5, color: 'var(--muted)', verticalAlign: 'top' }}>x{item.quantity}</td>
+                  <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: 13.5, color: 'var(--muted)', verticalAlign: 'top' }}>
                     {item.msrp != null && (
-                      <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${Number(item.msrp).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${fmt(item.msrp)}</div>
                     )}
-                    ${Number(item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    ${fmt(item.unit_price)}
                     {item.supplier_price != null && (
-                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${Number(item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${fmt(item.supplier_price)}</div>
                     )}
                   </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
+                  <td style={{ padding: '14px 12px', textAlign: 'right', color: 'var(--muted)', fontSize: 12, verticalAlign: 'top' }}>
                     {item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}
                   </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(Number(item.line_total) + Number(item.tax_amount)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td style={{ padding: '14px 0', textAlign: 'right', fontWeight: 700, fontSize: 14, verticalAlign: 'top' }}>${fmt(Number(item.line_total) + Number(item.tax_amount))}</td>
                 </tr>
               ))}
             </tbody>
@@ -234,35 +245,36 @@ export default async function FacturaDetail({ params }) {
                 { label: 'Subtotal labor', value: inv.subtotal_labor },
                 { label: `IVU labor (${inv.clients?.client_type === 'b2b' ? '4%' : '11.5%'})`, value: inv.tax_labor },
               ].map(row => (
-                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}>
                   <span style={{ color: 'var(--muted)' }}>{row.label}</span>
-                  <span>${Number(row.value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                  <span>${fmt(row.value)}</span>
                 </div>
               ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 20, fontWeight: 900, color: 'var(--navy)' }}>
+              <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '10px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: 'var(--navy)' }}>
                 <span>TOTAL</span>
-                <span>${Number(inv.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                <span>${fmt(inv.total)}</span>
               </div>
               {(totalPaid > 0 || totalRetained > 0) && (
                 <>
                   {totalPaid > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14, color: 'var(--ok)' }}>
-                      <span>Pagado</span><span>-${totalPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 4px', fontSize: 14, color: 'var(--ok)' }}>
+                      <span>Pagado</span><span>-${fmt(totalPaid)}</span>
                     </div>
                   )}
                   {totalRetained > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14, color: 'var(--amber)' }}>
-                      <span>Retención aplicada</span><span>-${totalRetained.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                      <span>Retención aplicada</span><span>-${fmt(totalRetained)}</span>
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 16, fontWeight: 700, color: balance > 0 ? 'var(--warn)' : 'var(--ok)' }}>
-                    <span>Balance</span><span>${balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    <span>Balance</span><span>${fmt(balance)}</span>
                   </div>
                 </>
               )}
               {accountBalance > balance && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, fontWeight: 600, color: 'var(--muted)', borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                  <span>Balance de cuenta</span><span>${accountBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                  <span>Balance de cuenta</span><span>${fmt(accountBalance)}</span>
                 </div>
               )}
             </div>

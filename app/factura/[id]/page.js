@@ -145,40 +145,38 @@ export default async function FacturaPublica({ params }) {
             )}
 
             {/* Line items */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Items</div>
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
               <thead>
-                <tr>
-                  <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 12px 8px 0', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee' }}>Descripción</th>
-                  <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 12px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee' }}>Tipo</th>
-                  <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee' }}>Cant.</th>
-                  <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee' }}>Precio</th>
-                  <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee' }}>IVU</th>
-                  <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 0 8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee' }}>Total</th>
+                <tr style={{ borderBottom: '1.5px solid #eee' }}>
+                  <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 0', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Descripción</th>
+                  <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cant.</th>
+                  <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Precio</th>
+                  <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>IVU</th>
+                  <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 0', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {displayItems.map(item => (
-                  <tr key={item.id}>
-                    <td style={{ padding: '12px 12px 12px 0', fontWeight: 500, fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                        {item.photo_signed_url && (
-                          <img src={item.photo_signed_url} alt="" style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 6, background: '#f4f4f4', flexShrink: 0 }} />
-                        )}
+                  <tr key={item.id} style={{ borderBottom: '1px solid #f4f4f4' }}>
+                    <td style={{ padding: '14px 10px 14px 0' }}>
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                        <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                          {item.photo_signed_url ? <img src={item.photo_signed_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{item.type === 'labor' ? '🔧' : '📦'}</span>}
+                        </div>
                         <div>
-                          {item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
-                          <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                          {item.title && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
+                          <div style={{ fontWeight: item.title ? 400 : 700, fontSize: item.title ? 13 : 14, color: item.title ? '#555' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                          <span style={{ fontSize: 10.5, fontWeight: 600, color: item.type === 'labor' ? '#92600a' : '#999', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {item.type === 'labor' ? 'Labor' : 'Producto'}
+                          </span>
                         </div>
                       </div>
                     </td>
-                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #f4f4f4' }}>
-                      <span style={{ color: item.type === 'labor' ? '#92600a' : '#666', fontSize: 11.5, fontWeight: 600 }}>
-                        {item.type === 'labor' ? 'Labor' : 'Producto'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{item.quantity}</td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{fmt(item.unit_price)}</td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 12, borderBottom: '1px solid #f4f4f4' }}>{item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}</td>
-                    <td style={{ padding: '12px 0 12px 12px', textAlign: 'right', fontWeight: 700, fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{fmt(Number(item.line_total) + Number(item.tax_amount))}</td>
+                    <td style={{ padding: '14px 12px', textAlign: 'center', color: '#999', fontSize: 13.5, verticalAlign: 'top' }}>x{item.quantity}</td>
+                    <td style={{ padding: '14px 12px', textAlign: 'right', color: '#999', fontSize: 13.5, verticalAlign: 'top' }}>{fmt(item.unit_price)}</td>
+                    <td style={{ padding: '14px 12px', textAlign: 'right', color: '#999', fontSize: 12, verticalAlign: 'top' }}>{item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}</td>
+                    <td style={{ padding: '14px 0', textAlign: 'right', fontWeight: 700, fontSize: 14, verticalAlign: 'top' }}>{fmt(Number(item.line_total) + Number(item.tax_amount))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -193,19 +191,20 @@ export default async function FacturaPublica({ params }) {
                   { label: 'Subtotal labor', value: inv.subtotal_labor },
                   { label: `IVU labor (${inv.clients?.client_type === 'b2b' ? '4%' : '11.5%'})`, value: inv.tax_labor },
                 ].map(row => (
-                  <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, borderBottom: '1px solid #f4f4f4' }}>
+                  <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13 }}>
                     <span style={{ color: '#999' }}>{row.label}</span>
                     <span>{fmt(row.value)}</span>
                   </div>
                 ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 18, fontWeight: 700, color: '#16223d', borderTop: '1px solid #eee', marginTop: 4 }}>
+                <hr style={{ border: 'none', borderTop: '1.5px solid #ddd', margin: '10px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: '#16223d' }}>
                   <span>TOTAL</span>
                   <span>{fmt(inv.total)}</span>
                 </div>
                 {(totalPaid > 0 || totalRetained > 0) && (
                   <>
                     {totalPaid > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, color: '#1a7a4a' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 4px', fontSize: 13, color: '#1a7a4a' }}>
                         <span>Pagado</span><span>-{fmt(totalPaid)}</span>
                       </div>
                     )}
