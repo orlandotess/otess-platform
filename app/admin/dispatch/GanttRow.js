@@ -15,7 +15,7 @@ function GanttSlot({ technicianId, hour, minute, disabled }) {
   );
 }
 
-export default function GanttRow({ tecnico, colorIndex, jobs, absence }) {
+export default function GanttRow({ tecnico, colorIndex, jobs, absence, openEntry }) {
   const slots = [];
   for (let h = HORA_INICIO; h < HORA_FIN; h++) {
     for (let m = 0; m < 60; m += SLOT_MINUTOS) slots.push({ hour: h, minute: m });
@@ -28,12 +28,24 @@ export default function GanttRow({ tecnico, colorIndex, jobs, absence }) {
         <div className="dispatch-tech-avatar" style={{ background: absence ? 'var(--warn)' : color }}>
           {tecnico.name.charAt(0).toUpperCase()}
         </div>
-        <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {tecnico.name}
-        </span>
-        {absence && (
-          <span className="badge badge-red" style={{ flexShrink: 0 }} title={absence}>🚫 Ausente</span>
-        )}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {tecnico.name}
+            </span>
+            {absence && (
+              <span className="badge badge-red" style={{ flexShrink: 0 }} title={absence}>🚫 Ausente</span>
+            )}
+          </div>
+          {openEntry && (
+            <div
+              style={{ fontSize: 11, fontWeight: 600, color: 'var(--ok)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              title={`Clockeado en: ${openEntry.clientName ?? 'Sin cliente'} — ${openEntry.title}`}
+            >
+              🟢 {openEntry.jobNumber ? `#${openEntry.jobNumber} — ` : ''}{openEntry.title}
+            </div>
+          )}
+        </div>
       </div>
       <div className="dispatch-slots">
         {slots.map(s => (

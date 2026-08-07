@@ -86,6 +86,25 @@ export default async function DispatchPage({ searchParams }) {
   const absencesByTech = {};
   for (const a of absenceRows ?? []) absencesByTech[a.technician_id] = a.reason || 'Ausente';
 
+  // Clock-ins abiertos (Crew App) — para mostrar en qué job está cada técnico ahora
+  // mismo, sin importar el día que se esté viendo en el board.
+  const { data: openEntries } = await supabase
+    .from('time_entries')
+    .select('technician_id, job_id, jobs(title, job_number, clients(name))')
+    .is('clocked_out_at', null)
+    .not('job_id', 'is', null);
+
+  const openEntryByTech = {};
+  for (const e of openEntries ?? []) {
+    if (!e.jobs) continue;
+    openEntryByTech[e.technician_id] = {
+      jobId: e.job_id,
+      title: e.jobs.title,
+      jobNumber: e.jobs.job_number,
+      clientName: e.jobs.clients?.name ?? null,
+    };
+  }
+
   return (
     <div className="admin-shell">
       <Sidebar />
@@ -95,6 +114,7 @@ export default async function DispatchPage({ searchParams }) {
           scheduledJobs={[...(scheduledJobs ?? []), ...extraDayJobs]}
           unassignedJobs={unassignedJobs ?? []}
           absencesByTech={absencesByTech}
+          openEntryByTech={openEntryByTech}
           day={day}
         />
       </main>

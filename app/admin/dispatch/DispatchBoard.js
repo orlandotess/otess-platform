@@ -8,7 +8,7 @@ import JobsPanel from './JobsPanel';
 import JobCard from './JobCard';
 import { slotToIso, todayPR, dayPR, assignedTechIds } from './dispatchUtils';
 
-export default function DispatchBoard({ technicians, scheduledJobs, unassignedJobs, absencesByTech = {}, day }) {
+export default function DispatchBoard({ technicians, scheduledJobs, unassignedJobs, absencesByTech = {}, openEntryByTech = {}, day }) {
   const router = useRouter();
   const [jobs, setJobs] = useState(() => [...scheduledJobs, ...unassignedJobs]);
   const [activeJob, setActiveJob] = useState(null);
@@ -40,6 +40,7 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
       .on('postgres_changes', { event: '*', schema: 'public', table: 'job_schedule_days' }, scheduleRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'job_technicians' }, scheduleRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'technician_absences' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'time_entries' }, scheduleRefresh)
       .subscribe();
 
     return () => {
@@ -192,7 +193,7 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
       </div>
       <div className="dispatch-body">
         <div className="dispatch-gantt">
-          <GanttGrid technicians={technicians} jobsByTech={jobsByTech} sinTecnicoJobs={sinTecnicoHoy} absencesByTech={absencesByTech} />
+          <GanttGrid technicians={technicians} jobsByTech={jobsByTech} sinTecnicoJobs={sinTecnicoHoy} absencesByTech={absencesByTech} openEntryByTech={openEntryByTech} />
         </div>
         <JobsPanel jobs={unassigned} />
       </div>

@@ -769,6 +769,12 @@ export default function FieldApp() {
     if (!techId) return;
     const blockMessage = getClockBlockMessage();
     if (blockMessage) { alert(blockMessage); setShowFab(false); setShowJobClock(false); return; }
+    // Si ya hay una entrada abierta (mismo job u otro), ciérrala primero — así nunca
+    // quedan dos time_entries abiertas a la vez para el mismo técnico (eso dejaba
+    // pines fantasma en el Dispatch Board que "Clock Out" no lograba limpiar).
+    if (activeEntry) {
+      await supabase.from('time_entries').update({ clocked_out_at: new Date().toISOString() }).eq('id', activeEntry.id);
+    }
     const { data } = await supabase.from('time_entries')
       .insert([{ technician_id: techId, job_id: jobId || null, clocked_in_at: new Date().toISOString() }])
       .select().single();
@@ -2328,7 +2334,13 @@ export default function FieldApp() {
               <div style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detailJob.title}</div>
               <div style={{ fontSize: 12, color: '#888' }}>{detailJob.clients?.name}</div>
             </div>
-            <button onClick={() => handleClockIn(detailJob.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>⏱ Clock In</button>
+            {activeEntry?.job_id === detailJob.id ? (
+              <button onClick={handleClockOut} style={{ background: '#1a7a4a', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>⏱ Clock Out</button>
+            ) : (
+              <button onClick={() => handleClockIn(detailJob.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                {clockedIn ? '⏱ Cambiar a este job' : '⏱ Clock In'}
+              </button>
+            )}
           </div>
 
           <div style={{ background: '#fff', display: 'flex', borderBottom: '1px solid #dde1e7', flexShrink: 0 }}>
@@ -3270,12 +3282,15 @@ export default function FieldApp() {
               <button onClick={() => setShowJobClock(false)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             {allJobs.length === 0 ? <p style={{ color: '#888' }}>No hay trabajos activos.</p>
-              : allJobs.map(j => (
-                <div key={j.id} onClick={() => handleClockIn(j.id)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
-                  <div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div>
-                  <span style={{ color: ORANGE, fontWeight: 700 }}>→</span>
-                </div>
-              ))}
+              : allJobs.map(j => {
+                const isActive = activeEntry?.job_id === j.id;
+                return (
+                  <div key={j.id} onClick={() => { setShowJobClock(false); isActive ? handleClockOut() : handleClockIn(j.id); }} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
+                    <div><div style={{ fontWeight: 600 }}>{j.title}{isActive ? ' ✅' : ''}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div>
+                    <span style={{ color: isActive ? '#1a7a4a' : ORANGE, fontWeight: 700 }}>{isActive ? 'Clock Out' : '→'}</span>
+                  </div>
+                );
+              })}
             <button onClick={() => setShowJobClock(false)} style={{ marginTop: 16, width: '100%', padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
           </div>
         </div>
