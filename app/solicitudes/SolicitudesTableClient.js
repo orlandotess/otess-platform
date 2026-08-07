@@ -107,7 +107,6 @@ export default function SolicitudesTableClient({ solicitudes }) {
                   <th>Técnico</th>
                   <th>Estado</th>
                   <th>Solicitada</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -116,8 +115,10 @@ export default function SolicitudesTableClient({ solicitudes }) {
                   return (
                     <tr key={s.id}>
                       <td style={{ fontWeight: 600 }}>
-                        {s.title}
-                        {s.solicitud_number && <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{s.solicitud_number}</span>}
+                        <Link href={`/solicitudes/${s.id}`} style={{ color: 'inherit' }}>
+                          {s.title}
+                          {s.solicitud_number && <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{s.solicitud_number}</span>}
+                        </Link>
                       </td>
                       <td style={{ color: 'var(--muted)' }}>{s.clients?.name ?? '—'}</td>
                       <td style={{ fontSize: 13 }}>
@@ -143,7 +144,6 @@ export default function SolicitudesTableClient({ solicitudes }) {
                       <td style={{ color: 'var(--muted)', fontSize: 13 }}>
                         {s.requested_on ? formatDatePR(s.requested_on) : '—'}
                       </td>
-                      <td><Link href={`/solicitudes/${s.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                     </tr>
                   );
                 })}

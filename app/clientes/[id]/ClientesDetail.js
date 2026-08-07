@@ -1087,12 +1087,14 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Título</th><th>Ubicación</th><th>Fecha</th><th>Asignado</th><th></th></tr>
+                    <tr><th>Título</th><th>Ubicación</th><th>Fecha</th><th>Asignado</th></tr>
                   </thead>
                   <tbody>
                     {items.map(it => (
                       <tr key={it.key}>
-                        <td style={{ fontWeight: 600 }}>{it.icon} {it.label}</td>
+                        <td style={{ fontWeight: 600 }}>
+                          {it.href ? <Link href={it.href} style={{ color: 'inherit' }}>{it.icon} {it.label}</Link> : <>{it.icon} {it.label}</>}
+                        </td>
                         <td style={{ fontSize: 13 }}>
                           {it.loc ? (
                             it.mapHref ? (
@@ -1109,7 +1111,6 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           {it.date ? formatDateTimePR(it.date, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{it.techs}</td>
-                        <td>{it.href && <Link href={it.href} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1140,7 +1141,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Título</th><th>Propiedad</th><th>Estado</th><th>Fecha</th><th></th></tr>
+                  <tr><th>Título</th><th>Propiedad</th><th>Estado</th><th>Fecha</th></tr>
                 </thead>
                 <tbody>
                   {visibleJobs.map(j => {
@@ -1149,8 +1150,10 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     return (
                       <tr key={j.id}>
                         <td style={{ fontWeight: 600 }}>
-                          {j.job_number && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace', background: 'var(--amber-tint)', padding: '2px 6px', borderRadius: 6, marginRight: 8 }}>{j.job_number}</span>}
-                          {j.title}
+                          <Link href={`/trabajos/${j.id}`} style={{ color: 'inherit' }}>
+                            {j.job_number && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace', background: 'var(--amber-tint)', padding: '2px 6px', borderRadius: 6, marginRight: 8 }}>{j.job_number}</span>}
+                            {j.title}
+                          </Link>
                         </td>
                         <td style={{ fontSize: 13 }}>
                           {loc ? (
@@ -1166,7 +1169,6 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                         </td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}</td>
-                        <td><Link href={`/trabajos/${j.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
                   })}
@@ -1217,7 +1219,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Número</th><th>Trabajo</th><th>Propiedad</th><th>Estado</th><th>Total</th><th>Fecha</th><th></th></tr>
+                    <tr><th>Número</th><th>Trabajo</th><th>Propiedad</th><th>Estado</th><th>Total</th><th>Fecha</th></tr>
                   </thead>
                   <tbody>
                     {visibleInvoices.map(inv => {
@@ -1231,7 +1233,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       const loc = job ? jobLocation(job) : (prop?.name ?? '');
                       return (
                         <tr key={inv.id}>
-                          <td style={{ fontWeight: 600 }}>{inv.invoice_number ?? '—'}</td>
+                          <td style={{ fontWeight: 600 }}><Link href={`/facturas/${inv.id}`} style={{ color: 'inherit' }}>{inv.invoice_number ?? '—'}</Link></td>
                           <td style={{ fontSize: 13 }}>
                             {job ? (
                               <Link href={`/trabajos/${job.id}`} style={{ color: 'var(--amber)', fontWeight: 600 }}>{job.title}</Link>
@@ -1252,7 +1254,6 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                           <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
                           <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(inv.created_at)}</td>
-                          <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                         </tr>
                       );
                     })}
@@ -1264,7 +1265,6 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       <td></td>
                       <td></td>
                       <td style={{ fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(invoicesTotal)}</td>
-                      <td></td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -1401,7 +1401,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>#</th><th>Título</th><th>Estado</th><th>Total</th><th>Fecha</th><th></th></tr>
+                    <tr><th>#</th><th>Título</th><th>Estado</th><th>Total</th><th>Fecha</th></tr>
                   </thead>
                   <tbody>
                     {visibleProposals.map(p => {
@@ -1410,12 +1410,11 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       const total = sumBillableLineItems(opt?.proposal_line_items);
                       return (
                         <tr key={p.id}>
-                          <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{p.proposal_number}</td>
+                          <td style={{ fontWeight: 600, fontFamily: 'monospace' }}><Link href={`/propuestas/${p.id}`} style={{ color: 'inherit' }}>{p.proposal_number}</Link></td>
                           <td style={{ fontWeight: 600 }}>{p.title}</td>
                           <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                           <td style={{ fontWeight: 700 }}>{fmt(total)}</td>
                           <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(p.created_at)}</td>
-                          <td><Link href={`/propuestas/${p.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                         </tr>
                       );
                     })}
@@ -1443,18 +1442,17 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Problema</th><th>Origen</th><th>Estado</th><th>Fecha</th><th></th></tr>
+                  <tr><th>Problema</th><th>Origen</th><th>Estado</th><th>Fecha</th></tr>
                 </thead>
                 <tbody>
                   {serviceTickets.map(t => {
                     const b = statusTicket[t.status] ?? statusTicket.abierto;
                     return (
                       <tr key={t.id}>
-                        <td style={{ fontWeight: 600 }}>{t.subject}</td>
+                        <td style={{ fontWeight: 600 }}><Link href={`/boletos/${t.id}`} style={{ color: 'inherit' }}>{t.subject}</Link></td>
                         <td style={{ fontSize: 12, color: 'var(--muted)' }}>{t.source === 'email' ? '📧 Email' : '👤 Manual'}</td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(t.created_at)}</td>
-                        <td><Link href={`/boletos/${t.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
                   })}

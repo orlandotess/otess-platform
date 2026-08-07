@@ -102,7 +102,6 @@ export default async function FacturasPage() {
                     <th>Vence</th>
                     <th>Total</th>
                     <th>Vistas</th>
-                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -111,7 +110,7 @@ export default async function FacturasPage() {
                     const viewInfo = viewsByInvoice[inv.id];
                     return (
                       <tr key={inv.id}>
-                        <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{inv.invoice_number}</td>
+                        <td style={{ fontWeight: 700, fontFamily: 'monospace' }}><Link href={`/facturas/${inv.id}`} style={{ color: 'inherit' }}>{inv.invoice_number}</Link></td>
                         <td>{inv.clients?.name ?? '—'}</td>
                         <td>
                           <span className={`badge ${b.cls}`}>{b.label}</span>
@@ -134,7 +133,6 @@ export default async function FacturasPage() {
                             <span style={{ fontSize: 12, color: 'var(--muted)' }}>—</span>
                           )}
                         </td>
-                        <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
                   })}

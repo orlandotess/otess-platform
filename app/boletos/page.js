@@ -82,7 +82,6 @@ export default async function BoletosPage() {
                     <th>Estado</th>
                     <th>Tiempo</th>
                     <th>Fecha</th>
-                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -93,7 +92,7 @@ export default async function BoletosPage() {
                       : formatDuration(t.created_at, new Date().toISOString());
                     return (
                       <tr key={t.id}>
-                        <td style={{ color: 'var(--muted)', fontSize: 12, fontFamily: 'monospace' }}>{t.ticket_number ?? '—'}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 12, fontFamily: 'monospace' }}><Link href={`/boletos/${t.id}`} style={{ color: 'inherit' }}>{t.ticket_number ?? '—'}</Link></td>
                         <td style={{ fontWeight: 600 }}>
                           {t.clients?.company || t.clients?.name || (
                             <span style={{ color: 'var(--warn)', fontWeight: 600 }}>⚠️ {t.contact_email ?? 'Sin asignar'}</span>
@@ -109,7 +108,6 @@ export default async function BoletosPage() {
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{elapsed ?? '—'}</td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(t.created_at)}</td>
-                        <td><Link href={`/boletos/${t.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
                   })}

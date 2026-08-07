@@ -32,13 +32,12 @@ export default function ClientesTableClient({ clients }) {
                 <th>Tipo</th>
                 <th>Teléfono</th>
                 <th>Email</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
               {visible.map(c => (
                 <tr key={c.id}>
-                  <td style={{ fontWeight: 600 }}>{c.name}</td>
+                  <td style={{ fontWeight: 600 }}><Link href={`/clientes/${c.id}`} style={{ color: 'inherit' }}>{c.name}</Link></td>
                   <td style={{ color: 'var(--muted)' }}>{c.company ?? '—'}</td>
                   <td>
                     <span className={`badge ${c.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`}>
@@ -47,7 +46,6 @@ export default function ClientesTableClient({ clients }) {
                   </td>
                   <td style={{ color: 'var(--muted)' }}>{c.phone ?? '—'}</td>
                   <td style={{ color: 'var(--muted)' }}>{c.email ?? '—'}</td>
-                  <td><Link href={`/clientes/${c.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                 </tr>
               ))}
             </tbody>

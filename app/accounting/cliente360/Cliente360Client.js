@@ -199,7 +199,6 @@ export default function Cliente360Client({ clientTotals, invoices }) {
                         <th style={{ textAlign: 'right' }}>Neto</th>
                         <th># Comprobante</th>
                         <th>Estado</th>
-                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -208,7 +207,9 @@ export default function Cliente360Client({ clientTotals, invoices }) {
                         const retenido = Number(r.retencion_aplicada ?? 0);
                         return (
                           <tr key={r.id}>
-                            <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{r.invoices?.invoice_number ?? '—'}</td>
+                            <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                              {r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`} style={{ color: 'inherit' }}>{r.invoices?.invoice_number ?? '—'}</Link> : (r.invoices?.invoice_number ?? '—')}
+                            </td>
                             <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.fecha}</td>
                             <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(totalFactura)}</td>
                             <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(r.monto_facturado)}</td>
@@ -217,9 +218,6 @@ export default function Cliente360Client({ clientTotals, invoices }) {
                             <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(totalFactura - retenido)}</td>
                             <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.numero_comprobante ?? '—'}</td>
                             <td><span className={`badge ${r.estado === 'declarado' ? 'badge-green' : 'badge-gray'}`}>{r.estado}</span></td>
-                            <td style={{ fontSize: 12 }}>
-                              {r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`} style={{ color: 'var(--navy)', fontWeight: 600 }}>Ver →</Link> : <span style={{ color: 'var(--muted)' }}>—</span>}
-                            </td>
                           </tr>
                         );
                       })}
@@ -232,7 +230,6 @@ export default function Cliente360Client({ clientTotals, invoices }) {
                         <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.exento)}</td>
                         <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.retenido)}</td>
                         <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.neto)}</td>
-                        <td></td>
                         <td></td>
                         <td></td>
                       </tr>

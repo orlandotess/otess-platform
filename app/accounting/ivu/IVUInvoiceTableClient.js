@@ -41,7 +41,6 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
                 <th style={{ textAlign: 'right' }}>Municipal (1%)</th>
                 <th style={{ textAlign: 'right' }}>Total IVU</th>
                 <th style={{ textAlign: 'right' }}>Total factura</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -73,7 +72,6 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
                     <td style={{ textAlign: 'right' }}>{fmt(b.municipal)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(b.totalIVU)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--navy)' }}>{fmt(b.totalFactura)}</td>
-                    <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>Ver →</Link></td>
                   </tr>
                 );
               })}
@@ -104,7 +102,6 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
                     <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.municipal)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.totalIVU)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.totalFactura)}</td>
-                    <td></td>
                   </tr>
                 );
               })()}

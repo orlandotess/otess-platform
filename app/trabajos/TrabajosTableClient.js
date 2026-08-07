@@ -49,7 +49,6 @@ export default function TrabajosTableClient({ jobs }) {
                 <th>Ubicación</th>
                 <th>Estado</th>
                 <th>Fecha programada</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -58,7 +57,7 @@ export default function TrabajosTableClient({ jobs }) {
                 return (
                   <tr key={j.id}>
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>{j.job_number ?? '—'}</td>
-                    <td style={{ fontWeight: 600 }}>{j.title}</td>
+                    <td style={{ fontWeight: 600 }}><Link href={`/trabajos/${j.id}`} style={{ color: 'inherit' }}>{j.title}</Link></td>
                     <td style={{ color: 'var(--muted)' }}>{j.clients?.name ?? '—'}</td>
                     <td style={{ fontSize: 13 }}>
                       {location(j) ? (
@@ -76,7 +75,6 @@ export default function TrabajosTableClient({ jobs }) {
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>
                       {j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}
                     </td>
-                    <td><Link href={`/trabajos/${j.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                   </tr>
                 );
               })}

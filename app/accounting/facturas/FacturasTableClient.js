@@ -65,7 +65,6 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
                 <th style={{ textAlign: 'right' }}>Cobrado</th>
                 <th style={{ textAlign: 'right' }}>Retención</th>
                 <th style={{ textAlign: 'right' }}>Pendiente</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -77,7 +76,7 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
                 const ret = retenido(inv);
                 return (
                   <tr key={inv.id}>
-                    <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>{inv.invoice_number}</td>
+                    <td style={{ fontWeight: 700, fontFamily: 'monospace' }}><Link href={`/facturas/${inv.id}`} style={{ color: 'inherit' }}>{inv.invoice_number}</Link></td>
                     <td style={{ fontWeight: 600 }}>{clientDisplay(inv)}</td>
                     <td><span className={`badge ${inv.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`}>{inv.clients?.client_type === 'b2b' ? 'B2B' : 'Final'}</span></td>
                     <td>
@@ -95,7 +94,6 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
                     <td style={{ textAlign: 'right', color: 'var(--ok)' }}>{fmt(cobrado(inv))}</td>
                     <td style={{ textAlign: 'right', color: ret > 0 ? 'var(--navy)' : 'var(--muted)' }}>{fmt(ret)}</td>
                     <td style={{ textAlign: 'right', fontWeight: pend > 0 ? 700 : 400, color: pend > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmt(pend)}</td>
-                    <td><Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                   </tr>
                 );
               })}
@@ -110,7 +108,6 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12, color: 'var(--ok)' }}>{fmt(counted.reduce((a, i) => a + cobrado(i), 0))}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12, color: 'var(--navy)' }}>{fmt(counted.reduce((a, i) => a + retenido(i), 0))}</td>
                 <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, paddingTop: 12, color: 'var(--amber)' }}>{fmt(counted.reduce((a, i) => a + pendiente(i), 0))}</td>
-                <td></td>
               </tr>
             </tfoot>
           </table>

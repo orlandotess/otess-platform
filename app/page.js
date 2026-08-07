@@ -148,7 +148,6 @@ export default async function Home() {
                     <th>Ubicación</th>
                     <th>Estado</th>
                     <th>Fecha</th>
-                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -157,7 +156,7 @@ export default async function Home() {
                     const loc = jobLocation(j);
                     return (
                       <tr key={j.id}>
-                        <td style={{ fontWeight: 600 }}>{j.title}</td>
+                        <td style={{ fontWeight: 600 }}><Link href={`/trabajos/${j.id}`} style={{ color: 'inherit' }}>{j.title}</Link></td>
                         <td style={{ color: 'var(--muted)' }}>{j.clients?.name ?? '—'}</td>
                         <td style={{ fontSize: 13 }}>
                           {loc ? (
@@ -175,7 +174,6 @@ export default async function Home() {
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>
                           {j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}
                         </td>
-                        <td><Link href={`/trabajos/${j.id}`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>Ver →</Link></td>
                       </tr>
                     );
                   })}

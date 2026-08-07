@@ -104,7 +104,6 @@ export default async function EstimadosPage({ searchParams }) {
                     <th>Válida hasta</th>
                     <th>Total</th>
                     <th>Vistas</th>
-                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -114,8 +113,10 @@ export default async function EstimadosPage({ searchParams }) {
                     return (
                       <tr key={est.id}>
                         <td>
-                          <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{est.estimate_number}</div>
-                          {est.title && <div style={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'inherit', fontWeight: 400 }}>{est.title}</div>}
+                          <Link href={`/estimados/${est.id}`} style={{ color: 'inherit' }}>
+                            <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{est.estimate_number}</div>
+                            {est.title && <div style={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'inherit', fontWeight: 400 }}>{est.title}</div>}
+                          </Link>
                         </td>
                         <td>{est.clients?.name ?? '—'}</td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
@@ -134,7 +135,6 @@ export default async function EstimadosPage({ searchParams }) {
                             <span style={{ fontSize: 12, color: 'var(--muted)' }}>—</span>
                           )}
                         </td>
-                        <td><Link href={`/estimados/${est.id}`} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>Ver →</Link></td>
                       </tr>
                     );
                   })}
