@@ -104,6 +104,15 @@ export default async function CalendarioPage({ searchParams }) {
     .not('status', 'in', '(agendado,cancelado)')
     .order('created_at', { ascending: true });
 
+  // Jobs without a date yet (same "cola de despacho" the Dispatch Board's "Sin fecha"
+  // panel uses) — candidates for the "+ Reserva" booking modal.
+  const { data: unscheduledJobs } = await supabase
+    .from('jobs')
+    .select('id, title, status, technician_id, clients(name), job_technicians(technician_id)')
+    .is('scheduled_start', null)
+    .not('status', 'in', '(completed,cancelled)')
+    .order('created_at', { ascending: false });
+
   return (
     <div className="admin-shell">
       <Sidebar />
@@ -118,6 +127,7 @@ export default async function CalendarioPage({ searchParams }) {
           clients={clients ?? []}
           clientProperties={clientProperties ?? []}
           pendingRequests={pendingRequests ?? []}
+          unscheduledJobs={unscheduledJobs ?? []}
           currentRole={currentRole}
           currentUserName={currentUserName}
           initialView={view}

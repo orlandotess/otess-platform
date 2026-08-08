@@ -32,7 +32,7 @@ const DAYS_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
 const ENTRY_TYPE_ICONS = { event: '📌', reminder: '🔔', checklist: '☑' };
 
-export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, clientProperties, pendingRequests, currentRole, currentUserName, initialView, initialYear, initialMonth, initialWeek }) {
+export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, clientProperties, pendingRequests, unscheduledJobs, currentRole, currentUserName, initialView, initialYear, initialMonth, initialWeek }) {
   const router = useRouter();
   const canQuickReschedule = currentRole === 'admin';
   const canScheduleVisit = currentRole === 'admin' || currentRole === 'secretaria';
@@ -52,6 +52,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const [showRequests, setShowRequests] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [scheduleModal, setScheduleModal] = useState(null); // { requestId?, date?, hour? }
+  const [bookingModal, setBookingModal] = useState(null); // { dateStr?, time? }
   const [eventModal, setEventModal] = useState(null); // { dateStr?, time? }
   const [taskModal, setTaskModal] = useState(null); // { dateStr?, time? }
   const [absenceModal, setAbsenceModal] = useState(false);
@@ -505,6 +506,48 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     }
   }
 
+  // Puts an existing unscheduled job on the calendar: date/time/duration/staff, same
+  // "dueño" + job_technicians split TechAssignControl uses on the Dispatch Board.
+  async function handleCreateBooking({ jobId, dateStr, time, duration, technicianIds }) {
+    setSaving(true);
+    try {
+      const job = unscheduledJobs.find(j => j.id === jobId);
+      const scheduled_start = new Date(`${dateStr}T${time}:00`).toISOString();
+      const scheduled_end = new Date(new Date(scheduled_start).getTime() + duration * 60000).toISOString();
+      const newStatus = job?.status === 'estimate' ? 'scheduled' : job?.status;
+
+      const { error } = await supabase.from('jobs').update({
+        technician_id: technicianIds[0] ?? null,
+        scheduled_start,
+        scheduled_end,
+        status: newStatus,
+      }).eq('id', jobId);
+      if (error) { alert(error.message); return; }
+
+      await supabase.from('job_technicians').delete().eq('job_id', jobId);
+      if (technicianIds.length > 1) {
+        const { error: techError } = await supabase.from('job_technicians').insert(
+          technicianIds.slice(1).map(techId => ({ job_id: jobId, technician_id: techId }))
+        );
+        if (techError) { alert(techError.message); return; }
+      }
+
+      const original = job ? [job.technician_id, ...(job.job_technicians ?? []).map(jt => jt.technician_id)].filter(Boolean) : [];
+      for (const techId of technicianIds.filter(id => !original.includes(id))) {
+        fetch('/api/trabajos/notify-assignment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId, technicianId: techId }),
+        }).catch(() => {});
+      }
+
+      setBookingModal(null);
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleCreateEvent({ title, dateStr, startTime, endTime, technicianIds, clientId, notes, address, propertyName }) {
     setSaving(true);
     try {
@@ -834,6 +877,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 </>
               )}
             </div>
+            <button onClick={() => setBookingModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ Reserva</button>
             <button onClick={() => setEventModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ Evento</button>
             <button onClick={() => setTaskModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ Tarea</button>
             <button onClick={() => setAbsenceModal(true)} className="btn btn-ghost">🚫 Ausencia</button>
@@ -1346,6 +1390,18 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
         />
       )}
 
+      {/* ─── BOOKING MODAL: put an existing unscheduled job on the calendar ─── */}
+      {bookingModal && (
+        <BookingModal
+          data={bookingModal}
+          jobs={unscheduledJobs}
+          technicians={technicians}
+          saving={saving}
+          onClose={() => setBookingModal(null)}
+          onSubmit={handleCreateBooking}
+        />
+      )}
+
       {/* Quick reschedule: move a job/event/task's date without opening its full detail */}
       {quickReschedule && (
         <QuickRescheduleModal
@@ -1805,6 +1861,95 @@ function ScheduleModal({ data, pendingRequests, technicians, saving, onClose, on
           disabled={!canSubmit || saving}
           onClick={() => onSubmit({ requestId, technicianId, dateStr, time, duration })}>
           {saving ? 'Agendando...' : 'Agendar visita'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const BOOKING_DURATIONS = [
+  [15, '15 min'], [30, '30 min'], [45, '45 min'], [60, '1 hr'], [90, '1.5 hr'],
+  [120, '2 hr'], [180, '3 hr'], [240, '4 hr'], [480, 'Todo el día'],
+];
+
+function BookingModal({ data, jobs, technicians, saving, onClose, onSubmit }) {
+  const [jobId, setJobId] = useState(data.jobId ?? '');
+  const [dateStr, setDateStr] = useState(data.dateStr ?? new Date().toISOString().slice(0, 10));
+  const [time, setTime] = useState(data.time ?? '09:00');
+  const [duration, setDuration] = useState(60);
+  const [technicianIds, setTechnicianIds] = useState([]);
+
+  function selectJob(id) {
+    setJobId(id);
+    const job = jobs.find(j => j.id === id);
+    setTechnicianIds(job ? [job.technician_id, ...(job.job_technicians ?? []).map(jt => jt.technician_id)].filter(Boolean) : []);
+  }
+
+  function toggleTechnician(techId) {
+    setTechnicianIds(ids => ids.includes(techId) ? ids.filter(id => id !== techId) : [...ids, techId]);
+  }
+
+  const canSubmit = jobId && dateStr && time;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+      onClick={onClose}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📅 Nueva reserva</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
+        </div>
+
+        <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Trabajo</label>
+            <select value={jobId} onChange={e => selectJob(e.target.value)} className="input" style={{ width: '100%' }}>
+              <option value="">— Selecciona un trabajo sin fecha —</option>
+              {jobs.map(j => (
+                <option key={j.id} value={j.id}>{j.title}{j.clients?.name ? ` — ${j.clients.name}` : ''}</option>
+              ))}
+            </select>
+            {jobs.length === 0 && <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4 }}>No hay trabajos sin fecha por asignar.</p>}
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Duración</label>
+            <select value={duration} onChange={e => setDuration(parseInt(e.target.value))} className="input" style={{ width: '100%' }}>
+              {BOOKING_DURATIONS.map(([mins, label]) => (
+                <option key={mins} value={mins}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Reserva — Fecha</label>
+              <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} className="input" style={{ width: '100%' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Hora</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} className="input" style={{ width: '100%' }} />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Técnicos (opcional, puedes escoger más de uno)</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+              {technicians.map(t => {
+                const checked = technicianIds.includes(t.id);
+                return (
+                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleTechnician(t.id)} style={{ margin: 0 }} />
+                    {t.name}
+                  </label>
+                );
+              })}
+              {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
+            </div>
+          </div>
+        </div>
+
+        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+          disabled={!canSubmit || saving}
+          onClick={() => onSubmit({ jobId, dateStr, time, duration, technicianIds })}>
+          {saving ? 'Guardando...' : 'Crear reserva'}
         </button>
       </div>
     </div>
