@@ -14,9 +14,10 @@ function dayBoundsPR(day) {
   };
 }
 
-// job_technicians se trae solo para contar técnicos de apoyo (badge "+N") — el
-// técnico "dueño" del bloque sigue siendo jobs.technician_id.
-const JOB_FIELDS = 'id, title, job_number, status, technician_id, scheduled_start, scheduled_end, property_name, street, city, clients(name), job_technicians(technician_id)';
+// job_technicians se trae para contar técnicos de apoyo (badge "+N") y, junto con
+// technicians(name), para mostrar nombres en el panel "Sin fecha" — el técnico
+// "dueño" del bloque sigue siendo jobs.technician_id.
+const JOB_FIELDS = 'id, title, job_number, status, technician_id, scheduled_start, scheduled_end, property_name, street, city, clients(name), technicians(name), job_technicians(technician_id, technicians(name))';
 
 export default async function DispatchPage({ searchParams }) {
   const day = searchParams?.day ?? todayPR();
@@ -68,11 +69,12 @@ export default async function DispatchPage({ searchParams }) {
       job_technicians: d.jobs.job_technicians ?? [],
     }));
 
-  // Jobs sin técnico asignado (cola de despacho), sin importar el día — van al panel lateral.
+  // Jobs sin fecha programada (cola de despacho), tengan o no ya un técnico asignado
+  // (TechAssignControl puede fijar el técnico sin fecha) — van al panel "Sin fecha".
   const { data: unassignedJobs } = await supabase
     .from('jobs')
     .select(JOB_FIELDS)
-    .is('technician_id', null)
+    .is('scheduled_start', null)
     .not('status', 'in', '(completed,cancelled)')
     .order('created_at', { ascending: false });
 

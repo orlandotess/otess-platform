@@ -207,7 +207,7 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
         <div className="dispatch-gantt" ref={ganttRef}>
           <GanttGrid technicians={technicians} jobsByTech={jobsByTech} sinTecnicoJobs={sinTecnicoHoy} absencesByTech={absencesByTech} openEntryByTech={openEntryByTech} />
         </div>
-        <JobsPanel jobs={unassigned} />
+        <JobsPanel jobs={unassigned} technicians={technicians} />
       </div>
       <DragOverlay>
         {activeJob ? <JobCard job={activeJob} overlay /> : null}

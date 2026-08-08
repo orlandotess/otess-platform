@@ -4,7 +4,7 @@ import { useDroppable } from '@dnd-kit/core';
 import SearchBox from '../../SearchBox';
 import JobCard from './JobCard';
 
-export default function JobsPanel({ jobs }) {
+export default function JobsPanel({ jobs, technicians = [] }) {
   const [search, setSearch] = useState('');
   const { setNodeRef, isOver } = useDroppable({ id: 'panel_unassigned' });
 
@@ -19,7 +19,7 @@ export default function JobsPanel({ jobs }) {
     <aside className="dispatch-panel">
       <div className="dispatch-panel-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <span style={{ fontWeight: 700, fontSize: 14 }}>Sin asignar</span>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>Sin fecha</span>
           <span className="badge badge-gray">{jobs.length}</span>
         </div>
         <SearchBox value={search} onChange={setSearch} placeholder="Buscar job o cliente..." style={{ maxWidth: 'none' }} />
@@ -27,10 +27,10 @@ export default function JobsPanel({ jobs }) {
       <div ref={setNodeRef} className={`dispatch-panel-list${isOver ? ' is-over' : ''}`}>
         {visible.length === 0 ? (
           <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', marginTop: 24 }}>
-            {jobs.length === 0 ? 'No hay jobs sin asignar.' : `Sin resultados para "${search}".`}
+            {jobs.length === 0 ? 'No hay jobs sin fecha.' : `Sin resultados para "${search}".`}
           </p>
         ) : (
-          visible.map(job => <JobCard key={job.id} job={job} />)
+          visible.map(job => <JobCard key={job.id} job={job} technicians={technicians} />)
         )}
       </div>
     </aside>
