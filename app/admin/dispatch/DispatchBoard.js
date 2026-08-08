@@ -6,6 +6,7 @@ import { supabase } from '../../../lib/supabase';
 import GanttGrid from './GanttGrid';
 import JobsPanel from './JobsPanel';
 import JobCard from './JobCard';
+import DispatchListView from './DispatchListView';
 import { slotToIso, todayPR, dayPR, assignedTechIds, HORA_INICIO, SLOT_MINUTOS, SLOT_WIDTH } from './dispatchUtils';
 
 // El Gantt cubre 24h para poder ver días extra a cualquier hora, pero casi siempre
@@ -16,6 +17,7 @@ const BUSINESS_HOUR_START = 7;
 export default function DispatchBoard({ technicians, scheduledJobs, unassignedJobs, absencesByTech = {}, openEntryByTech = {}, day }) {
   const router = useRouter();
   const [jobs, setJobs] = useState(() => [...scheduledJobs, ...unassignedJobs]);
+  const [view, setView] = useState('gantt');
   const [activeJob, setActiveJob] = useState(null);
   const isDraggingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
@@ -95,6 +97,12 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
     }
     return map;
   }, [jobs, technicians, day]);
+
+  // Mismos jobs del día que ve el Gantt, pero una fila por job (no una por
+  // técnico asignado) — para la vista "Lista".
+  const dayJobs = useMemo(() =>
+    jobs.filter(j => j.scheduled_start && dayPR(j.scheduled_start) === day),
+    [jobs, day]);
 
   function goToDay(newDay) {
     router.push(`/admin/dispatch?day=${newDay}`);
@@ -191,22 +199,42 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="dispatch-header">
         <div className="page-title">Dispatch Board</div>
-        <div className="dispatch-daynav">
-          <button className="btn btn-ghost btn-sm" onClick={() => shiftDay(-1)}>←</button>
-          <input
-            type="date"
-            value={day}
-            onChange={e => e.target.value && goToDay(e.target.value)}
-            style={{ padding: '7px 10px', fontSize: 13, borderRadius: 8, border: '1px solid var(--border)' }}
-          />
-          <button className="btn btn-ghost btn-sm" onClick={() => goToDay(todayPR())}>Hoy</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => shiftDay(1)}>→</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button
+              className={`btn btn-sm ${view === 'gantt' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setView('gantt')}
+            >
+              Gantt
+            </button>
+            <button
+              className={`btn btn-sm ${view === 'lista' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setView('lista')}
+            >
+              Lista
+            </button>
+          </div>
+          <div className="dispatch-daynav">
+            <button className="btn btn-ghost btn-sm" onClick={() => shiftDay(-1)}>←</button>
+            <input
+              type="date"
+              value={day}
+              onChange={e => e.target.value && goToDay(e.target.value)}
+              style={{ padding: '7px 10px', fontSize: 13, borderRadius: 8, border: '1px solid var(--border)' }}
+            />
+            <button className="btn btn-ghost btn-sm" onClick={() => goToDay(todayPR())}>Hoy</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => shiftDay(1)}>→</button>
+          </div>
         </div>
       </div>
       <div className="dispatch-body">
-        <div className="dispatch-gantt" ref={ganttRef}>
-          <GanttGrid technicians={technicians} jobsByTech={jobsByTech} sinTecnicoJobs={sinTecnicoHoy} absencesByTech={absencesByTech} openEntryByTech={openEntryByTech} />
-        </div>
+        {view === 'gantt' ? (
+          <div className="dispatch-gantt" ref={ganttRef}>
+            <GanttGrid technicians={technicians} jobsByTech={jobsByTech} sinTecnicoJobs={sinTecnicoHoy} absencesByTech={absencesByTech} openEntryByTech={openEntryByTech} />
+          </div>
+        ) : (
+          <DispatchListView jobs={dayJobs} technicians={technicians} />
+        )}
         <JobsPanel jobs={unassigned} technicians={technicians} />
       </div>
       <DragOverlay>

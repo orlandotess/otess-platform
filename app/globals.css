@@ -791,6 +791,14 @@ body.sidebar-hidden .main-content {
   overflow: auto;
 }
 
+.dispatch-list {
+  flex: 1;
+  overflow: auto;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+}
+
 .dispatch-timeheader {
   display: flex;
   position: sticky;

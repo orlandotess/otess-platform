@@ -75,6 +75,21 @@ export function assignedTechIds(job) {
   return ids;
 }
 
+// Nombres de todos los técnicos asignados a un job (dueño + apoyo), en el mismo
+// orden que assignedTechIds — para mostrar en tarjetas y filas de lista. Los días
+// extra siguen la misma excepción que assignedTechIds: solo su propio técnico.
+export function techNames(job) {
+  if (job.schedule_day_id != null) {
+    return job.technicians?.name ? [job.technicians.name] : [];
+  }
+  const names = [];
+  if (job.technicians?.name) names.push(job.technicians.name);
+  for (const jt of job.job_technicians ?? []) {
+    if (jt.technicians?.name) names.push(jt.technicians.name);
+  }
+  return names;
+}
+
 export function formatHourLabel(h) {
   const period = h < 12 ? 'am' : 'pm';
   const hh = h % 12 === 0 ? 12 : h % 12;

@@ -2,20 +2,11 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useRouter } from 'next/navigation';
-import { STATUS_BADGE, STATUS_TINT, assignedTechIds } from './dispatchUtils';
+import { STATUS_BADGE, STATUS_TINT, assignedTechIds, techNames } from './dispatchUtils';
 import TechAssignControl from './TechAssignControl';
 
 function location(job) {
   return [job.property_name, job.city].filter(Boolean).join(' — ');
-}
-
-function techNames(job) {
-  const names = [];
-  if (job.technicians?.name) names.push(job.technicians.name);
-  for (const jt of job.job_technicians ?? []) {
-    if (jt.technicians?.name) names.push(jt.technicians.name);
-  }
-  return names;
 }
 
 export default function JobCard({ job, compact, overlay, technicians = [], color = 'var(--info)' }) {

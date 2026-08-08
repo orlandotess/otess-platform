@@ -42,7 +42,7 @@ export default async function DispatchPage({ searchParams }) {
   const { data: scheduleDayRows } = await supabase
     .from('job_schedule_days')
     .select(`
-      id, job_id, scheduled_start, scheduled_end, technician_id,
+      id, job_id, scheduled_start, scheduled_end, technician_id, technicians(name),
       jobs (title, job_number, status, property_name, street, city, clients(name), job_technicians(technician_id))
     `)
     .not('technician_id', 'is', null)
@@ -60,6 +60,7 @@ export default async function DispatchPage({ searchParams }) {
       job_number: d.jobs.job_number,
       status: d.jobs.status,
       technician_id: d.technician_id,
+      technicians: d.technicians,
       scheduled_start: d.scheduled_start,
       scheduled_end: d.scheduled_end,
       property_name: d.jobs.property_name,
