@@ -35,17 +35,22 @@ function gestionSubtitle(g) {
   return parts.filter(Boolean).join(' · ');
 }
 
-function ActionRow({ title, subtitle, urgency, right }) {
+function ActionRow({ title, subtitle, urgency, right, href }) {
   const style = URGENCY_STYLE[urgency] ?? URGENCY_STYLE.neutral;
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 12px', background: style.bg, borderLeft: `3px solid ${style.border}`, borderRadius: '0 8px 8px 0' }}>
+  const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 12px', background: style.bg, borderLeft: `3px solid ${style.border}`, borderRadius: '0 8px 8px 0' };
+  const content = (
+    <>
       <div>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{title}</div>
         <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{subtitle}</div>
       </div>
       <div style={{ flexShrink: 0 }}>{right}</div>
-    </div>
+    </>
   );
+  if (href) {
+    return <Link href={href} style={{ ...rowStyle, textDecoration: 'none', color: 'inherit' }}>{content}</Link>;
+  }
+  return <div style={rowStyle}>{content}</div>;
 }
 
 const actionButtonStyle = { border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer' };
@@ -256,10 +261,11 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
                     title={it.title}
                     subtitle={it.subtitle}
                     urgency={it.urgency}
+                    href={it.href}
                     right={
-                      <Link href={it.href} style={{ ...actionButtonStyle, background: it.urgency === 'warn' ? 'var(--warn)' : 'var(--navy)', color: '#fff', display: 'inline-block', textDecoration: 'none' }}>
+                      <span style={{ ...actionButtonStyle, background: it.urgency === 'warn' ? 'var(--warn)' : 'var(--navy)', color: '#fff', display: 'inline-block' }}>
                         {it.ctaLabel}
-                      </Link>
+                      </span>
                     }
                   />
                 ))}
