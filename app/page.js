@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../lib/supabase';
+import { getCurrentProfile } from '../lib/supabase-server';
 import { formatDatePR, formatDateTimePR } from '../lib/datetimeLocal';
 import { pickMapsLink } from '../lib/mapsLinks';
 import Sidebar from './Sidebar';
@@ -72,6 +73,85 @@ async function getInboxNotifications() {
   return data ?? [];
 }
 
+async function getAccionRequerida() {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [{ data: solicitudes }, { data: jobsSinAsignar }, { data: invoicesDraft }, { data: invoicesOverdue }, { data: gestiones }] = await Promise.all([
+    supabase.from('solicitudes')
+      .select('id, solicitud_number, title, requested_on, clients(name)')
+      .in('status', ['nueva', 'necesita_aprobacion'])
+      .order('requested_on', { ascending: true })
+      .limit(8),
+    supabase.from('jobs')
+      .select('id, job_number, title, property_name, city, created_at, job_technicians(technician_id)')
+      .is('technician_id', null)
+      .not('status', 'in', '(completed,cancelled)')
+      .order('created_at', { ascending: true })
+      .limit(30),
+    supabase.from('invoices')
+      .select('id, invoice_number, total, clients(name)')
+      .eq('status', 'draft')
+      .limit(8),
+    supabase.from('invoices')
+      .select('id, invoice_number, total, due_at, clients(name)')
+      .eq('status', 'sent')
+      .lt('due_at', today)
+      .order('due_at', { ascending: true })
+      .limit(8),
+    supabase.from('gestiones')
+      .select('id, title, type, due_date, client_id, assigned_to_id, assigned_to_name, clients(name)')
+      .eq('completed', false)
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .limit(20),
+  ]);
+
+  const automaticItems = [
+    ...(solicitudes ?? []).map(s => ({
+      id: `solicitud-${s.id}`,
+      title: 'Solicitud nueva sin cotizar',
+      subtitle: `${s.clients?.name ?? 'Cliente'} · ${s.solicitud_number ?? s.title}`,
+      href: `/solicitudes/${s.id}`,
+      ctaLabel: 'Cotizar',
+      urgency: 'amber',
+    })),
+    ...(jobsSinAsignar ?? []).filter(j => (j.job_technicians ?? []).length === 0).slice(0, 8).map(j => ({
+      id: `job-${j.id}`,
+      title: 'Trabajo sin asignar',
+      subtitle: [j.job_number, j.title, j.property_name || j.city].filter(Boolean).join(' · '),
+      href: `/trabajos/${j.id}`,
+      ctaLabel: 'Asignar',
+      urgency: 'amber',
+    })),
+    ...(invoicesDraft ?? []).map(i => ({
+      id: `invoice-draft-${i.id}`,
+      title: 'Factura sin enviar',
+      subtitle: `${i.clients?.name ?? 'Cliente'} · ${i.invoice_number} · ${fmt(i.total)}`,
+      href: `/facturas/${i.id}`,
+      ctaLabel: 'Enviar',
+      urgency: 'warn',
+    })),
+    ...(invoicesOverdue ?? []).map(i => ({
+      id: `invoice-overdue-${i.id}`,
+      title: 'Factura vencida',
+      subtitle: `${i.clients?.name ?? 'Cliente'} · ${i.invoice_number} · ${fmt(i.total)}`,
+      href: `/facturas/${i.id}`,
+      ctaLabel: 'Ver',
+      urgency: 'warn',
+    })),
+  ];
+
+  return { automaticItems, gestiones: gestiones ?? [] };
+}
+
+async function getOfficeProfiles() {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, name')
+    .in('role', ['admin', 'secretaria', 'vendedor'])
+    .order('name');
+  return data ?? [];
+}
+
 async function getIntegrationStats() {
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const nowIso = new Date().toISOString();
@@ -106,7 +186,9 @@ function jobLocation(j) {
 }
 
 export default async function Home() {
-  const [stats, recentJobs, inboxNotifications, integrations] = await Promise.all([getStats(), getRecentJobs(), getInboxNotifications(), getIntegrationStats()]);
+  const [stats, recentJobs, inboxNotifications, accionRequerida, officeProfiles, currentProfile, integrations] = await Promise.all([
+    getStats(), getRecentJobs(), getInboxNotifications(), getAccionRequerida(), getOfficeProfiles(), getCurrentProfile(), getIntegrationStats(),
+  ]);
 
   return (
     <div className="admin-shell">
@@ -122,7 +204,13 @@ export default async function Home() {
           <Link href="/crew" className="btn btn-orange">📱 Abrir Crew App</Link>
         </div>
 
-        <InboxWidget notifications={inboxNotifications} />
+        <InboxWidget
+          notifications={inboxNotifications}
+          automaticItems={accionRequerida.automaticItems}
+          gestiones={accionRequerida.gestiones}
+          officeProfiles={officeProfiles}
+          currentProfile={currentProfile}
+        />
 
         <DashboardCalendarWidget />
 
