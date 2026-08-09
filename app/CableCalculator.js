@@ -8,7 +8,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   const [area, setArea] = useState('');
   const [description, setDescription] = useState('');
   const [vendor, setVendor] = useState('');
-  const [segments, setSegments] = useState([{ label: '', feet: '', materials: [] }]);
+  const [segments, setSegments] = useState([{ label: '', feet: '', materials: [], calcDescription: '' }]);
   const [feetPerBox, setFeetPerBox] = useState(DEFAULT_FEET_PER_UNIT.cable);
   const [materialGroupTitle, setMaterialGroupTitle] = useState('Materiales de cable');
 
@@ -24,7 +24,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
     setSegments(s => s.map((seg, i) => i === idx ? { ...seg, [field]: value } : seg));
   }
   function addSegment() {
-    setSegments(s => [...s, { label: '', feet: '', materials: [] }]);
+    setSegments(s => [...s, { label: '', feet: '', materials: [], calcDescription: '' }]);
   }
   function removeSegment(idx) {
     setSegments(s => s.filter((_, i) => i !== idx));
@@ -44,6 +44,9 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   function segmentUnitsNeeded(seg) {
     return feetPerBox > 0 ? Math.ceil((parseFloat(seg.feet) || 0) / parseFloat(feetPerBox)) : 0;
   }
+  function segmentCalcDescription(seg) {
+    return (seg.calcDescription || '').trim() || description.trim();
+  }
   const boxesNeeded = segments.reduce((sum, s) => sum + segmentUnitsNeeded(s), 0);
 
   const materialTotals = (() => {
@@ -56,21 +59,19 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       const existing = map.get(key);
       map.set(key, { desc: existing ? existing.desc : desc, qty: (existing?.qty || 0) + qty });
     }));
-    const mainDesc = description.trim();
-    if (mainDesc) {
-      const key = mainDesc.toLowerCase();
-      segments.forEach(seg => {
-        const segQty = segmentUnitsNeeded(seg);
-        if (segQty <= 0) return;
-        const existing = map.get(key);
-        map.set(key, { desc: existing ? existing.desc : mainDesc, qty: (existing?.qty || 0) + segQty });
-      });
-    }
+    segments.forEach(seg => {
+      const segDesc = segmentCalcDescription(seg);
+      const segQty = segmentUnitsNeeded(seg);
+      if (!segDesc || segQty <= 0) return;
+      const key = segDesc.toLowerCase();
+      const existing = map.get(key);
+      map.set(key, { desc: existing ? existing.desc : segDesc, qty: (existing?.qty || 0) + segQty });
+    });
     return [...map.values()].map(({ desc, qty }) => [desc, qty]);
   })();
 
   function handleAdd() {
-    if (!description.trim() || boxesNeeded <= 0) return;
+    if (materialTotals.length === 0) return;
     materialTotals.forEach(([desc, qty]) => {
       onAdd({
         title: materialGroupTitle.trim() || null,
@@ -172,9 +173,14 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                 </div>
               ))}
               <button type="button" className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px', marginTop: 6, marginLeft: 20 }} onClick={() => addMaterial(idx)}>+ Material</button>
-              {description.trim() && segmentUnitsNeeded(seg) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, marginLeft: 20, fontSize: 12, color: 'var(--muted)' }}>
-                  <span>{description.trim()} (calculado)</span><span style={{ fontWeight: 700 }}>{segmentUnitsNeeded(seg)}</span>
+              {segmentUnitsNeeded(seg) > 0 && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 6, marginLeft: 20, alignItems: 'center' }}>
+                  <input
+                    value={segmentCalcDescription(seg)}
+                    onChange={e => updateSegment(idx, 'calcDescription', e.target.value)}
+                    style={{ flex: 1, fontSize: 12 }}
+                  />
+                  <span style={{ width: 70, fontSize: 12, fontWeight: 700, textAlign: 'center' }}>{segmentUnitsNeeded(seg)}</span>
                 </div>
               )}
             </div>
@@ -215,7 +221,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" className="btn btn-primary" disabled={!description.trim() || boxesNeeded <= 0} onClick={handleAdd} style={{ flex: 1, justifyContent: 'center' }}>Agregar línea</button>
+          <button type="button" className="btn btn-primary" disabled={materialTotals.length === 0} onClick={handleAdd} style={{ flex: 1, justifyContent: 'center' }}>Agregar línea</button>
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
         </div>
       </div>
