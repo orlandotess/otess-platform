@@ -41,7 +41,10 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   }
 
   const totalFeet = segments.reduce((sum, s) => sum + (parseFloat(s.feet) || 0), 0);
-  const boxesNeeded = feetPerBox > 0 ? Math.ceil(totalFeet / parseFloat(feetPerBox)) : 0;
+  function segmentUnitsNeeded(seg) {
+    return feetPerBox > 0 ? Math.ceil((parseFloat(seg.feet) || 0) / parseFloat(feetPerBox)) : 0;
+  }
+  const boxesNeeded = segments.reduce((sum, s) => sum + segmentUnitsNeeded(s), 0);
 
   const materialTotals = (() => {
     const map = new Map();
@@ -54,10 +57,14 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       map.set(key, { desc: existing ? existing.desc : desc, qty: (existing?.qty || 0) + qty });
     }));
     const mainDesc = description.trim();
-    if (mainDesc && boxesNeeded > 0) {
+    if (mainDesc) {
       const key = mainDesc.toLowerCase();
-      const existing = map.get(key);
-      map.set(key, { desc: existing ? existing.desc : mainDesc, qty: (existing?.qty || 0) + boxesNeeded });
+      segments.forEach(seg => {
+        const segQty = segmentUnitsNeeded(seg);
+        if (segQty <= 0) return;
+        const existing = map.get(key);
+        map.set(key, { desc: existing ? existing.desc : mainDesc, qty: (existing?.qty || 0) + segQty });
+      });
     }
     return [...map.values()].map(({ desc, qty }) => [desc, qty]);
   })();
@@ -165,6 +172,11 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                 </div>
               ))}
               <button type="button" className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px', marginTop: 6, marginLeft: 20 }} onClick={() => addMaterial(idx)}>+ Material</button>
+              {description.trim() && segmentUnitsNeeded(seg) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, marginLeft: 20, fontSize: 12, color: 'var(--muted)' }}>
+                  <span>{description.trim()} (calculado)</span><span style={{ fontWeight: 700 }}>{segmentUnitsNeeded(seg)}</span>
+                </div>
+              )}
             </div>
           ))}
           <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addSegment}>+ Agregar lado</button>
