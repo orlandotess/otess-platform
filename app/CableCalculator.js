@@ -10,8 +10,6 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   const [vendor, setVendor] = useState('');
   const [segments, setSegments] = useState([{ label: '', feet: '', materials: [] }]);
   const [feetPerBox, setFeetPerBox] = useState(DEFAULT_FEET_PER_UNIT.cable);
-  const [pricePerBox, setPricePerBox] = useState('');
-  const [supplierPricePerBox, setSupplierPricePerBox] = useState('');
   const [materialGroupTitle, setMaterialGroupTitle] = useState('Materiales de cable');
 
   const unitLabel = calcType === 'tubo' ? 'tubo' : 'caja';
@@ -44,7 +42,6 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
 
   const totalFeet = segments.reduce((sum, s) => sum + (parseFloat(s.feet) || 0), 0);
   const boxesNeeded = feetPerBox > 0 ? Math.ceil(totalFeet / parseFloat(feetPerBox)) : 0;
-  const total = boxesNeeded * (parseFloat(pricePerBox) || 0);
 
   const materialTotals = (() => {
     const map = new Map();
@@ -56,19 +53,17 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       const existing = map.get(key);
       map.set(key, { desc: existing ? existing.desc : desc, qty: (existing?.qty || 0) + qty });
     }));
+    const mainDesc = description.trim();
+    if (mainDesc && boxesNeeded > 0) {
+      const key = mainDesc.toLowerCase();
+      const existing = map.get(key);
+      map.set(key, { desc: existing ? existing.desc : mainDesc, qty: (existing?.qty || 0) + boxesNeeded });
+    }
     return [...map.values()].map(({ desc, qty }) => [desc, qty]);
   })();
 
   function handleAdd() {
     if (!description.trim() || boxesNeeded <= 0) return;
-    onAdd({
-      description: `${description.trim()} — ${boxesNeeded} ${unitLabel}(s) (${totalFeet} pies)`,
-      area: area.trim() || '',
-      vendor: vendor.trim() || '',
-      quantity: boxesNeeded,
-      unit_price: parseFloat(pricePerBox) || 0,
-      supplier_price: parseFloat(supplierPricePerBox) || 0,
-    });
     materialTotals.forEach(([desc, qty]) => {
       onAdd({
         title: materialGroupTitle.trim() || null,
@@ -193,31 +188,17 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
           </div>
         )}
 
-        <div className="form-row" style={{ marginBottom: 12 }}>
-          <div className="form-group">
-            <label>Pies por {unitLabel}</label>
-            <input type="number" value={feetPerBox} onChange={e => setFeetPerBox(e.target.value)} min="0" step="1" placeholder={DEFAULT_FEET_PER_UNIT[calcType]} />
-          </div>
-          <div className="form-group">
-            <label>Precio venta por {unitLabel}</label>
-            <input type="number" value={pricePerBox} onChange={e => setPricePerBox(e.target.value)} min="0" step="0.01" />
-          </div>
-        </div>
-
         <div className="form-group" style={{ marginBottom: 16 }}>
-          <label>Costo de suplidor por {unitLabel} (para orden de compra)</label>
-          <input type="number" value={supplierPricePerBox} onChange={e => setSupplierPricePerBox(e.target.value)} min="0" step="0.01" />
+          <label>Pies por {unitLabel}</label>
+          <input type="number" value={feetPerBox} onChange={e => setFeetPerBox(e.target.value)} min="0" step="1" placeholder={DEFAULT_FEET_PER_UNIT[calcType]} />
         </div>
 
         <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ color: 'var(--muted)' }}>Pies totales</span><span style={{ fontWeight: 700 }}>{totalFeet}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ color: 'var(--muted)' }}>{calcType === 'tubo' ? 'Tubos necesarios' : 'Cajas necesarias'}</span><span style={{ fontWeight: 700 }}>{boxesNeeded}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, color: 'var(--navy)' }}>
-            <span>Total</span><span>${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
 
