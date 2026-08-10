@@ -112,13 +112,16 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       const desc = m.description.trim();
       const code = (m.newItemCode || suggestItemCode(desc)).trim();
       if (!desc || !code || toSave.has(desc.toLowerCase())) return;
-      toSave.set(desc.toLowerCase(), { desc, code, cost: parseFloat(m.supplier_price) || 0 });
+      const cost = parseFloat(m.supplier_price) || 0;
+      const pct = m.markup_pct !== '' && m.markup_pct != null ? parseFloat(m.markup_pct) : null;
+      toSave.set(desc.toLowerCase(), { desc, code, cost, pct });
     }));
     if (toSave.size > 0) {
-      const results = await Promise.all([...toSave.values()].map(({ desc, code, cost }) =>
+      const results = await Promise.all([...toSave.values()].map(({ desc, code, cost, pct }) =>
         supabase.from('catalog_items').insert([{
           type: 'product', item_code: code, name: desc, description: desc,
-          price: cost, supplier_price: cost || null, vendor: vendor.trim() || null,
+          price: cost > 0 && pct != null ? cost * (1 + pct / 100) : cost,
+          supplier_price: cost || null, markup_pct: pct, vendor: vendor.trim() || null,
           tax_category: 'product', internal_only: false,
         }])
       ));
@@ -231,7 +234,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                     <button type="button" onClick={() => removeMaterial(idx, midx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button>
                   </div>
                   {!mat.catalog_item_id && mat.description.trim() && (
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center', fontSize: 11 }}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center', fontSize: 11, flexWrap: 'wrap' }}>
                       <input
                         type="number"
                         value={mat.supplier_price ?? ''}
@@ -246,12 +249,24 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                         Guardar en catálogo
                       </label>
                       {mat.saveToCatalog && (
-                        <input
-                          value={mat.newItemCode || suggestItemCode(mat.description)}
-                          onChange={e => updateMaterial(idx, midx, 'newItemCode', e.target.value)}
-                          placeholder="Código"
-                          style={{ width: 90, fontSize: 11, fontFamily: 'monospace' }}
-                        />
+                        <>
+                          <input
+                            value={mat.newItemCode || suggestItemCode(mat.description)}
+                            onChange={e => updateMaterial(idx, midx, 'newItemCode', e.target.value)}
+                            placeholder="Código"
+                            style={{ width: 90, fontSize: 11, fontFamily: 'monospace' }}
+                          />
+                          <input
+                            type="number"
+                            value={mat.markup_pct ?? ''}
+                            onChange={e => updateMaterial(idx, midx, 'markup_pct', e.target.value)}
+                            placeholder="Markup %"
+                            min="0"
+                            step="1"
+                            title="% sobre el costo — calcula el precio de venta en el catálogo"
+                            style={{ width: 70, fontSize: 11 }}
+                          />
+                        </>
                       )}
                     </div>
                   )}
