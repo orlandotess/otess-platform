@@ -234,9 +234,7 @@ export default async function EstimaDetail({ params }) {
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>—</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>
                     —
-                    {entry.supplier_total > 0 && (
-                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${entry.supplier_total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                    )}
+                    <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${entry.supplier_total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
                     {entry.tax_rate === 0 ? 'Exento' : `${(entry.tax_rate * 100).toFixed(1)}%`}
