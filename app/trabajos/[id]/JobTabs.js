@@ -455,7 +455,6 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   }, []);
 
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
-  const materialOptions = [...new Map(lineItems.filter(i => i.description).map(i => [i.description.trim().toLowerCase(), i.description.trim()])).values()];
   // An accessory only carries its own weight in the total when its parent has
   // opted out of "Combinar precio" — otherwise the parent's own price is
   // assumed to already include it.
@@ -2965,7 +2964,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       {cableCalcTarget && (
         <CableCalculator
           vendorOptions={vendorOptions}
-          materialOptions={materialOptions}
+          catalogItems={catalogItems}
           onAdd={item => { addPrefilledLineItem(item, cableCalcTarget); setCableCalcTarget(null); }}
           onClose={() => setCableCalcTarget(null)}
         />

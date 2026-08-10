@@ -154,11 +154,6 @@ export default function PropuestaForm({ initialData = null }) {
       areas: itemsToAreas(opt.items),
     }));
   });
-  const materialOptions = [...new Map(
-    options.flatMap(o => o.areas.flatMap(a => a.items))
-      .filter(i => i.description)
-      .map(i => [i.description.trim().toLowerCase(), i.description.trim()])
-  ).values()];
   const [coverPhoto, setCoverPhoto] = useState(null);
   const [coverPreview, setCoverPreview] = useState(initialData?.proposal.cover_photo_signed_url ?? null);
   const [existingCoverPath, setExistingCoverPath] = useState(initialData?.proposal.cover_photo_url ?? null);
@@ -1004,7 +999,7 @@ export default function PropuestaForm({ initialData = null }) {
         {cableCalcTarget && (
           <CableCalculator
             vendorOptions={vendorOptions}
-            materialOptions={materialOptions}
+            catalogItems={catalogItems}
             onAdd={item => { addPrefilledItem(cableCalcTarget.optKey, cableCalcTarget.areaKey, item); setCableCalcTarget(null); }}
             onClose={() => setCableCalcTarget(null)}
           />

@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 // picking a result calls onChange with "item_code — description" so the
 // parent's existing `catalogItems.find(c => \`${c.item_code} — ${c.description}\` === value)`
 // matching logic keeps working unchanged.
-function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder, maxLength, fontSize = 13.5, fontWeight = 700, multiline = false }) {
+export function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder, maxLength, fontSize = 13.5, fontWeight = 700, multiline = false }) {
   const [open, setOpen] = useState(false);
   const q = (value || '').trim().toLowerCase();
   const results = (q

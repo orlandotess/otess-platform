@@ -1,9 +1,19 @@
 'use client';
 import { useState } from 'react';
+import { CatalogDescriptionInput } from './LineItemRow';
+import { supabase } from '../lib/supabase';
 
 const DEFAULT_FEET_PER_UNIT = { cable: '1000', tubo: '10' };
 
-export default function CableCalculator({ areaOptions = [], vendorOptions = [], materialOptions = [], onAdd, onClose }) {
+function suggestItemCode(desc) {
+  return desc.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
+}
+
+export default function CableCalculator({ areaOptions = [], vendorOptions = [], catalogItems = [], onAdd, onClose }) {
+  const catalogOptions = catalogItems.filter(c => c.type === 'product' && !c.internal_only);
+  function resolveCatalogMaterial(value) {
+    return catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+  }
   const [calcType, setCalcType] = useState('cable');
   const [area, setArea] = useState('');
   const [description, setDescription] = useState('');
@@ -31,10 +41,18 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   }
 
   function addMaterial(segIdx) {
-    setSegments(s => s.map((seg, i) => i === segIdx ? { ...seg, materials: [...seg.materials, { description: '', quantity: '' }] } : seg));
+    setSegments(s => s.map((seg, i) => i === segIdx ? { ...seg, materials: [...seg.materials, { description: '', quantity: '', saveToCatalog: false, newItemCode: '' }] } : seg));
   }
   function updateMaterial(segIdx, matIdx, field, value) {
     setSegments(s => s.map((seg, i) => i === segIdx ? { ...seg, materials: seg.materials.map((m, j) => j === matIdx ? { ...m, [field]: value } : m) } : seg));
+  }
+  function updateMaterialDescription(segIdx, matIdx, value) {
+    const match = resolveCatalogMaterial(value);
+    setSegments(s => s.map((seg, i) => i === segIdx ? { ...seg, materials: seg.materials.map((m, j) => j === matIdx ? (match ? {
+      ...m, description: match.name || match.description, unit_price: match.price ?? 0, supplier_price: match.supplier_price ?? 0, msrp: match.msrp ?? '', vendor: match.vendor || '', catalog_item_id: match.id,
+    } : {
+      ...m, description: value, unit_price: 0, supplier_price: 0, msrp: '', vendor: '', catalog_item_id: null,
+    }) : m) } : seg));
   }
   function removeMaterial(segIdx, matIdx) {
     setSegments(s => s.map((seg, i) => i === segIdx ? { ...seg, materials: seg.materials.filter((_, j) => j !== matIdx) } : seg));
@@ -57,7 +75,15 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       if (!desc || qty <= 0) return;
       const key = desc.toLowerCase();
       const existing = map.get(key);
-      map.set(key, { desc: existing ? existing.desc : desc, qty: (existing?.qty || 0) + qty });
+      map.set(key, {
+        desc: existing ? existing.desc : desc,
+        qty: (existing?.qty || 0) + qty,
+        unit_price: existing?.unit_price ?? (parseFloat(m.unit_price) || 0),
+        supplier_price: existing?.supplier_price ?? (parseFloat(m.supplier_price) || 0),
+        msrp: existing?.msrp ?? (m.msrp ?? ''),
+        vendor: existing?.vendor ?? (m.vendor || ''),
+        catalog_item_id: existing?.catalog_item_id ?? (m.catalog_item_id || null),
+      });
     }));
     segments.forEach(seg => {
       const segDesc = segmentCalcDescription(seg);
@@ -65,22 +91,51 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       if (!segDesc || segQty <= 0) return;
       const key = segDesc.toLowerCase();
       const existing = map.get(key);
-      map.set(key, { desc: existing ? existing.desc : segDesc, qty: (existing?.qty || 0) + segQty });
+      map.set(key, {
+        desc: existing ? existing.desc : segDesc,
+        qty: (existing?.qty || 0) + segQty,
+        unit_price: existing?.unit_price ?? 0,
+        supplier_price: existing?.supplier_price ?? 0,
+        msrp: existing?.msrp ?? '',
+        vendor: existing?.vendor ?? '',
+        catalog_item_id: existing?.catalog_item_id ?? null,
+      });
     });
-    return [...map.values()].map(({ desc, qty }) => [desc, qty]);
+    return [...map.values()];
   })();
 
-  function handleAdd() {
+  async function handleAdd() {
     if (materialTotals.length === 0) return;
-    materialTotals.forEach(([desc, qty]) => {
+    const toSave = new Map();
+    segments.forEach(seg => (seg.materials || []).forEach(m => {
+      if (!m.saveToCatalog || m.catalog_item_id) return;
+      const desc = m.description.trim();
+      const code = (m.newItemCode || suggestItemCode(desc)).trim();
+      if (!desc || !code || toSave.has(desc.toLowerCase())) return;
+      toSave.set(desc.toLowerCase(), { desc, code, cost: parseFloat(m.supplier_price) || 0 });
+    }));
+    if (toSave.size > 0) {
+      const results = await Promise.all([...toSave.values()].map(({ desc, code, cost }) =>
+        supabase.from('catalog_items').insert([{
+          type: 'product', item_code: code, name: desc, description: desc,
+          price: cost, supplier_price: cost || null, vendor: vendor.trim() || null,
+          tax_category: 'product', internal_only: false,
+        }])
+      ));
+      const failed = results.find(r => r.error);
+      if (failed) alert('No se pudo guardar en el catálogo: ' + failed.error.message);
+    }
+    materialTotals.forEach(item => {
       onAdd({
         title: materialGroupTitle.trim() || null,
-        description: desc,
+        description: item.desc,
         area: area.trim() || '',
-        vendor: vendor.trim() || '',
-        quantity: qty,
-        unit_price: 0,
-        supplier_price: 0,
+        vendor: item.vendor || vendor.trim() || '',
+        quantity: item.qty,
+        unit_price: item.unit_price || 0,
+        supplier_price: item.supplier_price || 0,
+        msrp: item.msrp || '',
+        catalog_item_id: item.catalog_item_id || null,
       });
     });
   }
@@ -152,24 +207,54 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
               </div>
 
               {seg.materials.map((mat, midx) => (
-                <div key={midx} style={{ display: 'flex', gap: 8, marginTop: 6, marginLeft: 20, alignItems: 'center' }}>
-                  <input
-                    value={mat.description}
-                    onChange={e => updateMaterial(idx, midx, 'description', e.target.value)}
-                    placeholder="Material (ej. Caja PVC 4x4x2)"
-                    list="cable-calc-material-options"
-                    style={{ flex: 1, fontSize: 12 }}
-                  />
-                  <input
-                    type="number"
-                    value={mat.quantity}
-                    onChange={e => updateMaterial(idx, midx, 'quantity', e.target.value)}
-                    placeholder="Cant."
-                    min="0"
-                    step="1"
-                    style={{ width: 70, fontSize: 12 }}
-                  />
-                  <button type="button" onClick={() => removeMaterial(idx, midx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button>
+                <div key={midx} style={{ marginTop: 6, marginLeft: 20 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ flex: 1 }}>
+                      <CatalogDescriptionInput
+                        value={mat.description}
+                        onChange={v => updateMaterialDescription(idx, midx, v)}
+                        catalogOptions={catalogOptions}
+                        placeholder="Material (ej. Caja PVC 4x4x2)"
+                        fontSize={12}
+                        fontWeight={400}
+                      />
+                    </div>
+                    <input
+                      type="number"
+                      value={mat.quantity}
+                      onChange={e => updateMaterial(idx, midx, 'quantity', e.target.value)}
+                      placeholder="Cant."
+                      min="0"
+                      step="1"
+                      style={{ width: 70, fontSize: 12 }}
+                    />
+                    <button type="button" onClick={() => removeMaterial(idx, midx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button>
+                  </div>
+                  {!mat.catalog_item_id && mat.description.trim() && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center', fontSize: 11 }}>
+                      <input
+                        type="number"
+                        value={mat.supplier_price ?? ''}
+                        onChange={e => updateMaterial(idx, midx, 'supplier_price', e.target.value)}
+                        placeholder="Costo"
+                        min="0"
+                        step="0.01"
+                        style={{ width: 80, fontSize: 11 }}
+                      />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                        <input type="checkbox" checked={!!mat.saveToCatalog} onChange={e => updateMaterial(idx, midx, 'saveToCatalog', e.target.checked)} />
+                        Guardar en catálogo
+                      </label>
+                      {mat.saveToCatalog && (
+                        <input
+                          value={mat.newItemCode || suggestItemCode(mat.description)}
+                          onChange={e => updateMaterial(idx, midx, 'newItemCode', e.target.value)}
+                          placeholder="Código"
+                          style={{ width: 90, fontSize: 11, fontFamily: 'monospace' }}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
               <button type="button" className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px', marginTop: 6, marginLeft: 20 }} onClick={() => addMaterial(idx)}>+ Material</button>
@@ -186,9 +271,6 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
             </div>
           ))}
           <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addSegment}>+ Agregar lado</button>
-          <datalist id="cable-calc-material-options">
-            {materialOptions.map(m => <option key={m} value={m} />)}
-          </datalist>
         </div>
 
         {materialTotals.length > 0 && (
@@ -198,9 +280,9 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
               <input value={materialGroupTitle} onChange={e => setMaterialGroupTitle(e.target.value)} placeholder="Materiales de tubería" style={{ fontSize: 13 }} />
             </div>
             <p style={{ fontWeight: 700, color: 'var(--navy)', margin: '0 0 6px' }}>Materiales</p>
-            {materialTotals.map(([desc, qty]) => (
-              <div key={desc} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span style={{ color: 'var(--muted)' }}>{desc}</span><span style={{ fontWeight: 700 }}>{qty}</span>
+            {materialTotals.map(item => (
+              <div key={item.desc} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                <span style={{ color: 'var(--muted)' }}>{item.desc}{item.supplier_price > 0 && ` (costo $${item.supplier_price.toFixed(2)})`}</span><span style={{ fontWeight: 700 }}>{item.qty}</span>
               </div>
             ))}
           </div>

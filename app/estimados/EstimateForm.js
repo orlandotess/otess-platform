@@ -296,7 +296,6 @@ export default function EstimateForm({ initialData = null }) {
   const flatItems = areas.flatMap(a => a.items);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
-  const materialOptions = [...new Map(flatItems.filter(i => i.description).map(i => [i.description.trim().toLowerCase(), i.description.trim()])).values()];
   // Accessories only carry their own weight in the total when their parent
   // has opted out of "Combinar precio" — otherwise the parent's own price is
   // assumed to already include them.
@@ -800,7 +799,7 @@ export default function EstimateForm({ initialData = null }) {
         {cableCalcTarget && (
           <CableCalculator
             vendorOptions={vendorOptions}
-            materialOptions={materialOptions}
+            catalogItems={catalogItems}
             onAdd={item => { addPrefilledItem(cableCalcTarget.areaKey, item); setCableCalcTarget(null); }}
             onClose={() => setCableCalcTarget(null)}
           />
