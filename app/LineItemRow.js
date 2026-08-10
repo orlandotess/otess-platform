@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 // Styled catalog search used in place of a native <input list>/<datalist>,
 // which renders inconsistently across browsers and can't be themed.
@@ -86,15 +86,28 @@ export default function LineItemRow({
   const [showMargin, setShowMargin] = useState(false);
   const [marginPct, setMarginPct] = useState('');
 
-  useEffect(() => {
-    if (!showMargin) return;
-    const cost = parseFloat(supplierPrice);
-    const pct = parseFloat(marginPct);
-    if (!isNaN(cost) && cost > 0 && !isNaN(pct)) {
-      onUnitPriceChange((cost * (1 + pct / 100)).toFixed(2));
+  // Single source of truth for Costo + Margen % -> Precio venta, called from
+  // both the Costo and Margen % inputs so recompute never depends on effect
+  // ordering (previously the Costo input only recomputed via a useEffect
+  // keyed on [supplierPrice], which silently missed the case where Margen %
+  // was set first and Costo edited/finished afterward).
+  function recomputeFromMargin(cost, pct) {
+    const c = parseFloat(cost);
+    const p = parseFloat(pct);
+    if (!isNaN(c) && c > 0 && !isNaN(p)) {
+      onUnitPriceChange((c * (1 + p / 100)).toFixed(2));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supplierPrice]);
+  }
+
+  function handleSupplierPriceChange(v) {
+    onSupplierPriceChange(v);
+    if (showMargin) recomputeFromMargin(v, marginPct);
+  }
+
+  function handleMarginPctChange(v) {
+    setMarginPct(v);
+    recomputeFromMargin(supplierPrice, v);
+  }
 
   function openMargin() {
     const cost = parseFloat(supplierPrice);
@@ -174,7 +187,7 @@ export default function LineItemRow({
                   style={{ fontSize: 12, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: onSupplierPriceChange ? 3 : 0 }} min="0" step="0.01" />
                 {onSupplierPriceChange && (
                   <>
-                    <input type="number" value={supplierPrice} onChange={e => onSupplierPriceChange(e.target.value)} placeholder="Costo" title="Costo del suplidor (solo interno)"
+                    <input type="number" value={supplierPrice} onChange={e => handleSupplierPriceChange(e.target.value)} placeholder="Costo" title="Costo del suplidor (solo interno)"
                       style={{ fontSize: 10.5, padding: '3px 6px', color: 'var(--warn)', textAlign: 'right', width: '100%' }} min="0" step="0.01" />
                     {!showMargin ? (
                       (parseFloat(supplierPrice) > 0) ? (
@@ -191,15 +204,7 @@ export default function LineItemRow({
                         <input
                           type="number"
                           value={marginPct}
-                          onChange={e => {
-                            const v = e.target.value;
-                            setMarginPct(v);
-                            const cost = parseFloat(supplierPrice);
-                            const pct = parseFloat(v);
-                            if (!isNaN(cost) && cost > 0 && !isNaN(pct)) {
-                              onUnitPriceChange((cost * (1 + pct / 100)).toFixed(2));
-                            }
-                          }}
+                          onChange={e => handleMarginPctChange(e.target.value)}
                           placeholder="30"
                           style={{ fontSize: 10, padding: '3px 4px', textAlign: 'right', width: '100%' }}
                           min="0" step="1"
@@ -312,7 +317,7 @@ export default function LineItemRow({
             <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder="Precio venta" style={{ fontSize: 13, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="Precio de venta al cliente" />
             {hasSupplierPrice && (
               <>
-                <input type="number" value={supplierPrice} onChange={e => onSupplierPriceChange(e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--warn)', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
+                <input type="number" value={supplierPrice} onChange={e => handleSupplierPriceChange(e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--warn)', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
                 {!showMargin ? (
                   (parseFloat(supplierPrice) > 0) ? (
                     <button type="button" onClick={openMargin} style={{ display: 'block', marginLeft: 'auto', marginTop: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 10, padding: 0, textDecoration: 'underline' }} title="Calcular precio de venta por margen (solo interno, no se muestra al cliente)">
@@ -328,15 +333,7 @@ export default function LineItemRow({
                     <input
                       type="number"
                       value={marginPct}
-                      onChange={e => {
-                        const v = e.target.value;
-                        setMarginPct(v);
-                        const cost = parseFloat(supplierPrice);
-                        const pct = parseFloat(v);
-                        if (!isNaN(cost) && cost > 0 && !isNaN(pct)) {
-                          onUnitPriceChange((cost * (1 + pct / 100)).toFixed(2));
-                        }
-                      }}
+                      onChange={e => handleMarginPctChange(e.target.value)}
                       placeholder="30"
                       style={{ fontSize: 11, padding: '3px 4px', textAlign: 'right', width: '100%' }}
                       min="0" step="1"
