@@ -6,16 +6,21 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import EstimateActions from './EstimateActions';
 
-// Materials added by the cable/tubo calculator share a `title` (set per calculator
-// run) so multiple materials for the same area collapse into one client-facing row,
-// while the underlying rows stay separate for the purchase list / purchase orders.
-// Items without a title, or whose title doesn't repeat for that area, always render
-// on their own with their real quantity/price — only an actual repeated title collapses.
+// Materials added by the cable/tubo calculator collapse into one client-facing
+// row by being saved as one parent item + accessory rows (parent_item_id),
+// combined by default — see the "single" branch below, which already rolls
+// an item's children into its own row. Items without a title, or whose title
+// doesn't repeat for that area, always render on their own with their real
+// quantity/price — only an actual repeated *top-level* title collapses here.
+// Calculator items are excluded from this title-based path entirely: since
+// only the parent is a top-level row, two separate calculator runs that
+// happen to share a title/area would otherwise merge and silently drop each
+// other's accessories (this path never looks at children).
 function groupItemsForDisplay(items) {
   const rows = items ?? [];
   const titleCounts = new Map();
   for (const item of rows) {
-    if (!item.title) continue;
+    if (!item.title || item.from_calculator) continue;
     const key = `${item.area || ''}|||${item.title}`;
     titleCounts.set(key, (titleCounts.get(key) || 0) + 1);
   }
@@ -23,7 +28,7 @@ function groupItemsForDisplay(items) {
   const groups = new Map();
   const display = [];
   for (const item of rows) {
-    const key = item.title ? `${item.area || ''}|||${item.title}` : null;
+    const key = (item.title && !item.from_calculator) ? `${item.area || ''}|||${item.title}` : null;
     if (!key || titleCounts.get(key) === 1) { display.push({ kind: 'single', item }); continue; }
     let group = groups.get(key);
     if (!group) {
@@ -251,7 +256,7 @@ export default async function EstimaDetail({ params }) {
                       </div>
                       <div style={{ minWidth: 0 }}>
                         {entry.item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.item.title}</div>}
-                        <div style={{ whiteSpace: 'pre-wrap' }}>{entry.item.description}</div>
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{entry.item.group_description?.trim() || entry.item.description}</div>
                         {childrenByParentId.get(entry.item.id)?.length > 0 && (
                           <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>
                             {childrenByParentId.get(entry.item.id).length} accesorio{childrenByParentId.get(entry.item.id).length > 1 ? 's' : ''} incluido{childrenByParentId.get(entry.item.id).length > 1 ? 's' : ''}
@@ -280,7 +285,9 @@ export default async function EstimaDetail({ params }) {
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(Number(entry.item.line_total) + Number(entry.item.tax_amount)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
-                {(childrenByParentId.get(entry.item.id) ?? []).map(child => {
+                {/* Calculator items are always combined, with no per-row breakdown —
+                    "N accesorios incluidos" above is the only visible trace of them. */}
+                {!entry.item.from_calculator && (childrenByParentId.get(entry.item.id) ?? []).map(child => {
                   const bundled = entry.item.combine_price !== false;
                   return (
                     <tr key={child.id} style={{ background: 'var(--surface-2)' }}>

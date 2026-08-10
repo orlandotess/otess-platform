@@ -64,6 +64,7 @@ export default function LineItemRow({
   viewMode = false,
   isAccessory = false,
   showPricing = false,
+  alwaysShowPricing = false,
   type, onTypeChange,
   title, onTitleChange,
   description, onDescriptionChange, catalogOptions = [], datalistId, catalogItemId,
@@ -141,6 +142,11 @@ export default function LineItemRow({
           )}
         </label>
         <div style={{ flex: 1, minWidth: 0 }}>
+          {matchedCatalogItem && (vendor || matchedCatalogItem.item_code) && (
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 2 }}>
+              {vendor || matchedCatalogItem.vendor}{(vendor || matchedCatalogItem.vendor) && matchedCatalogItem.item_code ? '  ·  ' : ''}{matchedCatalogItem.item_code}
+            </div>
+          )}
           {viewMode ? (
             <div style={{ fontSize: 13 }}>{description}</div>
           ) : (
@@ -148,7 +154,7 @@ export default function LineItemRow({
               placeholder="Accesorio..." maxLength={200} fontSize={13} fontWeight={400} />
           )}
         </div>
-        {showPricing && (
+        {(showPricing || alwaysShowPricing) && (
           <div style={{ textAlign: 'right', flexShrink: 0, width: 95 }}>
             {viewMode ? (
               <>
@@ -164,7 +170,7 @@ export default function LineItemRow({
                   <input type="number" value={msrp} onChange={e => onMsrpChange(e.target.value)} placeholder="MSRP" title="MSRP (referencia, solo interno)"
                     style={{ fontSize: 10.5, padding: '3px 6px', color: 'var(--muted)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" />
                 )}
-                <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder="Precio" title="Precio de venta al cliente (no combinado)"
+                <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder="Precio" title={showPricing ? 'Precio de venta al cliente (no combinado)' : 'Precio de referencia — ya incluido en el precio del producto padre'}
                   style={{ fontSize: 12, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: onSupplierPriceChange ? 3 : 0 }} min="0" step="0.01" />
                 {onSupplierPriceChange && (
                   <>
@@ -218,7 +224,7 @@ export default function LineItemRow({
             <input type="number" value={quantity} onChange={e => onQuantityChange(e.target.value)} style={{ fontSize: 13, padding: '4px 6px', textAlign: 'center', width: '100%' }} min="0" step="0.01" />
           )}
         </div>
-        {showPricing && (
+        {(showPricing || alwaysShowPricing) && (
           <div style={{ textAlign: 'right', flexShrink: 0, width: 70 }}>
             <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--navy)' }}>{fmt(accessorySubtotal)}</div>
           </div>

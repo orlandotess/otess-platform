@@ -228,7 +228,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       const failed = results.find(r => r.error);
       if (failed) alert('No se pudo guardar en el catálogo: ' + failed.error.message);
     }
-    materialTotals.forEach(item => {
+    materialTotals.forEach((item, groupIndex) => {
       onAdd({
         title: materialGroupTitle.trim() || null,
         description: item.desc,
@@ -239,6 +239,8 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
         supplier_price: item.supplier_price || 0,
         msrp: item.msrp || '',
         catalog_item_id: item.catalog_item_id || null,
+        from_calculator: true,
+        groupIndex,
       });
     });
   }

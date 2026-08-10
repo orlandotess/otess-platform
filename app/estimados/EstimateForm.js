@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
@@ -23,7 +23,7 @@ function emptyItem(overrides = {}) {
     key: Math.random().toString(36).slice(2),
     parentKey: null, combinePrice: true,
     type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1,
-    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: false, group_description: '',
+    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: false, group_description: '', from_calculator: false,
     photoFile: null, photoPreview: null, existingPhotoPath: null,
     ...overrides,
   };
@@ -50,7 +50,7 @@ function itemsToAreas(items) {
       quantity: li.quantity, unit_price: li.unit_price,
       msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
       vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
-      combinePrice: li.combine_price !== false, group_description: li.group_description ?? '',
+      combinePrice: li.combine_price !== false, group_description: li.group_description ?? '', from_calculator: !!li.from_calculator,
       photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
     });
     area.items.push(parent);
@@ -60,6 +60,7 @@ function itemsToAreas(items) {
         type: child.type, tax_category: child.tax_category ?? child.type, description: child.description,
         quantity: child.quantity, unit_price: child.unit_price,
         msrp: child.msrp ?? '', supplier_price: child.supplier_price ?? '', exempt: !!child.exempt_reason,
+        vendor: child.vendor ?? '', catalog_item_id: child.catalog_item_id ?? null, from_calculator: !!child.from_calculator,
         photoPreview: child.photo_signed_url ?? null, existingPhotoPath: child.photo_url ?? null,
       }));
     });
@@ -94,6 +95,8 @@ export default function EstimateForm({ initialData = null }) {
   });
   const [areas, setAreas] = useState(initialData?.items?.length ? itemsToAreas(initialData.items) : [emptyArea()]);
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
+  const [collapsedAccessories, setCollapsedAccessories] = useState({}); // { [parentItemKey]: boolean } — view-only, not persisted
+  const calculatorBatchParentKey = useRef(null); // tracks the parent item key for the current cable/tubo calculator "Agregar línea" batch
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — item currently being dragged
   const [cableCalcTarget, setCableCalcTarget] = useState(null); // { areaKey } — which area the calculator adds into, or null when closed
   const [saving, setSaving] = useState(false);
@@ -167,8 +170,19 @@ export default function EstimateForm({ initialData = null }) {
   // Used by the cable/tubo calculator — merges a prefilled item into a specific
   // area instead of appending a blank one. The calculator's own `area` field is
   // dropped since grouping here already happens structurally, by area section.
-  function addPrefilledItem(areaKey, { area, ...item }) {
-    addItem(areaKey, { type: 'product', tax_category: 'product', ...item });
+  // The calculator emits one onAdd call per material in a single "Agregar
+  // línea" click, tagging each with a 0-based `groupIndex`: the first
+  // (groupIndex 0) becomes a normal top-level item, the rest attach to it as
+  // accessories — so the whole batch collapses under one item, combined by
+  // default, instead of showing as N separate top-level rows.
+  function addPrefilledItem(areaKey, { area, groupIndex, ...item }) {
+    if (groupIndex > 0 && calculatorBatchParentKey.current) {
+      addAccessoryWithData(areaKey, calculatorBatchParentKey.current, item);
+      return;
+    }
+    const key = Math.random().toString(36).slice(2);
+    calculatorBatchParentKey.current = key;
+    addItem(areaKey, { key, type: 'product', tax_category: 'product', ...item });
   }
   async function addFromCatalog(areaKey, catalogItem) {
     let existingPhotoPath = null, photoPreview = null;
@@ -200,6 +214,27 @@ export default function EstimateForm({ initialData = null }) {
       items.splice(insertAt + 1, 0, emptyItem({ parentKey, type: parentType, tax_category: parentType === 'fee' ? 'labor' : parentType }));
       return { ...a, items };
     }));
+    setCollapsedAccessories(prev => ({ ...prev, [parentKey]: false }));
+  }
+  // Same insertion logic as addAccessory, but for a fully prefilled item
+  // (used by the cable/tubo calculator to attach a material as an accessory
+  // of the batch's first item instead of a blank row).
+  function addAccessoryWithData(areaKey, parentKey, overrides) {
+    setAreas(prev => prev.map(a => {
+      if (a.key !== areaKey) return a;
+      let insertAt = a.items.findIndex(it => it.key === parentKey);
+      const parentType = a.items[insertAt]?.type || 'product';
+      for (let i = insertAt + 1; i < a.items.length; i++) {
+        if (a.items[i].parentKey === parentKey) insertAt = i;
+        else break;
+      }
+      const items = [...a.items];
+      items.splice(insertAt + 1, 0, emptyItem({ parentKey, type: parentType, tax_category: parentType === 'fee' ? 'labor' : parentType, ...overrides }));
+      return { ...a, items };
+    }));
+  }
+  function toggleAccessoriesCollapsed(parentKey) {
+    setCollapsedAccessories(prev => ({ ...prev, [parentKey]: !prev[parentKey] }));
   }
   function removeItem(areaKey, itemKey) {
     setAreas(prev => prev.map(a => a.key === areaKey ? { ...a, items: a.items.filter(it => it.key !== itemKey && it.parentKey !== itemKey) } : a));
@@ -269,6 +304,24 @@ export default function EstimateForm({ initialData = null }) {
         ? { ...a, items: a.items.map(it => it.key === itemKey ? {
               ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
               vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, title: it.title || match.name || match.description, tax_category: match.tax_category ?? it.tax_category,
+            } : it) }
+        : a));
+      applyCatalogItemPhoto(areaKey, itemKey, match);
+    } else {
+      setItem(areaKey, itemKey, 'description', value);
+      setItem(areaKey, itemKey, 'catalog_item_id', null);
+    }
+  }
+  // Accessories have a single text field (no separate title), so — unlike
+  // handleCatalogSelect — the short catalog name goes into `description`
+  // instead of the long catalog description.
+  function handleAccessoryCatalogSelect(areaKey, itemKey, value) {
+    const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
+    if (match) {
+      setAreas(prev => prev.map(a => a.key === areaKey
+        ? { ...a, items: a.items.map(it => it.key === itemKey ? {
+              ...it, description: match.name || match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
+              vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, tax_category: match.tax_category ?? it.tax_category,
             } : it) }
         : a));
       applyCatalogItemPhoto(areaKey, itemKey, match);
@@ -461,6 +514,7 @@ export default function EstimateForm({ initialData = null }) {
           exempt_reason: i.exempt ? 'Exento' : null,
           area: area.name || null, vendor: i.vendor || null, catalog_item_id: i.catalog_item_id || null,
           combine_price: i.combinePrice !== false, group_description: i.group_description?.trim() || null,
+          from_calculator: !!i.from_calculator,
           photo_url: photoPath,
           tax_rate: rate, line_total: base, tax_amount: base * rate,
           sort_order: sortOrder++,
@@ -483,6 +537,8 @@ export default function EstimateForm({ initialData = null }) {
             supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
             exempt_reason: i.exempt ? 'Exento' : null,
             area: area.name || null, parent_item_id: keyToId[i.parentKey],
+            vendor: i.vendor || null, catalog_item_id: i.catalog_item_id || null,
+            from_calculator: !!i.from_calculator,
             photo_url: photoPath,
             tax_rate: rate, line_total: base, tax_amount: base * rate,
             sort_order: sortOrder++,
@@ -657,9 +713,12 @@ export default function EstimateForm({ initialData = null }) {
                   </div>
 
                   {area.items.map((item, itemIndex) => {
-                    const isGroupHead = !item.parentKey && item.title && item.description.trim() &&
-                      area.items.filter(it => !it.parentKey && it.title === item.title).length >= 2 &&
-                      area.items.findIndex(it => !it.parentKey && it.title === item.title) === itemIndex;
+                    const isGroupHead = !item.parentKey && item.title && item.description.trim() && (
+                      item.from_calculator
+                        ? area.items.some(it => it.parentKey === item.key)
+                        : area.items.filter(it => !it.parentKey && it.title === item.title).length >= 2 &&
+                          area.items.findIndex(it => !it.parentKey && it.title === item.title) === itemIndex
+                    );
                     return (
                     <Fragment key={item.key}>
                       {isGroupHead && (
@@ -675,6 +734,7 @@ export default function EstimateForm({ initialData = null }) {
                         </div>
                       )}
                       {item.parentKey ? (() => {
+                      if (collapsedAccessories[item.parentKey]) return null;
                       const parent = area.items.find(p => p.key === item.parentKey);
                       const showPricing = parent?.combinePrice === false;
                       return (
@@ -682,9 +742,12 @@ export default function EstimateForm({ initialData = null }) {
                           key={item.key}
                           isAccessory
                           showPricing={showPricing}
+                          alwaysShowPricing
                           description={item.description}
-                          onDescriptionChange={v => setItem(area.key, item.key, 'description', v)}
+                          onDescriptionChange={v => handleAccessoryCatalogSelect(area.key, item.key, v)}
                           catalogOptions={catalogItems.filter(c => !c.internal_only)}
+                          catalogItemId={item.catalog_item_id}
+                          vendor={item.vendor}
                           datalistId={`est-cat-${areaIndex}-${itemIndex}`}
                           quantity={item.quantity}
                           onQuantityChange={v => setItem(area.key, item.key, 'quantity', v)}
@@ -750,20 +813,48 @@ export default function EstimateForm({ initialData = null }) {
                           </div>
                         }
                       />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 32, marginBottom: 8, marginTop: -4 }}>
-                        <button type="button" onClick={() => addAccessory(area.key, item.key)}
-                          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
-                          + Accesorio
-                        </button>
-                        {area.items.some(child => child.parentKey === item.key) && (
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
-                            title="Si está activo, el precio de los accesorios se combina en el total de este producto (no se muestran precios individuales). Si lo desactivas, cada accesorio se cotiza por separado.">
-                            <input type="checkbox" checked={item.combinePrice !== false}
-                              onChange={e => setItem(area.key, item.key, 'combinePrice', e.target.checked)} />
-                            Combinar precio de accesorios
-                          </label>
-                        )}
-                      </div>
+                      {(() => {
+                        const children = area.items.filter(child => child.parentKey === item.key);
+                        const childrenSubtotal = children.reduce((s, c) => s + (parseFloat(c.quantity) || 0) * (parseFloat(c.unit_price) || 0), 0);
+                        const collapsed = !!collapsedAccessories[item.key];
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginLeft: 32, marginBottom: 8, marginTop: -4 }}>
+                            {children.length > 0 ? (
+                              <button type="button" onClick={() => toggleAccessoriesCollapsed(item.key)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 11.5, padding: 0 }}>
+                                <span>{collapsed ? '▸' : '▾'}</span>
+                                <span>{children.length} Accesorio{children.length > 1 ? 's' : ''}</span>
+                                <span style={{ fontWeight: 700, color: 'var(--navy)' }}>{fmt(childrenSubtotal)}</span>
+                              </button>
+                            ) : (
+                              <button type="button" onClick={() => addAccessory(area.key, item.key)}
+                                style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
+                                + Accesorio
+                              </button>
+                            )}
+                            {children.length > 0 && (
+                              <>
+                                {!item.from_calculator && (
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
+                                    title="Si está activo, el precio de los accesorios se combina en el total de este producto. Si lo desactivas, cada accesorio se cotiza por separado.">
+                                    <span
+                                      onClick={() => setItem(area.key, item.key, 'combinePrice', item.combinePrice === false)}
+                                      style={{ display: 'inline-flex', alignItems: 'center', width: 30, height: 16, borderRadius: 10, position: 'relative', flexShrink: 0, background: item.combinePrice !== false ? 'var(--navy)' : 'var(--border)', transition: 'background 0.15s' }}
+                                    >
+                                      <span style={{ position: 'absolute', top: 2, left: item.combinePrice !== false ? 16 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
+                                    </span>
+                                    Combinar precios
+                                  </label>
+                                )}
+                                <button type="button" onClick={() => addAccessory(area.key, item.key)}
+                                  style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
+                                  + Accesorio
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     )}
                     </Fragment>
