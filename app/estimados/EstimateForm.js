@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
@@ -23,7 +23,7 @@ function emptyItem(overrides = {}) {
     key: Math.random().toString(36).slice(2),
     parentKey: null, combinePrice: true,
     type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1,
-    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: false,
+    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: false, group_description: '',
     photoFile: null, photoPreview: null, existingPhotoPath: null,
     ...overrides,
   };
@@ -50,7 +50,7 @@ function itemsToAreas(items) {
       quantity: li.quantity, unit_price: li.unit_price,
       msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
       vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
-      combinePrice: li.combine_price !== false,
+      combinePrice: li.combine_price !== false, group_description: li.group_description ?? '',
       photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
     });
     area.items.push(parent);
@@ -460,7 +460,7 @@ export default function EstimateForm({ initialData = null }) {
           supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
           exempt_reason: i.exempt ? 'Exento' : null,
           area: area.name || null, vendor: i.vendor || null, catalog_item_id: i.catalog_item_id || null,
-          combine_price: i.combinePrice !== false,
+          combine_price: i.combinePrice !== false, group_description: i.group_description?.trim() || null,
           photo_url: photoPath,
           tax_rate: rate, line_total: base, tax_amount: base * rate,
           sort_order: sortOrder++,
@@ -656,8 +656,25 @@ export default function EstimateForm({ initialData = null }) {
                     <LineItemPicker catalogOptions={catalogItems.filter(c => !c.internal_only)} onSelect={item => addFromCatalog(area.key, item)} placeholder="Buscar en catálogo (labor, producto o fee)..." />
                   </div>
 
-                  {area.items.map((item, itemIndex) => (
-                    item.parentKey ? (() => {
+                  {area.items.map((item, itemIndex) => {
+                    const isGroupHead = !item.parentKey && item.title && item.description.trim() &&
+                      area.items.filter(it => !it.parentKey && it.title === item.title).length >= 2 &&
+                      area.items.findIndex(it => !it.parentKey && it.title === item.title) === itemIndex;
+                    return (
+                    <Fragment key={item.key}>
+                      {isGroupHead && (
+                        <div className="form-group" style={{ marginBottom: 8, marginLeft: 4 }}>
+                          <label style={{ fontSize: 11 }}>Descripción para el estimado (opcional — reemplaza el listado automático de "{item.title}" en el documento del cliente)</label>
+                          <textarea
+                            value={item.group_description || ''}
+                            onChange={e => setItem(area.key, item.key, 'group_description', e.target.value)}
+                            placeholder="Ej: Materiales de instalación de tubería y accesorios"
+                            rows={2}
+                            style={{ fontSize: 13, width: '100%' }}
+                          />
+                        </div>
+                      )}
+                      {item.parentKey ? (() => {
                       const parent = area.items.find(p => p.key === item.parentKey);
                       const showPricing = parent?.combinePrice === false;
                       return (
@@ -748,8 +765,10 @@ export default function EstimateForm({ initialData = null }) {
                         )}
                       </div>
                     </div>
-                    )
-                  ))}
+                    )}
+                    </Fragment>
+                    );
+                  })}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key, { type: 'product', tax_category: 'product' })}>+ Añadir producto</button>
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key)}>+ Añadir labor</button>

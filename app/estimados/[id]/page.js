@@ -27,10 +27,11 @@ function groupItemsForDisplay(items) {
     if (!key || titleCounts.get(key) === 1) { display.push({ kind: 'single', item }); continue; }
     let group = groups.get(key);
     if (!group) {
-      group = { kind: 'group', key, title: item.title, area: item.area, type: item.type, tax_rate: item.tax_rate, photo_signed_url: item.photo_signed_url ?? null, parts: [], line_total: 0, tax_amount: 0, supplier_total: 0 };
+      group = { kind: 'group', key, title: item.title, area: item.area, type: item.type, tax_rate: item.tax_rate, photo_signed_url: item.photo_signed_url ?? null, parts: [], line_total: 0, tax_amount: 0, supplier_total: 0, description_override: '' };
       groups.set(key, group);
       display.push(group);
     }
+    if (!group.description_override && item.group_description?.trim()) group.description_override = item.group_description.trim();
     group.parts.push(`${item.quantity}x ${item.description}`);
     group.line_total += Number(item.line_total) || 0;
     group.tax_amount += Number(item.tax_amount) || 0;
@@ -221,7 +222,7 @@ export default async function EstimaDetail({ params }) {
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.title}</div>
-                        <div style={{ whiteSpace: 'pre-wrap' }}>{entry.parts.join(', ')}</div>
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{entry.description_override || entry.parts.join(', ')}</div>
                       </div>
                     </div>
                   </td>
