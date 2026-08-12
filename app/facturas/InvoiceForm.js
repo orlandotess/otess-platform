@@ -7,7 +7,7 @@ import ClientCombobox from './nueva/ClientCombobox';
 import LineItemRow from '../LineItemRow';
 import LineItemPicker from '../LineItemPicker';
 import TaxBreakdown from '../TaxBreakdown';
-import { calcularIVU, tasaParaLinea } from '../../lib/tax';
+import { calcularIVU, tasaParaLinea, aplicarDescuento } from '../../lib/tax';
 
 const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
 
@@ -82,11 +82,15 @@ export default function InvoiceForm({ initialData = null }) {
     bill_to: initialData.invoice.bill_to ?? 'person', terms: initialData.invoice.terms ?? '',
     issued_at: initialData.invoice.issued_at ?? new Date().toISOString().split('T')[0],
     due_at: initialData.invoice.due_at ?? new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+    discount_type: initialData.invoice.discount_type ?? 'amount',
+    discount_value: initialData.invoice.discount_value ?? '',
+    discount_note: initialData.invoice.discount_note ?? '',
   } : {
     client_id: '', job_id: '', notes: '', work_description: '', bill_to: 'person', terms: '',
     invoice_number: '',
     issued_at: new Date().toISOString().split('T')[0],
     due_at: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+    discount_type: 'amount', discount_value: '', discount_note: '',
   });
   const [areas, setAreas] = useState(initialData?.items?.length ? itemsToAreas(initialData.items) : [emptyArea()]);
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
@@ -350,12 +354,16 @@ export default function InvoiceForm({ initialData = null }) {
     const productCat = t.categorias.find(c => c.codigo === 'product');
     const laborCat = t.categorias.find(c => c.codigo === 'labor');
     const reembolsoCat = t.categorias.find(c => c.codigo === 'reembolso');
+    const { discountAmount, finalTotal } = aplicarDescuento(t.total, form.discount_type, form.discount_value);
     const aggTotals = {
       subtotal_products: productCat.base + reembolsoCat.base,
       tax_products: productCat.impuesto + reembolsoCat.impuesto,
       subtotal_labor: laborCat.base,
       tax_labor: laborCat.impuesto,
-      total: t.total,
+      total: finalTotal,
+      discount_type: discountAmount > 0 ? form.discount_type : null,
+      discount_value: discountAmount > 0 ? (parseFloat(form.discount_value) || 0) : null,
+      discount_note: form.discount_note || null,
     };
 
     let invoice;
@@ -760,8 +768,31 @@ export default function InvoiceForm({ initialData = null }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Descuento (opcional)</p>
+              <div className="form-row">
+                <div className="form-group" style={{ maxWidth: 110 }}>
+                  <label>Tipo</label>
+                  <select value={form.discount_type} onChange={e => set('discount_type', e.target.value)}>
+                    <option value="amount">$</option>
+                    <option value="percent">%</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>{form.discount_type === 'percent' ? 'Porcentaje' : 'Monto'}</label>
+                  <input type="number" min="0" step="0.01" value={form.discount_value}
+                    onChange={e => set('discount_value', e.target.value)} placeholder="0.00" />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Nota del descuento</label>
+                <input value={form.discount_note} onChange={e => set('discount_note', e.target.value)}
+                  placeholder="Ej: Descuento por referido, promoción de verano..." />
+              </div>
+            </div>
+            <div className="card">
               <TaxBreakdown
                 lineas={flatItemsForTax} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                discountType={form.discount_type} discountValue={form.discount_value} discountNote={form.discount_note}
                 note={clientType === 'b2b' && (
                   <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
                     Cliente B2B — Labor al 4%

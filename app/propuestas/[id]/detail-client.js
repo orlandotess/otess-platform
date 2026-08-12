@@ -73,7 +73,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
 
   const fmt = n => `$${(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
-  const optionTotal = opt => financialBreakdown(opt.items, clientType, taxRules ?? []).total;
+  const optionTotal = opt => financialBreakdown(opt.items, clientType, taxRules ?? [], { type: proposal.discount_type, value: proposal.discount_value }).total;
 
   const [publicUrl, setPublicUrl] = useState('');
 
@@ -135,6 +135,9 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         cover_photo_url: proposal.cover_photo_url,
         terms: proposal.terms,
         valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        discount_type: proposal.discount_type,
+        discount_value: proposal.discount_value,
+        discount_note: proposal.discount_note,
       }]).select().single();
       if (propErr) throw propErr;
 

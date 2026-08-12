@@ -332,10 +332,19 @@ export default async function EstimaDetail({ params }) {
                   <span>${Number(row.value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
               ))}
+              {est.discount_value > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ color: 'var(--muted)' }}>Descuento{est.discount_type === 'percent' ? ` (${Number(est.discount_value)}%)` : ''}</span>
+                  <span>-${(Number(est.subtotal_products) + Number(est.tax_products) + Number(est.subtotal_labor) + Number(est.tax_labor) - Number(est.total)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 20, fontWeight: 900, color: 'var(--navy)' }}>
                 <span>TOTAL</span>
                 <span>${Number(est.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
               </div>
+              {est.discount_note && (
+                <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', textAlign: 'right', marginTop: 4 }}>{est.discount_note}</p>
+              )}
             </div>
           </div>
 

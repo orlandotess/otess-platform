@@ -1,5 +1,5 @@
 'use client';
-import { calcularIVU } from '../lib/tax';
+import { calcularIVU, aplicarDescuento } from '../lib/tax';
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtPct = rate => `${(rate * 100).toFixed(rate * 100 % 1 === 0 ? 0 : 1)}%`;
@@ -12,9 +12,11 @@ const fmtPct = rate => `${(rate * 100).toFixed(rate * 100 % 1 === 0 ? 0 : 1)}%`;
 //   separado, aunque alguna tenga base $0 (mismo criterio que ya usan las
 //   vistas de solo-lectura de factura/estima — nunca se combinan en una sola
 //   línea). Reembolso solo aparece cuando tiene base > 0, por ser poco frecuente.
-export default function TaxBreakdown({ lineas, clientType, taxRules, scope = 'documento', title, note }) {
+export default function TaxBreakdown({ lineas, clientType, taxRules, scope = 'documento', title, note, discountType, discountValue, discountNote }) {
   const resultado = calcularIVU(lineas, clientType, taxRules);
-  const { categorias, total } = resultado;
+  const { categorias, total: preDiscountTotal } = resultado;
+  const { discountAmount, finalTotal } = aplicarDescuento(preDiscountTotal, discountType, discountValue);
+  const total = finalTotal;
 
   if (scope === 'bucket') {
     return (
@@ -49,6 +51,19 @@ export default function TaxBreakdown({ lineas, clientType, taxRules, scope = 'do
             </div>
           </div>
         ))}
+        {discountAmount > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--muted)' }}>
+                Descuento{discountType === 'percent' ? ` (${Number(discountValue)}%)` : ''}
+              </span>
+              <span style={{ color: 'var(--danger, #c0392b)' }}>-{fmt(discountAmount)}</span>
+            </div>
+            {discountNote && (
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>{discountNote}</span>
+            )}
+          </div>
+        )}
         <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '4px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18 }}>
           <span>Total</span><span style={{ color: 'var(--navy)' }}>{fmt(total)}</span>

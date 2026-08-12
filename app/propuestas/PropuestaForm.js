@@ -119,6 +119,9 @@ export default function PropuestaForm({ initialData = null }) {
   const [projectDescription, setProjectDescription] = useState(initialData?.proposal.project_description ?? '');
   const [requiresSignature, setRequiresSignature] = useState(initialData?.proposal.requires_signature ?? false);
   const [taxClientType, setTaxClientType] = useState(initialData?.proposal.tax_client_type ?? 'final');
+  const [discountType, setDiscountType] = useState(initialData?.proposal.discount_type ?? 'amount');
+  const [discountValue, setDiscountValue] = useState(initialData?.proposal.discount_value ?? '');
+  const [discountNote, setDiscountNote] = useState(initialData?.proposal.discount_note ?? '');
   const [paymentSchedule, setPaymentSchedule] = useState(
     (initialData?.payments ?? []).map(p => ({
       key: Math.random().toString(36).slice(2),
@@ -471,6 +474,9 @@ export default function PropuestaForm({ initialData = null }) {
         cover_photo_url: coverPath,
         terms: terms.trim() || null,
         valid_until: validUntil || null,
+        discount_type: discountValue ? discountType : null,
+        discount_value: discountValue ? (parseFloat(discountValue) || 0) : null,
+        discount_note: discountNote.trim() || null,
       }).eq('id', initialData.proposal.id).select().single();
       if (err) { setError(err.message); setSaving(false); return; }
       proposal = updated;
@@ -504,6 +510,9 @@ export default function PropuestaForm({ initialData = null }) {
         cover_photo_url: coverPath,
         terms: terms.trim() || null,
         valid_until: validUntil || null,
+        discount_type: discountValue ? discountType : null,
+        discount_value: discountValue ? (parseFloat(discountValue) || 0) : null,
+        discount_note: discountNote.trim() || null,
       }]).select().single();
       if (err) { setError(err.message); setSaving(false); return; }
       proposal = created;
@@ -980,6 +989,30 @@ export default function PropuestaForm({ initialData = null }) {
                 <button type="button" onClick={() => removePayment(p.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
               </div>
             ))}
+          </div>
+
+          <div className="card">
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 4 }}>Descuento (opcional)</p>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>Se aplica al total de cada opción, después de calcular el IVU.</p>
+            <div className="form-row">
+              <div className="form-group" style={{ maxWidth: 110 }}>
+                <label>Tipo</label>
+                <select value={discountType} onChange={e => setDiscountType(e.target.value)}>
+                  <option value="amount">$</option>
+                  <option value="percent">%</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>{discountType === 'percent' ? 'Porcentaje' : 'Monto'}</label>
+                <input type="number" min="0" step="0.01" value={discountValue}
+                  onChange={e => setDiscountValue(e.target.value)} placeholder="0.00" />
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Nota del descuento</label>
+              <input value={discountNote} onChange={e => setDiscountNote(e.target.value)}
+                placeholder="Ej: Descuento por referido, promoción de verano..." />
+            </div>
           </div>
 
           <div className="card">

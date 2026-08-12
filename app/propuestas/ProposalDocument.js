@@ -44,7 +44,11 @@ function billableItems(items) {
   });
 }
 
-export function financialBreakdown(items, clientType, taxRules) {
+// documentDiscount: { type: 'amount'|'percent', value: number } — descuento a
+// nivel de propuesta, aplicado DESPUÉS del IVU sobre el total de la opción
+// (distinto de discount_amount por línea, que ya se resta antes del IVU en
+// itemTotal() y se reporta aparte como totalDiscount).
+export function financialBreakdown(items, clientType, taxRules, documentDiscount) {
   let parts = 0, labor = 0, taxParts = 0, taxLabor = 0, totalDiscount = 0;
   billableItems(items).forEach(it => {
     const base = itemTotal(it);
@@ -55,7 +59,17 @@ export function financialBreakdown(items, clientType, taxRules) {
     if (lineType === 'product') { parts += base; taxParts += base * rate; }
     else { labor += base; taxLabor += base * rate; }
   });
-  return { parts, labor, taxParts, taxLabor, totalDiscount, subtotal: parts + labor, tax: taxParts + taxLabor, total: parts + labor + taxParts + taxLabor };
+  const preDiscountTotal = parts + labor + taxParts + taxLabor;
+  const docValue = Number(documentDiscount?.value ?? 0);
+  const documentDiscountAmount = docValue > 0
+    ? Math.min(documentDiscount.type === 'percent' ? preDiscountTotal * (docValue / 100) : docValue, preDiscountTotal)
+    : 0;
+  return {
+    parts, labor, taxParts, taxLabor, totalDiscount,
+    subtotal: parts + labor, tax: taxParts + taxLabor,
+    documentDiscountAmount,
+    total: preDiscountTotal - documentDiscountAmount,
+  };
 }
 
 // Margin estimate for internal use only — never rendered inside ProposalDocument,
@@ -105,7 +119,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
 
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
   const areas = groupByArea(option.items ?? []);
-  const fb = financialBreakdown(option.items, clientType, taxRules);
+  const fb = financialBreakdown(option.items, clientType, taxRules, { type: proposal.discount_type, value: proposal.discount_value });
   const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
   const partsRate = fb.parts > 0 ? (fb.taxParts / fb.parts * 100).toFixed(1) : '11.5';
   const laborRate = fb.labor > 0 ? (fb.taxLabor / fb.labor * 100).toFixed(1) : (clientType === 'b2b' ? '4' : '11.5');
@@ -328,8 +342,17 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>Subtotal</span><span style={{ fontWeight: 700 }}>{fmt(fb.subtotal)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>Sales Tax — Parts ({partsRate}%)</span><span>{fmt(fb.taxParts)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>Sales Tax — Labor ({laborRate}%)</span><span>{fmt(fb.taxLabor)}</span></div>
+            {fb.documentDiscountAmount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}>
+                <span>Discount{proposal.discount_type === 'percent' ? ` (${Number(proposal.discount_value)}%)` : ''}</span>
+                <span>-{fmt(fb.documentDiscountAmount)}</span>
+              </div>
+            )}
             <hr style={{ border: 'none', borderTop: '1.5px solid #ddd', margin: '10px 0' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: NAVY }}><span>Proposal Total</span><span>{fmt(fb.total)}</span></div>
+            {proposal.discount_note && fb.documentDiscountAmount > 0 && (
+              <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'right', marginTop: 6 }}>{proposal.discount_note}</p>
+            )}
           </div>
         </div>
       </div>

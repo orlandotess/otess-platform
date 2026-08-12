@@ -323,11 +323,20 @@ export default async function FacturaDetail({ params }) {
                   <span>${fmt(row.value)}</span>
                 </div>
               ))}
+              {inv.discount_value > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}>
+                  <span style={{ color: 'var(--muted)' }}>Descuento{inv.discount_type === 'percent' ? ` (${Number(inv.discount_value)}%)` : ''}</span>
+                  <span>-${fmt(Number(inv.subtotal_products) + Number(inv.tax_products) + Number(inv.subtotal_labor) + Number(inv.tax_labor) - Number(inv.total))}</span>
+                </div>
+              )}
               <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '10px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: 'var(--navy)' }}>
                 <span>TOTAL</span>
                 <span>${fmt(inv.total)}</span>
               </div>
+              {inv.discount_note && (
+                <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', textAlign: 'right', marginTop: 4 }}>{inv.discount_note}</p>
+              )}
               {(totalPaid > 0 || totalRetained > 0) && (
                 <>
                   {totalPaid > 0 && (

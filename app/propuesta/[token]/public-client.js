@@ -20,7 +20,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
 
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
   const fmt = n => `$${(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const optionTotal = opt => financialBreakdown(opt.items, clientType, taxRules).total;
+  const optionTotal = opt => financialBreakdown(opt.items, clientType, taxRules, { type: proposal.discount_type, value: proposal.discount_value }).total;
 
   const canApprove = selectedId && (!proposal.requires_signature || signedName.trim().length > 1);
 

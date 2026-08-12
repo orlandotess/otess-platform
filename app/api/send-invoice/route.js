@@ -106,7 +106,9 @@ export async function POST(request) {
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">IVU productos (11.5%)</span><span>${fmt(inv.tax_products)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Subtotal labor</span><span>${fmt(inv.subtotal_labor)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">IVU labor (${inv.clients?.client_type === 'b2b' ? '4%' : '11.5%'})</span><span>${fmt(inv.tax_labor)}</span></div>
+        ${inv.discount_value > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Descuento${inv.discount_type === 'percent' ? ` (${Number(inv.discount_value)}%)` : ''}</span><span>-${fmt(Number(inv.subtotal_products) + Number(inv.tax_products) + Number(inv.subtotal_labor) + Number(inv.tax_labor) - Number(inv.total))}</span></div>` : ''}
         <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>TOTAL</span><span>${fmt(inv.total)}</span></div>
+        ${inv.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:4px 0 0">${inv.discount_note}</p>` : ''}
       </div>
     </div>
 
