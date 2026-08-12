@@ -60,6 +60,31 @@ export default async function EstimaPublica({ params }) {
     const { data } = await supabase.storage.from('Job-photos').createSignedUrl(item.photo_url, 3600);
     return { ...item, photo_signed_url: data?.signedUrl ?? null };
   }));
+  // Bundled accessories ("Combinar precios" on, the default) stay off this
+  // client-facing document — their real cost is already folded into the
+  // parent's row here, but the itemized breakdown is kept internal until the
+  // client approves the estimate. Un-bundled accessories show as their own row.
+  const topLevelItems = items.filter(it => !it.parent_item_id);
+  const childrenByParentId = new Map();
+  for (const it of items) {
+    if (!it.parent_item_id) continue;
+    if (!childrenByParentId.has(it.parent_item_id)) childrenByParentId.set(it.parent_item_id, []);
+    childrenByParentId.get(it.parent_item_id).push(it);
+  }
+  const displayRows = topLevelItems.flatMap(item => {
+    const children = childrenByParentId.get(item.id) ?? [];
+    const bundled = item.combine_price !== false;
+    const bundledTotal = bundled ? children.reduce((s, c) => s + Number(c.line_total) + Number(c.tax_amount), 0) : 0;
+    return [
+      {
+        ...item,
+        description: item.group_description?.trim() || item.description,
+        displayTotal: Number(item.line_total) + Number(item.tax_amount) + bundledTotal,
+        accessoryCount: bundled ? children.length : 0,
+      },
+      ...(bundled ? [] : children.map(c => ({ ...c, displayTotal: Number(c.line_total) + Number(c.tax_amount), accessoryCount: 0 }))),
+    ];
+  });
 
   const primaryAddr = est.clients?.client_addresses?.find(a => a.is_primary) ?? est.clients?.client_addresses?.[0];
   const billToName = est.bill_to === 'company' && est.clients?.company ? est.clients.company : est.clients?.name;
@@ -111,7 +136,7 @@ export default async function EstimaPublica({ params }) {
                 </tr>
               </thead>
               <tbody>
-                {items?.map(item => (
+                {displayRows.map(item => (
                   <tr key={item.id}>
                     <td style={{ padding: '12px 12px 12px 0', fontWeight: 500, fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -121,6 +146,11 @@ export default async function EstimaPublica({ params }) {
                         <div>
                           {item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
                           <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                          {item.accessoryCount > 0 && (
+                            <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                              {item.accessoryCount} accesorio{item.accessoryCount > 1 ? 's' : ''} incluido{item.accessoryCount > 1 ? 's' : ''}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -132,7 +162,7 @@ export default async function EstimaPublica({ params }) {
                     <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{item.quantity}</td>
                     <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{fmt(item.unit_price)}</td>
                     <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 12, borderBottom: '1px solid #f4f4f4' }}>{item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}</td>
-                    <td style={{ padding: '12px 0 12px 12px', textAlign: 'right', fontWeight: 700, fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{fmt(Number(item.line_total) + Number(item.tax_amount))}</td>
+                    <td style={{ padding: '12px 0 12px 12px', textAlign: 'right', fontWeight: 700, fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{fmt(item.displayTotal)}</td>
                   </tr>
                 ))}
               </tbody>

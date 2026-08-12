@@ -285,26 +285,27 @@ export default async function EstimaDetail({ params }) {
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${entryTotal(entry).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
-                {(childrenByParentId.get(entry.item.id) ?? []).map(child => {
-                  const bundled = entry.item.combine_price !== false;
-                  return (
-                    <tr key={child.id} style={{ background: 'var(--surface-2)' }}>
-                      <td style={{ padding: '8px 14px 8px 46px', fontWeight: 400, fontSize: 12.5 }}>
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                          <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                            {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 11 }}>{child.type === 'labor' ? '🔧' : '📦'}</span>}
-                          </div>
-                          <div style={{ whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                {/* Bundled accessories (the default — "Combinar precios" on) stay off this
+                    client-facing document entirely: their cost is already folded into
+                    entryTotal() above, but the itemized list is kept internal until the
+                    estimate is approved (see "Editar líneas" for the full breakdown). */}
+                {entry.item.combine_price === false && (childrenByParentId.get(entry.item.id) ?? []).map(child => (
+                  <tr key={child.id} style={{ background: 'var(--surface-2)' }}>
+                    <td style={{ padding: '8px 14px 8px 46px', fontWeight: 400, fontSize: 12.5 }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                        <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                          {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 11 }}>{child.type === 'labor' ? '🔧' : '📦'}</span>}
                         </div>
-                      </td>
-                      <td />
-                      <td style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12.5 }}>{child.quantity}</td>
-                      <td style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12.5 }}>{bundled ? '—' : `$${Number(child.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}</td>
-                      <td />
-                      <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 600, fontSize: 12.5 }}>{bundled ? '—' : `$${(Number(child.line_total) + Number(child.tax_amount)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}</td>
-                    </tr>
-                  );
-                })}
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                      </div>
+                    </td>
+                    <td />
+                    <td style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12.5 }}>{child.quantity}</td>
+                    <td style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12.5 }}>${Number(child.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td />
+                    <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 600, fontSize: 12.5 }}>${(Number(child.line_total) + Number(child.tax_amount)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  </tr>
+                ))}
                 </Fragment>
               ))}
             </tbody>
