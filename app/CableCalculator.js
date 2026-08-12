@@ -414,7 +414,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
               <span style={{ flex: '2 1 0' }}>NOMBRE</span>
               <span style={{ flex: '1.2 1 0' }}>ÁREA</span>
               <span style={{ flex: '1.4 1 0' }}>TIPO</span>
-              <span style={{ width: 44 }}>CANT.</span>
+              <span style={{ width: 56 }}>CANT.</span>
               <span style={{ width: 56 }}>PIES</span>
               <span style={{ width: 16 }} />
             </div>
@@ -446,15 +446,17 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                   </datalist>
                   <input
                     type="number"
+                    className="compact-number"
                     value={row.qty}
                     onChange={e => updateCableRow(idx, 'qty', e.target.value)}
                     placeholder="Cant."
                     min="0"
                     step="1"
-                    style={{ width: 44, fontSize: 12.5 }}
+                    style={{ width: 56, fontSize: 12.5 }}
                   />
                   <input
                     type="number"
+                    className="compact-number"
                     value={row.feet}
                     onChange={e => updateCableRow(idx, 'feet', e.target.value)}
                     placeholder="Pies"

@@ -536,6 +536,19 @@ input:focus, select:focus, textarea:focus {
 
 textarea { resize: vertical; min-height: 80px; }
 
+/* Narrow number inputs (e.g. cable-calculator CANT./PIES): drop the native
+   spin buttons so the padding they'd otherwise reserve goes to the digits. */
+.compact-number {
+  padding: 6px 4px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.compact-number::-webkit-inner-spin-button,
+.compact-number::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
