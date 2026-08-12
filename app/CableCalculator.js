@@ -84,7 +84,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
     setSegments(s => s.map((seg, i) => i === segIdx ? { ...seg, materials: seg.materials.map((m, j) => j === matIdx ? (match ? {
       ...m, description: match.name || match.description, unit_price: match.price ?? 0, supplier_price: match.supplier_price ?? 0, msrp: match.msrp ?? '', vendor: match.vendor || '', catalog_item_id: match.id,
     } : {
-      ...m, description: value, unit_price: 0, supplier_price: 0, msrp: '', vendor: '', catalog_item_id: null,
+      ...m, description: value, unit_price: '', supplier_price: '', msrp: '', vendor: '', catalog_item_id: null,
     }) : m) } : seg));
   }
   function removeMaterial(segIdx, matIdx) {
@@ -154,7 +154,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
     setCableRows(r => r.map((row, i) => i === rowIdx ? { ...row, materials: row.materials.map((m, j) => j === matIdx ? (match ? {
       ...m, description: match.name || match.description, unit_price: match.price ?? 0, supplier_price: match.supplier_price ?? 0, msrp: match.msrp ?? '', vendor: match.vendor || '', catalog_item_id: match.id,
     } : {
-      ...m, description: value, unit_price: 0, supplier_price: 0, msrp: '', vendor: '', catalog_item_id: null,
+      ...m, description: value, unit_price: '', supplier_price: '', msrp: '', vendor: '', catalog_item_id: null,
     }) : m) } : row));
   }
   function removeCableRowMaterial(rowIdx, matIdx) {
@@ -283,7 +283,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                   step="0.01"
                   style={{ width: 80, fontSize: 11 }}
                 />
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 400, textTransform: 'none', letterSpacing: 'normal' }}>
                   <input type="checkbox" checked={!!mat.saveToCatalog} onChange={e => onFieldChange(midx, 'saveToCatalog', e.target.checked)} />
                   Guardar en catálogo
                 </label>
