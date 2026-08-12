@@ -25,6 +25,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
   const [showEditTerms, setShowEditTerms] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showConvert, setShowConvert] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const [newNumber, setNewNumber] = useState(estimateNumber || '');
   const [title, setTitle] = useState(initialTitle || '');
   const [billTo, setBillTo] = useState(initialBillTo);
@@ -222,25 +223,24 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
     window.location.href = '/estimados';
   }
 
+  const moreItems = [
+    { key: 'purchase', label: '📦 Lista de compra', onClick: () => exportPurchaseListCSV(items, estimateNumber) },
+    ['draft', 'sent'].includes(status) && { key: 'items', label: '🧾 Editar líneas', onClick: () => router.push(`/estimados/${estimateId}/editar`) },
+    { key: 'number', label: '✏️ Editar # de estimado', onClick: () => { setNewNumber(estimateNumber); setShowEditNumber(true); } },
+    { key: 'title', label: '✏️ Editar título', onClick: () => { setTitle(initialTitle); setShowEditTitle(true); } },
+    clientCompany && { key: 'billto', label: '👤 A nombre de', onClick: () => setShowEditBillTo(true) },
+    clientProperties.length > 0 && { key: 'property', label: '🏠 Propiedad', onClick: () => setShowEditProperty(true) },
+    { key: 'terms', label: '📋 Términos', onClick: () => setShowEditTerms(true) },
+    { key: 'archive', label: archiving ? '⏳ Guardando...' : archivedAt ? '📤 Desarchivar' : '📦 Archivar', onClick: toggleArchive },
+    { key: 'delete', label: '🗑 Eliminar estimado', onClick: () => setShowDelete(true), warn: true },
+  ].filter(Boolean);
+
   return (
-    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', position: 'relative' }}>
       <button className="btn btn-ghost" onClick={handlePdf} disabled={generatingPdf}>
         {generatingPdf ? '⏳ Generando...' : '🖨️ PDF'}
       </button>
       <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 Email</button>
-      <button className="btn btn-ghost" onClick={() => exportPurchaseListCSV(items, estimateNumber)}>📦 Lista de compra</button>
-      <button className="btn btn-ghost" onClick={() => { setNewNumber(estimateNumber); setShowEditNumber(true); }}>✏️ # Estimado</button>
-      <button className="btn btn-ghost" onClick={() => { setTitle(initialTitle); setShowEditTitle(true); }}>✏️ Título</button>
-      {clientCompany && (
-        <button className="btn btn-ghost" onClick={() => setShowEditBillTo(true)}>👤 A nombre de</button>
-      )}
-      {clientProperties.length > 0 && (
-        <button className="btn btn-ghost" onClick={() => setShowEditProperty(true)}>🏠 Propiedad</button>
-      )}
-      <button className="btn btn-ghost" onClick={() => setShowEditTerms(true)}>📋 Términos</button>
-      {['draft', 'sent'].includes(status) && (
-        <button className="btn btn-ghost" onClick={() => router.push(`/estimados/${estimateId}/editar`)}>🧾 Editar líneas</button>
-      )}
       {status === 'draft' && <button className="btn btn-primary" onClick={() => updateStatus('sent')}>📤 Enviar</button>}
       {status === 'sent' && (
         <>
@@ -272,10 +272,25 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       )}
       {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Enviado</span>}
       {archivedAt && <span className="badge badge-gray" style={{ padding: '8px 16px', fontSize: 13 }}>📦 Archivado</span>}
-      <button className="btn btn-ghost" onClick={toggleArchive} disabled={archiving}>
-        {archiving ? '⏳ Guardando...' : archivedAt ? '📤 Desarchivar' : '📦 Archivar'}
-      </button>
-      <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setShowDelete(true)}>🗑</button>
+
+      <button className="btn btn-ghost" onClick={() => setShowMore(v => !v)}>⋯ Más</button>
+      {showMore && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setShowMore(false)} />
+          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.14)', minWidth: 220, zIndex: 1000, overflow: 'hidden' }}>
+            {moreItems.map((item, i) => (
+              <button
+                key={item.key}
+                className="dropdown-item"
+                onClick={() => { setShowMore(false); item.onClick(); }}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', background: 'none', border: 'none', borderBottom: i < moreItems.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13.5, fontWeight: 600, color: item.warn ? 'var(--warn)' : 'var(--text)', cursor: 'pointer' }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Edit terms */}
       {showEditTerms && (
