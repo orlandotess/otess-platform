@@ -15,7 +15,7 @@ export async function POST(request) {
   const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY);
   const { data: profile } = await admin
     .from('profiles')
-    .select('id, failed_attempts, locked_until')
+    .select('id, role, failed_attempts, locked_until')
     .eq('email', email)
     .single();
 
@@ -50,6 +50,10 @@ export async function POST(request) {
 
   if (profile && (profile.failed_attempts || profile.locked_until)) {
     await admin.from('profiles').update({ failed_attempts: 0, locked_until: null }).eq('id', profile.id);
+  }
+
+  if (profile?.role === 'admin') {
+    return Response.json({ success: true, needsVerification: true });
   }
 
   return Response.json({ success: true });

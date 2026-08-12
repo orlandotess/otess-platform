@@ -6,7 +6,7 @@ const supabaseUrl = 'https://zisidorwdhrttmdppnbj.supabase.co';
 const supabaseAnonKey = 'sb_publishable_wL7A9THCYwVcyu3t6uk-3Q_Vt09bJzn';
 
 // Rutas públicas que no requieren sesión ni chequeo de rol
-const PUBLIC_PATHS = ['/login', '/forgot-password', '/reset-password', '/factura', '/estimado', '/propuesta', '/orden-cambio', '/reporte', '/reporte-boleto', '/reporte-mantenimiento', '/favicon.ico', '/otess-logo.png', '/otess-logo-blanco.png', '/otess-icon.png', '/api/login', '/api/forgot-password', '/api/send-invoice', '/api/send-estimate', '/api/send-report', '/api/send-ticket-report', '/api/recurring-invoices', '/api/recurring-expenses', '/api/recurring-maintenances', '/api/invoice-reminders', '/api/calendar-reminders', '/api/calendar/feed', '/api/backup-storage', '/api/propuestas/aprobar', '/api/ordenes-cambio/aprobar', '/api/paypal/create-order', '/api/paypal/capture-order', '/api/service-tickets/inbound'];
+const PUBLIC_PATHS = ['/login', '/verify-code', '/forgot-password', '/reset-password', '/factura', '/estimado', '/propuesta', '/orden-cambio', '/reporte', '/reporte-boleto', '/reporte-mantenimiento', '/favicon.ico', '/otess-logo.png', '/otess-logo-blanco.png', '/otess-icon.png', '/api/login', '/api/logout', '/api/send-verification-code', '/api/verify-code', '/api/forgot-password', '/api/send-invoice', '/api/send-estimate', '/api/send-report', '/api/send-ticket-report', '/api/recurring-invoices', '/api/recurring-expenses', '/api/recurring-maintenances', '/api/invoice-reminders', '/api/calendar-reminders', '/api/calendar/feed', '/api/backup-storage', '/api/propuestas/aprobar', '/api/ordenes-cambio/aprobar', '/api/paypal/create-order', '/api/paypal/capture-order', '/api/service-tickets/inbound'];
 
 function isPublic(pathname) {
   return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));
@@ -89,7 +89,30 @@ export async function middleware(request) {
       return NextResponse.redirect(url);
     }
   }
-  // admin y secretaria: sin restricciones
+  // secretaria: sin restricciones
+
+  if (role === 'admin') {
+    const mfaId = request.cookies.get('otess_mfa_id')?.value;
+    let mfaOk = false;
+    if (mfaId) {
+      try {
+        const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY_MW);
+        const { data: mfaRow } = await admin
+          .from('login_verification_codes')
+          .select('user_email, verified, verified_until')
+          .eq('id', mfaId)
+          .single();
+        mfaOk = !!mfaRow && mfaRow.user_email === user.email && mfaRow.verified && new Date(mfaRow.verified_until) > new Date();
+      } catch (err) {
+        console.error('Middleware MFA check exception:', err.message);
+      }
+    }
+    if (!mfaOk) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/verify-code';
+      return NextResponse.redirect(url);
+    }
+  }
 
   return response;
 }

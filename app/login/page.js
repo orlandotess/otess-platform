@@ -23,7 +23,7 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      window.location.href = '/';
+      window.location.href = data.needsVerification ? '/verify-code' : '/';
     } catch {
       setError('Error de conexión. Intenta de nuevo.');
       setLoading(false);

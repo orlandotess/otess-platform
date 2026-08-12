@@ -196,6 +196,7 @@ export default function Sidebar() {
  }
 
  async function handleLogout() {
+   await fetch('/api/logout', { method: 'POST' }).catch(() => {});
    await supabase.auth.signOut();
    router.push('/login');
    router.refresh();
