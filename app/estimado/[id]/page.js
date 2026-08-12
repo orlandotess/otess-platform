@@ -98,10 +98,11 @@ export default async function EstimaPublica({ params }) {
               {est.clients?.email && <div style={{ color: '#999', fontSize: 13 }}>{est.clients.email}</div>}
             </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24, minWidth: 560 }}>
               <thead>
                 <tr>
-                  <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 12px 8px 0', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee' }}>Descripción</th>
+                  <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 12px 8px 0', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee', minWidth: 220 }}>Descripción</th>
                   <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 12px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee' }}>Tipo</th>
                   <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee' }}>Cant.</th>
                   <th style={{ color: '#aaa', fontWeight: 600, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #eee' }}>Precio</th>
@@ -136,6 +137,7 @@ export default async function EstimaPublica({ params }) {
                 ))}
               </tbody>
             </table>
+            </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <div style={{ width: 300 }}>

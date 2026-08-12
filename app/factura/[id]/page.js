@@ -177,10 +177,11 @@ export default async function FacturaPublica({ params }) {
                 {!multiArea && (
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#aaa', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Items</div>
                 )}
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: multiArea ? 6 : 0 }}>
+                <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: multiArea ? 6 : 0, minWidth: 480 }}>
                   <thead>
                     <tr style={{ borderBottom: '1.5px solid #eee' }}>
-                      <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 0', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Descripción</th>
+                      <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 0', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', minWidth: 200 }}>Descripción</th>
                       <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'center', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cant.</th>
                       <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Precio</th>
                       <th style={{ color: '#aaa', fontWeight: 700, padding: '8px 12px', textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>IVU</th>
@@ -242,6 +243,7 @@ export default async function FacturaPublica({ params }) {
                     })}
                   </tbody>
                 </table>
+                </div>
                 {multiArea && (
                   <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#999' }}>
                     {area.name} Total: {fmt(area.items.reduce((s, it) => s + entryTotal(it), 0))}
