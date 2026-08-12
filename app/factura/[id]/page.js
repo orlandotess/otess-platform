@@ -270,14 +270,14 @@ export default async function FacturaPublica({ params }) {
                     <span>-{fmt(Number(inv.subtotal_products) + Number(inv.tax_products) + Number(inv.subtotal_labor) + Number(inv.tax_labor) - Number(inv.total))}</span>
                   </div>
                 )}
+                {inv.discount_value > 0 && inv.discount_note && (
+                  <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'right', margin: '0 0 4px' }}>{inv.discount_note}</p>
+                )}
                 <hr style={{ border: 'none', borderTop: '1.5px solid #ddd', margin: '10px 0' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: '#16223d' }}>
                   <span>TOTAL</span>
                   <span>{fmt(inv.total)}</span>
                 </div>
-                {inv.discount_note && (
-                  <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'right', marginTop: 4 }}>{inv.discount_note}</p>
-                )}
                 {(totalPaid > 0 || totalRetained > 0) && (
                   <>
                     {totalPaid > 0 && (

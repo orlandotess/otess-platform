@@ -156,13 +156,13 @@ export default async function EstimaPublica({ params }) {
                     <span>-{fmt(Number(est.subtotal_products) + Number(est.tax_products) + Number(est.subtotal_labor) + Number(est.tax_labor) - Number(est.total))}</span>
                   </div>
                 )}
+                {est.discount_value > 0 && est.discount_note && (
+                  <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'right', margin: '4px 0 0' }}>{est.discount_note}</p>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 18, fontWeight: 700, color: '#16223d', borderTop: '1px solid #eee', marginTop: 4 }}>
                   <span>TOTAL</span>
                   <span>{fmt(est.total)}</span>
                 </div>
-                {est.discount_note && (
-                  <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'right', marginTop: 4 }}>{est.discount_note}</p>
-                )}
               </div>
             </div>
 

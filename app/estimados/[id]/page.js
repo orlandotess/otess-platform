@@ -338,13 +338,13 @@ export default async function EstimaDetail({ params }) {
                   <span>-${(Number(est.subtotal_products) + Number(est.tax_products) + Number(est.subtotal_labor) + Number(est.tax_labor) - Number(est.total)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
               )}
+              {est.discount_value > 0 && est.discount_note && (
+                <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', textAlign: 'right', margin: '4px 0 0' }}>{est.discount_note}</p>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 20, fontWeight: 900, color: 'var(--navy)' }}>
                 <span>TOTAL</span>
                 <span>${Number(est.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
               </div>
-              {est.discount_note && (
-                <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', textAlign: 'right', marginTop: 4 }}>{est.discount_note}</p>
-              )}
             </div>
           </div>
 

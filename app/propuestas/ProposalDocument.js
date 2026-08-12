@@ -348,11 +348,11 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                 <span>-{fmt(fb.documentDiscountAmount)}</span>
               </div>
             )}
+            {fb.documentDiscountAmount > 0 && proposal.discount_note && (
+              <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'right', margin: '0 0 4px' }}>{proposal.discount_note}</p>
+            )}
             <hr style={{ border: 'none', borderTop: '1.5px solid #ddd', margin: '10px 0' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: NAVY }}><span>Proposal Total</span><span>{fmt(fb.total)}</span></div>
-            {proposal.discount_note && fb.documentDiscountAmount > 0 && (
-              <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'right', marginTop: 6 }}>{proposal.discount_note}</p>
-            )}
           </div>
         </div>
       </div>

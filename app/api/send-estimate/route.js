@@ -99,8 +99,8 @@ export async function POST(request) {
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Subtotal labor</span><span>${fmt(est.subtotal_labor)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">IVU labor (${est.clients?.client_type === 'b2b' ? '4%' : '11.5%'})</span><span>${fmt(est.tax_labor)}</span></div>
         ${est.discount_value > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Descuento${est.discount_type === 'percent' ? ` (${Number(est.discount_value)}%)` : ''}</span><span>-${fmt(Number(est.subtotal_products) + Number(est.tax_products) + Number(est.subtotal_labor) + Number(est.tax_labor) - Number(est.total))}</span></div>` : ''}
+        ${est.discount_value > 0 && est.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:0 0 4px">${est.discount_note}</p>` : ''}
         <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>TOTAL</span><span>${fmt(est.total)}</span></div>
-        ${est.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:4px 0 0">${est.discount_note}</p>` : ''}
       </div>
     </div>
 
