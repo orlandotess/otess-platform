@@ -10,7 +10,7 @@ export const metadata = {
     title: 'OTESS',
   },
   icons: {
-    apple: '/otess-logo.png',
+    apple: '/otess-icon.png',
   },
 };
 

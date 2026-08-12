@@ -7,8 +7,8 @@
   "theme_color": "#E05C2A",
   "icons": [
     {
-      "src": "/otess-logo.png",
-      "sizes": "968x270",
+      "src": "/otess-icon.png",
+      "sizes": "1024x1024",
       "type": "image/png"
     }
   ]
