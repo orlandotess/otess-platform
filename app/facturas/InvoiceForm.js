@@ -305,24 +305,17 @@ export default function InvoiceForm({ initialData = null }) {
   const flatItems = areas.flatMap(a => a.items);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
-  // Accessories only carry their own weight in the total when their parent
-  // has opted out of "Combinar precio" — otherwise the parent's own price is
-  // assumed to already include them.
-  function itemLineTotal(it, area) {
-    if (it.parentKey) {
-      const parent = area?.items.find(p => p.key === it.parentKey);
-      if (!parent || parent.combinePrice !== false) return 0;
-    }
+  // Every line — parent or accessory — always carries its own real weight in
+  // the total; "Combinar precios" only controls whether accessories get
+  // itemized on the client-facing document (see groupItemsForDisplay in
+  // app/facturas/[id]/page.js), never whether their cost is counted.
+  function itemLineTotal(it) {
     return (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0);
   }
   function areaTotal(area) {
-    return area.items.reduce((s, it) => s + itemLineTotal(it, area), 0);
+    return area.items.reduce((s, it) => s + itemLineTotal(it), 0);
   }
-  // calcularIVU/TaxBreakdown sum quantity*unit_price directly with no
-  // parent/child awareness, so bundled accessories need their price zeroed
-  // out here before they're fed in — same net effect as itemLineTotal above.
-  const flatItemsForTax = areas.flatMap(a => a.items.map(it => it.parentKey && itemLineTotal(it, a) === 0 ? { ...it, unit_price: 0 } : it));
-  const t = calcularIVU(flatItemsForTax, clientType, taxRules);
+  const t = calcularIVU(flatItems, clientType, taxRules);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -470,7 +463,7 @@ export default function InvoiceForm({ initialData = null }) {
     for (const area of areas) {
       for (const i of area.items.filter(it => !it.parentKey && it.description.trim())) {
         const photoPath = await uploadItemPhoto(i, sortOrder);
-        const base = itemLineTotal(i, area);
+        const base = itemLineTotal(i);
         const rate = tasaParaLinea(i, clientType, taxRules);
         const { data: row, error: err } = await supabase.from('invoice_line_items').insert([{
           invoice_id: invoice.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description,
@@ -496,7 +489,7 @@ export default function InvoiceForm({ initialData = null }) {
       for (const area of areas) {
         for (const i of area.items.filter(it => it.parentKey && it.description.trim() && keyToId[it.parentKey])) {
           const photoPath = await uploadItemPhoto(i, sortOrder);
-          const base = itemLineTotal(i, area);
+          const base = itemLineTotal(i);
           const rate = tasaParaLinea(i, clientType, taxRules);
           const { error: err } = await supabase.from('invoice_line_items').insert([{
             invoice_id: invoice.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description,
@@ -791,7 +784,7 @@ export default function InvoiceForm({ initialData = null }) {
             </div>
             <div className="card">
               <TaxBreakdown
-                lineas={flatItemsForTax} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                lineas={flatItems} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
                 discountType={form.discount_type} discountValue={form.discount_value} discountNote={form.discount_note}
                 note={clientType === 'b2b' && (
                   <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>

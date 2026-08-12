@@ -33,7 +33,26 @@ export async function POST(request) {
       const { data } = await supabase.storage.from('Job-photos').createSignedUrl(i.photo_url, 2592000);
       return { ...i, photo_signed_url: data?.signedUrl ?? null };
     }));
-    const rows = displayItems.map(i => `
+    // Bundled accessories ("Combinar precios" on, the default) stay off this
+    // email — their real cost is already folded into the parent row's total,
+    // but the itemized breakdown is kept internal (see the same logic in
+    // app/factura/[id]/page.js).
+    const childrenByParentId = new Map();
+    for (const i of displayItems) {
+      if (!i.parent_item_id) continue;
+      if (!childrenByParentId.has(i.parent_item_id)) childrenByParentId.set(i.parent_item_id, []);
+      childrenByParentId.get(i.parent_item_id).push(i);
+    }
+    const displayRows = displayItems.filter(i => !i.parent_item_id).flatMap(i => {
+      const children = childrenByParentId.get(i.id) ?? [];
+      const bundled = i.combine_price !== false;
+      const bundledTotal = bundled ? children.reduce((s, c) => s + Number(c.line_total) + Number(c.tax_amount), 0) : 0;
+      return [
+        { ...i, displayTotal: Number(i.line_total) + Number(i.tax_amount) + bundledTotal, accessoryCount: bundled ? children.length : 0 },
+        ...(bundled ? [] : children.map(c => ({ ...c, displayTotal: Number(c.line_total) + Number(c.tax_amount), accessoryCount: 0 }))),
+      ];
+    });
+    const rows = displayRows.map(i => `
       <tr>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr>
@@ -41,13 +60,14 @@ export async function POST(request) {
             <td style="vertical-align:top">
               ${i.title ? `<div style="font-weight:700;margin-bottom:2px">${i.title}</div>` : ''}
               <div>${i.description}</div>
+              ${i.accessoryCount > 0 ? `<div style="font-size:11px;color:#999;margin-top:2px">${i.accessoryCount} accesorio${i.accessoryCount > 1 ? 's' : ''} incluido${i.accessoryCount > 1 ? 's' : ''}</div>` : ''}
             </td>
           </tr></table>
         </td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${i.type === 'labor' ? 'Labor' : 'Producto'}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${i.quantity}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${fmt(i.unit_price)}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;font-size:14px">${fmt(Number(i.line_total) + Number(i.tax_amount))}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;font-size:14px">${fmt(i.displayTotal)}</td>
       </tr>`).join('');
 
     const html = `<!DOCTYPE html>

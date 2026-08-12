@@ -109,10 +109,10 @@ export default async function FacturaDetail({ params }) {
     area.items.push(it);
   });
   const multiArea = displayAreas.length > 1 || (displayAreas[0]?.name && displayAreas[0].name !== 'General');
-  // A parent's own line_total/tax_amount already reflect only its own price;
-  // bundled accessories were persisted with line_total/tax_amount of 0 at save
-  // time (InvoiceForm.js's itemLineTotal), so summing children in unconditionally
-  // is safe whether or not "Combinar precio" is on.
+  // Every line — parent or accessory — always carries its own real
+  // line_total/tax_amount (InvoiceForm.js's itemLineTotal no longer zeroes
+  // bundled accessories), so a row's true total is always its own plus its
+  // children's, whether or not "Combinar precio" is on.
   function entryTotal(item) {
     const own = Number(item.line_total) + Number(item.tax_amount);
     const childrenTotal = (childrenByParentId.get(item.id) ?? []).reduce((s, c) => s + Number(c.line_total) + Number(c.tax_amount), 0);
@@ -271,27 +271,28 @@ export default async function FacturaDetail({ params }) {
                         <td style={{ padding: '14px 12px', textAlign: 'right', color: 'var(--muted)', fontSize: 12, verticalAlign: 'top' }}>
                           {item.tax_rate === 0 ? 'Exento' : `${(item.tax_rate * 100).toFixed(1)}%`}
                         </td>
-                        <td style={{ padding: '14px 0', textAlign: 'right', fontWeight: 700, fontSize: 14, verticalAlign: 'top' }}>${fmt(Number(item.line_total) + Number(item.tax_amount))}</td>
+                        <td style={{ padding: '14px 0', textAlign: 'right', fontWeight: 700, fontSize: 14, verticalAlign: 'top' }}>${fmt(entryTotal(item))}</td>
                       </tr>
-                      {children.map((child, ci) => {
-                        const bundled = item.combine_price !== false;
-                        return (
-                          <tr key={child.id} style={{ borderBottom: ci === children.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                            <td style={{ padding: '8px 10px 8px 52px' }}>
-                              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                                <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                  {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 11 }}>{child.type === 'labor' ? '🔧' : '📦'}</span>}
-                                </div>
-                                <div style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                      {/* Bundled accessories (the default — "Combinar precios" on) stay off this
+                          client-facing document entirely: their cost is already folded into
+                          entryTotal() above, but the itemized list is kept internal until the
+                          invoice's line items are next edited. */}
+                      {item.combine_price === false && children.map((child, ci) => (
+                        <tr key={child.id} style={{ borderBottom: ci === children.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <td style={{ padding: '8px 10px 8px 52px' }}>
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                              <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 11 }}>{child.type === 'labor' ? '🔧' : '📦'}</span>}
                               </div>
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: 12.5, color: 'var(--muted)' }}>x{child.quantity}</td>
-                            <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12.5, color: 'var(--muted)' }}>{bundled ? '—' : `$${fmt(child.unit_price)}`}</td>
-                            <td />
-                            <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 600, fontSize: 12.5 }}>{bundled ? '—' : `$${fmt(Number(child.line_total) + Number(child.tax_amount))}`}</td>
-                          </tr>
-                        );
-                      })}
+                              <div style={{ fontSize: 12.5, color: 'var(--muted)', whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: 12.5, color: 'var(--muted)' }}>x{child.quantity}</td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12.5, color: 'var(--muted)' }}>${fmt(child.unit_price)}</td>
+                          <td />
+                          <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 600, fontSize: 12.5 }}>${fmt(Number(child.line_total) + Number(child.tax_amount))}</td>
+                        </tr>
+                      ))}
                     </Fragment>
                     );
                   })}
