@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
+import { useDebouncedValue } from '../lib/useDebounce';
 import { useState, useEffect } from 'react';
 
 const ventasLinks = [
@@ -113,6 +114,9 @@ export default function Sidebar() {
    return state;
  });
  const [search, setSearch] = useState('');
+ const [entityResults, setEntityResults] = useState([]);
+ const [entityLoading, setEntityLoading] = useState(false);
+ const debouncedSearch = useDebouncedValue(search.trim(), 250);
  const [hidden, setHidden] = useState(false);
  const [absenceCount, setAbsenceCount] = useState(0);
  const [darkMode, setDarkMode] = useState(false);
@@ -154,6 +158,23 @@ export default function Sidebar() {
  }, []);
 
  const badgeCounts = { '/admin/ausencias': absenceCount };
+
+ // Búsqueda global (clientes, trabajos, facturas, etc. — no solo links del menú).
+ useEffect(() => {
+   if (debouncedSearch.length < 2) {
+     setEntityResults([]);
+     setEntityLoading(false);
+     return;
+   }
+   let cancelled = false;
+   setEntityLoading(true);
+   fetch(`/api/search?q=${encodeURIComponent(debouncedSearch)}`)
+     .then(res => res.ok ? res.json() : { results: [] })
+     .then(data => { if (!cancelled) setEntityResults(data.results || []); })
+     .catch(() => { if (!cancelled) setEntityResults([]); })
+     .finally(() => { if (!cancelled) setEntityLoading(false); });
+   return () => { cancelled = true; };
+ }, [debouncedSearch]);
 
  useEffect(() => {
    document.body.classList.toggle('sidebar-hidden', hidden);
@@ -199,6 +220,13 @@ export default function Sidebar() {
    ? searchableLinks.filter(l => l.label.toLowerCase().includes(query))
    : null;
 
+ const groupedEntityResults = entityResults.reduce((groups, r) => {
+   const last = groups[groups.length - 1];
+   if (last && last.label === r.label) last.items.push(r);
+   else groups.push({ label: r.label, items: [r] });
+   return groups;
+ }, []);
+
  return (
    <>
    <aside className="sidebar">
@@ -229,10 +257,8 @@ export default function Sidebar() {
      </div>
      <nav className="sidebar-nav">
        {searchResults ? (
-         searchResults.length === 0 ? (
-           <p style={{ padding: '10px 16px', fontSize: 13, color: 'rgba(22,34,61,0.5)' }}>Sin resultados.</p>
-         ) : (
-           searchResults.map(l => (
+         <>
+           {searchResults.map(l => (
              <Link key={l.href} href={l.href} className={isActive(l.href) ? 'active' : ''}>
                <NavIcon name={l.icon} />
                {l.label}
@@ -240,8 +266,31 @@ export default function Sidebar() {
                  <span style={{ marginLeft: 'auto', background: 'var(--warn)', color: '#fff', borderRadius: 20, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>{badgeCounts[l.href]}</span>
                )}
              </Link>
-           ))
-         )
+           ))}
+
+           {entityLoading && (
+             <p style={{ padding: '8px 16px', fontSize: 12, color: 'rgba(22,34,61,0.45)' }}>Buscando…</p>
+           )}
+
+           {groupedEntityResults.map(group => (
+             <div key={group.label}>
+               <p style={{ padding: '10px 16px 2px', fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'rgba(22,34,61,0.4)' }}>{group.label}</p>
+               {group.items.map(r => (
+                 <Link key={`${r.type}-${r.id}`} href={r.href}>
+                   <NavIcon name={r.icon} />
+                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                     {r.title}
+                     {r.subtitle && <span style={{ opacity: 0.55, marginLeft: 6, fontWeight: 400 }}>— {r.subtitle}</span>}
+                   </span>
+                 </Link>
+               ))}
+             </div>
+           ))}
+
+           {searchResults.length === 0 && !entityLoading && groupedEntityResults.length === 0 && (
+             <p style={{ padding: '10px 16px', fontSize: 13, color: 'rgba(22,34,61,0.5)' }}>Sin resultados.</p>
+           )}
+         </>
        ) : (
          <>
            <Link href="/" className={isActive('/') ? 'active' : ''}>
