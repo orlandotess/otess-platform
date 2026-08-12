@@ -18,7 +18,7 @@ function emptyItem(parentKey = null, itemType = 'labor') {
     unit_price: '',
     supplier_price: '',
     exempt: false,
-    saveToCatalog: false,
+    saveToCatalog: true,
     discount: '',
     vendor: '',
     combinePrice: true, // only meaningful for parent (non-accessory) items

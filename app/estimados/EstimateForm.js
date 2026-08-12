@@ -23,7 +23,7 @@ function emptyItem(overrides = {}) {
     key: Math.random().toString(36).slice(2),
     parentKey: null, combinePrice: true,
     type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1,
-    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: false, group_description: '', from_calculator: false,
+    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: !overrides.catalog_item_id, group_description: '', from_calculator: false,
     photoFile: null, photoPreview: null, existingPhotoPath: null,
     ...overrides,
   };
@@ -842,18 +842,16 @@ export default function EstimateForm({ initialData = null }) {
                             )}
                             {children.length > 0 && (
                               <>
-                                {!item.from_calculator && (
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
-                                    title="Si está activo, el precio de los accesorios se combina en el total de este producto. Si lo desactivas, cada accesorio se cotiza por separado.">
-                                    <span
-                                      onClick={() => setItem(area.key, item.key, 'combinePrice', item.combinePrice === false)}
-                                      style={{ display: 'inline-flex', alignItems: 'center', width: 30, height: 16, borderRadius: 10, position: 'relative', flexShrink: 0, background: item.combinePrice !== false ? 'var(--navy)' : 'var(--border)', transition: 'background 0.15s' }}
-                                    >
-                                      <span style={{ position: 'absolute', top: 2, left: item.combinePrice !== false ? 16 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
-                                    </span>
-                                    Combinar precios
-                                  </label>
-                                )}
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
+                                  title="Si está activo, el precio de los accesorios se combina en el total de este producto. Si lo desactivas, cada accesorio se cotiza por separado.">
+                                  <span
+                                    onClick={() => setItem(area.key, item.key, 'combinePrice', item.combinePrice === false)}
+                                    style={{ display: 'inline-flex', alignItems: 'center', width: 30, height: 16, borderRadius: 10, position: 'relative', flexShrink: 0, background: item.combinePrice !== false ? 'var(--navy)' : 'var(--border)', transition: 'background 0.15s' }}
+                                  >
+                                    <span style={{ position: 'absolute', top: 2, left: item.combinePrice !== false ? 16 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
+                                  </span>
+                                  Combinar precios
+                                </label>
                                 <button type="button" onClick={() => addAccessory(area.key, item.key)}
                                   style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
                                   + Accesorio

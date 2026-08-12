@@ -11,7 +11,7 @@ import { calcularIVU, tasaParaLinea } from '../../lib/tax';
 const DEFAULT_TERMS = `Esta orden de cambio representa trabajo adicional o modificado fuera del alcance original acordado. Al aprobarla, el cliente autoriza a OTESS a proceder con el trabajo descrito y acepta el cargo adicional indicado.`;
 
 function emptyItem() {
-  return { type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, saveToCatalog: false, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
+  return { type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, saveToCatalog: true, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
 }
 
 export default function ChangeOrderForm({ initialData = null }) {
@@ -41,7 +41,7 @@ export default function ChangeOrderForm({ initialData = null }) {
       ? initialData.items.map(li => ({
           type: li.type, tax_category: li.tax_category ?? li.type, description: li.description, quantity: li.quantity, unit_price: li.unit_price,
           msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
-          area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
+          area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null, saveToCatalog: !li.catalog_item_id,
           photoFile: null, photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
         }))
       : [emptyItem()]
@@ -71,7 +71,7 @@ export default function ChangeOrderForm({ initialData = null }) {
       type: catalogItem.type, tax_category: catalogItem.tax_category,
       description: catalogItem.description, quantity: 1, unit_price: catalogItem.price ?? '',
       msrp: catalogItem.msrp ?? '', supplier_price: catalogItem.supplier_price ?? '',
-      exempt: false, area: '', vendor: catalogItem.vendor || '', catalog_item_id: catalogItem.id,
+      exempt: false, saveToCatalog: false, area: '', vendor: catalogItem.vendor || '', catalog_item_id: catalogItem.id,
       photoFile: null, photoPreview, existingPhotoPath,
     }]);
   }

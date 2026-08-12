@@ -11,7 +11,7 @@ function suggestItemCode(desc) {
 }
 
 function emptyAccessory() {
-  return { description: '', quantity: '', saveToCatalog: false, newItemCode: '' };
+  return { description: '', quantity: '', saveToCatalog: true, newItemCode: '' };
 }
 
 // Merges a flat list of accessory rows (per-material description/qty/cost) into

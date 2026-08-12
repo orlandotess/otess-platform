@@ -22,7 +22,7 @@ function emptyItem(overrides = {}) {
     key: Math.random().toString(36).slice(2),
     parentKey: null, combinePrice: true,
     type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1,
-    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: false,
+    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: !overrides.catalog_item_id,
     photoFile: null, photoPreview: null, existingPhotoPath: null,
     ...overrides,
   };
