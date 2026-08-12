@@ -283,11 +283,9 @@ export default async function EstimaDetail({ params }) {
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
                     {entry.item.tax_rate === 0 ? 'Exento' : `${(entry.item.tax_rate * 100).toFixed(1)}%`}
                   </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(Number(entry.item.line_total) + Number(entry.item.tax_amount)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${entryTotal(entry).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
-                {/* Calculator items are always combined, with no per-row breakdown —
-                    "N accesorios incluidos" above is the only visible trace of them. */}
-                {!entry.item.from_calculator && (childrenByParentId.get(entry.item.id) ?? []).map(child => {
+                {(childrenByParentId.get(entry.item.id) ?? []).map(child => {
                   const bundled = entry.item.combine_price !== false;
                   return (
                     <tr key={child.id} style={{ background: 'var(--surface-2)' }}>
