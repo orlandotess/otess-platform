@@ -129,7 +129,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
   const clientSecondaryName = clientAsCompany ? null : proposal.clients?.company;
 
   return (
-    <div style={{ fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif', color: '#1a1a1a', minWidth: 700 }}>
+    <div style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", color: '#1a1a1a', minWidth: 700 }}>
       {mode === 'invoice' ? (
         /* Invoice header — mirrors the Facturas module's letterhead so this
            reads as a real invoice, not a proposal cover page. */
@@ -409,7 +409,7 @@ function PickListDocument({ proposal, option }) {
   const rows = [...grouped.values()].sort((a, b) => a.description.localeCompare(b.description));
 
   return (
-    <div style={{ fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif', color: '#1a1a1a' }}>
+    <div style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", color: '#1a1a1a' }}>
       <div style={page}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>

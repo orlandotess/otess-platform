@@ -40,7 +40,7 @@ export default async function ReporteBoletoPublico({ params }) {
   const fmtDate = d => d ? new Date(`${d}T00:00:00`).toLocaleDateString('es-PR', { year: 'numeric', month: 'long', day: 'numeric' }) : null;
 
   return (
-    <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
+    <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>

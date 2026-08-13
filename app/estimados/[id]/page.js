@@ -154,7 +154,7 @@ export default async function EstimaDetail({ params }) {
           />
         </div>
 
-        <div className="card" id="estimate-doc" style={{ marginBottom: 20 }}>
+        <div className="card" id="estimate-doc" style={{ marginBottom: 20, fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
             <div>
               <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--navy)', letterSpacing: -1 }}>OTESS</div>
