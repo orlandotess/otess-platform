@@ -219,7 +219,7 @@ export default async function EstimaDetail({ params }) {
             </thead>
             <tbody>
               {area.entries.map(entry => entry.kind === 'group' ? (
-                <tr key={entry.key}>
+                <tr key={entry.key} style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                       <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -248,7 +248,7 @@ export default async function EstimaDetail({ params }) {
                 </tr>
               ) : (
                 <Fragment key={entry.item.id}>
-                <tr>
+                <tr style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                       <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -290,7 +290,7 @@ export default async function EstimaDetail({ params }) {
                     entryTotal() above, but the itemized list is kept internal until the
                     estimate is approved (see "Editar líneas" for the full breakdown). */}
                 {entry.item.combine_price === false && (childrenByParentId.get(entry.item.id) ?? []).map(child => (
-                  <tr key={child.id} style={{ background: 'var(--surface-2)' }}>
+                  <tr key={child.id} style={{ background: 'var(--surface-2)', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                     <td style={{ padding: '8px 14px 8px 46px', fontWeight: 400, fontSize: 12.5 }}>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                         <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>

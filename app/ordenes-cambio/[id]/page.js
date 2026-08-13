@@ -107,7 +107,7 @@ export default async function OrdenCambioDetail({ params }) {
             </thead>
             <tbody>
               {itemsWithSignedUrls.map(item => (
-                <tr key={item.id}>
+                <tr key={item.id} style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>
                     {item.description}
                     {item.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>📍 {item.area}</div>}

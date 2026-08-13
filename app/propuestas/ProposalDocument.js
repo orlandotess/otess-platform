@@ -257,7 +257,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                   const colCount = hidePricing ? 2 : 4;
                   return (
                     <Fragment key={it.id}>
-                      <tr style={{ borderBottom: it.children.length ? 'none' : '1px solid #f4f4f4' }}>
+                      <tr style={{ borderBottom: it.children.length ? 'none' : '1px solid #f4f4f4', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                         <td style={{ padding: '14px 10px 14px 0', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                           <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                             {it.photo_signed_url ? <img src={it.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{it.item_type === 'product' ? '📦' : '🔧'}</span>}
@@ -292,7 +292,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                         </tr>
                       )}
                       {isExpanded && it.children.map((child, ci) => (
-                        <tr key={child.id} style={{ borderBottom: ci === it.children.length - 1 ? '1px solid #f4f4f4' : 'none' }}>
+                        <tr key={child.id} style={{ borderBottom: ci === it.children.length - 1 ? '1px solid #f4f4f4' : 'none', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                           <td style={{ padding: '10px 10px 10px 52px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                             <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                               {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{child.item_type === 'product' ? '📦' : '🔧'}</span>}
@@ -431,7 +431,7 @@ function PickListDocument({ proposal, option }) {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f4f4f4' }}>
+              <tr key={i} style={{ borderBottom: '1px solid #f4f4f4', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                 <td style={{ padding: '12px 0' }}>
                   <div style={{ width: 16, height: 16, border: '1.5px solid #ccc', borderRadius: 3 }} />
                 </td>

@@ -237,7 +237,7 @@ export default async function FacturaDetail({ params }) {
                     const children = childrenByParentId.get(item.id) ?? [];
                     return (
                     <Fragment key={item.id}>
-                      <tr style={{ borderBottom: children.length ? 'none' : '1px solid var(--border)' }}>
+                      <tr style={{ borderBottom: children.length ? 'none' : '1px solid var(--border)', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                         <td style={{ padding: '14px 10px 14px 0' }}>
                           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                             <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -278,7 +278,7 @@ export default async function FacturaDetail({ params }) {
                           entryTotal() above, but the itemized list is kept internal until the
                           invoice's line items are next edited. */}
                       {item.combine_price === false && children.map((child, ci) => (
-                        <tr key={child.id} style={{ borderBottom: ci === children.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <tr key={child.id} style={{ borderBottom: ci === children.length - 1 ? '1px solid var(--border)' : 'none', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                           <td style={{ padding: '8px 10px 8px 52px' }}>
                             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                               <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
