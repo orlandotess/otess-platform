@@ -115,7 +115,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
               </div>
             )}
 
-            <div style={{ display: 'grid', gap: 14, gridTemplateColumns: options.length > 1 ? `repeat(${Math.min(options.length, 3)}, 1fr)` : '1fr', marginBottom: 20 }}>
+            <div style={{ display: 'grid', gap: 14, gridTemplateColumns: options.length > 1 ? `repeat(${Math.min(options.length, 3)}, minmax(0, 1fr))` : 'minmax(0, 1fr)', marginBottom: 20 }}>
               {options.map(opt => {
                 const isSelected = selectedId === opt.id;
                 return (
@@ -147,15 +147,15 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                         const lineTotal = it => (it.quantity || 0) * (it.unit_price || 0) - (it.discount_amount || 0);
                         const areaTotal = areaItems.reduce((s, it) => s + lineTotal(it), 0);
                         return (
-                          <div key={areaName}>
+                          <div key={areaName} style={{ minWidth: 0 }}>
                             {areaName !== 'General' && (
                               <div style={{ fontSize: 12.5, fontWeight: 700, color: NAVY, marginBottom: 8 }}>{areaName}</div>
                             )}
                             <div style={{ display: 'flex', fontSize: 10, fontWeight: 600, color: '#bbb', textTransform: 'uppercase', paddingBottom: 6, borderBottom: '1px solid #f0f0f0', marginBottom: 8 }}>
-                              <span style={{ flex: 1 }}>Items</span>
-                              <span style={{ width: 60, textAlign: 'right' }}>Precio</span>
-                              <span style={{ width: 30, textAlign: 'center' }}>Cant</span>
-                              <span style={{ width: 70, textAlign: 'right' }}>Total</span>
+                              <span style={{ flex: 1, minWidth: 0 }}>Items</span>
+                              <span style={{ width: 60, flexShrink: 0, textAlign: 'right' }}>Precio</span>
+                              <span style={{ width: 30, flexShrink: 0, textAlign: 'center' }}>Cant</span>
+                              <span style={{ width: 70, flexShrink: 0, textAlign: 'right' }}>Total</span>
                             </div>
                             <div style={{ display: 'grid', gap: 10 }}>
                               {areaItems.map(it => (
@@ -167,13 +167,13 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                                       <span style={{ fontSize: 13 }}>{it.item_type === 'product' ? '📦' : '🔧'}</span>
                                     )}
                                   </div>
-                                  <span style={{ fontSize: 12.5, color: '#555', flex: 1 }}>
+                                  <span style={{ fontSize: 12.5, color: '#555', flex: 1, minWidth: 0 }}>
                                     {it.title && <div style={{ fontWeight: 700, color: '#333' }}>{it.title}</div>}
                                     <div style={{ whiteSpace: 'pre-wrap' }}>{it.description}</div>
                                   </span>
-                                  <span style={{ width: 60, textAlign: 'right', fontSize: 12, color: '#999' }}>{fmt(it.unit_price)}</span>
-                                  <span style={{ width: 30, textAlign: 'center', fontSize: 12, color: '#999' }}>x{it.quantity}</span>
-                                  <span style={{ width: 70, textAlign: 'right', fontSize: 13, fontWeight: 600, color: NAVY }}>{fmt(lineTotal(it))}</span>
+                                  <span style={{ width: 60, flexShrink: 0, textAlign: 'right', fontSize: 12, color: '#999' }}>{fmt(it.unit_price)}</span>
+                                  <span style={{ width: 30, flexShrink: 0, textAlign: 'center', fontSize: 12, color: '#999' }}>x{it.quantity}</span>
+                                  <span style={{ width: 70, flexShrink: 0, textAlign: 'right', fontSize: 13, fontWeight: 600, color: NAVY }}>{fmt(lineTotal(it))}</span>
                                 </div>
                               ))}
                             </div>
@@ -207,7 +207,9 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                 </button>
               </div>
               <div id="proposal-doc-public" style={{ background: '#fff', borderRadius: 10, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>
-                <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} />
+                <div style={{ overflowX: 'auto' }}>
+                  <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} />
+                </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <button onClick={() => setStep(0)} style={backBtnStyle}>← Atrás</button>

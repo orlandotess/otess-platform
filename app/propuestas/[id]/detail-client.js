@@ -552,7 +552,9 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
               );
             })()}
             <div id={`proposal-doc-${opt.id}`} className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} />
+              <div style={{ overflowX: 'auto' }}>
+                <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} />
+              </div>
             </div>
           </div>
         ))}
@@ -563,7 +565,9 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         if (!opt) return null;
         return (
           <div id={`${extraPreview.mode}-doc-${opt.id}`} className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} mode={extraPreview.mode} />
+            <div style={{ overflowX: 'auto' }}>
+              <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} mode={extraPreview.mode} />
+            </div>
           </div>
         );
       })()}
