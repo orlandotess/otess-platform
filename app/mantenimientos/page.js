@@ -4,8 +4,10 @@ export const revalidate = 0;
 import { supabaseServer as supabase } from '../../lib/supabase';
 import Sidebar from '../Sidebar';
 import MantenimientosClient from './MantenimientosClient';
+import { getTranslations } from 'next-intl/server';
 
 export default async function MantenimientosPage() {
+  const t = await getTranslations('mantenimientos.list');
   const { data: recurring } = await supabase
     .from('recurring_maintenances')
     .select('*, clients(id, name), technicians(id, name), recurring_maintenance_technicians(technician_id, technicians(id, name)), recurring_maintenance_items(id, text, sort_order)')
@@ -32,8 +34,8 @@ export default async function MantenimientosPage() {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Mantenimientos recurrentes</div>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>Visitas periódicas a clientes con checklist automático (ej. verificar cámaras el día 1 de cada mes)</p>
+            <div className="page-title">{t('title')}</div>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>{t('subtitle')}</p>
           </div>
         </div>
 

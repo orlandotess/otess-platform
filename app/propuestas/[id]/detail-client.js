@@ -8,13 +8,18 @@ import ProposalDocument, { financialBreakdown, profitBreakdown } from '../Propos
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { exportProposalDataCSV } from '../../propuestaDataCsv';
 import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
+import { useTranslations, useLocale } from 'next-intl';
 
 const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', cambios_requeridos: 'badge-amber', expirada: 'badge-gray', aprobada: 'badge-green', rechazada: 'badge-red', completada: 'badge-dark' };
-const STATUS_LABELS = { borrador: 'Borrador', enviada: 'Enviada', vista: 'Vista', cambios_requeridos: 'Cambios requeridos', expirada: 'Expirada', aprobada: 'Aprobada', rechazada: 'Rechazada', completada: 'Completada' };
 const STATUS_ORDER = ['borrador', 'enviada', 'vista', 'cambios_requeridos', 'expirada', 'aprobada', 'rechazada', 'completada'];
+const STATUS_KEYS = new Set(STATUS_ORDER);
 
 export default function PropuestaDetailClient({ proposal, options, taxRules, payments, paymentRequests, companyInfo, primaryAddress, property }) {
   const router = useRouter();
+  const t = useTranslations('propuestas.detailClient');
+  const tProposalDataCsv = useTranslations('shared.propuestaDataCsv');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
   const [status, setStatus] = useState(proposal.status);
@@ -90,12 +95,12 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         body: JSON.stringify({ proposalId: proposal.id }),
       });
       const data = await res.json();
-      if (data.error) { alert('Error: ' + data.error); return; }
+      if (data.error) { alert(t('errorWithMessage', { error: data.error })); return; }
       setStatus('enviada');
       if (data.warning) alert(data.warning);
       router.refresh();
     } catch (err) {
-      alert('Error al enviar la propuesta: ' + err.message);
+      alert(t('sendError', { error: err.message }));
     } finally {
       setSending(false);
     }
@@ -105,7 +110,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     setChangingStatus(true);
     const { error } = await supabase.from('proposals').update({ status: newStatus }).eq('id', proposal.id);
     setChangingStatus(false);
-    if (error) { alert('Error al cambiar el estado: ' + error.message); return; }
+    if (error) { alert(t('changeStatusError', { error: error.message })); return; }
     setStatus(newStatus);
     setStatusMenuOpen(false);
     setMenuOpen(false);
@@ -125,7 +130,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
       const { data: newProposal, error: propErr } = await supabase.from('proposals').insert([{
         proposal_number: `PROP-${nextNum}`,
         client_id: proposal.client_id,
-        title: `${proposal.title} (copia)`,
+        title: t('cloneTitleSuffix', { title: proposal.title }),
         prepared_by: proposal.prepared_by,
         intro_note: proposal.intro_note,
         project_description: proposal.project_description,
@@ -212,7 +217,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
 
       router.push(`/propuestas/${newProposal.id}`);
     } catch (err) {
-      alert('Error al clonar la propuesta: ' + err.message);
+      alert(t('cloneError', { error: err.message }));
       setCloning(false);
     }
   }
@@ -222,7 +227,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     const newValue = archivedAt ? null : new Date().toISOString();
     const { error } = await supabase.from('proposals').update({ archived_at: newValue }).eq('id', proposal.id);
     setArchiving(false);
-    if (error) { alert('Error al archivar la propuesta: ' + error.message); return; }
+    if (error) { alert(t('archiveError', { error: error.message })); return; }
     setArchivedAt(newValue);
     setMenuOpen(false);
     router.refresh();
@@ -243,14 +248,14 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         body: JSON.stringify({ proposalId: proposal.id, paymentId: payment.id, amount, label: payment.label }),
       });
       const data = await res.json();
-      if (data.error) { alert('Error: ' + data.error); return; }
+      if (data.error) { alert(t('errorWithMessage', { error: data.error })); return; }
       if (data.warning) alert(data.warning);
       setRequests(prev => {
         const exists = prev.some(r => r.payment_id === payment.id);
         return exists ? prev.map(r => r.payment_id === payment.id ? data.record : r) : [...prev, data.record];
       });
     } catch (err) {
-      alert('Error al solicitar el pago: ' + err.message);
+      alert(t('requestPaymentError', { error: err.message }));
     } finally {
       setRequestingId(null);
     }
@@ -259,7 +264,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   async function marcarPagado(requestId) {
     const now = new Date().toISOString();
     const { error } = await supabase.from('proposal_payment_requests').update({ status: 'pagado', paid_at: now }).eq('id', requestId);
-    if (error) { alert('Error al marcar como pagado: ' + error.message); return; }
+    if (error) { alert(t('markPaidError', { error: error.message })); return; }
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'pagado', paid_at: now } : r));
   }
 
@@ -283,13 +288,13 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         sourceLabel: `${proposal.proposal_number} — ${proposal.title}`,
       });
       if (reason === 'no-items') {
-        alert('No hay productos con proveedor asignado en esta opción.');
+        alert(t('noSupplierItems'));
       } else {
-        alert(`${orders.length} orden(es) de compra generada(s).`);
+        alert(t('poGenerated', { count: orders.length }));
         router.push('/compras');
       }
     } catch (err) {
-      alert('Error al generar la orden de compra: ' + err.message);
+      alert(t('generatePOError', { error: err.message }));
     } finally {
       setGeneratingPO(false);
       setMenuOpen(false);
@@ -308,7 +313,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     const { error } = await supabase.from('proposals').delete().eq('id', proposal.id);
     if (error) {
       setDeleting(false);
-      alert('No se pudo eliminar la propuesta: ' + error.message);
+      alert(t('deleteError', { error: error.message }));
       return;
     }
     window.location.href = '/propuestas';
@@ -325,20 +330,20 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         </div>
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
           <span className={`badge ${STATUS_BADGE[status] ?? 'badge-gray'}`}>
-            {STATUS_LABELS[status] ?? status}
+            {STATUS_KEYS.has(status) ? t(`status.${status}`) : status}
           </span>
-          {archivedAt && <span className="badge badge-gray">📦 Archivada</span>}
+          {archivedAt && <span className="badge badge-gray">📦 {t('archivedBadge')}</span>}
           {['borrador', 'enviada', 'vista', 'cambios_requeridos'].includes(status) && (
-            <Link href={`/propuestas/${proposal.id}/editar`} className="btn btn-ghost">✏️ Editar</Link>
+            <Link href={`/propuestas/${proposal.id}/editar`} className="btn btn-ghost">✏️ {t('editLink')}</Link>
           )}
           {status === 'borrador' && (
             <button className="btn btn-primary" disabled={sending} onClick={handleSend}>
-              {sending ? 'Enviando...' : 'Enviar propuesta'}
+              {sending ? t('sendingLabel') : t('sendProposal')}
             </button>
           )}
           {!['borrador', 'aprobada', 'rechazada', 'completada'].includes(status) && (
             <button className="btn btn-ghost" disabled={sending} onClick={handleSend}>
-              {sending ? 'Enviando...' : '↻ Reenviar propuesta'}
+              {sending ? t('sendingLabel') : `↻ ${t('resendProposal')}`}
             </button>
           )}
           <div style={{ position: 'relative' }}>
@@ -349,63 +354,63 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                 <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 4, minWidth: 210, whiteSpace: 'nowrap' }}>
                   {status !== 'borrador' && (
                     <button type="button" onClick={() => { copyLink(); setMenuOpen(false); }} style={menuItemStyle}>
-                      {copied ? '✓ Copiado' : '🔗 Copiar link del cliente'}
+                      {copied ? `✓ ${t('copiedLabel')}` : `🔗 ${t('copyClientLink')}`}
                     </button>
                   )}
                   {status !== 'borrador' && (
                     <button type="button" onClick={() => { window.open(publicUrl, '_blank'); setMenuOpen(false); }} style={menuItemStyle}>
-                      👁 Vista previa
+                      👁 {t('previewLink')}
                     </button>
                   )}
                   {proposal.approved_option_id && (
                     <button type="button" disabled={generatingPO} onClick={generarOrdenCompra} style={menuItemStyle}>
-                      {generatingPO ? '⏳ Generando...' : '📦 Generar orden de compra'}
+                      {generatingPO ? `⏳ ${t('generatingLabel')}` : `📦 ${t('generatePO')}`}
                     </button>
                   )}
                   <button type="button" disabled={cloning} onClick={cloneProposal} style={menuItemStyle}>
-                    {cloning ? '⏳ Clonando...' : '📄 Clonar propuesta'}
+                    {cloning ? `⏳ ${t('cloningLabel')}` : `📄 ${t('cloneProposalBtn')}`}
                   </button>
                   <button type="button" disabled={archiving} onClick={toggleArchive} style={menuItemStyle}>
-                    {archiving ? '⏳ Guardando...' : archivedAt ? '📤 Desarchivar' : '📦 Archivar'}
+                    {archiving ? `⏳ ${t('savingLabel')}` : archivedAt ? `📤 ${t('unarchive')}` : `📦 ${t('archive')}`}
                   </button>
                   <div style={{ position: 'relative' }}>
                     <button type="button" onClick={() => setStatusMenuOpen(o => !o)} style={menuItemStyle}>
-                      🏷 Cambiar estado
+                      🏷 {t('changeStatusMenu')}
                     </button>
                     {statusMenuOpen && (
                       <div style={{ position: 'absolute', top: 0, right: '100%', marginRight: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 4, minWidth: 170 }}>
                         {STATUS_ORDER.filter(s => s !== status).map(s => (
                           <button key={s} type="button" disabled={changingStatus} onClick={() => changeStatus(s)} style={menuItemStyle}>
-                            <span className={`badge ${STATUS_BADGE[s]}`} style={{ marginRight: 6 }}>{STATUS_LABELS[s]}</span>
+                            <span className={`badge ${STATUS_BADGE[s]}`} style={{ marginRight: 6 }}>{STATUS_KEYS.has(s) ? t(`status.${s}`) : s}</span>
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
                   <div style={{ borderTop: status !== 'borrador' ? '1px solid var(--border)' : 'none', marginTop: status !== 'borrador' ? 4 : 0, paddingTop: status !== 'borrador' ? 4 : 0 }}>
-                    <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Descargar PDF</div>
+                    <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('downloadPdfHeader')}</div>
                     {options.map(opt => (
                       <button key={opt.id} type="button" disabled={generatingPdf === opt.id} onClick={() => handlePdf(opt.id)} style={menuItemStyle}>
-                        {generatingPdf === opt.id ? '⏳ Generando...' : `🖨️ Cliente — ${opt.name}`}
+                        {generatingPdf === opt.id ? `⏳ ${t('generatingLabel')}` : `🖨️ ${t('clientPdf', { name: opt.name })}`}
                       </button>
                     ))}
                     {options.map(opt => (
                       <button key={`inv-${opt.id}`} type="button" disabled={generatingPdf === `invoice-${opt.id}`} onClick={() => handleExtraPdf('invoice', opt.id, 'Factura')} style={menuItemStyle}>
-                        {generatingPdf === `invoice-${opt.id}` ? '⏳ Generando...' : `🧾 Factura — ${opt.name}`}
+                        {generatingPdf === `invoice-${opt.id}` ? `⏳ ${t('generatingLabel')}` : `🧾 ${t('invoicePdf', { name: opt.name })}`}
                       </button>
                     ))}
                     {options.map(opt => (
                       <button key={`inst-${opt.id}`} type="button" disabled={generatingPdf === `installer-${opt.id}`} onClick={() => handleExtraPdf('installer', opt.id, 'Instalador')} style={menuItemStyle}>
-                        {generatingPdf === `installer-${opt.id}` ? '⏳ Generando...' : `🔧 Instalador — ${opt.name}`}
+                        {generatingPdf === `installer-${opt.id}` ? `⏳ ${t('generatingLabel')}` : `🔧 ${t('installerPdf', { name: opt.name })}`}
                       </button>
                     ))}
                     {options.map(opt => (
                       <button key={`pick-${opt.id}`} type="button" disabled={generatingPdf === `picklist-${opt.id}`} onClick={() => handleExtraPdf('picklist', opt.id, 'PickList')} style={menuItemStyle}>
-                        {generatingPdf === `picklist-${opt.id}` ? '⏳ Generando...' : `📋 Pick List — ${opt.name}`}
+                        {generatingPdf === `picklist-${opt.id}` ? `⏳ ${t('generatingLabel')}` : `📋 ${t('pickListPdf', { name: opt.name })}`}
                       </button>
                     ))}
-                    <button type="button" onClick={() => { exportProposalDataCSV(options, proposal.proposal_number); setMenuOpen(false); }} style={menuItemStyle}>
-                      📊 CSV — Datos de propuesta
+                    <button type="button" onClick={() => { exportProposalDataCSV(options, proposal.proposal_number, tProposalDataCsv); setMenuOpen(false); }} style={menuItemStyle}>
+                      📊 {t('csvExport')}
                     </button>
                   </div>
                 </div>
@@ -419,14 +424,14 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar propuesta?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteModal.title')}</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteModal.body')}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteProposal} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                {deleting ? t('deleting') : `🗑 ${t('deleteModal.confirm')}`}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>{t('cancel')}</button>
             </div>
           </div>
         </div>
@@ -435,46 +440,46 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
       {status !== 'borrador' && (
         <div className="card" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Link público</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{t('publicLinkLabel')}</div>
             <div style={{ fontSize: 13, color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{publicUrl}</div>
           </div>
-          <button className="btn btn-ghost" onClick={copyLink}>{copied ? 'Copiado' : 'Copiar link'}</button>
+          <button className="btn btn-ghost" onClick={copyLink}>{copied ? t('copiedShort') : t('copyLink')}</button>
         </div>
       )}
 
       {proposal.intro_note && (
         <div className="card" style={{ marginBottom: 20 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Nota para el cliente</p>
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{t('introNoteLabel')}</p>
           <p style={{ fontSize: 14, margin: 0 }}>{proposal.intro_note}</p>
         </div>
       )}
 
       {proposal.project_description && (
         <div className="card" style={{ marginBottom: 20 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Descripción del proyecto (interno, no visible al cliente)</p>
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{t('projectDescriptionLabel')}</p>
           <p style={{ fontSize: 14, margin: 0, whiteSpace: 'pre-line' }}>{proposal.project_description}</p>
         </div>
       )}
 
       {proposal.requires_signature && (
         <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid var(--amber)', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: 'var(--navy)' }}>
-          Esta propuesta requiere firma del cliente para aprobarse.
+          {t('requiresSignatureNote')}
         </div>
       )}
 
       {proposal.status === 'aprobada' && (
         <div style={{ border: '1px solid var(--border)', borderLeft: '3px solid var(--ok)', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: 'var(--ok)' }}>
           {proposal.approved_option_id && (
-            <div>Opción elegida: <strong>{options.find(o => o.id === proposal.approved_option_id)?.name ?? '—'}</strong></div>
+            <div>{t('chosenOptionLabel')} <strong>{options.find(o => o.id === proposal.approved_option_id)?.name ?? '—'}</strong></div>
           )}
           {proposal.signed_name && (
             <div style={{ marginTop: proposal.approved_option_id ? 4 : 0 }}>
-              Firmada por <strong>{proposal.signed_name}</strong> el {formatDateTimePR(proposal.signed_at)}
+              {t('signedByPrefix')} <strong>{proposal.signed_name}</strong> {t('signedByDate', { date: formatDateTimePR(proposal.signed_at, {}, dateLocale) })}
             </div>
           )}
           {proposal.approved_at && (
             <div style={{ marginTop: 4, fontSize: 12, color: 'var(--ink-faint)' }}>
-              Aprobada el {formatDateTimePR(proposal.approved_at)}
+              {t('approvedOnLabel', { date: formatDateTimePR(proposal.approved_at, {}, dateLocale) })}
             </div>
           )}
         </div>
@@ -487,7 +492,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
         const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
         return (
           <div className="card" style={{ marginBottom: 20 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>Solicitudes de pago (interno, no visible al cliente)</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>{t('paymentRequestsLabel')}</p>
             <div style={{ display: 'grid', gap: 10 }}>
               {payments.map(p => {
                 const amount = (basisAmount[p.basis] ?? 0) * (p.percent / 100);
@@ -498,20 +503,20 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                       <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.label}</div>
                       <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                         {fmt(amount)}
-                        {req?.status === 'pagado' && ` · Pagado el ${formatDatePR(req.paid_at)}`}
-                        {req?.status === 'solicitado' && ` · Solicitado el ${formatDatePR(req.requested_at)}`}
+                        {req?.status === 'pagado' && ` · ${t('paidOnSuffix', { date: formatDatePR(req.paid_at, {}, dateLocale) })}`}
+                        {req?.status === 'solicitado' && ` · ${t('requestedOnSuffix', { date: formatDatePR(req.requested_at, {}, dateLocale) })}`}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       {req?.status === 'pagado' ? (
-                        <span className="badge badge-green">Pagado</span>
+                        <span className="badge badge-green">{t('paidBadge')}</span>
                       ) : (
                         <>
                           <button className="btn btn-ghost" disabled={requestingId === p.id} onClick={() => solicitarPago(p, amount)}>
-                            {requestingId === p.id ? 'Enviando...' : req ? '↻ Reenviar solicitud' : 'Solicitar pago'}
+                            {requestingId === p.id ? t('sendingLabel') : req ? `↻ ${t('resendRequest')}` : t('requestPayment')}
                           </button>
                           {req && (
-                            <button className="btn btn-ghost" onClick={() => marcarPagado(req.id)}>Marcar pagado</button>
+                            <button className="btn btn-ghost" onClick={() => marcarPagado(req.id)}>{t('markPaid')}</button>
                           )}
                         </>
                       )}
@@ -530,23 +535,23 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div>
                 <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{opt.name}</span>
-                {opt.is_recommended && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--amber)' }}>RECOMENDADA</span>}
-                {proposal.approved_option_id === opt.id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--ok)' }}>ELEGIDA POR CLIENTE</span>}
+                {opt.is_recommended && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--amber)' }}>{t('recommendedBadge')}</span>}
+                {proposal.approved_option_id === opt.id && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: 'var(--ok)' }}>{t('chosenByClientBadge')}</span>}
                 <span style={{ marginLeft: 12, fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{fmt(optionTotal(opt))}</span>
               </div>
-              {generatingPdf === opt.id && <span style={{ fontSize: 12, color: 'var(--muted)' }}>⏳ Generando PDF...</span>}
+              {generatingPdf === opt.id && <span style={{ fontSize: 12, color: 'var(--muted)' }}>⏳ {t('generatingPdfLabel')}</span>}
             </div>
             {opt.description && <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>{opt.description}</p>}
             {(() => {
               const pb = profitBreakdown(opt.items);
               return (
                 <div className="card" style={{ marginBottom: 12, background: 'var(--surface-2)' }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Profit Analysis (interno, no visible al cliente)</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{t('profitAnalysisLabel')}</p>
                   <div style={{ display: 'flex', gap: 24, fontSize: 13, flexWrap: 'wrap' }}>
-                    <div><span style={{ color: 'var(--muted)' }}>Venta: </span><strong>{fmt(pb.sell)}</strong></div>
-                    <div><span style={{ color: 'var(--muted)' }}>Costo: </span><strong>{fmt(pb.cost)}</strong></div>
-                    <div><span style={{ color: 'var(--muted)' }}>Ganancia: </span><strong>{fmt(pb.profit)}</strong></div>
-                    <div><span style={{ color: 'var(--muted)' }}>Margen: </span><strong>{pb.marginPct != null ? `${pb.marginPct.toFixed(1)}%` : '—'}</strong></div>
+                    <div><span style={{ color: 'var(--muted)' }}>{t('saleLabel')} </span><strong>{fmt(pb.sell)}</strong></div>
+                    <div><span style={{ color: 'var(--muted)' }}>{t('costLabel')} </span><strong>{fmt(pb.cost)}</strong></div>
+                    <div><span style={{ color: 'var(--muted)' }}>{t('profitLabel')} </span><strong>{fmt(pb.profit)}</strong></div>
+                    <div><span style={{ color: 'var(--muted)' }}>{t('marginLabel')} </span><strong>{pb.marginPct != null ? `${pb.marginPct.toFixed(1)}%` : '—'}</strong></div>
                   </div>
                 </div>
               );

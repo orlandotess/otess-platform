@@ -2,6 +2,7 @@ import { supabaseServer as supabase } from '../lib/supabase';
 import { getCurrentRole } from '../lib/supabase-server';
 import Link from 'next/link';
 import DashboardWeekItems from './DashboardWeekItems';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 const TECH_COLORS = [
   '#16223d', '#e0972c', '#27ae60', '#2a4cb5', '#e05c2a',
@@ -9,6 +10,10 @@ const TECH_COLORS = [
 ];
 
 export default async function DashboardCalendarWidget() {
+  const t = await getTranslations('home.calendarWidget');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+
   // Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
   // admin/timesheet, accounting/payroll, and accounting/facturas) so
   // "today" — and the default week/month shown — doesn't roll over up to
@@ -83,11 +88,11 @@ export default async function DashboardCalendarWidget() {
   const techColors = {};
   // Hashed by ID rather than array index so a technician keeps the same color
   // even after others are added/removed/reordered in the technicians table.
-  techs.forEach((t) => {
+  techs.forEach((tech) => {
     let hash = 0;
-    const id = String(t.id);
+    const id = String(tech.id);
     for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-    techColors[t.id] = TECH_COLORS[hash % TECH_COLORS.length];
+    techColors[tech.id] = TECH_COLORS[hash % TECH_COLORS.length];
   });
 
   const today = now.toISOString().slice(0, 10);
@@ -100,13 +105,13 @@ export default async function DashboardCalendarWidget() {
   });
   const weekVisits = allVisits.filter(v => inWeek(v.scheduled_at?.slice(0, 10)));
   const weekEvents = allEvents.filter(e => inWeek(e.start_at?.slice(0, 10)));
-  const weekTasks = allTasks.filter(t => inWeek(t.due_at?.slice(0, 10)));
+  const weekTasks = allTasks.filter(task => inWeek(task.due_at?.slice(0, 10)));
   const weekAbsences = allAbsences.filter(a => inWeek(a.date));
 
   const fmtRangeLabel = (start, end) => {
     const sameMonth = start.getUTCMonth() === end.getUTCMonth();
-    const startLabel = start.toLocaleDateString('es-PR', { day: 'numeric', month: sameMonth ? undefined : 'short', timeZone: 'UTC' });
-    const endLabel = end.toLocaleDateString('es-PR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    const startLabel = start.toLocaleDateString(dateLocale, { day: 'numeric', month: sameMonth ? undefined : 'short', timeZone: 'UTC' });
+    const endLabel = end.toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
     return `${startLabel} – ${endLabel}`;
   };
   const weekRangeLabel = fmtRangeLabel(weekStartDate, weekEndDate);
@@ -145,18 +150,19 @@ export default async function DashboardCalendarWidget() {
   allJobs.forEach(j => addRange(j.scheduled_start, j.scheduled_end, j.technician_id));
   allVisits.forEach(v => addRange(v.scheduled_at, v.scheduled_at, v.technician_id));
   allEvents.forEach(e => addRange(e.start_at, e.end_at, e.technician_id));
-  allTasks.forEach(t => addRange(t.due_at, t.due_at, t.technician_id));
+  allTasks.forEach(task => addRange(task.due_at, task.due_at, task.technician_id));
   allAbsences.forEach(a => addRange(a.date, a.date, a.technician_id));
 
-  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const rawMonthName = new Date(Date.UTC(year, month, 1)).toLocaleString(dateLocale, { month: 'long', timeZone: 'UTC' });
+  const monthLabel = rawMonthName.charAt(0).toUpperCase() + rawMonthName.slice(1);
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>📅 Calendario — {months[month]} {year}</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>📅 {t('calendarTitle', { month: monthLabel, year })}</h2>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Link href="/calendario?view=week" className="btn btn-ghost" style={{ fontSize: 13, padding: '7px 14px' }}>Ver semana →</Link>
-          <Link href="/calendario" className="btn btn-ghost" style={{ fontSize: 13, padding: '7px 14px' }}>Ver completo →</Link>
+          <Link href="/calendario?view=week" className="btn btn-ghost" style={{ fontSize: 13, padding: '7px 14px' }}>{t('viewWeek')}</Link>
+          <Link href="/calendario" className="btn btn-ghost" style={{ fontSize: 13, padding: '7px 14px' }}>{t('viewFull')}</Link>
         </div>
       </div>
 
@@ -164,8 +170,8 @@ export default async function DashboardCalendarWidget() {
         {/* Mini calendar */}
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 2 }}>
-            {['D','L','M','X','J','V','S'].map(d => (
-              <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--muted)', padding: '4px 0' }}>{d}</div>
+            {['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map(d => (
+              <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--muted)', padding: '4px 0' }}>{t(`weekdayLetters.${d}`)}</div>
             ))}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
@@ -193,10 +199,10 @@ export default async function DashboardCalendarWidget() {
           </div>
           {techs.length > 0 && (
             <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-              {techs.map(t => (
-                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)' }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: techColors[t.id] }} />
-                  {t.name}
+              {techs.map(tech => (
+                <div key={tech.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)' }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: techColors[tech.id] }} />
+                  {tech.name}
                 </div>
               ))}
             </div>
@@ -206,7 +212,7 @@ export default async function DashboardCalendarWidget() {
         {/* This week's items */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Esta semana</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('thisWeek')}</div>
             <div style={{ fontSize: 11, color: 'var(--muted)' }}>{weekRangeLabel}</div>
           </div>
           <DashboardWeekItems

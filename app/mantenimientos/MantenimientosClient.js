@@ -2,27 +2,31 @@
 import { useState } from 'react';
 import MantenimientoForm from './MantenimientoForm';
 import MantenimientoActions from './MantenimientoActions';
+import { useTranslations, useLocale } from 'next-intl';
 
-const FREQ_LABELS = { weekly: 'Semanal', monthly: 'Mensual', quarterly: 'Trimestral', yearly: 'Anual' };
-const DOW_LABELS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const DOW_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-function cadenceLabel(r) {
+function cadenceLabel(r, t) {
+  const dowLabels = DOW_KEYS.map(k => t(`dow.${k}`));
+  const freqLabels = { weekly: t('frequency.weekly'), monthly: t('frequency.monthly'), quarterly: t('frequency.quarterly'), yearly: t('frequency.yearly') };
   return r.frequency === 'weekly'
-    ? `Cada ${DOW_LABELS[r.day_of_week] ?? ''}`
-    : `${FREQ_LABELS[r.frequency] ?? r.frequency} · día ${r.day_of_month}`;
+    ? t('cadenceWeekly', { day: dowLabels[r.day_of_week] ?? '' })
+    : t('cadenceOther', { freq: freqLabels[r.frequency] ?? r.frequency, day: r.day_of_month });
 }
 
-function technicianNames(r) {
-  const names = [r.technicians?.name, ...(r.recurring_maintenance_technicians ?? []).map(t => t.technicians?.name)].filter(Boolean);
-  return names.length ? names.join(', ') : '— Sin asignar —';
+function technicianNames(r, t) {
+  const names = [r.technicians?.name, ...(r.recurring_maintenance_technicians ?? []).map(rmt => rmt.technicians?.name)].filter(Boolean);
+  return names.length ? names.join(', ') : t('noTechniciansAssigned');
 }
 
 export default function MantenimientosClient({ recurring: initial, technicians, clients, clientProperties }) {
+  const t = useTranslations('mantenimientos.listClient');
+  const locale = useLocale();
   const [rows, setRows] = useState(initial);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
 
-  const fmtDate = d => new Date(d + 'T00:00:00').toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtDate = d => new Date(d + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : 'es-PR', { month: 'short', day: 'numeric', year: 'numeric' });
 
   function handleSaved(row) {
     setRows(prev => {
@@ -52,7 +56,7 @@ export default function MantenimientosClient({ recurring: initial, technicians, 
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
         {!formOpen && (
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Nuevo mantenimiento recurrente</button>
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ {t('newMaintenance')}</button>
         )}
       </div>
 
@@ -69,20 +73,20 @@ export default function MantenimientosClient({ recurring: initial, technicians, 
 
       <div className="card" style={{ padding: rows.length === 0 ? undefined : 0 }}>
         {rows.length === 0 ? (
-          <div className="empty"><p>No hay mantenimientos recurrentes todavía.</p></div>
+          <div className="empty"><p>{t('empty')}</p></div>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>Cliente</th>
-                  <th>Título</th>
-                  <th>Técnicos</th>
-                  <th>Frecuencia</th>
-                  <th>Próxima visita</th>
-                  <th>Checklist</th>
-                  <th>Estado</th>
+                  <th>{t('table.number')}</th>
+                  <th>{t('table.client')}</th>
+                  <th>{t('table.title')}</th>
+                  <th>{t('table.technicians')}</th>
+                  <th>{t('table.frequency')}</th>
+                  <th>{t('table.nextVisit')}</th>
+                  <th>{t('table.checklist')}</th>
+                  <th>{t('table.status')}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -92,11 +96,11 @@ export default function MantenimientosClient({ recurring: initial, technicians, 
                     <td style={{ color: 'var(--muted)', fontSize: 13, whiteSpace: 'nowrap' }}>{r.maintenance_number ?? '—'}</td>
                     <td style={{ fontWeight: 600 }}>{r.clients?.name ?? '—'}</td>
                     <td>{r.title}</td>
-                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{technicianNames(r)}</td>
-                    <td style={{ fontSize: 13 }}>{cadenceLabel(r)}</td>
+                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{technicianNames(r, t)}</td>
+                    <td style={{ fontSize: 13 }}>{cadenceLabel(r, t)}</td>
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>{fmtDate(r.next_run_date)}</td>
-                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{(r.recurring_maintenance_items ?? []).length} ítem{(r.recurring_maintenance_items ?? []).length === 1 ? '' : 's'}</td>
-                    <td><span className="badge" style={{ color: r.active ? 'var(--ok)' : 'var(--ink-faint)' }}>{r.active ? 'Activo' : 'Pausado'}</span></td>
+                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{t('itemCount', { count: (r.recurring_maintenance_items ?? []).length })}</td>
+                    <td><span className="badge" style={{ color: r.active ? 'var(--ok)' : 'var(--ink-faint)' }}>{r.active ? t('active') : t('paused')}</span></td>
                     <td style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                       <button onClick={() => startEdit(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>✏️</button>
                       <MantenimientoActions id={r.id} active={r.active} onToggled={handleToggled} onDeleted={handleDeleted} />

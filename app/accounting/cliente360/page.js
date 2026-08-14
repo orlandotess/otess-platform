@@ -5,8 +5,10 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import Cliente360Client from './Cliente360Client';
+import { getTranslations } from 'next-intl/server';
 
 export default async function Cliente360Page() {
+  const t = await getTranslations('accounting.cliente360');
   const [{ data: clients }, { data: invoices }, { data: payments }, { data: retenciones }] = await Promise.all([
     supabase.from('clients').select('id, name, company, client_type').order('name'),
     supabase.from('invoices').select('id, client_id, invoice_number, issued_at, status, total, subtotal_labor, tax_labor, subtotal_products, tax_products, clients(name, client_type)').order('issued_at', { ascending: false }),
@@ -70,10 +72,10 @@ export default async function Cliente360Page() {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Cliente 360</div>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>Resumen financiero completo por cliente</p>
+            <div className="page-title">{t('title')}</div>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>{t('subtitle')}</p>
           </div>
-          <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+          <Link href="/accounting" className="btn btn-ghost">{t('backToDashboard')}</Link>
         </div>
 
         <Cliente360Client clientTotals={clientTotals} invoices={invs} />

@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { supabase } from '../../../lib/supabase';
 import { getEquipmentType, getElementIcon } from '../../equipmentIcons';
 import { exportEquipmentListCSV } from '../../planoEquipmentCsv';
@@ -54,6 +55,9 @@ function getAOC(marker, elementTypes) {
 
 export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, initialLayers, initialCableTypes, initialElementTypes, customIcons, currentRole, allClients = [] }) {
   const router = useRouter();
+  const t = useTranslations('planos.editor');
+  const tEquipmentCsv = useTranslations('shared.planoEquipmentCsv');
+  const tEquipmentTypes = useTranslations('shared.equipmentTypes');
   const wrapRef = useRef(null);
   const dragOriginRef = useRef(null);
   const labelOriginRef = useRef(null);
@@ -169,7 +173,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     setSavingLink(true);
     const { error } = await supabase.from('floor_plans').update({ client_id: linkClientId || null, job_id: linkJobId || null }).eq('id', plan.id);
     setSavingLink(false);
-    if (error) { alert('No se pudo guardar: ' + error.message); return; }
+    if (error) { alert(t('errors.saveLinkFailed', { error: error.message })); return; }
     const clientName = allClients.find(c => c.id === linkClientId)?.name || null;
     const jobTitle = linkJobs.find(j => j.id === linkJobId)?.title || null;
     setLinkDisplay({ clientName, jobTitle });
@@ -232,7 +236,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const points = [scalePending.a, scalePending.b];
     const { error } = await supabase.from('floor_plans').update({ scale_points: points, scale_distance_ft: feet }).eq('id', plan.id);
     setSavingScale(false);
-    if (error) { alert('No se pudo guardar la escala: ' + error.message); return; }
+    if (error) { alert(t('errors.saveScaleFailed', { error: error.message })); return; }
     setPlanState(prev => ({ ...prev, scale_points: points, scale_distance_ft: feet }));
     setScalePending(null);
     setScaleFeetInput('');
@@ -240,9 +244,9 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }
 
   async function clearScale() {
-    if (!confirm('¿Borrar la escala definida para este plano?')) return;
+    if (!confirm(t('confirms.clearScale'))) return;
     const { error } = await supabase.from('floor_plans').update({ scale_points: null, scale_distance_ft: null }).eq('id', plan.id);
-    if (error) { alert('No se pudo borrar la escala: ' + error.message); return; }
+    if (error) { alert(t('errors.clearScaleFailed', { error: error.message })); return; }
     setPlanState(prev => ({ ...prev, scale_points: null, scale_distance_ft: null }));
   }
 
@@ -330,7 +334,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     }]).select().single();
     if (error) {
       setMarkers(prev => prev.filter(m => m.id !== tempId));
-      alert('No se pudo colocar el equipo: ' + error.message);
+      alert(t('errors.placeMarkerFailed', { error: error.message }));
       return;
     }
     setMarkers(prev => prev.map(m => m.id === tempId ? data : m));
@@ -343,7 +347,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       bend_points: cableDraft.points, layer_id: activeLayerId, cable_type_id: activeCableTypeId,
     }]).select().single();
     setCableDraft(null);
-    if (error) { alert('No se pudo trazar el cable: ' + error.message); return; }
+    if (error) { alert(t('errors.createCableFailed', { error: error.message })); return; }
     setCables(prev => [...prev, data]);
   }
 
@@ -439,7 +443,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         const { error } = await supabase.from('floor_plan_markers').update({ pos_x: m.pos_x, pos_y: m.pos_y }).eq('id', m.id);
         if (error && origin) {
           setMarkers(prev => prev.map(mk => mk.id === origin.id ? { ...mk, pos_x: origin.pos_x, pos_y: origin.pos_y } : mk));
-          alert('No se pudo guardar la nueva posición, se revirtió: ' + error.message);
+          alert(t('errors.savePositionFailed', { error: error.message }));
         }
       }
     }
@@ -465,7 +469,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     }]).select().single();
     if (error) {
       setMarkers(prev => prev.filter(m => m.id !== tempId));
-      alert('No se pudo duplicar el equipo: ' + error.message);
+      alert(t('errors.duplicateMarkerFailed', { error: error.message }));
       return;
     }
     setMarkers(prev => prev.map(m => m.id === tempId ? data : m));
@@ -473,7 +477,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }
 
   async function deleteMarker(id) {
-    if (!confirm('¿Eliminar este equipo del plano? También se eliminarán sus cables.')) return;
+    if (!confirm(t('confirms.deleteMarker'))) return;
     const removedMarker = markers.find(m => m.id === id);
     const removedCables = cables.filter(c => c.from_marker_id === id || c.to_marker_id === id);
     setMarkers(prev => prev.filter(m => m.id !== id));
@@ -483,7 +487,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     if (error) {
       if (removedMarker) setMarkers(prev => [...prev, removedMarker]);
       if (removedCables.length) setCables(prev => [...prev, ...removedCables]);
-      alert('No se pudo eliminar el equipo, se restauró: ' + error.message);
+      alert(t('errors.deleteMarkerFailed', { error: error.message }));
     }
   }
 
@@ -495,7 +499,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { error } = await supabase.from('floor_plan_markers').update({ label: label || null }).eq('id', id);
     if (error) {
       setMarkers(prev => prev.map(m => m.id === id ? { ...m, label: original ?? null } : m));
-      alert('No se pudo guardar la etiqueta, se revirtió: ' + error.message);
+      alert(t('errors.saveLabelFailed', { error: error.message }));
     }
   }
 
@@ -508,7 +512,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     supabase.from('floor_plan_markers').update({ icon_scale: next }).eq('id', id).then(({ error }) => {
       if (error) {
         setMarkers(prev => prev.map(m => m.id === id ? { ...m, icon_scale: current } : m));
-        alert('No se pudo guardar el tamaño, se revirtió: ' + error.message);
+        alert(t('errors.saveSizeFailed', { error: error.message }));
       }
     });
   }
@@ -519,7 +523,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     supabase.from('floor_plan_markers').update({ custom_color }).eq('id', id).then(({ error }) => {
       if (error) {
         setMarkers(prev => prev.map(m => m.id === id ? { ...m, custom_color: original } : m));
-        alert('No se pudo cambiar el color, se revirtió: ' + error.message);
+        alert(t('errors.markerColorFailed', { error: error.message }));
       }
     });
   }
@@ -532,7 +536,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { error } = await supabase.from('floor_plan_markers').update({ model: model || null }).eq('id', id);
     if (error) {
       setMarkers(prev => prev.map(m => m.id === id ? { ...m, model: original ?? null } : m));
-      alert('No se pudo guardar el modelo, se revirtió: ' + error.message);
+      alert(t('errors.saveModelFailed', { error: error.message }));
     }
   }
 
@@ -544,7 +548,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { error } = await supabase.from('floor_plan_markers').update({ serial_number: serial_number || null }).eq('id', id);
     if (error) {
       setMarkers(prev => prev.map(m => m.id === id ? { ...m, serial_number: original ?? null } : m));
-      alert('No se pudo guardar el número de serie, se revirtió: ' + error.message);
+      alert(t('errors.saveSerialFailed', { error: error.message }));
     }
   }
 
@@ -556,7 +560,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { error } = await supabase.from('floor_plan_markers').update({ notes: notes || null }).eq('id', id);
     if (error) {
       setMarkers(prev => prev.map(m => m.id === id ? { ...m, notes: original ?? null } : m));
-      alert('No se pudo guardar la nota, se revirtió: ' + error.message);
+      alert(t('errors.saveNotesFailed', { error: error.message }));
     }
   }
 
@@ -569,7 +573,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     supabase.from('floor_plan_markers').update({ quantity: next }).eq('id', id).then(({ error }) => {
       if (error) {
         setMarkers(prev => prev.map(m => m.id === id ? { ...m, quantity: current } : m));
-        alert('No se pudo guardar la cantidad, se revirtió: ' + error.message);
+        alert(t('errors.saveQuantityFailed', { error: error.message }));
       }
     });
   }
@@ -580,17 +584,17 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const ext = file.name.split('.').pop() || 'jpg';
     const path = `marker-photos/${markerId}/${crypto.randomUUID()}.${ext}`;
     const { error: upErr } = await supabase.storage.from('floor-plan-icons').upload(path, file);
-    if (upErr) { alert('No se pudo subir la foto: ' + upErr.message); setUploadingPhoto(false); return; }
+    if (upErr) { alert(t('errors.uploadPhotoFailed', { error: upErr.message })); setUploadingPhoto(false); return; }
     const { error: updErr } = await supabase.from('floor_plan_markers').update({ photo_path: path }).eq('id', markerId);
     setUploadingPhoto(false);
-    if (updErr) { alert('No se pudo guardar la foto: ' + updErr.message); return; }
+    if (updErr) { alert(t('errors.savePhotoFailed', { error: updErr.message })); return; }
     const { data: signed } = await supabase.storage.from('floor-plan-icons').createSignedUrl(path, 3600);
     setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, photo_path: path } : m));
     setPhotoUrls(prev => ({ ...prev, [markerId]: signed?.signedUrl ?? null }));
   }
 
   async function removeMarkerPhoto(markerId) {
-    if (!confirm('¿Quitar la foto de este equipo?')) return;
+    if (!confirm(t('confirms.removePhoto'))) return;
     const marker = markerById(markerId);
     const oldPath = marker?.photo_path;
     setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, photo_path: null } : m));
@@ -598,7 +602,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { error } = await supabase.from('floor_plan_markers').update({ photo_path: null }).eq('id', markerId);
     if (error) {
       setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, photo_path: oldPath } : m));
-      alert('No se pudo quitar la foto: ' + error.message);
+      alert(t('errors.removePhotoFailed', { error: error.message }));
       return;
     }
     if (oldPath) await supabase.storage.from('floor-plan-icons').remove([oldPath]);
@@ -630,19 +634,19 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { error } = await supabase.from('floor_plan_markers').update(dbUpdates).eq('id', markerId);
     if (error && previous) {
       setMarkers(prev => prev.map(m => m.id === markerId ? previous : m));
-      alert('No se pudo guardar el área de cobertura, se revirtió: ' + error.message);
+      alert(t('errors.saveAOCFailed', { error: error.message }));
     }
   }
 
   async function deleteCable(id) {
-    if (!confirm('¿Eliminar este cable?')) return;
+    if (!confirm(t('confirms.deleteCable'))) return;
     const removedCable = cables.find(c => c.id === id);
     setCables(prev => prev.filter(c => c.id !== id));
     setSelectedCableId(null);
     const { error } = await supabase.from('floor_plan_cables').delete().eq('id', id);
     if (error) {
       if (removedCable) setCables(prev => [...prev, removedCable]);
-      alert('No se pudo eliminar el cable, se restauró: ' + error.message);
+      alert(t('errors.deleteCableFailed', { error: error.message }));
     }
   }
 
@@ -655,7 +659,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       floor_plan_id: plan.id, name: newLayerName.trim(), color, sort_order: layers.length,
     }]).select().single();
     setSavingLayer(false);
-    if (error) { alert('No se pudo crear la capa: ' + error.message); return; }
+    if (error) { alert(t('errors.createLayerFailed', { error: error.message })); return; }
     setLayers(prev => [...prev, data]);
     setActiveLayerId(data.id);
     setNewLayerName('');
@@ -673,13 +677,13 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { error } = await supabase.from('floor_plan_layers').update({ name: name.trim() }).eq('id', id);
     if (error) {
       setLayers(prev => prev.map(l => l.id === id ? { ...l, name: original ?? l.name } : l));
-      alert('No se pudo renombrar la capa, se revirtió: ' + error.message);
+      alert(t('errors.renameLayerFailed', { error: error.message }));
     }
   }
 
   async function deleteLayer(id) {
     const layer = layers.find(l => l.id === id);
-    if (!layer || !confirm(`¿Eliminar la capa "${layer.name}"? Sus equipos y cables quedarán sin capa.`)) return;
+    if (!layer || !confirm(t('confirms.deleteLayer', { name: layer.name }))) return;
     setLayers(prev => prev.filter(l => l.id !== id));
     setMarkers(prev => prev.map(m => m.layer_id === id ? { ...m, layer_id: null } : m));
     setCables(prev => prev.map(c => c.layer_id === id ? { ...c, layer_id: null } : c));
@@ -688,7 +692,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { error } = await supabase.from('floor_plan_layers').delete().eq('id', id);
     if (error) {
       setLayers(prev => [...prev, layer].sort((a, b) => a.sort_order - b.sort_order));
-      alert('No se pudo eliminar la capa: ' + error.message);
+      alert(t('errors.deleteLayerFailed', { error: error.message }));
     }
   }
 
@@ -708,7 +712,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     ]);
     if (e1 || e2) {
       setLayers(layers);
-      alert('No se pudo reordenar la capa, se revirtió.');
+      alert(t('errors.reorderLayerFailed'));
     }
   }
 
@@ -726,7 +730,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     supabase.from('floor_plan_markers').update({ layer_id: layerId }).eq('id', id).then(({ error }) => {
       if (error) {
         setMarkers(prev => prev.map(m => m.id === id ? { ...m, layer_id: original } : m));
-        alert('No se pudo cambiar la capa, se revirtió: ' + error.message);
+        alert(t('errors.changeLayerFailed', { error: error.message }));
       }
     });
   }
@@ -737,7 +741,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     supabase.from('floor_plan_cables').update({ layer_id: layerId }).eq('id', id).then(({ error }) => {
       if (error) {
         setCables(prev => prev.map(c => c.id === id ? { ...c, layer_id: original } : c));
-        alert('No se pudo cambiar la capa, se revirtió: ' + error.message);
+        alert(t('errors.changeLayerFailed', { error: error.message }));
       }
     });
   }
@@ -750,10 +754,10 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   async function armPathTool(element) {
     setMode({ type: 'cable' });
     setCableDraft(null);
-    const existing = cableTypesState.find(t => t.name === element.name);
+    const existing = cableTypesState.find(ct => ct.name === element.name);
     if (existing) { setActiveCableTypeId(existing.id); return; }
     const { data, error } = await supabase.from('cable_types').insert([{ name: element.name, color: element.system_color }]).select().single();
-    if (error) { alert(`No se pudo preparar el tipo de cable "${element.name}": ` + error.message); return; }
+    if (error) { alert(t('errors.prepareCableTypeFailed', { name: element.name, error: error.message })); return; }
     setCableTypesState(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
     setActiveCableTypeId(data.id);
   }
@@ -767,7 +771,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       line_width: newCableTypeWidth, dash_style: newCableTypeDash,
     }]).select().single();
     setSavingCableType(false);
-    if (error) { alert('No se pudo crear el tipo de cable: ' + error.message); return; }
+    if (error) { alert(t('errors.createCableTypeFailed', { error: error.message })); return; }
     setCableTypesState(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
     setActiveCableTypeId(data.id);
     setNewCableTypeName('');
@@ -777,64 +781,64 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }
 
   function updateCableTypeName(id, name) {
-    setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, name } : t));
+    setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, name } : ct));
   }
   async function commitCableTypeName(id, name) {
     const original = cableTypeNameOriginRef.current;
     if (!name.trim()) {
-      setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, name: original ?? t.name } : t));
+      setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, name: original ?? ct.name } : ct));
       return;
     }
     const { error } = await supabase.from('cable_types').update({ name: name.trim() }).eq('id', id);
     if (error) {
-      setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, name: original ?? t.name } : t));
-      alert('No se pudo renombrar el tipo de cable, se revirtió: ' + error.message);
+      setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, name: original ?? ct.name } : ct));
+      alert(t('errors.renameCableTypeFailed', { error: error.message }));
     }
   }
 
   function updateCableTypeColor(id, color) {
-    const original = cableTypesState.find(t => t.id === id)?.color;
-    setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, color } : t));
+    const original = cableTypesState.find(ct => ct.id === id)?.color;
+    setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, color } : ct));
     supabase.from('cable_types').update({ color }).eq('id', id).then(({ error }) => {
       if (error) {
-        setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, color: original } : t));
-        alert('No se pudo cambiar el color, se revirtió: ' + error.message);
+        setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, color: original } : ct));
+        alert(t('errors.cableTypeColorFailed', { error: error.message }));
       }
     });
   }
 
   function updateCableTypeWidth(id, lineWidth) {
-    const original = cableTypesState.find(t => t.id === id)?.line_width;
-    setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, line_width: lineWidth } : t));
+    const original = cableTypesState.find(ct => ct.id === id)?.line_width;
+    setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, line_width: lineWidth } : ct));
     supabase.from('cable_types').update({ line_width: lineWidth }).eq('id', id).then(({ error }) => {
       if (error) {
-        setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, line_width: original } : t));
-        alert('No se pudo cambiar el grosor, se revirtió: ' + error.message);
+        setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, line_width: original } : ct));
+        alert(t('errors.saveThicknessFailed', { error: error.message }));
       }
     });
   }
 
   function updateCableTypeDash(id, dashStyle) {
-    const original = cableTypesState.find(t => t.id === id)?.dash_style;
-    setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, dash_style: dashStyle } : t));
+    const original = cableTypesState.find(ct => ct.id === id)?.dash_style;
+    setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, dash_style: dashStyle } : ct));
     supabase.from('cable_types').update({ dash_style: dashStyle }).eq('id', id).then(({ error }) => {
       if (error) {
-        setCableTypesState(prev => prev.map(t => t.id === id ? { ...t, dash_style: original } : t));
-        alert('No se pudo cambiar el patrón, se revirtió: ' + error.message);
+        setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, dash_style: original } : ct));
+        alert(t('errors.saveDashFailed', { error: error.message }));
       }
     });
   }
 
   async function deleteCableType(id) {
-    const type = cableTypesState.find(t => t.id === id);
-    if (!type || !confirm(`¿Eliminar el tipo de cable "${type.name}"? Sus cables quedarán sin tipo.`)) return;
-    setCableTypesState(prev => prev.filter(t => t.id !== id));
+    const type = cableTypesState.find(ct => ct.id === id);
+    if (!type || !confirm(t('confirms.deleteCableType', { name: type.name }))) return;
+    setCableTypesState(prev => prev.filter(ct => ct.id !== id));
     setCables(prev => prev.map(c => c.cable_type_id === id ? { ...c, cable_type_id: null } : c));
     if (activeCableTypeId === id) setActiveCableTypeId(null);
     const { error } = await supabase.from('cable_types').delete().eq('id', id);
     if (error) {
       setCableTypesState(prev => [...prev, type].sort((a, b) => a.name.localeCompare(b.name)));
-      alert('No se pudo eliminar el tipo de cable: ' + error.message);
+      alert(t('errors.deleteCableTypeFailed', { error: error.message }));
     }
   }
 
@@ -846,7 +850,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { error } = await supabase.from('floor_plan_cables').update({ label: label || null }).eq('id', id);
     if (error) {
       setCables(prev => prev.map(c => c.id === id ? { ...c, label: original ?? null } : c));
-      alert('No se pudo guardar el título, se revirtió: ' + error.message);
+      alert(t('errors.saveCableLabelFailed', { error: error.message }));
     }
   }
 
@@ -858,7 +862,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { error } = await supabase.from('floor_plan_cables').update({ description: description || null }).eq('id', id);
     if (error) {
       setCables(prev => prev.map(c => c.id === id ? { ...c, description: original ?? null } : c));
-      alert('No se pudo guardar la descripción, se revirtió: ' + error.message);
+      alert(t('errors.saveCableDescriptionFailed', { error: error.message }));
     }
   }
 
@@ -868,7 +872,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     supabase.from('floor_plan_cables').update({ cable_type_id: cableTypeId }).eq('id', id).then(({ error }) => {
       if (error) {
         setCables(prev => prev.map(c => c.id === id ? { ...c, cable_type_id: original } : c));
-        alert('No se pudo cambiar el tipo de cable, se revirtió: ' + error.message);
+        alert(t('errors.changeCableTypeFailed', { error: error.message }));
       }
     });
   }
@@ -881,21 +885,21 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const ext = iconFile.name.split('.').pop() || 'png';
     const path = `${id}/icon.${ext}`;
     const { error: upErr } = await supabase.storage.from('floor-plan-icons').upload(path, iconFile);
-    if (upErr) { alert('No se pudo subir el ícono: ' + upErr.message); setUploadingIcon(false); return; }
+    if (upErr) { alert(t('errors.uploadIconFailed', { error: upErr.message })); setUploadingIcon(false); return; }
     const { data: row, error: insErr } = await supabase.from('custom_equipment_icons')
       .insert([{ id, name: iconName.trim(), image_path: path }]).select().single();
     setUploadingIcon(false);
-    if (insErr) { alert('No se pudo guardar el ícono: ' + insErr.message); return; }
+    if (insErr) { alert(t('errors.saveIconFailed', { error: insErr.message })); return; }
     const { data: signed } = await supabase.storage.from('floor-plan-icons').createSignedUrl(path, 3600);
     setCustomIconsState(prev => [...prev, { ...row, url: signed?.signedUrl ?? null }]);
     setIconName(''); setIconFile(null); setShowIconUpload(false);
   }
 
   async function handleDeletePlan() {
-    if (!confirm(`¿Eliminar el plano "${plan.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(t('confirms.deletePlan', { name: plan.name }))) return;
     setDeleting(true);
     const { error } = await supabase.from('floor_plans').delete().eq('id', plan.id);
-    if (error) { alert('No se pudo eliminar el plano: ' + error.message); setDeleting(false); return; }
+    if (error) { alert(t('errors.deletePlanFailed', { error: error.message })); setDeleting(false); return; }
     router.push('/planos');
   }
 
@@ -924,8 +928,8 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     if (el) counts.push({ key: `el-${elementId}`, label: el.name, count: qty });
   }
   for (const [key, qty] of legacyQtyByKey) {
-    const t = getEquipmentType(key);
-    if (t) counts.push({ key: `legacy-${key}`, label: t.label, count: qty });
+    const eqType = getEquipmentType(key);
+    if (eqType) counts.push({ key: `legacy-${key}`, label: tEquipmentTypes(eqType.key), count: qty });
   }
   for (const ic of customIconsState) {
     const n = visibleMarkers.filter(m => m.custom_icon_id === ic.id).length;
@@ -934,18 +938,18 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const totalEquipment = visibleMarkers.length;
   const totalCables = visibleCables.length;
 
-  const cableColor = cable => cableTypesState.find(t => t.id === cable.cable_type_id)?.color || '#2a4cb5';
-  const cableWidth = cable => cableTypesState.find(t => t.id === cable.cable_type_id)?.line_width || 1;
+  const cableColor = cable => cableTypesState.find(ct => ct.id === cable.cable_type_id)?.color || '#2a4cb5';
+  const cableWidth = cable => cableTypesState.find(ct => ct.id === cable.cable_type_id)?.line_width || 1;
   const cableDashArray = cable => {
-    const style = cableTypesState.find(t => t.id === cable.cable_type_id)?.dash_style;
+    const style = cableTypesState.find(ct => ct.id === cable.cable_type_id)?.dash_style;
     if (style === 'dashed') return `${W * 0.006},${W * 0.004}`;
     if (style === 'dotted') return `${W * 0.0015},${W * 0.003}`;
     return undefined;
   };
   const cableCounts = [];
-  for (const t of cableTypesState) {
-    const n = visibleCables.filter(c => c.cable_type_id === t.id).length;
-    if (n > 0) cableCounts.push({ key: t.id, label: t.name, color: t.color, count: n });
+  for (const ct of cableTypesState) {
+    const n = visibleCables.filter(c => c.cable_type_id === ct.id).length;
+    if (n > 0) cableCounts.push({ key: ct.id, label: ct.name, color: ct.color, count: n });
   }
   const untypedCableCount = visibleCables.filter(c => !c.cable_type_id).length;
 
@@ -972,35 +976,35 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         <div>
           <div className="page-title">{plan.name}</div>
           <div style={{ fontSize: 13, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>{[linkDisplay.clientName, linkDisplay.jobTitle].filter(Boolean).join(' — ') || 'Sin asignar'}</span>
-            <button type="button" onClick={startEditingLink} style={{ background: 'none', border: 'none', color: 'var(--amber)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>✏️ Editar</button>
+            <span>{[linkDisplay.clientName, linkDisplay.jobTitle].filter(Boolean).join(' — ') || t('header.unassigned')}</span>
+            <button type="button" onClick={startEditingLink} style={{ background: 'none', border: 'none', color: 'var(--amber)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>✏️ {t('header.editLink')}</button>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">Ver original</a>}
-          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name)}>⬇️ Exportar lista</button>
-          {canDeletePlan && <button className="btn btn-ghost" disabled={deleting} onClick={handleDeletePlan} style={{ color: 'var(--warn)' }}>Eliminar plano</button>}
-          <Link href={currentRole === 'tecnico' ? '/crew' : '/planos'} className="btn btn-ghost">← Volver</Link>
+          {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">{t('header.viewOriginal')}</a>}
+          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes)}>⬇️ {t('header.exportList')}</button>
+          {canDeletePlan && <button className="btn btn-ghost" disabled={deleting} onClick={handleDeletePlan} style={{ color: 'var(--warn)' }}>{t('header.deletePlan')}</button>}
+          <Link href={currentRole === 'tecnico' ? '/crew' : '/planos'} className="btn btn-ghost">← {t('header.back')}</Link>
         </div>
       </div>
 
       {editingLink && (
         <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', padding: 14 }}>
           <div style={{ minWidth: 260 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Cliente</label>
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>{t('linkForm.clientLabel')}</label>
             <ClientCombobox clients={allClients} value={linkClientId} onChange={id => { setLinkClientId(id); setLinkJobId(''); }} />
           </div>
           {linkJobs.length > 0 && (
             <div style={{ minWidth: 220 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Trabajo</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>{t('linkForm.jobLabel')}</label>
               <select value={linkJobId} onChange={e => setLinkJobId(e.target.value)} style={{ width: '100%' }}>
-                <option value="">— Sin asignar —</option>
+                <option value="">{t('linkForm.noJob')}</option>
                 {linkJobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
               </select>
             </div>
           )}
-          <button className="btn btn-primary" disabled={savingLink} onClick={saveLink}>{savingLink ? 'Guardando...' : 'Guardar'}</button>
-          <button className="btn btn-ghost" onClick={() => setEditingLink(false)}>Cancelar</button>
+          <button className="btn btn-primary" disabled={savingLink} onClick={saveLink}>{savingLink ? t('linkForm.saving') : t('linkForm.save')}</button>
+          <button className="btn btn-ghost" onClick={() => setEditingLink(false)}>{t('linkForm.cancel')}</button>
         </div>
       )}
 
@@ -1012,20 +1016,20 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           className="btn btn-ghost"
           style={{ fontWeight: 700, background: mode === 'select' ? 'var(--navy)' : undefined, color: mode === 'select' ? '#fff' : undefined }}
         >
-          🖱️ Seleccionar
+          🖱️ {t('toolbar.select')}
         </button>
         <button
           onClick={() => setShowAddElementPanel(s => !s)}
           className="btn btn-ghost"
           style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, background: showAddElementPanel ? 'var(--info-tint)' : undefined, border: showAddElementPanel ? '1.5px solid var(--navy)' : undefined }}
         >
-          ➕ Añadir elemento
+          ➕ {t('toolbar.addElement')}
         </button>
         {mode !== 'select' && mode.type === 'place' && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: 'var(--info-tint)', border: '1.5px solid var(--navy)', borderRadius: 6, padding: '4px 8px' }}>
-            Colocando: {mode.customIconId
+            {t('toolbar.placing', { name: mode.customIconId
               ? customIconsState.find(ic => ic.id === mode.customIconId)?.name
-              : elementTypes.find(et => et.id === mode.elementId)?.name}
+              : elementTypes.find(et => et.id === mode.elementId)?.name })}
             <button type="button" onClick={() => setMode('select')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0, lineHeight: 1 }}>×</button>
           </span>
         )}
@@ -1034,7 +1038,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           className="btn btn-ghost"
           style={{ background: mode !== 'select' && mode.type === 'cable' ? 'var(--amber-tint)' : undefined, border: mode !== 'select' && mode.type === 'cable' ? '1.5px solid var(--amber)' : undefined }}
         >
-          🔌 Cable
+          🔌 {t('toolbar.cable')}
         </button>
         <button
           onClick={() => setShowCableTypesPanel(s => !s)}
@@ -1042,18 +1046,18 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: showCableTypesPanel ? 'var(--info-tint)' : undefined, border: showCableTypesPanel ? '1.5px solid var(--navy)' : undefined }}
         >
           {activeCableTypeId && (
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: cableTypesState.find(t => t.id === activeCableTypeId)?.color, flexShrink: 0 }} />
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: cableTypesState.find(ct => ct.id === activeCableTypeId)?.color, flexShrink: 0 }} />
           )}
-          🎨 Tipos de cable {activeCableTypeId ? `· ${cableTypesState.find(t => t.id === activeCableTypeId)?.name || ''}` : ''}
+          🎨 {t('toolbar.cableTypes')} {activeCableTypeId ? `· ${cableTypesState.find(ct => ct.id === activeCableTypeId)?.name || ''}` : ''}
         </button>
-        <button className="btn btn-ghost" onClick={() => setShowIconUpload(s => !s)}>+ Importar ícono</button>
+        <button className="btn btn-ghost" onClick={() => setShowIconUpload(s => !s)}>+ {t('toolbar.importIcon')}</button>
         <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
         <button
           onClick={() => setShowLayersPanel(s => !s)}
           className="btn btn-ghost"
           style={{ fontWeight: 700, background: showLayersPanel ? 'var(--info-tint)' : undefined, border: showLayersPanel ? '1.5px solid var(--navy)' : undefined }}
         >
-          🗂️ Capas {activeLayerId ? `· ${layers.find(l => l.id === activeLayerId)?.name || ''}` : ''}
+          🗂️ {t('toolbar.layers')} {activeLayerId ? `· ${layers.find(l => l.id === activeLayerId)?.name || ''}` : ''}
         </button>
         <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
         <button
@@ -1061,7 +1065,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           className="btn btn-ghost"
           style={{ background: mode !== 'select' && mode.type === 'scale' ? 'var(--ok-tint)' : undefined, border: mode !== 'select' && mode.type === 'scale' ? '1.5px solid var(--ok)' : undefined }}
         >
-          📏 Escala {feetPerPixel ? '✓' : ''}
+          📏 {t('toolbar.scale')} {feetPerPixel ? '✓' : ''}
         </button>
       </div>
 
@@ -1094,7 +1098,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       {showCableTypesPanel && (
         <div className="card" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, width: 340, maxWidth: 'calc(100vw - 40px)', maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 8px 30px rgba(0,0,0,0.18)', padding: 12 }}>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
-            Clic en un tipo para hacerlo el tipo activo — los nuevos cables se trazan con su color. Cambia el color, nombre, grosor o patrón de línea directo aquí.
+            {t('cableTypesPanel.hint')}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div
@@ -1107,54 +1111,54 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               }}
             >
               <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2a4cb5', flexShrink: 0 }} />
-              <span style={{ fontSize: 13, flex: 1, fontStyle: 'italic', color: 'var(--muted)' }}>Sin tipo</span>
+              <span style={{ fontSize: 13, flex: 1, fontStyle: 'italic', color: 'var(--muted)' }}>{t('cableTypesPanel.noType')}</span>
             </div>
-            {cableTypesState.map(t => (
+            {cableTypesState.map(ct => (
               <div
-                key={t.id}
+                key={ct.id}
                 className="hover-row"
-                onClick={() => setActiveCableTypeId(t.id)}
+                onClick={() => setActiveCableTypeId(ct.id)}
                 style={{
                   display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
-                  background: activeCableTypeId === t.id ? 'var(--info-tint)' : undefined,
-                  border: activeCableTypeId === t.id ? '1.5px solid var(--navy)' : '1.5px solid transparent',
+                  background: activeCableTypeId === ct.id ? 'var(--info-tint)' : undefined,
+                  border: activeCableTypeId === ct.id ? '1.5px solid var(--navy)' : '1.5px solid transparent',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input
-                    type="color" value={t.color}
+                    type="color" value={ct.color}
                     onClick={e => e.stopPropagation()}
-                    onChange={e => updateCableTypeColor(t.id, e.target.value)}
+                    onChange={e => updateCableTypeColor(ct.id, e.target.value)}
                     style={{ width: 22, height: 22, padding: 0, border: 'none', borderRadius: 4, flexShrink: 0, cursor: 'pointer' }}
                   />
                   <input
-                    value={t.name}
-                    onFocus={() => { cableTypeNameOriginRef.current = t.name; }}
-                    onChange={e => updateCableTypeName(t.id, e.target.value)}
-                    onBlur={e => commitCableTypeName(t.id, e.target.value)}
+                    value={ct.name}
+                    onFocus={() => { cableTypeNameOriginRef.current = ct.name; }}
+                    onChange={e => updateCableTypeName(ct.id, e.target.value)}
+                    onBlur={e => commitCableTypeName(ct.id, e.target.value)}
                     onClick={e => e.stopPropagation()}
                     style={{ flex: 1, fontSize: 13, border: 'none', background: 'transparent', padding: '2px 4px' }}
                   />
                   <button type="button" className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 12, color: 'var(--warn)' }}
-                    onClick={e => { e.stopPropagation(); deleteCableType(t.id); }}>🗑</button>
+                    onClick={e => { e.stopPropagation(); deleteCableType(ct.id); }}>🗑</button>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 30 }} onClick={e => e.stopPropagation()}>
-                  <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>Grosor</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{t('cableTypesPanel.thickness')}</span>
                   <input
                     type="range" min="0.5" max="4" step="0.25"
-                    value={t.line_width ?? 1}
-                    onChange={e => updateCableTypeWidth(t.id, parseFloat(e.target.value))}
+                    value={ct.line_width ?? 1}
+                    onChange={e => updateCableTypeWidth(ct.id, parseFloat(e.target.value))}
                     style={{ flex: 1 }}
                   />
-                  <span style={{ fontSize: 11, color: 'var(--muted)', width: 28, textAlign: 'right', flexShrink: 0 }}>{(t.line_width ?? 1).toFixed(2)}x</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', width: 28, textAlign: 'right', flexShrink: 0 }}>{(ct.line_width ?? 1).toFixed(2)}x</span>
                   <select
-                    value={t.dash_style || 'solid'}
-                    onChange={e => updateCableTypeDash(t.id, e.target.value)}
+                    value={ct.dash_style || 'solid'}
+                    onChange={e => updateCableTypeDash(ct.id, e.target.value)}
                     style={{ fontSize: 11, flexShrink: 0 }}
                   >
-                    <option value="solid">Sólido</option>
-                    <option value="dashed">Guiones</option>
-                    <option value="dotted">Punteado</option>
+                    <option value="solid">{t('cableTypesPanel.dashSolid')}</option>
+                    <option value="dashed">{t('cableTypesPanel.dashDashed')}</option>
+                    <option value="dotted">{t('cableTypesPanel.dashDotted')}</option>
                   </select>
                 </div>
               </div>
@@ -1169,12 +1173,12 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               />
               <input
                 value={newCableTypeName} onChange={e => setNewCableTypeName(e.target.value)}
-                placeholder="Nombre del nuevo tipo (ej: Cat6 Cable Blue)"
+                placeholder={t('cableTypesPanel.newTypeNamePlaceholder')}
                 style={{ flex: 1, fontSize: 13 }}
               />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>Grosor</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{t('cableTypesPanel.thickness')}</span>
               <input
                 type="range" min="0.5" max="4" step="0.25"
                 value={newCableTypeWidth}
@@ -1183,13 +1187,13 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               />
               <span style={{ fontSize: 11, color: 'var(--muted)', width: 28, textAlign: 'right', flexShrink: 0 }}>{newCableTypeWidth.toFixed(2)}x</span>
               <select value={newCableTypeDash} onChange={e => setNewCableTypeDash(e.target.value)} style={{ fontSize: 11, flexShrink: 0 }}>
-                <option value="solid">Sólido</option>
-                <option value="dashed">Guiones</option>
-                <option value="dotted">Punteado</option>
+                <option value="solid">{t('cableTypesPanel.dashSolid')}</option>
+                <option value="dashed">{t('cableTypesPanel.dashDashed')}</option>
+                <option value="dotted">{t('cableTypesPanel.dashDotted')}</option>
               </select>
             </div>
             <button type="submit" className="btn btn-primary" disabled={savingCableType || !newCableTypeName.trim()}>
-              {savingCableType ? 'Creando...' : '+ Nuevo tipo'}
+              {savingCableType ? t('cableTypesPanel.creating') : t('cableTypesPanel.newType')}
             </button>
           </form>
         </div>
@@ -1198,7 +1202,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       {showLayersPanel && (
         <div className="card" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, width: 340, maxWidth: 'calc(100vw - 40px)', maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 8px 30px rgba(0,0,0,0.18)', padding: 12 }}>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
-            Clic en una capa para hacerla la capa activa — los nuevos equipos y cables se colocan en ella. Usa el ojo para mostrar/ocultar (solo en esta sesión).
+            {t('layersPanel.hint')}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div
@@ -1214,7 +1218,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 13 }}>
                 {isLayerVisible(null) ? '👁️' : '🚫'}
               </button>
-              <span style={{ fontSize: 13, flex: 1, fontStyle: 'italic', color: 'var(--muted)' }}>Sin capa</span>
+              <span style={{ fontSize: 13, flex: 1, fontStyle: 'italic', color: 'var(--muted)' }}>{t('layersPanel.noLayer')}</span>
             </div>
             {layers.map((l, i) => (
               <div
@@ -1252,11 +1256,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           <form onSubmit={createLayer} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <input
               value={newLayerName} onChange={e => setNewLayerName(e.target.value)}
-              placeholder="Nombre de la nueva capa (ej: Cableado estructurado)"
+              placeholder={t('layersPanel.namePlaceholder')}
               style={{ flex: 1, fontSize: 13 }}
             />
             <button type="submit" className="btn btn-primary" disabled={savingLayer || !newLayerName.trim()}>
-              {savingLayer ? 'Creando...' : '+ Nueva capa'}
+              {savingLayer ? t('layersPanel.creating') : t('layersPanel.newLayer')}
             </button>
           </form>
         </div>
@@ -1266,41 +1270,41 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       {mode !== 'select' && mode.type === 'cable' && (
         <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: 'var(--amber-tint)' }}>
           {!cableDraft
-            ? 'Clic en el equipo donde inicia el cable.'
-            : 'Clic en el plano para agregar quiebres, o clic en el equipo destino para terminar. Esc para cancelar.'}
+            ? t('cableHint.start')
+            : t('cableHint.continue')}
         </div>
       )}
 
       {mode !== 'select' && mode.type === 'scale' && !scalePending && (
         <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: 'var(--ok-tint)' }}>
           {!scaleClickA
-            ? 'Clic en el primer punto de una distancia conocida en el plano (ej: el ancho de una puerta).'
-            : 'Clic en el segundo punto de esa distancia. Esc para cancelar.'}
+            ? t('scaleHint.first')
+            : t('scaleHint.second')}
         </div>
       )}
 
       {scalePending && (
         <form onSubmit={saveScale} className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: 12, background: 'var(--ok-tint)' }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>¿Cuántos pies hay entre esos dos puntos?</span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{t('scaleForm.question')}</span>
           <input
             autoFocus type="number" step="0.1" min="0.1" value={scaleFeetInput}
             onChange={e => setScaleFeetInput(e.target.value)}
-            placeholder="Ej: 3 (ancho de puerta)"
+            placeholder={t('scaleForm.placeholder')}
             style={{ width: 160 }}
           />
           <button type="submit" className="btn btn-primary" disabled={savingScale || !scaleFeetInput}>
-            {savingScale ? 'Guardando...' : 'Guardar escala'}
+            {savingScale ? t('scaleForm.saving') : t('scaleForm.save')}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => { setScalePending(null); setScaleFeetInput(''); }}>Cancelar</button>
+          <button type="button" className="btn btn-ghost" onClick={() => { setScalePending(null); setScaleFeetInput(''); }}>{t('scaleForm.cancel')}</button>
         </form>
       )}
 
       {showIconUpload && (
         <form onSubmit={handleIconUpload} className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: 12 }}>
-          <input value={iconName} onChange={e => setIconName(e.target.value)} placeholder="Nombre del equipo (ej: Cámara PTZ Hikvision)" style={{ flex: 1, minWidth: 220 }} />
+          <input value={iconName} onChange={e => setIconName(e.target.value)} placeholder={t('iconUpload.namePlaceholder')} style={{ flex: 1, minWidth: 220 }} />
           <input type="file" accept="image/*" onChange={e => setIconFile(e.target.files?.[0] || null)} />
           <button type="submit" className="btn btn-primary" disabled={uploadingIcon || !iconName.trim() || !iconFile}>
-            {uploadingIcon ? 'Subiendo...' : 'Subir ícono'}
+            {uploadingIcon ? t('iconUpload.uploading') : t('iconUpload.upload')}
           </button>
         </form>
       )}
@@ -1364,7 +1368,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   {feet != null && (
                     <text x={midX} y={midY} textAnchor="middle" dy={-iconSize * 0.15}
                       style={{ fontSize: iconSize * 0.35, fontWeight: 600, fill: cableColor(c), paintOrder: 'stroke', stroke: '#fff', strokeWidth: iconSize * 0.07 }}>
-                      {feet.toFixed(1)} pies
+                      {t('unitFeet', { count: feet.toFixed(1) })}
                     </text>
                   )}
                 </g>
@@ -1465,7 +1469,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             <div style={{ fontSize: 11, textAlign: 'center', fontWeight: 700, color: 'var(--muted)' }}>{Math.round(view.zoom * 100)}%</div>
             <button type="button" className="btn btn-ghost" style={{ padding: '4px 10px', fontWeight: 700 }} disabled={view.zoom <= MIN_ZOOM} onClick={() => zoomByButton(1 / ZOOM_STEP)}>−</button>
             {view.zoom > MIN_ZOOM && (
-              <button type="button" className="btn btn-ghost" style={{ padding: '4px 6px', fontSize: 10 }} onClick={resetZoom}>Ajustar</button>
+              <button type="button" className="btn btn-ghost" style={{ padding: '4px 6px', fontSize: 10 }} onClick={resetZoom}>{t('zoomFit')}</button>
             )}
           </div>
 
@@ -1507,14 +1511,14 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   {selectedMarker.label
                     || customIconsState.find(ic => ic.id === selectedMarker.custom_icon_id)?.name
                     || getMarkerElement(selectedMarker, elementTypes)?.name
-                    || getEquipmentType(selectedMarker.equipment_type)?.label}
+                    || (getEquipmentType(selectedMarker.equipment_type) && tEquipmentTypes(getEquipmentType(selectedMarker.equipment_type).key))}
                 </span>
 
                 {selectedMarkerAOC && (
                   <>
                     <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', flexShrink: 0 }} />
                     <button
-                      type="button" title={selectedMarkerAOC.visible ? 'Ocultar área de cobertura' : 'Mostrar área de cobertura'}
+                      type="button" title={selectedMarkerAOC.visible ? t('markerPanel.hideAOC') : t('markerPanel.showAOC')}
                       onClick={() => handleAOCChange(selectedMarker.id, { visible: !selectedMarkerAOC.visible })}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
                     >
@@ -1526,7 +1530,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                           {Math.round(selectedMarkerAOC.direction)}°
                         </span>
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
-                          {feetPerPixel ? `${(selectedMarkerAOC.radius * feetPerPixel).toFixed(1)} ft` : `${Math.round(selectedMarkerAOC.radius)} u`}
+                          {feetPerPixel ? t('markerPanel.radiusFeet', { count: (selectedMarkerAOC.radius * feetPerPixel).toFixed(1) }) : t('markerPanel.radiusUnits', { count: Math.round(selectedMarkerAOC.radius) })}
                         </span>
                       </>
                     )}
@@ -1535,19 +1539,19 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
                 <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', flexShrink: 0 }} />
                 <button
-                  type="button" title="Duplicar equipo" onClick={() => duplicateMarker(selectedMarker.id)}
+                  type="button" title={t('markerPanel.duplicate')} onClick={() => duplicateMarker(selectedMarker.id)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
                 >
                   📋
                 </button>
                 <button
-                  type="button" title="Eliminar equipo" onClick={() => deleteMarker(selectedMarker.id)}
+                  type="button" title={t('markerPanel.delete')} onClick={() => deleteMarker(selectedMarker.id)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
                 >
                   🗑
                 </button>
                 <button
-                  type="button" title="Cerrar" onClick={() => setSelectedMarkerId(null)}
+                  type="button" title={t('markerPanel.close')} onClick={() => setSelectedMarkerId(null)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700, padding: '0 2px', flexShrink: 0 }}
                 >
                   ✕
@@ -1560,7 +1564,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 onFocus={() => { labelOriginRef.current = selectedMarker.label || ''; }}
                 onChange={e => updateMarkerLabel(selectedMarker.id, e.target.value)}
                 onBlur={e => commitMarkerLabel(selectedMarker.id, e.target.value)}
-                placeholder="Etiqueta (ej: Cam 3 - Entrada)"
+                placeholder={t('markerPanel.labelPlaceholder')}
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               />
               <input
@@ -1568,7 +1572,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 onFocus={() => { modelOriginRef.current = selectedMarker.model || ''; }}
                 onChange={e => updateMarkerModel(selectedMarker.id, e.target.value)}
                 onBlur={e => commitMarkerModel(selectedMarker.id, e.target.value)}
-                placeholder="Modelo (ej: APC AR3100)"
+                placeholder={t('markerPanel.modelPlaceholder')}
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               />
               <input
@@ -1576,7 +1580,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 onFocus={() => { serialOriginRef.current = selectedMarker.serial_number || ''; }}
                 onChange={e => updateMarkerSerial(selectedMarker.id, e.target.value)}
                 onBlur={e => commitMarkerSerial(selectedMarker.id, e.target.value)}
-                placeholder="N° de serie"
+                placeholder={t('markerPanel.serialPlaceholder')}
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               />
               <select
@@ -1584,11 +1588,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 onChange={e => updateMarkerLayer(selectedMarker.id, e.target.value || null)}
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               >
-                <option value="">Sin capa</option>
+                <option value="">{t('markerPanel.noLayer')}</option>
                 {layers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Tamaño del ícono</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('markerPanel.iconSize')}</span>
                 <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px', marginLeft: 'auto' }}
                   disabled={(selectedMarker.icon_scale ?? 1) <= 0.25}
                   onClick={() => adjustMarkerScale(selectedMarker.id, -0.25)}>−</button>
@@ -1600,7 +1604,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   onClick={() => adjustMarkerScale(selectedMarker.id, 0.25)}>+</button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Color</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('markerPanel.color')}</span>
                 <input
                   type="color" value={selectedMarker.custom_color || getMarkerColor(selectedMarker, elementTypes)}
                   onChange={e => updateMarkerColor(selectedMarker.id, e.target.value)}
@@ -1608,11 +1612,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 />
                 {selectedMarker.custom_color && (
                   <button className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px' }}
-                    onClick={() => updateMarkerColor(selectedMarker.id, null)}>Restablecer</button>
+                    onClick={() => updateMarkerColor(selectedMarker.id, null)}>{t('markerPanel.reset')}</button>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Cantidad</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('markerPanel.quantity')}</span>
                 <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px', marginLeft: 'auto' }}
                   disabled={(selectedMarker.quantity ?? 1) <= 1}
                   onClick={() => adjustMarkerQuantity(selectedMarker.id, -1)}>−</button>
@@ -1632,17 +1636,17 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   />
                   <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                     <label className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 8px', flex: 1, textAlign: 'center', cursor: 'pointer' }}>
-                      Cambiar foto
+                      {t('markerPanel.changePhoto')}
                       <input type="file" accept="image/*" hidden onChange={e => handleMarkerPhotoUpload(selectedMarker.id, e.target.files?.[0])} />
                     </label>
                     <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 8px', color: 'var(--warn)' }} onClick={() => removeMarkerPhoto(selectedMarker.id)}>
-                      Quitar
+                      {t('markerPanel.removePhoto')}
                     </button>
                   </div>
                 </div>
               ) : (
                 <label className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', display: 'block', textAlign: 'center', marginBottom: 8, cursor: 'pointer' }}>
-                  {uploadingPhoto ? 'Subiendo...' : '📷 Agregar foto'}
+                  {uploadingPhoto ? t('markerPanel.uploadingPhoto') : `📷 ${t('markerPanel.addPhoto')}`}
                   <input type="file" accept="image/*" hidden disabled={uploadingPhoto} onChange={e => handleMarkerPhotoUpload(selectedMarker.id, e.target.files?.[0])} />
                 </label>
               )}
@@ -1651,7 +1655,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 onFocus={() => { notesOriginRef.current = selectedMarker.notes || ''; }}
                 onChange={e => updateMarkerNotes(selectedMarker.id, e.target.value)}
                 onBlur={e => commitMarkerNotes(selectedMarker.id, e.target.value)}
-                placeholder="Notas"
+                placeholder={t('markerPanel.notesPlaceholder')}
                 rows={2}
                 style={{ width: '100%', marginBottom: 8, fontSize: 13, resize: 'vertical' }}
               />
@@ -1663,7 +1667,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               />
               <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', width: '100%', marginTop: 8 }}
                 onClick={() => { setMode({ type: 'cable' }); setCableDraft({ fromMarkerId: selectedMarker.id, points: [] }); setSelectedMarkerId(null); }}>
-                🔌 Cable
+                🔌 {t('markerPanel.cableButton')}
               </button>
               </div>
             </div>
@@ -1673,14 +1677,14 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           {selectedCable && (
             <div style={{ position: 'absolute', right: 10, bottom: 10, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, padding: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 5, width: 220 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
-                {cableLengthFeet(selectedCable) != null ? `${cableLengthFeet(selectedCable).toFixed(1)} pies` : 'Sin escala definida'}
+                {cableLengthFeet(selectedCable) != null ? t('unitFeet', { count: cableLengthFeet(selectedCable).toFixed(1) }) : t('cablePanel.noScale')}
               </div>
               <input
                 value={selectedCable.label || ''}
                 onFocus={() => { cableLabelOriginRef.current = selectedCable.label || ''; }}
                 onChange={e => updateCableLabel(selectedCable.id, e.target.value)}
                 onBlur={e => commitCableLabel(selectedCable.id, e.target.value)}
-                placeholder="Título (ej: Cam 3 a NVR)"
+                placeholder={t('cablePanel.titlePlaceholder')}
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               />
               <textarea
@@ -1688,7 +1692,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 onFocus={() => { cableDescriptionOriginRef.current = selectedCable.description || ''; }}
                 onChange={e => updateCableDescription(selectedCable.id, e.target.value)}
                 onBlur={e => commitCableDescription(selectedCable.id, e.target.value)}
-                placeholder="Descripción (ej: corre por conduit detrás de recepción)"
+                placeholder={t('cablePanel.descriptionPlaceholder')}
                 rows={2}
                 style={{ width: '100%', marginBottom: 8, fontSize: 13, resize: 'vertical' }}
               />
@@ -1697,7 +1701,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 onChange={e => updateCableLayer(selectedCable.id, e.target.value || null)}
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               >
-                <option value="">Sin capa</option>
+                <option value="">{t('cablePanel.noLayer')}</option>
                 {layers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
               <select
@@ -1705,11 +1709,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 onChange={e => updateCableType(selectedCable.id, e.target.value || null)}
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               >
-                <option value="">Sin tipo de cable</option>
-                {cableTypesState.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                <option value="">{t('cablePanel.noCableType')}</option>
+                {cableTypesState.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
               </select>
               <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', color: 'var(--warn)' }} onClick={() => deleteCable(selectedCable.id)}>
-                Eliminar cable
+                {t('cablePanel.delete')}
               </button>
             </div>
           )}
@@ -1726,9 +1730,9 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
         {/* Summary panel */}
         <div className="card" style={{ flex: '0 0 260px', minWidth: 220 }}>
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 12 }}>Resumen de equipos</p>
+          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 12 }}>{t('summary.title')}</p>
           {counts.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--muted)' }}>Coloca equipos en el plano para ver el resumen aquí.</p>
+            <p style={{ fontSize: 13, color: 'var(--muted)' }}>{t('summary.empty')}</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
               {counts.map(c => (
@@ -1741,11 +1745,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           )}
           <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '8px 0' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800 }}>
-            <span>Total equipos</span>
+            <span>{t('summary.totalEquipment')}</span>
             <span>{totalEquipment}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-            <span>Cables trazados</span>
+            <span>{t('summary.cablesTraced')}</span>
             <span>{totalCables}</span>
           </div>
           {cableCounts.length > 0 && (
@@ -1760,7 +1764,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               {untypedCableCount > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2a4cb5', flexShrink: 0 }} />
-                  <span style={{ flex: 1 }}>Sin tipo</span>
+                  <span style={{ flex: 1 }}>{t('summary.noType')}</span>
                   <span style={{ fontWeight: 700 }}>{untypedCableCount}</span>
                 </div>
               )}
@@ -1768,19 +1772,19 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           )}
           {feetPerPixel && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginTop: 4, color: 'var(--ok)' }}>
-              <span>Pietaje total</span>
-              <span>{visibleCables.reduce((sum, c) => sum + (cableLengthFeet(c) || 0), 0).toFixed(1)} pies</span>
+              <span>{t('summary.totalFootage')}</span>
+              <span>{t('unitFeet', { count: visibleCables.reduce((sum, c) => sum + (cableLengthFeet(c) || 0), 0).toFixed(1) })}</span>
             </div>
           )}
           <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '8px 0' }} />
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>
             {feetPerPixel ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Escala definida ✓</span>
-                <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }} onClick={clearScale}>Borrar</button>
+                <span>{t('summary.scaleDefined')}</span>
+                <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }} onClick={clearScale}>{t('summary.deleteScale')}</button>
               </div>
             ) : (
-              <span>Sin escala — el pietaje de los cables no se puede calcular. Usa el botón 📏 Escala.</span>
+              <span>{t('summary.scaleUndefined')}</span>
             )}
           </div>
         </div>

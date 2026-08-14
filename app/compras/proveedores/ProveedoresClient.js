@@ -3,10 +3,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
+import { useTranslations } from 'next-intl';
 
 const emptyForm = { name: '', contact_name: '', email: '', phone: '', notes: '' };
 
 export default function ProveedoresClient({ initialVendors }) {
+  const t = useTranslations('compras.proveedoresClient');
   const router = useRouter();
   const [vendors, setVendors] = useState(initialVendors);
   const [showForm, setShowForm] = useState(false);
@@ -31,7 +33,7 @@ export default function ProveedoresClient({ initialVendors }) {
   }
 
   async function save() {
-    if (!form.name.trim()) { alert('El nombre es requerido.'); return; }
+    if (!form.name.trim()) { alert(t('nameRequired')); return; }
     setSaving(true);
     const payload = {
       name: form.name.trim(),
@@ -43,12 +45,12 @@ export default function ProveedoresClient({ initialVendors }) {
     if (editingId) {
       const { error } = await supabase.from('vendors').update(payload).eq('id', editingId);
       setSaving(false);
-      if (error) { alert('Error: ' + error.message); return; }
+      if (error) { alert(t('errorSaving', { message: error.message })); return; }
       setVendors(prev => prev.map(v => v.id === editingId ? { ...v, ...payload } : v).sort((a, b) => a.name.localeCompare(b.name)));
     } else {
       const { data, error } = await supabase.from('vendors').insert([payload]).select().single();
       setSaving(false);
-      if (error) { alert('Error: ' + error.message); return; }
+      if (error) { alert(t('errorSaving', { message: error.message })); return; }
       setVendors(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
     }
     setShowForm(false);
@@ -61,7 +63,7 @@ export default function ProveedoresClient({ initialVendors }) {
     setDeleting(true);
     const { error } = await supabase.from('vendors').delete().eq('id', editingId);
     setDeleting(false);
-    if (error) { alert('No se pudo eliminar: ' + error.message); return; }
+    if (error) { alert(t('errorDeleting', { message: error.message })); return; }
     setVendors(prev => prev.filter(v => v.id !== editingId));
     setShowDelete(false);
     setShowForm(false);
@@ -74,46 +76,46 @@ export default function ProveedoresClient({ initialVendors }) {
     <div>
       <div className="page-header">
         <div>
-          <div className="page-title">Proveedores</div>
+          <div className="page-title">{t('title')}</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <Link href="/compras" className="btn btn-ghost">← Compras</Link>
-          <button className="btn btn-primary" onClick={startNew}>+ Nuevo proveedor</button>
+          <Link href="/compras" className="btn btn-ghost">← {t('backToCompras')}</Link>
+          <button className="btn btn-primary" onClick={startNew}>+ {t('newVendor')}</button>
         </div>
       </div>
 
       {showForm && (
         <div className="card" style={{ marginBottom: 20 }}>
-          <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', marginBottom: 14 }}>{editingId ? 'Editar proveedor' : 'Nuevo proveedor'}</p>
+          <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', marginBottom: 14 }}>{editingId ? t('editVendor') : t('newVendor')}</p>
           <div className="form-row">
             <div className="form-group">
-              <label>Nombre *</label>
-              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Nombre del proveedor" />
+              <label>{t('nameLabel')}</label>
+              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder={t('namePlaceholder')} />
             </div>
             <div className="form-group">
-              <label>Contacto</label>
-              <input value={form.contact_name} onChange={e => set('contact_name', e.target.value)} placeholder="Nombre de contacto" />
+              <label>{t('contactLabel')}</label>
+              <input value={form.contact_name} onChange={e => set('contact_name', e.target.value)} placeholder={t('contactPlaceholder')} />
             </div>
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label>Email</label>
-              <input value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@proveedor.com" />
+              <label>{t('emailLabel')}</label>
+              <input value={form.email} onChange={e => set('email', e.target.value)} placeholder={t('emailPlaceholder')} />
             </div>
             <div className="form-group">
-              <label>Teléfono</label>
-              <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="787-000-0000" />
+              <label>{t('phoneLabel')}</label>
+              <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder={t('phonePlaceholder')} />
             </div>
           </div>
           <div className="form-group">
-            <label>Notas</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Notas internas..." />
+            <label>{t('notesLabel')}</label>
+            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder={t('notesPlaceholder')} />
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? 'Guardando...' : 'Guardar'}</button>
-            <button className="btn btn-ghost" onClick={() => { setShowForm(false); setForm(emptyForm); setEditingId(null); }}>Cancelar</button>
+            <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? t('saving') : t('save')}</button>
+            <button className="btn btn-ghost" onClick={() => { setShowForm(false); setForm(emptyForm); setEditingId(null); }}>{t('cancel')}</button>
             {editingId && (
-              <button className="btn btn-ghost" style={{ color: 'var(--warn)', marginLeft: 'auto' }} onClick={() => setShowDelete(true)}>🗑 Eliminar</button>
+              <button className="btn btn-ghost" style={{ color: 'var(--warn)', marginLeft: 'auto' }} onClick={() => setShowDelete(true)}>🗑 {t('delete')}</button>
             )}
           </div>
         </div>
@@ -122,14 +124,14 @@ export default function ProveedoresClient({ initialVendors }) {
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar proveedor?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer. Si tiene órdenes de compra asociadas, no se podrá eliminar.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteConfirmTitle')}</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteConfirmBody')}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteVendor} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                {deleting ? t('deleting') : `🗑 ${t('deleteConfirmYes')}`}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>{t('cancel')}</button>
             </div>
           </div>
         </div>
@@ -137,7 +139,7 @@ export default function ProveedoresClient({ initialVendors }) {
 
       {vendors.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--muted)' }}>
-          No hay proveedores todavía. Se crean automáticamente al generar una orden de compra, o puedes agregarlos aquí.
+          {t('empty')}
         </div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
@@ -147,7 +149,7 @@ export default function ProveedoresClient({ initialVendors }) {
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>{v.name}</div>
                 <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>
-                  {[v.contact_name, v.email, v.phone].filter(Boolean).join(' · ') || 'Sin datos de contacto'}
+                  {[v.contact_name, v.email, v.phone].filter(Boolean).join(' · ') || t('noContactInfo')}
                 </div>
               </div>
             </div>

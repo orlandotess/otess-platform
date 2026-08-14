@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from 'next-intl';
 
 /**
  * AOCPanel — controls section rendered inside the marker popup for elements
@@ -9,6 +10,7 @@
  * for markers placed before the "Add Element" catalog existed.
  */
 export default function AOCPanel({ supported, systemColor, aoc, onChange }) {
+  const t = useTranslations('planos.aocPanel');
   if (!supported) return null;
 
   const displayColor = aoc.color ?? systemColor ?? '#e0972c';
@@ -16,7 +18,7 @@ export default function AOCPanel({ supported, systemColor, aoc, onChange }) {
   return (
     <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 12 }}>📐 Área de cobertura</span>
+        <span style={{ fontWeight: 700, fontSize: 12 }}>📐 {t('title')}</span>
         <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
           <input
             type="checkbox"
@@ -24,7 +26,7 @@ export default function AOCPanel({ supported, systemColor, aoc, onChange }) {
             onChange={e => onChange({ visible: e.target.checked })}
             style={{ accentColor: displayColor, width: 15, height: 15 }}
           />
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{aoc.visible ? 'Visible' : 'Oculta'}</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{aoc.visible ? t('visible') : t('hidden')}</span>
         </label>
       </div>
 
@@ -33,7 +35,7 @@ export default function AOCPanel({ supported, systemColor, aoc, onChange }) {
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-              <label style={{ fontSize: 11, color: 'var(--muted)' }}>Dirección</label>
+              <label style={{ fontSize: 11, color: 'var(--muted)' }}>{t('direction')}</label>
               <span style={{ fontSize: 11, fontWeight: 600 }}>{Math.round(aoc.direction)}°</span>
             </div>
             <input
@@ -49,7 +51,7 @@ export default function AOCPanel({ supported, systemColor, aoc, onChange }) {
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-              <label style={{ fontSize: 11, color: 'var(--muted)' }}>Ángulo FOV</label>
+              <label style={{ fontSize: 11, color: 'var(--muted)' }}>{t('fovAngle')}</label>
               <span style={{ fontSize: 11, fontWeight: 600 }}>{Math.round(aoc.angle)}°</span>
             </div>
             <input
@@ -62,7 +64,7 @@ export default function AOCPanel({ supported, systemColor, aoc, onChange }) {
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-              <label style={{ fontSize: 11, color: 'var(--muted)' }}>Radio</label>
+              <label style={{ fontSize: 11, color: 'var(--muted)' }}>{t('radius')}</label>
               <span style={{ fontSize: 11, fontWeight: 600 }}>{Math.round(aoc.radius)}</span>
             </div>
             <input
@@ -75,7 +77,7 @@ export default function AOCPanel({ supported, systemColor, aoc, onChange }) {
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <div>
-              <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>Color</label>
+              <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>{t('color')}</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <input
                   type="color"
@@ -86,17 +88,17 @@ export default function AOCPanel({ supported, systemColor, aoc, onChange }) {
                 <button
                   type="button"
                   onClick={() => onChange({ color: null })}
-                  title="Restaurar color del sistema"
+                  title={t('resetColorTitle')}
                   style={{ fontSize: 9, padding: '2px 5px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', color: 'var(--muted)' }}
                 >
-                  Reset
+                  {t('reset')}
                 </button>
               </div>
             </div>
 
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <label style={{ fontSize: 11, color: 'var(--muted)' }}>Opacidad</label>
+                <label style={{ fontSize: 11, color: 'var(--muted)' }}>{t('opacity')}</label>
                 <span style={{ fontSize: 11, fontWeight: 600 }}>{Math.round(aoc.opacity * 100)}%</span>
               </div>
               <input

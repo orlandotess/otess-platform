@@ -1,8 +1,9 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import PhotoAnnotator from '../../PhotoAnnotator';
 import LineItemRow from '../../LineItemRow';
 import LineItemPicker from '../../LineItemPicker';
@@ -20,11 +21,11 @@ import { useJobChecklist } from '../../../lib/useJobChecklist';
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
 const statusOptions = [
-  { value: 'estimate', label: 'Estimado' },
-  { value: 'scheduled', label: 'Programado' },
-  { value: 'in_progress', label: 'En progreso' },
-  { value: 'completed', label: 'Completado' },
-  { value: 'cancelled', label: 'Cancelado' },
+  { value: 'estimate', key: 'estimate' },
+  { value: 'scheduled', key: 'scheduled' },
+  { value: 'in_progress', key: 'inProgress' },
+  { value: 'completed', key: 'completed' },
+  { value: 'cancelled', key: 'cancelled' },
 ];
 
 // Bucket name for job_line_items with no `area` set — matches the sentinel
@@ -54,19 +55,25 @@ function groupLineItemsByArea(items) {
 }
 
 const expenseCategories = [
-  { value: 'materiales', label: 'Materiales' },
-  { value: 'gasolina', label: 'Gasolina' },
-  { value: 'herramientas', label: 'Herramientas' },
-  { value: 'subcontratista', label: 'Subcontratista' },
-  { value: 'oficina', label: 'Oficina' },
-  { value: 'parking', label: 'Parking' },
-  { value: 'equipos', label: 'Equipos' },
-  { value: 'meals', label: 'Meals' },
-  { value: 'otro', label: 'Otro' },
+  { value: 'materiales', key: 'materiales' },
+  { value: 'gasolina', key: 'gasolina' },
+  { value: 'herramientas', key: 'herramientas' },
+  { value: 'subcontratista', key: 'subcontratista' },
+  { value: 'oficina', key: 'oficina' },
+  { value: 'parking', key: 'parking' },
+  { value: 'equipos', key: 'equipos' },
+  { value: 'meals', key: 'meals' },
+  { value: 'otro', key: 'otro' },
 ];
 
 export default function JobTabs({ job, items, technicians, notes, checklist, checklistAreas = [], templates, clientType, taxRules = [], totals, jobTechnicians = [], jobContacts = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [] }) {
   const router = useRouter();
+  const t = useTranslations('trabajos.jobTabs');
+  const tPurchaseListCsv = useTranslations('shared.purchaseListCsv');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const translatedStatusOptions = useMemo(() => statusOptions.map(o => ({ ...o, label: t(`status.${o.key}`) })), [t]);
+  const translatedExpenseCategories = useMemo(() => expenseCategories.map(c => ({ ...c, label: t(`expenseCategories.${c.key}`) })), [t]);
   const fmt = n => `$${Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const [tab, setTab] = useState('info');
   const [status, setStatus] = useState(job.status);
@@ -94,13 +101,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
         sourceLabel: `${job.job_number} — ${job.title}`,
       });
       if (reason === 'no-items') {
-        alert('No hay productos con proveedor asignado en este trabajo.');
+        alert(t('alerts.noItemsForPO'));
       } else {
-        alert(`${orders.length} orden(es) de compra generada(s).`);
+        alert(t('alerts.poGenerated', { count: orders.length }));
         router.push('/compras');
       }
     } catch (err) {
-      alert('Error al generar la orden de compra: ' + err.message);
+      alert(t('alerts.poGenerateError', { error: err.message }));
     } finally {
       setGeneratingPO(false);
     }
@@ -277,7 +284,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
 
   async function saveSchedule() {
     if (schedStart && schedEnd && computeHours(localInputToIso(schedStart), localInputToIso(schedEnd)).invalid) {
-      setScheduleError('El fin debe ser después del inicio.');
+      setScheduleError(t('errors.endBeforeStart'));
       return;
     }
     setScheduleError('');
@@ -315,7 +322,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   async function addScheduleDay() {
     if (!newDay.start) return;
     if (newDay.end && computeHours(localInputToIso(newDay.start), localInputToIso(newDay.end), newDay.lunch_minutes).invalid) {
-      setNewDayError('El fin debe ser después del inicio (y dejar tiempo tras descontar el almuerzo).');
+      setNewDayError(t('errors.endBeforeStartLunch'));
       return;
     }
     setNewDayError('');
@@ -376,7 +383,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     if (!editDayForm.start) return;
     const endIso = editDayForm.end ? localInputToIso(editDayForm.end) : null;
     if (endIso && computeHours(localInputToIso(editDayForm.start), endIso, editDayForm.lunch_minutes).invalid) {
-      setEditDayError('El fin debe ser después del inicio (y dejar tiempo tras descontar el almuerzo).');
+      setEditDayError(t('errors.endBeforeStartLunch'));
       return;
     }
     setEditDayError('');
@@ -876,7 +883,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       }, ...prev]);
     }
     if (failedNames.length > 0) {
-      setNoteError(`No se pudo subir: ${failedNames.join(', ')}. La nota se guardó, intenta subir el archivo de nuevo.`);
+      setNoteError(t('notes.uploadFailed', { files: failedNames.join(', ') }));
     }
     setNoteText(''); setNoteTitle(''); setNotePhase(''); setPendingPhotos([]); setPendingPhotoPreviews([]); setUploadProgress({}); setSavingNote(false);
   }
@@ -993,7 +1000,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   }
 
   async function deleteReport(reportId) {
-    if (!confirm('¿Eliminar este reporte? Las notas no se borran, solo el reporte.')) return;
+    if (!confirm(t('reports.deleteConfirm'))) return;
     await supabase.from('job_reports').delete().eq('id', reportId);
     setReportsList(prev => prev.filter(r => r.id !== reportId));
   }
@@ -1027,7 +1034,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       setReportsList(prev => prev.map(r => r.id === emailingReportId ? { ...r, sent_at: new Date().toISOString(), sent_to: reportEmailTo, sent_cc: cc.length ? cc : null } : r));
       setEmailingReportId(null);
     } else {
-      alert('Error: ' + data.error);
+      alert(t('alerts.genericError', { error: data.error }));
     }
   }
 
@@ -1131,7 +1138,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
           {pinnedClientNotes.map(n => (
             <div key={n.id} className="card" style={{ marginBottom: 10, border: '1.5px solid var(--amber)', background: 'var(--amber-tint)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--navy)', fontWeight: 700, marginBottom: n.note || n.photo_url ? 8 : 0 }}>
-                <span title="Pineada por el cliente">📌</span> Nota del cliente
+                <span title={t('pinnedNote.pinnedTitle')}>📌</span> {t('pinnedNote.label')}
               </div>
               {n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0, whiteSpace: 'pre-wrap', marginBottom: n.photo_url ? 10 : 0 }}>{n.note}</p>}
               {n.photo_urls && n.photo_urls.length > 1 ? (
@@ -1140,12 +1147,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
                     const isPdf = /\.pdf(\?|$)/i.test(url);
                     if (isPdf) return (
-                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--surface)', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)', fontSize: 12, fontWeight: 600, color: 'var(--navy)' }}>📄 PDF</a>
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--surface)', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)', fontSize: 12, fontWeight: 600, color: 'var(--navy)' }}>📄 {t('photoGallery.pdfBadge')}</a>
                     );
                     return isVideo ? (
                       <video key={idx} src={url} controls style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                     ) : (
-                      <img key={idx} src={url} alt="foto nota cliente" onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: null })}
+                      <img key={idx} src={url} alt={t('pinnedNote.photoAlt')} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: null })}
                         style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                     );
                   })}
@@ -1154,12 +1161,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(n.photo_url);
                 const isPdf = /\.pdf(\?|$)/i.test(n.photo_url);
                 if (isPdf) return (
-                  <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--surface)', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)', fontSize: 12, fontWeight: 600, color: 'var(--navy)', width: 'fit-content' }}>📄 Ver PDF</a>
+                  <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--surface)', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)', fontSize: 12, fontWeight: 600, color: 'var(--navy)', width: 'fit-content' }}>📄 {t('photoGallery.viewPdf')}</a>
                 );
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ maxWidth: 260, maxHeight: 160, borderRadius: 8, background: '#000' }} />
                 ) : (
-                  <img src={n.photo_url} alt="foto nota cliente" onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: null })}
+                  <img src={n.photo_url} alt={t('pinnedNote.photoAlt')} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: null })}
                     style={{ maxWidth: 260, maxHeight: 160, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                 );
               })()}
@@ -1168,18 +1175,18 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
         </div>
       )}
       <div style={{ display: 'flex', borderBottom: '1.5px solid var(--border)', marginBottom: 20, background: 'var(--surface)', borderRadius: '12px 12px 0 0', padding: '0 8px' }}>
-        <button style={tabStyle('info')} onClick={() => setTab('info')}>📋 Info</button>
+        <button style={tabStyle('info')} onClick={() => setTab('info')}>📋 {t('tabs.info')}</button>
         <button style={tabStyle('notes')} onClick={() => setTab('notes')}>
-          📸 Notas & Fotos {notesList.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{notesList.length}</span>}
+          📸 {t('tabs.notes')} {notesList.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{notesList.length}</span>}
         </button>
         <button style={tabStyle('checklist')} onClick={() => setTab('checklist')}>
-          ✅ Checklist {realCount > 0 && <span style={{ background: progress === 100 ? 'var(--ok-tint)' : 'var(--bg)', color: progress === 100 ? 'var(--ok)' : 'var(--muted)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{completedCount}/{realCount}</span>}
+          ✅ {t('tabs.checklist')} {realCount > 0 && <span style={{ background: progress === 100 ? 'var(--ok-tint)' : 'var(--bg)', color: progress === 100 ? 'var(--ok)' : 'var(--muted)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{completedCount}/{realCount}</span>}
         </button>
         <button style={tabStyle('reports')} onClick={() => setTab('reports')}>
-          📄 Reportes {reportsList.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{reportsList.length}</span>}
+          📄 {t('tabs.reports')} {reportsList.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{reportsList.length}</span>}
         </button>
         <button style={tabStyle('rentabilidad')} onClick={() => setTab('rentabilidad')}>
-          💰 Rentabilidad {profitability.margenPct != null && profitability.margenPct < MARGIN_ALERT_THRESHOLD && (
+          💰 {t('tabs.rentabilidad')} {profitability.margenPct != null && profitability.margenPct < MARGIN_ALERT_THRESHOLD && (
             <span style={{ background: 'var(--danger-tint)', color: 'var(--warn)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>⚠</span>
           )}
         </button>
@@ -1191,18 +1198,18 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Cliente</p>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('info.client.title')}</p>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <a href={`/clientes/${job.client_id}`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>Ver cliente →</a>
+                  <a href={`/clientes/${job.client_id}`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>{t('info.client.viewClient')} →</a>
                   {!editingClient && (
-                    <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingClient(true)}>✏️ Editar</button>
+                    <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditingClient(true)}>✏️ {t('common.edit')}</button>
                   )}
                 </div>
               </div>
               {editingClient ? (
                 <div>
                   <input list="job-client-picker-datalist" value={clientPickerSearch} onChange={e => setClientPickerSearch(e.target.value)}
-                    placeholder="Escribe para buscar cliente..." style={{ marginBottom: 8 }} />
+                    placeholder={t('info.client.searchPlaceholder')} style={{ marginBottom: 8 }} />
                   <datalist id="job-client-picker-datalist">
                     {allClients.map(c => <option key={c.id} value={`${c.name}${c.client_type === 'b2b' ? ' (B2B)' : ''}`} />)}
                   </datalist>
@@ -1210,15 +1217,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     <button className="btn btn-primary" style={{ fontSize: 13, padding: '6px 14px' }} disabled={savingClient} onClick={() => {
                       const match = allClients.find(c => `${c.name}${c.client_type === 'b2b' ? ' (B2B)' : ''}` === clientPickerSearch);
                       saveClientChange(match?.id);
-                    }}>{savingClient ? 'Guardando...' : 'Guardar'}</button>
-                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 14px' }} onClick={() => { setEditingClient(false); setClientPickerSearch(''); }}>Cancelar</button>
+                    }}>{savingClient ? t('common.saving') : t('common.save')}</button>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 14px' }} onClick={() => { setEditingClient(false); setClientPickerSearch(''); }}>{t('common.cancel')}</button>
                   </div>
                 </div>
               ) : (
                 <>
                   <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{job.clients?.name}</div>
                   <span className={`badge ${job.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`} style={{ marginBottom: 12, display: 'inline-block' }}>
-                    {job.clients?.client_type === 'b2b' ? 'B2B' : 'Consumidor final'}
+                    {job.clients?.client_type === 'b2b' ? 'B2B' : t('info.client.finalConsumer')}
                   </span>
                   {(job.clients?.phone || job.clients?.email) && (
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
@@ -1230,7 +1237,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               )}
               {job.clients?.company && (
                 <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>FACTURAR A</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>{t('info.client.billTo')}</p>
                   <div style={{ display: 'flex', gap: 14 }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
                       <input type="radio" name="bill_to" checked={billTo === 'person'} onChange={() => updateBillTo('person')} />
@@ -1245,9 +1252,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               )}
 
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>👤 Contactos encargados</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>👤 {t('info.contacts.title')}</p>
               {assignedContacts.length === 0 ? (
-                <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>Sin contactos asignados.</p>
+                <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>{t('info.contacts.none')}</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                   {assignedContacts.map(c => (
@@ -1260,7 +1267,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                        <button onClick={() => editContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️ Editar</button>
+                        <button onClick={() => editContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️ {t('common.edit')}</button>
                         <button onClick={() => removeContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warn)', fontSize: 14 }}>✕</button>
                       </div>
                     </div>
@@ -1268,70 +1275,70 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 </div>
               )}
               {editingContactId && (
-                <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>Editando contacto — cambia los datos y guarda, o cancela.</p>
+                <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>{t('info.contacts.editingHint')}</p>
               )}
               {clientContacts.length > 0 && (
                 <div className="form-group" style={{ marginBottom: 10 }}>
-                  <label>Seleccionar contacto del cliente</label>
+                  <label>{t('info.contacts.selectExisting')}</label>
                   <select value={contactDraft.contact_id} onChange={e => pickExistingContact(e.target.value)}>
-                    <option value="">— Seleccionar contacto —</option>
+                    <option value="">{t('info.contacts.selectPlaceholder')}</option>
                     {clientContacts.map(c => <option key={c.id} value={c.id}>{contactLabel(c)}</option>)}
                   </select>
                 </div>
               )}
               <div className="form-group" style={{ marginBottom: 10 }}>
-                <label>Nombre</label>
-                <input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} placeholder="Nombre del contacto" />
+                <label>{t('common.name')}</label>
+                <input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} placeholder={t('info.contacts.namePlaceholder')} />
               </div>
               <div className="form-group" style={{ marginBottom: 10 }}>
-                <label>Teléfono</label>
+                <label>{t('common.phone')}</label>
                 <input value={contactDraft.phone} onChange={e => setContactDraft(d => ({ ...d, phone: e.target.value }))} placeholder="787-000-0000" />
               </div>
               <div className="form-group" style={{ marginBottom: 10 }}>
-                <label>Email</label>
+                <label>{t('common.email')}</label>
                 <input type="email" value={contactDraft.email} onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))} placeholder="contacto@email.com" />
               </div>
               <div className="form-group" style={{ marginBottom: 10 }}>
-                <label>Cargo</label>
-                <input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder="Ej: Project Manager" />
+                <label>{t('info.contacts.role')}</label>
+                <input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder={t('info.contacts.rolePlaceholder')} />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="btn btn-primary" onClick={addContact} disabled={!contactDraft.name.trim() || savingContact}>
-                  {savingContact ? 'Guardando...' : editingContactId ? '💾 Guardar cambios' : '+ Agregar contacto'}
+                  {savingContact ? t('common.saving') : editingContactId ? `💾 ${t('info.contacts.saveChanges')}` : `+ ${t('info.contacts.addContact')}`}
                 </button>
-                {editingContactId && <button className="btn btn-ghost" onClick={cancelEditContact}>Cancelar</button>}
+                {editingContactId && <button className="btn btn-ghost" onClick={cancelEditContact}>{t('common.cancel')}</button>}
               </div>
             </div>
 
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>📍 Propiedad</p>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>📍 {t('info.property.title')}</p>
                 {!editingProperty && (
                   <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => {
                     setPropertyForm({ property_id: job.property_id ?? '', property_name: job.property_name ?? '', street: job.street ?? '', city: job.city ?? '', state: job.state ?? 'PR', zip: job.zip ?? '' });
                     setPropertySearch('');
                     setShowNewProperty(false);
                     setEditingProperty(true);
-                  }}>✏️ Editar</button>
+                  }}>✏️ {t('common.edit')}</button>
                 )}
               </div>
               {editingProperty ? (
                 <div>
                   {clientProperties.length > 0 && !showNewProperty && (
                     <div className="form-group" style={{ marginBottom: 10 }}>
-                      <label>Propiedad del cliente</label>
+                      <label>{t('info.property.clientProperty')}</label>
                       {propertyForm.property_id ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
                           <span style={{ flex: 1, fontWeight: 600 }}>{propertyLabel(clientProperties.find(p => p.id === propertyForm.property_id) ?? { name: propertyForm.property_name })}</span>
-                          <button type="button" onClick={() => { setPropertyForm(f => ({ ...f, property_id: '' })); setPropertySearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>Cambiar</button>
+                          <button type="button" onClick={() => { setPropertyForm(f => ({ ...f, property_id: '' })); setPropertySearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>{t('info.property.change')}</button>
                         </div>
                       ) : (
                         <>
-                          <input list="job-property-datalist" value={propertySearch} onChange={e => handlePropertySearchChange(e.target.value)} placeholder="Escribe para buscar..." />
+                          <input list="job-property-datalist" value={propertySearch} onChange={e => handlePropertySearchChange(e.target.value)} placeholder={t('info.property.searchPlaceholder')} />
                           <datalist id="job-property-datalist">
                             {clientProperties.map(p => <option key={p.id} value={propertyLabel(p)} />)}
                           </datalist>
-                          <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>+ Agregar propiedad nueva</button>
+                          <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>+ {t('info.property.addNew')}</button>
                         </>
                       )}
                     </div>
@@ -1339,35 +1346,35 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   {(clientProperties.length === 0 || showNewProperty || propertyForm.property_id) && (
                     <>
                       {clientProperties.length > 0 && showNewProperty && (
-                        <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>‹ Usar propiedad existente</button>
+                        <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>‹ {t('info.property.useExisting')}</button>
                       )}
                       <div className="form-group" style={{ marginBottom: 10 }}>
-                        <label>Nombre de la propiedad</label>
-                        <input value={propertyForm.property_name} onChange={e => setPropertyForm(f => ({ ...f, property_name: e.target.value }))} placeholder="Ej: Oficina Principal" />
+                        <label>{t('info.property.propertyName')}</label>
+                        <input value={propertyForm.property_name} onChange={e => setPropertyForm(f => ({ ...f, property_name: e.target.value }))} placeholder={t('info.property.propertyNamePlaceholder')} />
                       </div>
                       <div className="form-group" style={{ marginBottom: 10 }}>
-                        <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
-                        <input value={propertyForm.street} onChange={e => setPropertyForm(f => ({ ...f, street: e.target.value }))} placeholder="Calle y número" />
+                        <label>{t('info.property.streetLabel')}</label>
+                        <input value={propertyForm.street} onChange={e => setPropertyForm(f => ({ ...f, street: e.target.value }))} placeholder={t('info.property.streetPlaceholder')} />
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10, marginBottom: 10 }}>
                         <div className="form-group">
-                          <label>Ciudad</label>
+                          <label>{t('info.property.city')}</label>
                           <input value={propertyForm.city} onChange={e => setPropertyForm(f => ({ ...f, city: e.target.value }))} placeholder="San Juan" />
                         </div>
                         <div className="form-group">
-                          <label>Estado</label>
+                          <label>{t('info.property.state')}</label>
                           <input value={propertyForm.state} onChange={e => setPropertyForm(f => ({ ...f, state: e.target.value }))} placeholder="PR" />
                         </div>
                         <div className="form-group">
-                          <label>Zip</label>
+                          <label>{t('info.property.zip')}</label>
                           <input value={propertyForm.zip} onChange={e => setPropertyForm(f => ({ ...f, zip: e.target.value }))} placeholder="00901" />
                         </div>
                       </div>
                     </>
                   )}
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button className="btn btn-primary" onClick={saveProperty} disabled={savingProperty}>{savingProperty ? 'Guardando...' : '💾 Guardar'}</button>
-                    <button className="btn btn-ghost" onClick={() => { setEditingProperty(false); setShowNewProperty(false); }}>Cancelar</button>
+                    <button className="btn btn-primary" onClick={saveProperty} disabled={savingProperty}>{savingProperty ? t('common.saving') : `💾 ${t('common.save')}`}</button>
+                    <button className="btn btn-ghost" onClick={() => { setEditingProperty(false); setShowNewProperty(false); }}>{t('common.cancel')}</button>
                   </div>
                 </div>
               ) : (job.street || job.city || job.property_name) ? (
@@ -1380,7 +1387,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     if (links.direct) {
                       return (
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <a href={links.direct} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Abrir ubicación</a>
+                          <a href={links.direct} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ {t('info.property.openLocation')}</a>
                         </div>
                       );
                     }
@@ -1394,39 +1401,39 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   })()}
                 </div>
               ) : (
-                <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin propiedad asignada.</p>
+                <p style={{ color: 'var(--muted)', fontSize: 13 }}>{t('info.property.none')}</p>
               )}
             </div>
             </div>
 
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Detalles</p>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('info.details.title')}</p>
                 <div style={{ display: 'flex', border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                   {!editingDetails && (
-                    <button style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: 'none', borderRight: '1.5px solid var(--border)', cursor: 'pointer', color: 'var(--navy)', fontWeight: 600 }} onClick={() => setEditingDetails(true)}>✏️ Título/Desc.</button>
+                    <button style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: 'none', borderRight: '1.5px solid var(--border)', cursor: 'pointer', color: 'var(--navy)', fontWeight: 600 }} onClick={() => setEditingDetails(true)}>✏️ {t('info.details.editTitleDesc')}</button>
                   )}
                   {!editingNumber && (
-                    <button style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: 'none', borderRight: '1.5px solid var(--border)', cursor: 'pointer', color: 'var(--navy)', fontWeight: 600 }} onClick={() => setEditingNumber(true)}>✏️ # Job</button>
+                    <button style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: 'none', borderRight: '1.5px solid var(--border)', cursor: 'pointer', color: 'var(--navy)', fontWeight: 600 }} onClick={() => setEditingNumber(true)}>✏️ {t('info.details.editJobNumber')}</button>
                   )}
                   {!editingSchedule && (
-                    <button style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy)', fontWeight: 600 }} onClick={() => setEditingSchedule(true)}>✏️ Editar fechas</button>
+                    <button style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy)', fontWeight: 600 }} onClick={() => setEditingSchedule(true)}>✏️ {t('info.details.editDates')}</button>
                   )}
                 </div>
               </div>
               {editingDetails && (
                 <div style={{ marginBottom: 12, padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8 }}>
                   <div className="form-group" style={{ marginBottom: 10 }}>
-                    <label>Título del trabajo</label>
-                    <input value={titleForm} onChange={e => setTitleForm(e.target.value)} placeholder="Título del trabajo" />
+                    <label>{t('info.details.jobTitle')}</label>
+                    <input value={titleForm} onChange={e => setTitleForm(e.target.value)} placeholder={t('info.details.jobTitle')} />
                   </div>
                   <div className="form-group" style={{ marginBottom: 10 }}>
-                    <label>Descripción</label>
-                    <textarea value={descForm} onChange={e => setDescForm(e.target.value)} placeholder="Descripción del trabajo..." rows={3} />
+                    <label>{t('info.details.description')}</label>
+                    <textarea value={descForm} onChange={e => setDescForm(e.target.value)} placeholder={t('info.details.descriptionPlaceholder')} rows={3} />
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button className="btn btn-primary" onClick={saveDetails} disabled={savingDetails}>{savingDetails ? 'Guardando...' : '💾 Guardar'}</button>
-                    <button className="btn btn-ghost" onClick={() => { setEditingDetails(false); setTitleForm(job.title ?? ''); setDescForm(job.description ?? ''); }}>Cancelar</button>
+                    <button className="btn btn-primary" onClick={saveDetails} disabled={savingDetails}>{savingDetails ? t('common.saving') : `💾 ${t('common.save')}`}</button>
+                    <button className="btn btn-ghost" onClick={() => { setEditingDetails(false); setTitleForm(job.title ?? ''); setDescForm(job.description ?? ''); }}>{t('common.cancel')}</button>
                   </div>
                 </div>
               )}
@@ -1442,20 +1449,20 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                     <div className="form-group">
-                      <label>Inicio</label>
+                      <label>{t('common.start')}</label>
                       <input type="datetime-local" value={schedStart} onChange={e => setSchedStart(e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label>Fin</label>
+                      <label>{t('common.end')}</label>
                       <input type="datetime-local" value={schedEnd} onChange={e => setSchedEnd(e.target.value)} />
                     </div>
                   </div>
                   {scheduleError && <p style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>⚠️ {scheduleError}</p>}
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button className="btn btn-primary" onClick={saveSchedule} disabled={savingSchedule}>
-                      {savingSchedule ? 'Guardando...' : '💾 Guardar'}
+                      {savingSchedule ? t('common.saving') : `💾 ${t('common.save')}`}
                     </button>
-                    <button className="btn btn-ghost" onClick={() => { setEditingSchedule(false); setScheduleError(''); }}>Cancelar</button>
+                    <button className="btn btn-ghost" onClick={() => { setEditingSchedule(false); setScheduleError(''); }}>{t('common.cancel')}</button>
                   </div>
                 </div>
               ) : (
@@ -1463,48 +1470,48 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {job.scheduled_start && (
                       <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Inicio</div>
-                        <div style={{ fontSize: 14 }}>{new Date(scheduleWindow.start).toLocaleString('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{t('common.start')}</div>
+                        <div style={{ fontSize: 14 }}>{new Date(scheduleWindow.start).toLocaleString(dateLocale, { timeZone: 'America/Puerto_Rico', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     )}
                     {job.scheduled_end && (
                       <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Fin</div>
-                        <div style={{ fontSize: 14 }}>{new Date(scheduleWindow.end).toLocaleString('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{t('common.end')}</div>
+                        <div style={{ fontSize: 14 }}>{new Date(scheduleWindow.end).toLocaleString(dateLocale, { timeZone: 'America/Puerto_Rico', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                     )}
                     {!job.scheduled_start && !job.scheduled_end && (
-                      <p style={{ color: 'var(--muted)', fontSize: 13, gridColumn: '1/-1' }}>Sin fecha programada.</p>
+                      <p style={{ color: 'var(--muted)', fontSize: 13, gridColumn: '1/-1' }}>{t('info.details.noScheduledDate')}</p>
                     )}
                   </div>
                   {job.scheduled_start && job.scheduled_end && (
                     computeHours(job.scheduled_start, job.scheduled_end).invalid ? (
                       <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--warn-tint, #fef2f2)', borderRadius: 8, padding: '6px 12px' }}>
                         <span style={{ fontSize: 13 }}>⚠️</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--warn)' }}>Fin antes del inicio — revisa las fechas</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--warn)' }}>{t('info.details.endBeforeStartWarning')}</span>
                       </div>
                     ) : (
                       <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
                           <span style={{ fontSize: 13 }}>{scheduleDays.length > 0 ? '🗓️' : '⏱'}</span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(primaryScheduleHours)} {scheduleDays.length > 0 ? '(primera visita)' : 'de trabajo'}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(primaryScheduleHours)} {scheduleDays.length > 0 ? t('info.details.firstVisit') : t('info.details.ofWork')}</span>
                         </div>
                         {scheduleDays.length > 0 && (
                           <>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
                               <span style={{ fontSize: 13 }}>⏱</span>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(grandTotalHours)} en total</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{t('info.details.totalHours', { hours: formatHours(grandTotalHours) })}</span>
                             </div>
                             {additionalDaysCount > 0 && (
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
                                 <span style={{ fontSize: 13 }}>📅</span>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{additionalDaysCount} {additionalDaysCount === 1 ? 'día adicional' : 'días adicionales'}</span>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{t('info.details.additionalDays', { count: additionalDaysCount })}</span>
                               </div>
                             )}
                             {totalDaysCount > 0 && (
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg)', borderRadius: 8, padding: '6px 12px' }}>
                                 <span style={{ fontSize: 13 }}>📆</span>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{totalDaysCount} {totalDaysCount === 1 ? 'día en total' : 'días en total'}</span>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{t('info.details.totalDays', { count: totalDaysCount })}</span>
                               </div>
                             )}
                           </>
@@ -1516,18 +1523,18 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               )}
               {job.notes && (
                 <div style={{ marginTop: 12, padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8, fontSize: 13, color: 'var(--muted)' }}>
-                  <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {job.notes}
+                  <strong style={{ color: 'var(--navy)' }}>{t('info.details.notesLabel')}:</strong> {job.notes}
                 </div>
               )}
             </div>
 
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Días de trabajo</p>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('scheduleDays.title')}</p>
               </div>
 
               {scheduleDays.length === 0 && !addingDay && (
-                <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin días adicionales. Usa "+ Añadir día" para agendar más visitas a este trabajo.</p>
+                <p style={{ color: 'var(--muted)', fontSize: 13 }}>{t('scheduleDays.emptyHint')}</p>
               )}
 
               {scheduleDays.length > 0 && (
@@ -1538,7 +1545,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
                           {formatDatePR(group.entries[0].scheduled_start, { weekday: 'short', month: 'short', day: 'numeric' })}
                         </div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)' }}>{formatHours(group.totalHours)} total</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)' }}>{t('scheduleDays.groupTotal', { hours: formatHours(group.totalHours) })}</div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {group.entries.map(d => (
@@ -1546,26 +1553,26 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                             <div key={d.id} style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8 }}>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
                                 <div className="form-group">
-                                  <label>Inicio</label>
+                                  <label>{t('common.start')}</label>
                                   <input type="datetime-local" value={editDayForm.start} onChange={e => setEditDayForm(f => ({ ...f, start: e.target.value }))} />
                                 </div>
                                 <div className="form-group">
-                                  <label>Fin</label>
+                                  <label>{t('common.end')}</label>
                                   <input type="datetime-local" value={editDayForm.end} onChange={e => setEditDayForm(f => ({ ...f, end: e.target.value }))} />
                                 </div>
                               </div>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                                 <div className="form-group">
-                                  <label>Técnico</label>
+                                  <label>{t('common.technician')}</label>
                                   <select value={editDayForm.technician_id ?? ''} onChange={e => setEditDayForm(f => ({ ...f, technician_id: e.target.value }))}>
-                                    <option value="">— Sin asignar —</option>
-                                    {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    <option value="">{t('common.unassigned')}</option>
+                                    {technicians.map(tech => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
                                   </select>
                                 </div>
                                 <div className="form-group">
-                                  <label>Almuerzo</label>
+                                  <label>{t('common.lunch')}</label>
                                   <select value={editDayForm.lunch_minutes} onChange={e => setEditDayForm(f => ({ ...f, lunch_minutes: parseInt(e.target.value) }))}>
-                                    <option value={0}>Sin almuerzo</option>
+                                    <option value={0}>{t('common.noLunch')}</option>
                                     <option value={30}>30 min</option>
                                     <option value={45}>45 min</option>
                                     <option value={60}>60 min</option>
@@ -1574,8 +1581,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                               </div>
                               {editDayError && <p style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>⚠️ {editDayError}</p>}
                               <div style={{ display: 'flex', gap: 10 }}>
-                                <button className="btn btn-primary" onClick={() => saveEditDay(d.id)} disabled={savingEditDay || !editDayForm.start}>{savingEditDay ? 'Guardando...' : '💾 Guardar'}</button>
-                                <button className="btn btn-ghost" onClick={cancelEditDay}>Cancelar</button>
+                                <button className="btn btn-primary" onClick={() => saveEditDay(d.id)} disabled={savingEditDay || !editDayForm.start}>{savingEditDay ? t('common.saving') : `💾 ${t('common.save')}`}</button>
+                                <button className="btn btn-ghost" onClick={cancelEditDay}>{t('common.cancel')}</button>
                               </div>
                             </div>
                           ) : (
@@ -1586,16 +1593,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                                   {d.scheduled_end && ` – ${formatDateTimePR(d.scheduled_end, { hour: '2-digit', minute: '2-digit' })}`}
                                   {d.scheduled_end && (
                                     computeHours(d.scheduled_start, d.scheduled_end, d.lunch_minutes).invalid
-                                      ? <span style={{ color: 'var(--warn)', fontWeight: 700 }} title="Fin antes del inicio o almuerzo mayor al turno"> (⚠️ revisar)</span>
+                                      ? <span style={{ color: 'var(--warn)', fontWeight: 700 }} title={t('scheduleDays.invalidRangeTitle')}> (⚠️ {t('scheduleDays.reviewShort')})</span>
                                       : <span style={{ color: 'var(--muted)', fontWeight: 500 }}> ({formatHours(hoursBetween(d.scheduled_start, d.scheduled_end, d.lunch_minutes))})</span>
                                   )}
                                 </div>
-                                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.technicians?.name ?? '— Sin asignar —'}</div>
+                                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.technicians?.name ?? t('common.unassigned')}</div>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <select value={d.lunch_minutes ?? 0} onChange={e => updateDayLunch(d.id, parseInt(e.target.value))}
                                   style={{ fontSize: 12, padding: '4px 6px', border: '1.5px solid var(--border)', borderRadius: 6, color: 'var(--muted)' }}>
-                                  <option value={0}>🍽️ Sin almuerzo</option>
+                                  <option value={0}>🍽️ {t('common.noLunch')}</option>
                                   <option value={30}>🍽️ 30 min</option>
                                   <option value={45}>🍽️ 45 min</option>
                                   <option value={60}>🍽️ 60 min</option>
@@ -1622,49 +1629,49 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               )}
 
               {!addingDay && (
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px', marginTop: scheduleDays.length > 0 ? 14 : 0 }} onClick={() => setAddingDay(true)}>+ Añadir día</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px', marginTop: scheduleDays.length > 0 ? 14 : 0 }} onClick={() => setAddingDay(true)}>+ {t('scheduleDays.addDay')}</button>
               )}
 
               {addingDay && (
                 <div style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
                     <div className="form-group">
-                      <label>Inicio</label>
+                      <label>{t('common.start')}</label>
                       <input type="datetime-local" value={newDay.start} onChange={e => setNewDay(d => ({ ...d, start: e.target.value }))} />
                     </div>
                     <div className="form-group">
-                      <label>Fin</label>
+                      <label>{t('common.end')}</label>
                       <input type="datetime-local" value={newDay.end} onChange={e => setNewDay(d => ({ ...d, end: e.target.value }))} />
                     </div>
                   </div>
                   <div className="form-group" style={{ marginBottom: 12 }}>
-                    <label>Almuerzo</label>
+                    <label>{t('common.lunch')}</label>
                     <select value={newDay.lunch_minutes} onChange={e => setNewDay(d => ({ ...d, lunch_minutes: parseInt(e.target.value) }))}>
-                      <option value={0}>Sin almuerzo</option>
+                      <option value={0}>{t('common.noLunch')}</option>
                       <option value={30}>30 min</option>
                       <option value={45}>45 min</option>
                       <option value={60}>60 min</option>
                     </select>
                   </div>
                   <div className="form-group" style={{ marginBottom: 12 }}>
-                    <label>Técnicos (puedes escoger más de uno)</label>
+                    <label>{t('scheduleDays.techniciansMultiHint')}</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {technicians.map(t => {
-                        const checked = newDay.technician_ids.includes(t.id);
+                      {technicians.map(tech => {
+                        const checked = newDay.technician_ids.includes(tech.id);
                         return (
-                          <label key={t.id} className="hover-lift" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-                            <input type="checkbox" checked={checked} onChange={() => toggleNewDayTechnician(t.id)} style={{ margin: 0 }} />
-                            {t.name}
+                          <label key={tech.id} className="hover-lift" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleNewDayTechnician(tech.id)} style={{ margin: 0 }} />
+                            {tech.name}
                           </label>
                         );
                       })}
-                      {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
+                      {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>{t('scheduleDays.noTechnicians')}</p>}
                     </div>
                   </div>
                   {newDayError && <p style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>⚠️ {newDayError}</p>}
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button className="btn btn-primary" onClick={addScheduleDay} disabled={savingDay || !newDay.start}>{savingDay ? 'Guardando...' : '💾 Guardar'}</button>
-                    <button className="btn btn-ghost" onClick={() => { setAddingDay(false); setNewDayError(''); setNewDay({ start: '', end: '', technician_ids: [] }); }}>Cancelar</button>
+                    <button className="btn btn-primary" onClick={addScheduleDay} disabled={savingDay || !newDay.start}>{savingDay ? t('common.saving') : `💾 ${t('common.save')}`}</button>
+                    <button className="btn btn-ghost" onClick={() => { setAddingDay(false); setNewDayError(''); setNewDay({ start: '', end: '', technician_ids: [] }); }}>{t('common.cancel')}</button>
                   </div>
                 </div>
               )}
@@ -1672,7 +1679,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
 
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de trabajo</p>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('lineItems.title')}</p>
                 <div style={{ position: 'relative' }}>
                   <button onClick={() => setShowLineMenu(o => !o)}
                     style={{ background: 'none', border: '1.5px solid var(--border)', borderRadius: 8, cursor: 'pointer', color: 'var(--navy)', fontSize: 18, lineHeight: 1, padding: '4px 10px' }}>⋯</button>
@@ -1680,8 +1687,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     <>
                       <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowLineMenu(false)} />
                       <div style={{ position: 'absolute', right: 0, top: 34, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 200, overflow: 'hidden' }}>
-                        <button onClick={() => { exportPurchaseListCSV(lineItems, job.job_number); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📦 Lista de compra</button>
-                        <button disabled={generatingPO} onClick={() => { generarOrdenCompra(); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>{generatingPO ? '⏳ Generando...' : '🛒 Generar orden de compra'}</button>
+                        <button onClick={() => { exportPurchaseListCSV(lineItems, job.job_number, tPurchaseListCsv); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📦 {t('lineItems.purchaseList')}</button>
+                        <button disabled={generatingPO} onClick={() => { generarOrdenCompra(); setShowLineMenu(false); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>{generatingPO ? `⏳ ${t('lineItems.generatingPO')}` : `🛒 ${t('lineItems.generatePO')}`}</button>
                       </div>
                     </>
                   )}
@@ -1708,7 +1715,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                         <>
                           <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>{area.name}</p>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{area.name} Total: {fmt(areaLineTotal)}</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{t('lineItems.areaTotal', { area: area.name, total: fmt(areaLineTotal) })}</span>
                             <div style={{ position: 'relative' }}>
                               <button type="button" onClick={() => setAreaMenuOpen(o => o === area.name ? null : area.name)}
                                 style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, padding: '2px 6px' }}>⋮</button>
@@ -1718,13 +1725,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                                   <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 4, minWidth: 170, whiteSpace: 'nowrap' }}>
                                     <button type="button" onClick={() => { startRenameArea(area); setAreaMenuOpen(null); }}
                                       style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' }}>
-                                      ✏️ Renombrar área
+                                      ✏️ {t('lineItems.renameArea')}
                                     </button>
                                     {area.items.length === 0 && (
                                       <button type="button" disabled={displayAreas.length <= 1}
                                         onClick={() => { removeExtraArea(area.name); setAreaMenuOpen(null); }}
                                         style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: displayAreas.length <= 1 ? 'default' : 'pointer', borderRadius: 6, color: displayAreas.length <= 1 ? 'var(--muted)' : 'var(--warn)' }}>
-                                        🗑 Eliminar área
+                                        🗑 {t('lineItems.deleteArea')}
                                       </button>
                                     )}
                                   </div>
@@ -1737,11 +1744,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     </div>
 
                     <div style={{ marginBottom: 10 }}>
-                      <LineItemPicker catalogOptions={catalogItems} onSelect={item => addLineItemFromCatalog(item, area.name)} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+                      <LineItemPicker catalogOptions={catalogItems} onSelect={item => addLineItemFromCatalog(item, area.name)} placeholder={t('lineItems.catalogSearchPlaceholder')} />
                     </div>
 
                     {area.items.length === 0 && addingLineFor !== area.name && (
-                      <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 8 }}>Sin líneas en esta área.</p>
+                      <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 8 }}>{t('lineItems.noLinesInArea')}</p>
                     )}
 
                     {area.items.map(it => (
@@ -1810,7 +1817,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                                   draggable
                                   onDragStart={() => setDragLineItem(it)}
                                   onDragEnd={() => setDragLineItem(null)}
-                                  title="Arrastrar para mover a otra área"
+                                  title={t('lineItems.dragToMoveArea')}
                                   style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 15, padding: '0 4px', userSelect: 'none' }}
                                 >⠿</span>
                                 <button onClick={() => startEditLine(it)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, padding: '2px 6px' }}>✏️</button>
@@ -1900,14 +1907,14 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 32, marginBottom: 8, marginTop: -4 }}>
                             <button type="button" onClick={() => setAddingAccessoryFor(it.id)}
                               style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
-                              + Accesorio
+                              + {t('lineItems.accessory')}
                             </button>
                             {it.children?.length > 0 && (
                               <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
-                                title="Si está activo, el precio de los accesorios se combina en el total de este producto (no se muestran precios individuales). Si lo desactivas, cada accesorio se cotiza por separado.">
+                                title={t('lineItems.combinePriceHint')}>
                                 <input type="checkbox" checked={it.combine_price !== false}
                                   onChange={e => toggleCombinePrice(it, e.target.checked)} />
-                                Combinar precio de accesorios
+                                {t('lineItems.combinePrice')}
                               </label>
                             )}
                           </div>
@@ -1954,27 +1961,27 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                       />
                     )}
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setAddingLineFor(area.name)}>+ Agregar línea</button>
-                      <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget(area.name)}>🧮 Calcular cable/tubo</button>
+                      <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setAddingLineFor(area.name)}>+ {t('lineItems.addLine')}</button>
+                      <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget(area.name)}>🧮 {t('lineItems.calculateCable')}</button>
                     </div>
                   </div>
                 );
               })}
-              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addExtraArea}>+ Agregar área</button>
+              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addExtraArea}>+ {t('lineItems.addArea')}</button>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Estado</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>{t('status.title')}</p>
               <select value={status} onChange={e => updateStatus(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}>
-                {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {translatedStatusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
 
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Técnicos asignados</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>{t('technicians.assignedTitle')}</p>
               {assignedTechs.length === 0 ? (
-                <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>Sin técnicos asignados.</p>
+                <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>{t('technicians.none')}</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                   {assignedTechs.map(at => (
@@ -1987,9 +1994,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <select value={addingTech} onChange={e => setAddingTech(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }}>
-                  <option value="">— Agregar técnico —</option>
-                  {technicians.filter(t => !assignedTechs.some(at => at.technician_id === t.id)).map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                  <option value="">{t('technicians.addPlaceholder')}</option>
+                  {technicians.filter(tech => !assignedTechs.some(at => at.technician_id === tech.id)).map(tech => (
+                    <option key={tech.id} value={tech.id}>{tech.name}</option>
                   ))}
                 </select>
                 <button onClick={() => addTechnician(addingTech)} disabled={!addingTech || savingTech} className="btn btn-primary" style={{ fontSize: 13, padding: '8px 14px' }}>
@@ -2000,11 +2007,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
             </div>
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Planos</p>
-                <a href={`/planos/nuevo`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>+ Nuevo plano</a>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('planos.title')}</p>
+                <a href={`/planos/nuevo`} style={{ color: 'var(--amber)', fontSize: 13, fontWeight: 600 }}>+ {t('planos.newPlano')}</a>
               </div>
               {planos.length === 0 ? (
-                <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin planos vinculados a este trabajo.</p>
+                <p style={{ color: 'var(--muted)', fontSize: 13 }}>{t('planos.none')}</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {planos.map(p => (
@@ -2020,12 +2027,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
             </div>
             <div className="card">
               <TaxBreakdown
-                lineas={lineItemsForTax} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
-                note={clientType === 'b2b' && <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>Cliente B2B — Labor al 4%</div>}
+                lineas={lineItemsForTax} clientType={clientType} taxRules={taxRules} title={t('taxSummary.title')}
+                note={clientType === 'b2b' && <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>{t('taxSummary.b2bNote')}</div>}
               />
             </div>
             <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)', width: '100%', justifyContent: 'center' }} onClick={() => setShowDelete(true)}>
-              🗑 Eliminar trabajo
+              🗑 {t('info.deleteJob')}
             </button>
           </div>
         </div>
@@ -2035,16 +2042,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       {tab === 'notes' && (
         <div style={{ maxWidth: 700 }}>
           <div className="card" style={{ marginBottom: 20 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Agregar nota o foto</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>{t('notes.addTitle')}</p>
             <form onSubmit={saveNote}>
               <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                <input value={noteTitle} onChange={e => setNoteTitle(e.target.value)} placeholder="Título (opcional)"
+                <input value={noteTitle} onChange={e => setNoteTitle(e.target.value)} placeholder={t('notes.titleOptional')}
                   style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontWeight: 600, outline: 'none' }} />
-                <input type="number" value={notePhase} onChange={e => setNotePhase(e.target.value)} placeholder="Fase #"
+                <input type="number" value={notePhase} onChange={e => setNotePhase(e.target.value)} placeholder={t('notes.phasePlaceholder')}
                   style={{ width: 100, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, outline: 'none' }} />
               </div>
               <div className="form-group" style={{ marginBottom: 12 }}>
-                <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Escribe una nota..." rows={3}
+                <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder={t('notes.writeNotePlaceholder')} rows={3}
                   style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
               </div>
               {pendingPhotoPreviews.length > 0 && (
@@ -2053,7 +2060,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
                       <img src={preview} alt="preview" onClick={() => setAnnotatingIdx(idx)} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10, cursor: 'pointer' }} />
                       <button type="button" onClick={() => setAnnotatingIdx(idx)}
-                        style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
+                        style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ {t('notes.markPhoto')}</button>
                       {uploadingPhoto && (
                         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', borderRadius: '0 0 10px 10px', padding: '4px 6px' }}>
                           <div style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 20, height: 5, overflow: 'hidden' }}>
@@ -2080,9 +2087,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               )}
               <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 Foto{pendingPhotos.length > 0 ? ` (${pendingPhotos.length})` : ''}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>📷 {t('notes.photo')}{pendingPhotos.length > 0 ? ` (${pendingPhotos.length})` : ''}</button>
                 <button type="submit" className="btn btn-primary" disabled={savingNote || uploadingPhoto} style={{ flex: 1, justifyContent: 'center' }}>
-                  {uploadingPhoto ? 'Subiendo...' : savingNote ? 'Guardando...' : '💾 Guardar'}
+                  {uploadingPhoto ? t('notes.uploading') : savingNote ? t('common.saving') : `💾 ${t('common.save')}`}
                 </button>
               </div>
             </form>
@@ -2090,10 +2097,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
           <div className="card" style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>
-                💸 Gastos del trabajo {expensesList.length > 0 && <span style={{ color: 'var(--muted)', fontWeight: 600 }}>— {fmt(totalExpenses)}</span>}
+                💸 {t('expenses.title')} {expensesList.length > 0 && <span style={{ color: 'var(--muted)', fontWeight: 600 }}>— {fmt(totalExpenses)}</span>}
               </p>
               {!addingExpense && (
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingExpense(true)}>+ Agregar gasto</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setAddingExpense(true)}>+ {t('expenses.addExpense')}</button>
               )}
             </div>
 
@@ -2101,60 +2108,60 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               <div style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 8, marginBottom: expensesList.length > 0 ? 14 : 0 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div className="form-group">
-                    <label>Categoría</label>
+                    <label>{t('expenses.category')}</label>
                     <select value={newExpense.category} onChange={e => setNewExpense(f => ({ ...f, category: e.target.value }))}>
-                      {expenseCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      {translatedExpenseCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Fecha</label>
+                    <label>{t('expenses.date')}</label>
                     <input type="date" value={newExpense.expense_date} onChange={e => setNewExpense(f => ({ ...f, expense_date: e.target.value }))} />
                   </div>
                 </div>
                 <div className="form-group" style={{ marginBottom: 10 }}>
-                  <label>Descripción</label>
-                  <input value={newExpense.description} onChange={e => setNewExpense(f => ({ ...f, description: e.target.value }))} placeholder="Ej: Cable THHN 12AWG, gasolina, permiso..." />
+                  <label>{t('expenses.description')}</label>
+                  <input value={newExpense.description} onChange={e => setNewExpense(f => ({ ...f, description: e.target.value }))} placeholder={t('expenses.descriptionPlaceholder')} />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div className="form-group">
-                    <label>Suplidor (opcional)</label>
-                    <input value={newExpense.vendor} onChange={e => setNewExpense(f => ({ ...f, vendor: e.target.value }))} placeholder="Ej: Home Depot" />
+                    <label>{t('expenses.vendor')}</label>
+                    <input value={newExpense.vendor} onChange={e => setNewExpense(f => ({ ...f, vendor: e.target.value }))} placeholder={t('expenses.vendorPlaceholder')} />
                   </div>
                   <div className="form-group">
-                    <label>Monto</label>
+                    <label>{t('expenses.amount')}</label>
                     <input type="number" step="0.01" value={newExpense.amount} onChange={e => setNewExpense(f => ({ ...f, amount: e.target.value }))} placeholder="0.00" />
                   </div>
                 </div>
                 {newExpense.photoPreview && (
-                  <img src={newExpense.photoPreview} alt="recibo" style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, marginBottom: 10 }} />
+                  <img src={newExpense.photoPreview} alt={t('expenses.receiptAlt')} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, marginBottom: 10 }} />
                 )}
                 <div style={{ display: 'flex', gap: 10 }}>
                   <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>
-                    📷 Recibo
+                    📷 {t('expenses.receipt')}
                     <input type="file" accept="image/*" onChange={e => handleExpensePhoto(e.target.files?.[0])} style={{ display: 'none' }} />
                   </label>
                   <button className="btn btn-primary" onClick={addExpense} disabled={savingExpense || !newExpense.description.trim() || !newExpense.amount}>
-                    {savingExpense ? 'Guardando...' : '💾 Guardar'}
+                    {savingExpense ? t('common.saving') : `💾 ${t('common.save')}`}
                   </button>
-                  <button className="btn btn-ghost" onClick={() => setAddingExpense(false)}>Cancelar</button>
+                  <button className="btn btn-ghost" onClick={() => setAddingExpense(false)}>{t('common.cancel')}</button>
                 </div>
               </div>
             )}
 
             {expensesList.length === 0 && !addingExpense ? (
-              <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin gastos registrados para este trabajo.</p>
+              <p style={{ color: 'var(--muted)', fontSize: 13 }}>{t('expenses.none')}</p>
             ) : expensesList.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {expensesList.map(e => (
                   <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--surface-2)', borderRadius: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       {e.receipt_signed_url && (
-                        <img src={e.receipt_signed_url} alt="recibo" onClick={() => setLightbox({ urls: [e.receipt_signed_url], index: 0, noteId: null })} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, cursor: 'zoom-in' }} />
+                        <img src={e.receipt_signed_url} alt={t('expenses.receiptAlt')} onClick={() => setLightbox({ urls: [e.receipt_signed_url], index: 0, noteId: null })} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, cursor: 'zoom-in' }} />
                       )}
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600 }}>{e.description}</div>
                         <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                          {expenseCategories.find(c => c.value === e.category)?.label ?? e.category}{e.vendor ? ` · ${e.vendor}` : ''} · {e.expense_date}
+                          {translatedExpenseCategories.find(c => c.value === e.category)?.label ?? e.category}{e.vendor ? ` · ${e.vendor}` : ''} · {e.expense_date}
                         </div>
                       </div>
                     </div>
@@ -2169,18 +2176,18 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
           </div>
 
           {sortedNotesList.length === 0 ? (
-            <div className="empty"><p>No hay notas aún.</p></div>
+            <div className="empty"><p>{t('notes.emptyList')}</p></div>
           ) : sortedNotesList.map(n => (
             <div key={n.id} className="card" style={{ marginBottom: 12, ...(n.is_pinned ? { border: '1.5px solid var(--amber)', background: 'var(--amber-tint)' } : {}) }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: n.photo_url || n.note ? 10 : 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }}>
-                  {n.is_pinned && <span title="Pineada">📌</span>}
-                  {n.phase_number != null && <span style={{ background: 'var(--navy)', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>Fase {n.phase_number}</span>}
+                  {n.is_pinned && <span title={t('notes.pinnedTitle')}>📌</span>}
+                  {n.phase_number != null && <span style={{ background: 'var(--navy)', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>{t('notes.phaseLabel', { number: n.phase_number })}</span>}
                   {n.author_name && <>{n.author_name} · </>}
                   {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => toggleNotePin(n.id, n.is_pinned)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: n.is_pinned ? 'var(--amber)' : 'var(--muted)', fontSize: 15 }} title={n.is_pinned ? 'Despinear' : 'Pinear'}>
+                  <button onClick={() => toggleNotePin(n.id, n.is_pinned)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: n.is_pinned ? 'var(--amber)' : 'var(--muted)', fontSize: 15 }} title={n.is_pinned ? t('notes.unpin') : t('notes.pin')}>
                     📌
                   </button>
                   {editingNoteId !== n.id && (
@@ -2197,13 +2204,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     if (isPdf) return (
                       <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 130, background: 'var(--surface-2)', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)' }}>
                         <span style={{ fontSize: 32 }}>📄</span>
-                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Ver PDF</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>{t('photoGallery.viewPdf')}</span>
                       </a>
                     );
                     return isVideo ? (
                       <video key={idx} src={url} controls style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                     ) : (
-                      <img key={idx} src={url} alt="job photo" onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
+                      <img key={idx} src={url} alt={t('notes.jobPhotoAlt')} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
                         style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                     );
                   })}
@@ -2214,29 +2221,29 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 if (isPdf) return (
                   <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: 'var(--surface-2)', borderRadius: 10, textDecoration: 'none', border: '1.5px solid var(--border)', marginBottom: n.note ? 10 : 0 }}>
                     <span style={{ fontSize: 28 }}>📄</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)' }}>Ver documento PDF</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)' }}>{t('photoGallery.viewPdfDocument')}</span>
                   </a>
                 );
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 10, marginBottom: n.note ? 10 : 0, background: '#000' }} />
                 ) : (
-                  <img src={n.photo_url} alt="job photo" onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
+                  <img src={n.photo_url} alt={t('notes.jobPhotoAlt')} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
                     style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0, cursor: 'zoom-in' }} />
                 );
               })()}
               {editingNoteId === n.id ? (
                 <div>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <input value={editingNoteTitle} onChange={e => setEditingNoteTitle(e.target.value)} placeholder="Título (opcional)"
+                    <input value={editingNoteTitle} onChange={e => setEditingNoteTitle(e.target.value)} placeholder={t('notes.titleOptional')}
                       style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontWeight: 600, outline: 'none' }} />
-                    <input type="number" value={editingNotePhase} onChange={e => setEditingNotePhase(e.target.value)} placeholder="Fase #"
+                    <input type="number" value={editingNotePhase} onChange={e => setEditingNotePhase(e.target.value)} placeholder={t('notes.phasePlaceholder')}
                       style={{ width: 90, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, outline: 'none' }} />
                   </div>
                   <textarea autoFocus value={editingNoteText} onChange={e => setEditingNoteText(e.target.value)} rows={3}
                     style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 8 }} />
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-primary" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => saveNoteEdit(n.id)}>Guardar</button>
-                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => { setEditingNoteId(null); setEditingNoteText(''); setEditingNoteTitle(''); setEditingNotePhase(''); }}>Cancelar</button>
+                    <button className="btn btn-primary" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => saveNoteEdit(n.id)}>{t('common.save')}</button>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => { setEditingNoteId(null); setEditingNoteText(''); setEditingNoteTitle(''); setEditingNotePhase(''); }}>{t('common.cancel')}</button>
                   </div>
                 </div>
               ) : (
@@ -2255,26 +2262,26 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
         <div style={{ maxWidth: 700 }}>
           <div className="card" style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Reportes para el cliente</p>
-              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={openNewReport}>+ Nuevo reporte</button>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('reports.title')}</p>
+              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={openNewReport}>+ {t('reports.newReport')}</button>
             </div>
-            <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>Agrupa notas y fotos por fase para compartir el avance del trabajo — descarga en PDF o envía por email.</p>
+            <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>{t('reports.description')}</p>
           </div>
 
           {reportsList.length === 0 ? (
-            <div className="empty"><p>No hay reportes aún.</p></div>
+            <div className="empty"><p>{t('reports.emptyList')}</p></div>
           ) : reportsList.map(r => (
             <div key={r.id} className="card" style={{ marginBottom: 12 }}>
               <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', margin: '0 0 4px' }}>{r.title}</p>
               <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
-                {(r.note_ids ?? []).length} nota{(r.note_ids ?? []).length === 1 ? '' : 's'} ·{' '}
-                {r.sent_at ? `Enviado a ${r.sent_to} el ${formatDatePR(r.sent_at)}` : 'No enviado'}
+                {t('reports.noteCount', { count: (r.note_ids ?? []).length })} ·{' '}
+                {r.sent_at ? t('reports.sentTo', { to: r.sent_to, date: formatDatePR(r.sent_at) }) : t('reports.notSent')}
               </p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                <a className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} href={`/reporte/${r.id}`} target="_blank" rel="noopener noreferrer">👁 Ver</a>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => openEditReport(r)}>✏️ Editar</button>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => openReportEmail(r)}>📧 Enviar</button>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px', color: 'var(--warn)' }} onClick={() => deleteReport(r.id)}>🗑 Eliminar</button>
+                <a className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} href={`/reporte/${r.id}`} target="_blank" rel="noopener noreferrer">👁 {t('common.view')}</a>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => openEditReport(r)}>✏️ {t('common.edit')}</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => openReportEmail(r)}>📧 {t('common.send')}</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px', color: 'var(--warn)' }} onClick={() => deleteReport(r.id)}>🗑 {t('common.delete')}</button>
               </div>
             </div>
           ))}
@@ -2284,61 +2291,61 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       {/* ─── CHECKLIST TAB ─── */}
       {tab === 'checklist' && (
         <div style={{ maxWidth: 700 }}>
-          <input ref={itemPhotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleItemPhotoFile} />
+          <input ref={itemPhotoInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleItemPhotoFile} />
           <input ref={areaPhotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAreaPhotoFile} />
           {realCount > 0 && (
             <div className="card" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontWeight: 700, fontSize: 14 }}>Progreso</span>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{t('checklist.progress')}</span>
                 <span style={{ fontWeight: 700, color: progress === 100 ? 'var(--ok)' : 'var(--navy)' }}>{progress}%</span>
               </div>
               <div style={{ background: 'var(--border)', borderRadius: 50, height: 8 }}>
                 <div style={{ background: progress === 100 ? 'var(--ok)' : 'var(--amber)', borderRadius: 50, height: 8, width: `${progress}%`, transition: 'width 0.3s' }} />
               </div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{completedCount} de {realCount} completados</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{t('checklist.completedOf', { completed: completedCount, total: realCount })}</div>
             </div>
           )}
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-            <button className="btn btn-primary" onClick={() => setAddingGroup(true)} style={{ whiteSpace: 'nowrap' }}>+ Nuevo grupo</button>
-            <button className="btn btn-ghost" onClick={() => setShowTemplates(!showTemplates)} style={{ whiteSpace: 'nowrap' }}>📋 Plantilla</button>
+            <button className="btn btn-primary" onClick={() => setAddingGroup(true)} style={{ whiteSpace: 'nowrap' }}>+ {t('checklist.newGroup')}</button>
+            <button className="btn btn-ghost" onClick={() => setShowTemplates(!showTemplates)} style={{ whiteSpace: 'nowrap' }}>📋 {t('checklist.template')}</button>
           </div>
 
           {addingGroup && (
             <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
               <input autoFocus value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addGroup()}
-                placeholder="Nombre del grupo..." style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-              <button className="btn btn-primary" onClick={addGroup}>Crear</button>
-              <button className="btn btn-ghost" onClick={() => { setAddingGroup(false); setNewGroupName(''); }}>Cancelar</button>
+                placeholder={t('checklist.groupNamePlaceholder')} style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+              <button className="btn btn-primary" onClick={addGroup}>{t('checklist.create')}</button>
+              <button className="btn btn-ghost" onClick={() => { setAddingGroup(false); setNewGroupName(''); }}>{t('common.cancel')}</button>
             </div>
           )}
 
           {showTemplates && (
             <div className="card" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>PLANTILLAS</p>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setShowTemplates(false)}>✕ Cancelar</button>
+                <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>{t('checklist.templatesHeading')}</p>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setShowTemplates(false)}>✕ {t('common.cancel')}</button>
               </div>
               {templates.length === 0
-                ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No hay plantillas. <a href="/admin/plantillas" style={{ color: 'var(--amber)' }}>Crear una →</a></p>
-                : templates.map(t => (
-                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>{t('checklist.noTemplates')} <a href="/admin/plantillas" style={{ color: 'var(--amber)' }}>{t('checklist.createOne')} →</a></p>
+                : templates.map(tpl => (
+                  <div key={tpl.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t.checklist_template_items?.length ?? 0} ítems</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{tpl.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('checklist.itemCount', { count: tpl.checklist_template_items?.length ?? 0 })}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => { applyTemplate(t); setShowTemplates(false); }}>Aplicar</button>
+                      <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => { applyTemplate(tpl); setShowTemplates(false); }}>{t('checklist.apply')}</button>
                       <div style={{ position: 'relative' }}>
-                        <button onClick={() => setTemplateMenuOpen(templateMenuOpen === t.id ? null : t.id)}
+                        <button onClick={() => setTemplateMenuOpen(templateMenuOpen === tpl.id ? null : tpl.id)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>⋮</button>
-                        {templateMenuOpen === t.id && (
+                        {templateMenuOpen === tpl.id && (
                           <>
                             <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setTemplateMenuOpen(null)} />
                             <div style={{ position: 'absolute', right: 0, top: 28, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
-                              <button onClick={() => { applyTemplate(t); setShowTemplates(false); setTemplateMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✅ Aplicar</button>
-                              <button onClick={() => { setShowTemplates(false); setTemplateMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✕ Cancelar</button>
+                              <button onClick={() => { applyTemplate(tpl); setShowTemplates(false); setTemplateMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✅ {t('checklist.apply')}</button>
+                              <button onClick={() => { setShowTemplates(false); setTemplateMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✕ {t('common.cancel')}</button>
                             </div>
                           </>
                         )}
@@ -2351,7 +2358,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
           )}
 
           {Object.keys(groupedMap).length === 0 && (
-            <div className="card empty"><p>Sin ítems. Crea un grupo o agrega ítems directamente.</p></div>
+            <div className="card empty"><p>{t('checklist.emptyHint')}</p></div>
           )}
 
           {Object.entries(groupedMap).map(([groupKey, groupItems]) => {
@@ -2378,7 +2385,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {uploadingAreaPhotoKey === groupKey && (
-                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>Subiendo...</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{t('notes.uploading')}</span>
                     )}
                     {groupName && areaPhotos[groupName]?.photo_signed_url && (
                       <img src={areaPhotos[groupName].photo_signed_url} onClick={() => setLightbox({ urls: [areaPhotos[groupName].photo_signed_url], index: 0, noteId: null })}
@@ -2391,11 +2398,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                         <>
                           <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setGroupMenuOpen(null)} />
                           <div style={{ position: 'absolute', right: 0, top: 28, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
-                            <button onClick={() => renameGroup(groupName ?? 'General')} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
-                            <button onClick={() => duplicateGroup(groupKey)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>⧉ Duplicar grupo</button>
-                            {groupName && <button onClick={() => triggerAreaPhotoUpload(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {areaPhotos[groupName]?.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>}
-                            {groupName && areaPhotos[groupName]?.photo_signed_url && <button onClick={() => removeAreaPhoto(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
-                            {groupName && <button onClick={() => deleteGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar grupo</button>}
+                            <button onClick={() => renameGroup(groupName ?? 'General')} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ {t('checklist.rename')}</button>
+                            <button onClick={() => duplicateGroup(groupKey)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>⧉ {t('checklist.duplicateGroup')}</button>
+                            {groupName && <button onClick={() => triggerAreaPhotoUpload(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {areaPhotos[groupName]?.photo_signed_url ? t('checklist.changePhoto') : t('checklist.addPhoto')}</button>}
+                            {groupName && areaPhotos[groupName]?.photo_signed_url && <button onClick={() => removeAreaPhoto(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 {t('checklist.removePhoto')}</button>}
+                            {groupName && <button onClick={() => deleteGroup(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 {t('checklist.deleteGroup')}</button>}
                           </div>
                         </>
                       )}
@@ -2419,7 +2426,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                       {children.length > 0 ? (
                         <button onClick={() => toggleExpand(item.id)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, width: 22, height: 22 }}
-                          title={expanded ? 'Colapsar' : 'Expandir'}>{expanded ? '▾' : '▸'}</button>
+                          title={expanded ? t('checklist.collapse') : t('checklist.expand')}>{expanded ? '▾' : '▸'}</button>
                       ) : <span style={{ width: 22, flexShrink: 0 }} />}
                       <div onClick={() => toggleItem(item.id, item.completed)}
                         style={{ width: 24, height: 24, borderRadius: '50%', border: item.completed ? 'none' : '2px solid var(--line-strong)', background: item.completed ? 'var(--ok)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
@@ -2431,14 +2438,14 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                             <input autoFocus value={editingItemText} onChange={e => setEditingItemText(e.target.value)}
                               onKeyDown={e => { if (e.key === 'Enter') saveEditItem(item.id); if (e.key === 'Escape') setEditingItemId(null); }}
                               style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-                            <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => saveEditItem(item.id)}>Guardar</button>
-                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setEditingItemId(null)}>Cancelar</button>
+                            <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => saveEditItem(item.id)}>{t('common.save')}</button>
+                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setEditingItemId(null)}>{t('common.cancel')}</button>
                           </div>
                         ) : (
                           <>
                             <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? 'var(--muted)' : 'var(--text)' }}>
-                              {item.item_type === 'product' && <span title="Producto" style={{ marginRight: 5 }}>📦</span>}
-                              {item.item_type === 'labor' && <span title="Labor" style={{ marginRight: 5 }}>🔧</span>}
+                              {item.item_type === 'product' && <span title={t('checklist.product')} style={{ marginRight: 5 }}>📦</span>}
+                              {item.item_type === 'labor' && <span title={t('checklist.labor')} style={{ marginRight: 5 }}>🔧</span>}
                               {item.description}
                               {children.length > 0 && (
                                 <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginLeft: 6 }}>
@@ -2448,12 +2455,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                             </div>
                             {item.completed && item.completed_at && (
                               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                                {item.item_type === 'product' ? 'Entregado el' : 'Completado el'} {formatDatePR(item.completed_at)}
+                                {item.item_type === 'product' ? t('checklist.deliveredOn') : t('checklist.completedOn')} {formatDatePR(item.completed_at)}
                               </div>
                             )}
                             {item.assigned_technician_id && (
                               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                                🧑‍🔧 {assignedTechs.find(at => at.technician_id === item.assigned_technician_id)?.technicians?.name ?? 'Técnico'}
+                                🧑‍🔧 {assignedTechs.find(at => at.technician_id === item.assigned_technician_id)?.technicians?.name ?? t('common.technician')}
                               </div>
                             )}
                           </>
@@ -2463,7 +2470,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                             <select autoFocus value={item.assigned_technician_id ?? ''}
                               onChange={e => assignItemTechnician(item.id, e.target.value || null)}
                               style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}>
-                              <option value="">Sin asignar</option>
+                              <option value="">{t('common.unassignedShort')}</option>
                               {assignedTechs.map(at => <option key={at.technician_id} value={at.technician_id}>{at.technicians?.name}</option>)}
                             </select>
                             <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setAssigningTechFor(null)}>×</button>
@@ -2471,11 +2478,19 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                         )}
                       </div>
                       {uploadingItemPhotoId === item.id && (
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Subiendo...</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{t('notes.uploading')}</span>
                       )}
                       {item.photo_signed_url && editingItemId !== item.id && (
-                        <img src={item.photo_signed_url} onClick={() => setLightbox({ urls: [item.photo_signed_url], index: 0, noteId: null })}
-                          style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+                        <div style={{ position: 'relative', flexShrink: 0 }}
+                          onClick={() => setLightbox({ urls: item.photo_signed_urls?.length ? item.photo_signed_urls : [item.photo_signed_url], index: 0, noteId: null })}>
+                          <img src={item.photo_signed_url}
+                            style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }} />
+                          {item.photo_signed_urls?.length > 1 && (
+                            <span style={{ position: 'absolute', bottom: -4, right: -4, background: 'var(--navy)', color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: 8, padding: '1px 4px', minWidth: 14, textAlign: 'center' }}>
+                              {item.photo_signed_urls.length}
+                            </span>
+                          )}
+                        </div>
                       )}
                       {editingItemId !== item.id && (
                         <div style={{ position: 'relative' }}>
@@ -2485,15 +2500,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                             <>
                               <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setItemMenuOpen(null)} />
                               <div style={{ position: 'absolute', right: 0, top: 24, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
-                                <button onClick={() => startEditItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
-                                <button onClick={() => duplicateItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
+                                <button onClick={() => startEditItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>✏️ {t('common.edit')}</button>
+                                <button onClick={() => duplicateItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>📄 {t('checklist.duplicate')}</button>
                                 {!item.parent_item_id && (
-                                  <button onClick={() => { setAddingSubItemFor(item.id); setItemMenuOpen(null); setExpandedItems(prev => ({ ...prev, [item.id]: true })); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>➕ Agregar sub-tarea</button>
+                                  <button onClick={() => { setAddingSubItemFor(item.id); setItemMenuOpen(null); setExpandedItems(prev => ({ ...prev, [item.id]: true })); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>➕ {t('checklist.addSubtask')}</button>
                                 )}
-                                <button onClick={() => { setAssigningTechFor(item.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🧑‍🔧 {item.assigned_technician_id ? 'Reasignar técnico' : 'Asignar técnico'}</button>
-                                <button onClick={() => triggerItemPhotoUpload(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {item.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
-                                {item.photo_signed_url && <button onClick={() => removeItemPhoto(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
-                                <button onClick={() => { deleteItem(item.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar</button>
+                                <button onClick={() => { setAssigningTechFor(item.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>🧑‍🔧 {item.assigned_technician_id ? t('checklist.reassignTechnician') : t('checklist.assignTechnician')}</button>
+                                <button onClick={() => triggerItemPhotoUpload(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>📷 {item.photo_signed_url ? t('checklist.addMorePhotos') : t('checklist.addPhoto')}</button>
+                                {item.photo_signed_url && <button onClick={() => removeItemPhoto(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>🗑 {item.photo_signed_urls?.length > 1 ? t('checklist.removePhotos') : t('checklist.removePhoto')}</button>}
+                                <button onClick={() => { deleteItem(item.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 {t('common.delete')}</button>
                               </div>
                             </>
                           )}
@@ -2520,8 +2535,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                               <input autoFocus value={editingItemText} onChange={e => setEditingItemText(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') saveEditItem(sub.id); if (e.key === 'Escape') setEditingItemId(null); }}
                                 style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
-                              <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => saveEditItem(sub.id)}>Guardar</button>
-                              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setEditingItemId(null)}>Cancelar</button>
+                              <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => saveEditItem(sub.id)}>{t('common.save')}</button>
+                              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setEditingItemId(null)}>{t('common.cancel')}</button>
                             </div>
                           ) : (
                             <>
@@ -2530,7 +2545,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                               </div>
                               {sub.assigned_technician_id && (
                                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                                  🧑‍🔧 {assignedTechs.find(at => at.technician_id === sub.assigned_technician_id)?.technicians?.name ?? 'Técnico'}
+                                  🧑‍🔧 {assignedTechs.find(at => at.technician_id === sub.assigned_technician_id)?.technicians?.name ?? t('common.technician')}
                                 </div>
                               )}
                             </>
@@ -2540,7 +2555,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                               <select autoFocus value={sub.assigned_technician_id ?? ''}
                                 onChange={e => assignItemTechnician(sub.id, e.target.value || null)}
                                 style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}>
-                                <option value="">Sin asignar</option>
+                                <option value="">{t('common.unassignedShort')}</option>
                                 {assignedTechs.map(at => <option key={at.technician_id} value={at.technician_id}>{at.technicians?.name}</option>)}
                               </select>
                               <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setAssigningTechFor(null)}>×</button>
@@ -2548,8 +2563,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                           )}
                         </div>
                         {sub.photo_signed_url && editingItemId !== sub.id && (
-                          <img src={sub.photo_signed_url} onClick={() => setLightbox({ urls: [sub.photo_signed_url], index: 0, noteId: null })}
-                            style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+                          <div style={{ position: 'relative', flexShrink: 0 }}
+                            onClick={() => setLightbox({ urls: sub.photo_signed_urls?.length ? sub.photo_signed_urls : [sub.photo_signed_url], index: 0, noteId: null })}>
+                            <img src={sub.photo_signed_url}
+                              style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }} />
+                            {sub.photo_signed_urls?.length > 1 && (
+                              <span style={{ position: 'absolute', bottom: -4, right: -4, background: 'var(--navy)', color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: 8, padding: '1px 4px', minWidth: 14, textAlign: 'center' }}>
+                                {sub.photo_signed_urls.length}
+                              </span>
+                            )}
+                          </div>
                         )}
                         {editingItemId !== sub.id && (
                           <div style={{ position: 'relative' }}>
@@ -2559,12 +2582,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                               <>
                                 <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setItemMenuOpen(null)} />
                                 <div style={{ position: 'absolute', right: 0, top: 24, background: 'var(--surface)', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid var(--border)', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
-                                  <button onClick={() => startEditItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
-                                  <button onClick={() => duplicateItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
-                                  <button onClick={() => { setAssigningTechFor(sub.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🧑‍🔧 {sub.assigned_technician_id ? 'Reasignar técnico' : 'Asignar técnico'}</button>
-                                  <button onClick={() => triggerItemPhotoUpload(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {sub.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
-                                  {sub.photo_signed_url && <button onClick={() => removeItemPhoto(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
-                                  <button onClick={() => { deleteItem(sub.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 Eliminar</button>
+                                  <button onClick={() => startEditItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>✏️ {t('common.edit')}</button>
+                                  <button onClick={() => duplicateItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>📄 {t('checklist.duplicate')}</button>
+                                  <button onClick={() => { setAssigningTechFor(sub.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>🧑‍🔧 {sub.assigned_technician_id ? t('checklist.reassignTechnician') : t('checklist.assignTechnician')}</button>
+                                  <button onClick={() => triggerItemPhotoUpload(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>📷 {sub.photo_signed_url ? t('checklist.addMorePhotos') : t('checklist.addPhoto')}</button>
+                                  {sub.photo_signed_url && <button onClick={() => removeItemPhoto(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--text)' }}>🗑 {sub.photo_signed_urls?.length > 1 ? t('checklist.removePhotos') : t('checklist.removePhoto')}</button>}
+                                  <button onClick={() => { deleteItem(sub.id); setItemMenuOpen(null); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: 'var(--warn)' }}>🗑 {t('common.delete')}</button>
                                 </div>
                               </>
                             )}
@@ -2578,9 +2601,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                         <input autoFocus value={newSubItemText[item.id] ?? ''}
                           onChange={e => setNewSubItemText(prev => ({ ...prev, [item.id]: e.target.value }))}
                           onKeyDown={e => { if (e.key === 'Enter') addSubItem(item); if (e.key === 'Escape') setAddingSubItemFor(null); }}
-                          placeholder="Descripción de la sub-tarea..."
+                          placeholder={t('checklist.subtaskPlaceholder')}
                           style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
-                        <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => addSubItem(item)}>Agregar</button>
+                        <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => addSubItem(item)}>{t('checklist.add')}</button>
                         <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setAddingSubItemFor(null)}>×</button>
                       </div>
                     )}
@@ -2593,15 +2616,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     <input autoFocus value={newItemText[groupKey] ?? ''}
                       onChange={e => setNewItemText(prev => ({ ...prev, [groupKey]: e.target.value }))}
                       onKeyDown={e => e.key === 'Enter' && addItemToGroup(groupName)}
-                      placeholder="Descripción del ítem..."
+                      placeholder={t('checklist.itemDescriptionPlaceholder')}
                       style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-                    <button className="btn btn-primary" style={{ fontSize: 13, padding: '6px 12px' }} onClick={() => addItemToGroup(groupName)}>Agregar</button>
+                    <button className="btn btn-primary" style={{ fontSize: 13, padding: '6px 12px' }} onClick={() => addItemToGroup(groupName)}>{t('checklist.add')}</button>
                     <button className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }} onClick={() => setAddingItemGroup(null)}>×</button>
                   </div>
                 ) : (
                   <button onClick={() => setAddingItemGroup(groupKey)}
                     style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 600, padding: '4px 0' }}>
-                    + Nuevo ítem
+                    + {t('checklist.newItem')}
                   </button>
                 )}
               </div>
@@ -2615,32 +2638,32 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
         <div style={{ maxWidth: 760 }}>
           {profitability.margenPct != null && profitability.margenPct < MARGIN_ALERT_THRESHOLD && (
             <div style={{ background: 'var(--danger-tint)', color: 'var(--warn)', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
-              ⚠ Margen bajo ({profitability.margenPct.toFixed(0)}%) — por debajo del {MARGIN_ALERT_THRESHOLD}% recomendado.
+              ⚠ {t('profitability.lowMargin', { pct: profitability.margenPct.toFixed(0), threshold: MARGIN_ALERT_THRESHOLD })}
             </div>
           )}
 
           <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>Facturación</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>{t('profitability.billing')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               <div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Facturado</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('profitability.invoiced')}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)' }}>{fmt(profitability.facturado)}</div>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Cobrado</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('profitability.collected')}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ok)' }}>{fmt(profitability.cobrado)}</div>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Pendiente</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('profitability.pending')}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--amber)' }}>{fmt(profitability.pendiente)}</div>
               </div>
             </div>
             {invoices.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>Este trabajo aún no tiene facturas.</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>{t('profitability.noInvoices')}</div>
             ) : (
               <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {invoices.map(inv => {
-                  const invStatusLabel = { draft: 'Borrador', sent: 'Enviada', paid: 'Pagada', cancelled: 'Cancelada' };
+                  const invStatusLabel = { draft: t('profitability.invoiceStatus.draft'), sent: t('profitability.invoiceStatus.sent'), paid: t('profitability.invoiceStatus.paid'), cancelled: t('profitability.invoiceStatus.cancelled') };
                   const invStatusCls = { draft: 'badge-gray', sent: 'badge-blue', paid: 'badge-green', cancelled: 'badge-red' };
                   return (
                     <Link key={inv.id} href={`/facturas/${inv.id}`}
@@ -2658,18 +2681,18 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
           </div>
 
           <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>Costos</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>{t('profitability.costs')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               <div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Materiales</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('profitability.materials')}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--warn)' }}>{fmt(profitability.materialesCosto)}</div>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Mano de obra ({formatHours(profitability.totalHoras)})</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('profitability.laborWithHours', { hours: formatHours(profitability.totalHoras) })}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--warn)' }}>{fmt(profitability.manoDeObraCosto)}</div>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Gastos</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('profitability.expenses')}</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--warn)' }}>{fmt(profitability.gastos)}</div>
               </div>
             </div>
@@ -2677,14 +2700,14 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
 
           {profitability.laborRows.length > 0 && (
             <div className="card" style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>Mano de obra por técnico</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>{t('profitability.laborByTechnician')}</div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
-                    <th style={{ paddingBottom: 8 }}>Técnico</th>
-                    <th style={{ paddingBottom: 8 }}>Horas</th>
-                    <th style={{ paddingBottom: 8 }}>Tarifa/hr</th>
-                    <th style={{ paddingBottom: 8, textAlign: 'right' }}>Costo</th>
+                    <th style={{ paddingBottom: 8 }}>{t('common.technician')}</th>
+                    <th style={{ paddingBottom: 8 }}>{t('profitability.hours')}</th>
+                    <th style={{ paddingBottom: 8 }}>{t('profitability.rateHr')}</th>
+                    <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('profitability.cost')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2703,7 +2726,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
 
           <div className="card" style={{ background: 'var(--bg)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>Ganancia neta (sobre lo cobrado)</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{t('profitability.netProfit')}</div>
               <div style={{ fontSize: 22, fontWeight: 900, color: profitability.gananciaNeta >= 0 ? 'var(--ok)' : 'var(--warn)' }}>
                 {fmt(profitability.gananciaNeta)} {profitability.margenPct != null ? `(${profitability.margenPct.toFixed(0)}%)` : ''}
               </div>
@@ -2746,7 +2769,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 galleryIdx: lightbox.index,
               });
             }}
-              style={{ position: 'absolute', top: 20, left: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 20, padding: '10px 18px', cursor: 'pointer', zIndex: 2 }}>✏️ Editar</button>
+              style={{ position: 'absolute', top: 20, left: 24, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 20, padding: '10px 18px', cursor: 'pointer', zIndex: 2 }}>✏️ {t('common.edit')}</button>
           )}
 
           {lightbox.urls.length > 1 && (
@@ -2760,7 +2783,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 26, borderRadius: '50%', width: 48, height: 48, cursor: 'pointer', zIndex: 2 }}>‹</button>
           )}
 
-          <img src={lightbox.urls[lightbox.index]} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} />
+          <img src={lightbox.urls[lightbox.index]} alt={t('lightbox.fullImageAlt')} onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} />
 
           {lightbox.urls.length > 1 && lightbox.index < lightbox.urls.length - 1 && (
             <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: l.index + 1 })); }}
@@ -2772,14 +2795,14 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar trabajo?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteModal.title')}</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteModal.permanentWarning')}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteJob} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                {deleting ? t('deleteModal.deleting') : `🗑 ${t('deleteModal.confirm')}`}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>{t('common.cancel')}</button>
             </div>
           </div>
         </div>
@@ -2788,35 +2811,35 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       {showReportModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 480, maxHeight: '85vh', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>{editingReportId ? 'Editar reporte' : 'Nuevo reporte'}</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>{editingReportId ? t('reportModal.editTitle') : t('reportModal.newTitle')}</h2>
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Título</label>
-              <input value={reportTitle} onChange={e => setReportTitle(e.target.value)} placeholder="Ej: Avance de instalación — semana 1" autoFocus />
+              <label>{t('reportModal.reportTitle')}</label>
+              <input value={reportTitle} onChange={e => setReportTitle(e.target.value)} placeholder={t('reportModal.reportTitlePlaceholder')} autoFocus />
             </div>
             <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
               <div className="form-group" style={{ flex: 1 }}>
-                <label>Fecha de visita</label>
+                <label>{t('reportModal.visitDate')}</label>
                 <input type="date" value={reportVisitDate} onChange={e => setReportVisitDate(e.target.value)} />
               </div>
               <div className="form-group" style={{ flex: 2 }}>
-                <label>Personal presente</label>
-                <input value={reportPersonnel} onChange={e => setReportPersonnel(e.target.value)} placeholder="Nombres separados por coma" />
+                <label>{t('reportModal.personnel')}</label>
+                <input value={reportPersonnel} onChange={e => setReportPersonnel(e.target.value)} placeholder={t('reportModal.personnelPlaceholder')} />
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Resumen de actividades</label>
-              <textarea value={reportSummary} onChange={e => setReportSummary(e.target.value)} rows={4} placeholder="Describe lo que se hizo en la visita..."
+              <label>{t('reportModal.summary')}</label>
+              <textarea value={reportSummary} onChange={e => setReportSummary(e.target.value)} rows={4} placeholder={t('reportModal.summaryPlaceholder')}
                 style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
             </div>
-            <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--navy)', marginBottom: 8 }}>Selecciona las notas/fotos a incluir</p>
+            <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--navy)', marginBottom: 8 }}>{t('reportModal.selectNotesHint')}</p>
             {notesList.length === 0 ? (
-              <p style={{ color: 'var(--muted)', fontSize: 13 }}>Este trabajo no tiene notas todavía.</p>
+              <p style={{ color: 'var(--muted)', fontSize: 13 }}>{t('reportModal.noNotesYet')}</p>
             ) : (() => {
               const groups = {};
               [...notesList]
                 .sort((a, b) => (a.phase_number ?? Infinity) - (b.phase_number ?? Infinity) || new Date(b.created_at) - new Date(a.created_at))
                 .forEach(n => {
-                  const key = n.phase_number != null ? `Fase ${n.phase_number}` : 'Sin fase';
+                  const key = n.phase_number != null ? t('notes.phaseLabel', { number: n.phase_number }) : t('reportModal.noPhase');
                   if (!groups[key]) groups[key] = [];
                   groups[key].push(n);
                 });
@@ -2828,7 +2851,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                       <button type="button" onClick={() => setReportPhaseFilter('all')}
                         style={{ fontSize: 11, fontWeight: 700, padding: '4px 11px', borderRadius: 20, border: 'none', cursor: 'pointer', background: reportPhaseFilter === 'all' ? 'var(--navy)' : 'var(--surface-2)', color: reportPhaseFilter === 'all' ? '#fff' : 'var(--muted)' }}>
-                        Todas
+                        {t('reportModal.allPhases')}
                       </button>
                       {groupEntries.map(([label]) => (
                         <button key={label} type="button" onClick={() => setReportPhaseFilter(label)}
@@ -2849,16 +2872,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                           return (
                             <div key={n.id} style={{ padding: '8px 0', textTransform: 'none' }}>
                               <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-                                <input value={editingNoteTitle} onChange={e => setEditingNoteTitle(e.target.value)} placeholder="Título (opcional)"
+                                <input value={editingNoteTitle} onChange={e => setEditingNoteTitle(e.target.value)} placeholder={t('notes.titleOptional')}
                                   style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontWeight: 600, outline: 'none' }} />
-                                <input type="number" value={editingNotePhase} onChange={e => setEditingNotePhase(e.target.value)} placeholder="Fase #"
+                                <input type="number" value={editingNotePhase} onChange={e => setEditingNotePhase(e.target.value)} placeholder={t('notes.phasePlaceholder')}
                                   style={{ width: 80, padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, outline: 'none' }} />
                               </div>
                               <textarea autoFocus value={editingNoteText} onChange={e => setEditingNoteText(e.target.value)} rows={2}
                                 style={{ width: '100%', padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 6 }} />
                               <div style={{ display: 'flex', gap: 8 }}>
-                                <button type="button" className="btn btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => saveNoteEdit(n.id)}>Guardar</button>
-                                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => { setEditingNoteId(null); setEditingNoteText(''); setEditingNoteTitle(''); setEditingNotePhase(''); }}>Cancelar</button>
+                                <button type="button" className="btn btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => saveNoteEdit(n.id)}>{t('common.save')}</button>
+                                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => { setEditingNoteId(null); setEditingNoteText(''); setEditingNoteTitle(''); setEditingNotePhase(''); }}>{t('common.cancel')}</button>
                               </div>
                             </div>
                           );
@@ -2897,24 +2920,24 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               );
             })()}
             <div className="form-group" style={{ marginTop: 16, marginBottom: 16 }}>
-              <label>Observaciones</label>
-              <textarea value={reportObservations} onChange={e => setReportObservations(e.target.value)} rows={3} placeholder="Una observación por línea..."
+              <label>{t('reportModal.observations')}</label>
+              <textarea value={reportObservations} onChange={e => setReportObservations(e.target.value)} rows={3} placeholder={t('reportModal.observationsPlaceholder')}
                 style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
             </div>
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Recomendaciones</label>
-              <textarea value={reportRecommendations} onChange={e => setReportRecommendations(e.target.value)} rows={3} placeholder="Una recomendación por línea..."
+              <label>{t('reportModal.recommendations')}</label>
+              <textarea value={reportRecommendations} onChange={e => setReportRecommendations(e.target.value)} rows={3} placeholder={t('reportModal.recommendationsPlaceholder')}
                 style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
             </div>
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Preparado por (opcional)</label>
-              <input value={reportPreparedBy} onChange={e => setReportPreparedBy(e.target.value)} placeholder="Nombre para la firma" />
+              <label>{t('reportModal.preparedBy')}</label>
+              <input value={reportPreparedBy} onChange={e => setReportPreparedBy(e.target.value)} placeholder={t('reportModal.preparedByPlaceholder')} />
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button className="btn btn-primary" disabled={savingReport || !reportTitle.trim()} onClick={saveReport} style={{ flex: 1, justifyContent: 'center' }}>
-                {savingReport ? 'Guardando...' : '💾 Guardar reporte'}
+                {savingReport ? t('common.saving') : `💾 ${t('reportModal.saveReport')}`}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowReportModal(false)}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowReportModal(false)}>{t('common.cancel')}</button>
             </div>
           </div>
         </div>
@@ -2923,16 +2946,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       {emailingReportId && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, maxHeight: '85vh', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>Enviar reporte por email</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>{t('emailModal.title')}</h2>
             <form onSubmit={sendReportEmail}>
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label>Email del cliente</label>
+                <label>{t('emailModal.clientEmail')}</label>
                 <input type="email" required value={reportEmailTo} onChange={e => setReportEmailTo(e.target.value)} autoFocus />
               </div>
 
               {clientContacts.filter(c => c.email).length > 0 && (
                 <div className="form-group" style={{ marginBottom: 16 }}>
-                  <label>Copiar a (CC)</label>
+                  <label>{t('emailModal.cc')}</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1.5px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
                     {clientContacts.filter(c => c.email).map(c => (
                       <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
@@ -2946,15 +2969,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               )}
 
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Otros correos en copia (opcional)</label>
+                <label>{t('emailModal.extraCc')}</label>
                 <input value={reportEmailCcExtra} onChange={e => setReportEmailCcExtra(e.target.value)} placeholder="correo1@ejemplo.com, correo2@ejemplo.com" />
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sendingReport} style={{ flex: 1, justifyContent: 'center' }}>
-                  {sendingReport ? 'Enviando...' : '📤 Enviar'}
+                  {sendingReport ? t('emailModal.sending') : `📤 ${t('common.send')}`}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setEmailingReportId(null)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setEmailingReportId(null)}>{t('common.cancel')}</button>
               </div>
             </form>
           </div>

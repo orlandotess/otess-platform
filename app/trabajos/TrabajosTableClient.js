@@ -1,16 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import SearchBox from '../SearchBox';
 import { pickMapsLink } from '../../lib/mapsLinks';
 import { formatDatePR } from '../../lib/datetimeLocal';
+import { useTranslations, useLocale } from 'next-intl';
 
-const statusBadge = {
-  estimate:    { cls: 'badge-gray',  label: 'Estimado' },
-  scheduled:   { cls: 'badge-blue',  label: 'Programado' },
-  in_progress: { cls: 'badge-amber', label: 'En progreso' },
-  completed:   { cls: 'badge-green', label: 'Completado' },
-  cancelled:   { cls: 'badge-red',   label: 'Cancelado' },
+const statusBadgeDefs = {
+  estimate:    { cls: 'badge-gray',  key: 'estimate' },
+  scheduled:   { cls: 'badge-blue',  key: 'scheduled' },
+  in_progress: { cls: 'badge-amber', key: 'in_progress' },
+  completed:   { cls: 'badge-green', key: 'completed' },
+  cancelled:   { cls: 'badge-red',   key: 'cancelled' },
 };
 
 function location(j) {
@@ -18,7 +19,13 @@ function location(j) {
 }
 
 export default function TrabajosTableClient({ jobs }) {
+  const t = useTranslations('trabajos.listTable');
+  const locale = useLocale();
   const [search, setSearch] = useState('');
+
+  const statusBadge = useMemo(() => Object.fromEntries(
+    Object.entries(statusBadgeDefs).map(([k, v]) => [k, { cls: v.cls, label: t(`status.${v.key}`) }])
+  ), [t]);
 
   const query = search.trim().toLowerCase();
   const visible = query
@@ -34,21 +41,21 @@ export default function TrabajosTableClient({ jobs }) {
   return (
     <div className="card">
       <div style={{ marginBottom: 16 }}>
-        <SearchBox value={search} onChange={setSearch} placeholder="Buscar trabajo, cliente o ubicación..." />
+        <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
       </div>
       {visible.length === 0 ? (
-        <div className="empty"><p>Sin resultados para "{search}".</p></div>
+        <div className="empty"><p>{t('noResults', { search })}</p></div>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>#</th>
-                <th>Trabajo</th>
-                <th>Cliente</th>
-                <th>Ubicación</th>
-                <th>Estado</th>
-                <th>Fecha programada</th>
+                <th>{t('columns.number')}</th>
+                <th>{t('columns.job')}</th>
+                <th>{t('columns.client')}</th>
+                <th>{t('columns.location')}</th>
+                <th>{t('columns.status')}</th>
+                <th>{t('columns.scheduledDate')}</th>
               </tr>
             </thead>
             <tbody>
@@ -73,7 +80,7 @@ export default function TrabajosTableClient({ jobs }) {
                     </td>
                     <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                      {j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}
+                      {j.scheduled_start ? formatDatePR(j.scheduled_start, {}, locale === 'en' ? 'en-US' : 'es-PR') : '—'}
                     </td>
                   </tr>
                 );

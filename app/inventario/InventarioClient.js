@@ -2,17 +2,29 @@
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 import BarcodeScanner from "../BarcodeScanner";
+import { useTranslations, useLocale } from "next-intl";
 
-const TYPE_META = {
-  warehouse: { label: "Almacén", icon: "🏢" },
-  site: { label: "Sitio", icon: "📍" },
-  van: { label: "Van", icon: "🚐" },
-  zone: { label: "Zona", icon: "🗂️" },
-  shelf: { label: "Estante", icon: "📚" },
-  bin: { label: "Bin", icon: "🗃️" },
+const TYPE_ICON = {
+  warehouse: "🏢",
+  site: "📍",
+  van: "🚐",
+  zone: "🗂️",
+  shelf: "📚",
+  bin: "🗃️",
 };
 
 export default function InventarioClient({ locations: initialLocations, locationStock: initialStock, products: initialProducts, locationStockUnits: initialUnits }) {
+  const t = useTranslations("inventario.client");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "es-PR";
+  const TYPE_META = useMemo(() => ({
+    warehouse: { label: t("typeMeta.warehouse"), icon: TYPE_ICON.warehouse },
+    site: { label: t("typeMeta.site"), icon: TYPE_ICON.site },
+    van: { label: t("typeMeta.van"), icon: TYPE_ICON.van },
+    zone: { label: t("typeMeta.zone"), icon: TYPE_ICON.zone },
+    shelf: { label: t("typeMeta.shelf"), icon: TYPE_ICON.shelf },
+    bin: { label: t("typeMeta.bin"), icon: TYPE_ICON.bin },
+  }), [t]);
   const [locations, setLocations] = useState(initialLocations);
   const [stock, setStock] = useState(initialStock);
   const [products, setProducts] = useState(initialProducts);
@@ -129,7 +141,7 @@ export default function InventarioClient({ locations: initialLocations, location
   // app/catalogo/CatalogoClient.js::addItem, para no forzar el viaje a Catálogo primero.
   async function createProduct() {
     if (!newProductForm.item_code.trim() || !newProductForm.description.trim()) {
-      setNewProductError("Escribe el nombre y la descripción.");
+      setNewProductError(t("alerts.newProductNameRequired"));
       return;
     }
     setSavingNewProduct(true);
@@ -141,7 +153,7 @@ export default function InventarioClient({ locations: initialLocations, location
       price: parseFloat(newProductForm.price) || 0,
     }]).select("id, item_code, description").single();
     setSavingNewProduct(false);
-    if (error) { setNewProductError("No se pudo crear el producto. Intenta de nuevo."); return; }
+    if (error) { setNewProductError(t("alerts.newProductCreateFailed")); return; }
     setProducts(prev => [...prev, data].sort((a, b) => a.item_code.localeCompare(b.item_code)));
     setUnitForm(f => ({ ...f, catalog_item_id: data.id }));
     setShowNewProduct(false);
@@ -157,7 +169,7 @@ export default function InventarioClient({ locations: initialLocations, location
       const ext = unitPhotoFile.name.split(".").pop();
       photo_path = `inventory/${unitForm.catalog_item_id}/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage.from("Job-photos").upload(photo_path, unitPhotoFile);
-      if (upErr) { setSavingUnit(false); setUnitError("No se pudo subir la foto. Intenta de nuevo."); return; }
+      if (upErr) { setSavingUnit(false); setUnitError(t("alerts.photoUploadFailed")); return; }
     }
     const { data, error } = await supabase.from("location_stock_units").insert([{
       location_id: selectedId,
@@ -168,7 +180,7 @@ export default function InventarioClient({ locations: initialLocations, location
     }]).select("*, catalog_items(item_code, name, description)").single();
     setSavingUnit(false);
     if (error) {
-      setUnitError(error.code === "23505" ? "Ese serial number ya existe en el sistema." : "Error: " + error.message);
+      setUnitError(error.code === "23505" ? t("alerts.serialExists") : t("alerts.genericError", { message: error.message }));
       return;
     }
     const photo_signed_url = photo_path ? (await supabase.storage.from("Job-photos").createSignedUrl(photo_path, 3600)).data?.signedUrl ?? null : null;
@@ -177,7 +189,7 @@ export default function InventarioClient({ locations: initialLocations, location
   }
 
   async function deleteUnit(unit) {
-    if (!confirm(`¿Eliminar el equipo con serial "${unit.serial_number}"? Esto no se puede deshacer.`)) return;
+    if (!confirm(t("alerts.confirmDeleteUnit", { serial: unit.serial_number }))) return;
     await supabase.from("location_stock_units").delete().eq("id", unit.id);
     setUnits(prev => prev.filter(u => u.id !== unit.id));
   }
@@ -192,7 +204,7 @@ export default function InventarioClient({ locations: initialLocations, location
       parent_id: addForm.parent_id || null,
     }]).select().single();
     setSaving(false);
-    if (error) { alert("Error: " + error.message); return; }
+    if (error) { alert(t("alerts.genericError", { message: error.message })); return; }
     setLocations(prev => [...prev, data]);
     setShowAddModal(false);
     if (data.parent_id) setExpanded(prev => ({ ...prev, [data.parent_id]: true }));
@@ -215,7 +227,7 @@ export default function InventarioClient({ locations: initialLocations, location
     setSaving(true);
     const { data, error } = await supabase.from("locations").insert(rows).select();
     setSaving(false);
-    if (error) { alert("Error: " + error.message); return; }
+    if (error) { alert(t("alerts.genericError", { message: error.message })); return; }
     setLocations(prev => [...prev, ...data]);
     setShowBulkModal(false);
     if (bulkForm.parent_id) setExpanded(prev => ({ ...prev, [bulkForm.parent_id]: true }));
@@ -223,7 +235,7 @@ export default function InventarioClient({ locations: initialLocations, location
   }
 
   async function renameLocation(loc) {
-    const newName = prompt(`Renombrar "${loc.name}":`, loc.name);
+    const newName = prompt(t("alerts.renamePrompt", { name: loc.name }), loc.name);
     if (!newName || newName.trim() === loc.name) return;
     await supabase.from("locations").update({ name: newName.trim() }).eq("id", loc.id);
     setLocations(prev => prev.map(l => l.id === loc.id ? { ...l, name: newName.trim() } : l));
@@ -236,10 +248,10 @@ export default function InventarioClient({ locations: initialLocations, location
   }
 
   async function deleteLocation(loc) {
-    if (!confirm(`¿Eliminar "${loc.name}"? Esto no se puede deshacer.`)) return;
+    if (!confirm(t("alerts.confirmDeleteLocation", { name: loc.name }))) return;
     const { error } = await supabase.from("locations").delete().eq("id", loc.id);
     if (error) {
-      alert("No se puede eliminar: tiene sub-ubicaciones o stock asignado. Muévelos primero, o archívala con el botón de abajo.");
+      alert(t("alerts.cannotDeleteLocation"));
       return;
     }
     setLocations(prev => prev.filter(l => l.id !== loc.id));
@@ -263,7 +275,7 @@ export default function InventarioClient({ locations: initialLocations, location
       p_location_id: selectedId,
     });
     setSaving(false);
-    if (error) { alert("Error: " + error.message); return; }
+    if (error) { alert(t("alerts.genericError", { message: error.message })); return; }
     setStock(prev => {
       const idx = prev.findIndex(s => s.location_id === selectedId && s.catalog_item_id === adjustForm.catalog_item_id);
       if (idx === -1) {
@@ -279,7 +291,7 @@ export default function InventarioClient({ locations: initialLocations, location
   async function transferStock() {
     const quantity = parseFloat(transferForm.quantity);
     if (!transferForm.catalog_item_id || !transferForm.to_location_id || !quantity || !selectedId) return;
-    if (transferForm.to_location_id === selectedId) { alert("Elige una ubicación destino distinta."); return; }
+    if (transferForm.to_location_id === selectedId) { alert(t("alerts.chooseDifferentDestination")); return; }
     setSaving(true);
     const { error } = await supabase.rpc("transfer_stock", {
       p_catalog_item_id: transferForm.catalog_item_id,
@@ -289,7 +301,7 @@ export default function InventarioClient({ locations: initialLocations, location
       p_reason: transferForm.reason.trim() || "manual_transfer",
     });
     setSaving(false);
-    if (error) { alert("Error: " + error.message); return; }
+    if (error) { alert(t("alerts.genericError", { message: error.message })); return; }
     setStock(prev => {
       let next = prev.map(s => s.location_id === selectedId && s.catalog_item_id === transferForm.catalog_item_id
         ? { ...s, quantity: s.quantity - quantity } : s);
@@ -338,7 +350,7 @@ export default function InventarioClient({ locations: initialLocations, location
           <span>{TYPE_META[loc.type]?.icon}</span>
           <span style={{ fontWeight: selectedId === loc.id ? 700 : 500, fontSize: 13 }}>{loc.name}</span>
           {loc.code && <span style={{ fontSize: 11, color: "var(--muted)", fontFamily: "monospace" }}>{loc.code}</span>}
-          {!loc.is_active && <span style={{ fontSize: 10, color: "var(--warn)" }}>(inactiva)</span>}
+          {!loc.is_active && <span style={{ fontSize: 10, color: "var(--warn)" }}>{t("tree.inactiveTag")}</span>}
         </div>
         {isOpen && kids.sort((a, b) => a.name.localeCompare(b.name)).map(k => <LocationNode key={k.id} loc={k} depth={depth + 1} />)}
       </div>
@@ -368,33 +380,33 @@ export default function InventarioClient({ locations: initialLocations, location
       {/* Toolbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 4, background: "var(--surface-2)", borderRadius: 10, padding: 4 }}>
-          <button onClick={() => setView("tree")} className="btn" style={{ background: view === "tree" ? "var(--surface)" : "none", boxShadow: view === "tree" ? "0 1px 4px rgba(0,0,0,0.1)" : "none", border: "none", fontWeight: 700, fontSize: 13 }}>🌳 Árbol</button>
-          <button onClick={() => setView("table")} className="btn" style={{ background: view === "table" ? "var(--surface)" : "none", boxShadow: view === "table" ? "0 1px 4px rgba(0,0,0,0.1)" : "none", border: "none", fontWeight: 700, fontSize: 13 }}>📋 Tabla</button>
+          <button onClick={() => setView("tree")} className="btn" style={{ background: view === "tree" ? "var(--surface)" : "none", boxShadow: view === "tree" ? "0 1px 4px rgba(0,0,0,0.1)" : "none", border: "none", fontWeight: 700, fontSize: 13 }}>{t("toolbar.treeView")}</button>
+          <button onClick={() => setView("table")} className="btn" style={{ background: view === "table" ? "var(--surface)" : "none", boxShadow: view === "table" ? "0 1px 4px rgba(0,0,0,0.1)" : "none", border: "none", fontWeight: 700, fontSize: 13 }}>{t("toolbar.tableView")}</button>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <label style={{ fontSize: 13, color: "var(--muted)", display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-            <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> Mostrar inactivas
+            <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> {t("toolbar.showInactive")}
           </label>
-          <button className="btn btn-ghost" onClick={() => setShowBulkModal(true)}>📑 Bulk Create</button>
-          <button className="btn btn-amber" onClick={() => setShowAddModal(true)}>+ Nueva Ubicación</button>
+          <button className="btn btn-ghost" onClick={() => setShowBulkModal(true)}>{t("toolbar.bulkCreate")}</button>
+          <button className="btn btn-amber" onClick={() => setShowAddModal(true)}>{t("toolbar.newLocation")}</button>
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 380px) 1fr", gap: 16, alignItems: "start" }}>
         {/* Jerarquía */}
         <div style={{ background: "var(--surface)", borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: 10 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)", padding: "6px 10px 10px" }}>Jerarquía de Ubicaciones</div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)", padding: "6px 10px 10px" }}>{t("tree.title")}</div>
           <input
             value={locationQuery}
             onChange={e => setLocationQuery(e.target.value)}
-            placeholder="🔍 Buscar ubicación..."
+            placeholder={t("tree.searchPlaceholder")}
             style={{ width: "100%", padding: "8px 10px", marginBottom: 8, border: "1.5px solid var(--border)", borderRadius: 8, fontSize: 13 }}
           />
           {roots.length === 0 ? (
-            <div className="empty"><p>Sin ubicaciones aún. Crea la primera con "+ Nueva Ubicación".</p></div>
+            <div className="empty"><p>{t("tree.emptyNoLocations", { button: t("toolbar.newLocation") })}</p></div>
           ) : locationQueryTerm ? (
             filteredTableRows.length === 0 ? (
-              <div className="empty"><p>Sin resultados.</p></div>
+              <div className="empty"><p>{t("tree.noResults")}</p></div>
             ) : (
               <div>{filteredTableRows.map(l => <LocationRow key={l.id} l={l} />)}</div>
             )
@@ -412,7 +424,7 @@ export default function InventarioClient({ locations: initialLocations, location
           {!selected ? (
             <div className="empty" style={{ textAlign: "center", padding: "60px 0" }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📍</div>
-              <p>Selecciona una ubicación del árbol para ver sus detalles.</p>
+              <p>{t("detail.emptyTitle")}</p>
             </div>
           ) : (
             <div>
@@ -423,22 +435,22 @@ export default function InventarioClient({ locations: initialLocations, location
                   <div style={{ fontSize: 12, color: "var(--muted)" }}>{TYPE_META[selected.type]?.label}{selected.code ? ` · ${selected.code}` : ""}</div>
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <button className="btn btn-ghost" onClick={() => renameLocation(selected)} style={{ fontSize: 12 }}>✏️ Renombrar</button>
-                  <button className="btn btn-ghost" onClick={() => toggleActive(selected)} style={{ fontSize: 12 }}>{selected.is_active ? "📥 Archivar" : "📤 Reactivar"}</button>
-                  <button className="btn btn-ghost" onClick={() => deleteLocation(selected)} style={{ fontSize: 12, color: "var(--warn)" }}>🗑 Eliminar</button>
+                  <button className="btn btn-ghost" onClick={() => renameLocation(selected)} style={{ fontSize: 12 }}>{t("detail.rename")}</button>
+                  <button className="btn btn-ghost" onClick={() => toggleActive(selected)} style={{ fontSize: 12 }}>{selected.is_active ? t("detail.archive") : t("detail.reactivate")}</button>
+                  <button className="btn btn-ghost" onClick={() => deleteLocation(selected)} style={{ fontSize: 12, color: "var(--warn)" }}>{t("detail.delete")}</button>
                 </div>
               </div>
 
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => setShowAdjustModal(true)}>+ Ajustar Stock</button>
-                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowTransferModal(true)}>⇄ Transferir</button>
-                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={openHistory}>🕒 Historial</button>
-                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowAddUnitModal(true)}>+ Agregar Equipo</button>
+                <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => setShowAdjustModal(true)}>{t("detail.adjustStock")}</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowTransferModal(true)}>{t("detail.transfer")}</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={openHistory}>{t("detail.history")}</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowAddUnitModal(true)}>{t("detail.addEquipo")}</button>
               </div>
 
               {selectedChildren.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>SUB-UBICACIONES ({selectedChildren.length})</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>{t("detail.subLocations", { count: selectedChildren.length })}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {selectedChildren.map(c => (
                       <span key={c.id} onClick={() => setSelectedId(c.id)} style={{ cursor: "pointer", padding: "4px 10px", borderRadius: 20, background: "var(--surface-2)", fontSize: 12 }}>
@@ -450,13 +462,13 @@ export default function InventarioClient({ locations: initialLocations, location
               )}
 
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>STOCK EN ESTA UBICACIÓN ({selectedStock.length})</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>{t("detail.stockHere", { count: selectedStock.length })}</div>
                 {selectedStock.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "var(--muted)" }}>Sin productos asignados aquí todavía.</p>
+                  <p style={{ fontSize: 13, color: "var(--muted)" }}>{t("detail.noStock")}</p>
                 ) : (
                   <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
                     {selectedStock.map((s, idx) => (
-                      <div key={s.id} onClick={() => openAdjustForStock(s.catalog_item_id)} title="Click para editar este stock"
+                      <div key={s.id} onClick={() => openAdjustForStock(s.catalog_item_id)} title={t("detail.clickToEditStock")}
                         style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderBottom: idx < selectedStock.length - 1 ? "1px solid var(--border)" : "none", cursor: "pointer" }}>
                         <div>
                           <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--amber)" }}>{s.catalog_items?.item_code}</div>
@@ -471,15 +483,15 @@ export default function InventarioClient({ locations: initialLocations, location
               </div>
 
               <div style={{ marginTop: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>EQUIPO SERIALIZADO ({selectedUnits.length})</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>{t("detail.equipoHere", { count: selectedUnits.length })}</div>
                 <input
                   value={unitSearch}
                   onChange={e => setUnitSearch(e.target.value)}
-                  placeholder="🔍 Buscar equipo (serial, descripción)..."
+                  placeholder={t("detail.searchEquipoPlaceholder")}
                   style={{ width: "100%", padding: "8px 10px", marginBottom: 8, border: "1.5px solid var(--border)", borderRadius: 8, fontSize: 13 }}
                 />
                 {selectedUnits.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "var(--muted)" }}>Sin equipo registrado aquí todavía.</p>
+                  <p style={{ fontSize: 13, color: "var(--muted)" }}>{t("detail.noEquipo")}</p>
                 ) : (
                   <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
                     {selectedUnits.map((u, idx) => (
@@ -509,122 +521,126 @@ export default function InventarioClient({ locations: initialLocations, location
 
       {/* Modal: + Nueva Ubicación */}
       {showAddModal && (
-        <Modal title="+ Nueva Ubicación" onClose={() => setShowAddModal(false)}>
-          <Field label="Nombre">
+        <Modal title={t("modals.addLocation.title")} onClose={() => setShowAddModal(false)}>
+          <Field label={t("common.name")}>
             <input autoFocus value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} style={inputStyle} />
           </Field>
-          <Field label="Tipo">
+          <Field label={t("common.type")}>
             <select value={addForm.type} onChange={e => setAddForm(f => ({ ...f, type: e.target.value }))} style={inputStyle}>
               {Object.entries(TYPE_META).map(([k, m]) => <option key={k} value={k}>{m.icon} {m.label}</option>)}
             </select>
           </Field>
-          <Field label="Código (opcional)">
+          <Field label={t("common.codeOptional")}>
             <input value={addForm.code} onChange={e => setAddForm(f => ({ ...f, code: e.target.value }))} placeholder="WH-001" style={{ ...inputStyle, fontFamily: "monospace" }} />
           </Field>
-          <Field label="Ubicación padre (opcional)">
+          <Field label={t("common.parentLocationOptional")}>
             <select value={addForm.parent_id} onChange={e => setAddForm(f => ({ ...f, parent_id: e.target.value }))} style={inputStyle}>
-              <option value="">Ninguna (raíz)</option>
+              <option value="">{t("common.none")}</option>
               {flatOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
             </select>
           </Field>
-          <ModalActions onCancel={() => setShowAddModal(false)} onConfirm={addLocation} saving={saving} label="Crear" />
+          <ModalActions onCancel={() => setShowAddModal(false)} onConfirm={addLocation} saving={saving} label={t("common.create")} cancelLabel={t("common.cancel")} savingLabel={t("common.saving")} />
         </Modal>
       )}
 
       {/* Modal: Bulk Create */}
       {showBulkModal && (
-        <Modal title="📑 Bulk Create" onClose={() => setShowBulkModal(false)}>
-          <Field label="Prefijo del nombre">
-            <input autoFocus value={bulkForm.prefix} onChange={e => setBulkForm(f => ({ ...f, prefix: e.target.value }))} placeholder="Estante" style={inputStyle} />
+        <Modal title={t("modals.bulkCreate.title")} onClose={() => setShowBulkModal(false)}>
+          <Field label={t("modals.bulkCreate.namePrefix")}>
+            <input autoFocus value={bulkForm.prefix} onChange={e => setBulkForm(f => ({ ...f, prefix: e.target.value }))} placeholder={t("modals.bulkCreate.namePrefixPlaceholder")} style={inputStyle} />
           </Field>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Desde #"><input type="number" value={bulkForm.start} onChange={e => setBulkForm(f => ({ ...f, start: e.target.value }))} style={inputStyle} /></Field>
-            <Field label="Hasta #"><input type="number" value={bulkForm.end} onChange={e => setBulkForm(f => ({ ...f, end: e.target.value }))} style={inputStyle} /></Field>
+            <Field label={t("modals.bulkCreate.fromNumber")}><input type="number" value={bulkForm.start} onChange={e => setBulkForm(f => ({ ...f, start: e.target.value }))} style={inputStyle} /></Field>
+            <Field label={t("modals.bulkCreate.toNumber")}><input type="number" value={bulkForm.end} onChange={e => setBulkForm(f => ({ ...f, end: e.target.value }))} style={inputStyle} /></Field>
           </div>
-          <Field label="Tipo">
+          <Field label={t("common.type")}>
             <select value={bulkForm.type} onChange={e => setBulkForm(f => ({ ...f, type: e.target.value }))} style={inputStyle}>
               {Object.entries(TYPE_META).map(([k, m]) => <option key={k} value={k}>{m.icon} {m.label}</option>)}
             </select>
           </Field>
-          <Field label="Prefijo de código (opcional)">
-            <input value={bulkForm.codePrefix} onChange={e => setBulkForm(f => ({ ...f, codePrefix: e.target.value }))} placeholder="EST" style={{ ...inputStyle, fontFamily: "monospace" }} />
+          <Field label={t("modals.bulkCreate.codePrefixOptional")}>
+            <input value={bulkForm.codePrefix} onChange={e => setBulkForm(f => ({ ...f, codePrefix: e.target.value }))} placeholder={t("modals.bulkCreate.codePrefixPlaceholder")} style={{ ...inputStyle, fontFamily: "monospace" }} />
           </Field>
-          <Field label="Ubicación padre (opcional)">
+          <Field label={t("common.parentLocationOptional")}>
             <select value={bulkForm.parent_id} onChange={e => setBulkForm(f => ({ ...f, parent_id: e.target.value }))} style={inputStyle}>
-              <option value="">Ninguna (raíz)</option>
+              <option value="">{t("common.none")}</option>
               {flatOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
             </select>
           </Field>
           <p style={{ fontSize: 12, color: "var(--muted)" }}>
-            Se crearán {Math.max(0, (parseInt(bulkForm.end) || 0) - (parseInt(bulkForm.start) || 0) + 1)} ubicaciones: "{bulkForm.prefix} {bulkForm.start}" … "{bulkForm.prefix} {bulkForm.end}".
+            {t("modals.bulkCreate.preview", {
+              count: Math.max(0, (parseInt(bulkForm.end) || 0) - (parseInt(bulkForm.start) || 0) + 1),
+              startLabel: `${bulkForm.prefix} ${bulkForm.start}`,
+              endLabel: `${bulkForm.prefix} ${bulkForm.end}`,
+            })}
           </p>
-          <ModalActions onCancel={() => setShowBulkModal(false)} onConfirm={bulkCreate} saving={saving} label="Crear todas" />
+          <ModalActions onCancel={() => setShowBulkModal(false)} onConfirm={bulkCreate} saving={saving} label={t("modals.bulkCreate.createAll")} cancelLabel={t("common.cancel")} savingLabel={t("common.saving")} />
         </Modal>
       )}
 
       {/* Modal: Ajustar Stock */}
       {showAdjustModal && selected && (
-        <Modal title={`+ Ajustar Stock en ${selected.name}`} onClose={() => setShowAdjustModal(false)}>
-          <Field label="Producto">
+        <Modal title={t("modals.adjustStock.title", { location: selected.name })} onClose={() => setShowAdjustModal(false)}>
+          <Field label={t("common.product")}>
             <select value={adjustForm.catalog_item_id} onChange={e => setAdjustForm(f => ({ ...f, catalog_item_id: e.target.value }))} style={inputStyle}>
-              <option value="">Selecciona un producto...</option>
+              <option value="">{t("common.selectProduct")}</option>
               {products.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
             </select>
           </Field>
           {(() => {
             const current = selectedStock.find(s => s.catalog_item_id === adjustForm.catalog_item_id);
-            return current ? <p style={{ fontSize: 12, color: "var(--muted)", marginTop: -6 }}>Cantidad actual aquí: <strong>{current.quantity}</strong></p> : null;
+            return current ? <p style={{ fontSize: 12, color: "var(--muted)", marginTop: -6 }}>{t("modals.adjustStock.currentQuantity")} <strong>{current.quantity}</strong></p> : null;
           })()}
-          <Field label="Cantidad (negativo para restar)">
-            <input type="number" value={adjustForm.delta} onChange={e => setAdjustForm(f => ({ ...f, delta: e.target.value }))} placeholder="10 o -5" style={inputStyle} />
+          <Field label={t("modals.adjustStock.quantityLabel")}>
+            <input type="number" value={adjustForm.delta} onChange={e => setAdjustForm(f => ({ ...f, delta: e.target.value }))} placeholder={t("modals.adjustStock.quantityPlaceholder")} style={inputStyle} />
           </Field>
-          <Field label="Motivo (opcional)">
-            <input value={adjustForm.reason} onChange={e => setAdjustForm(f => ({ ...f, reason: e.target.value }))} placeholder="Recibido de suplidor" style={inputStyle} />
+          <Field label={t("modals.adjustStock.reasonOptional")}>
+            <input value={adjustForm.reason} onChange={e => setAdjustForm(f => ({ ...f, reason: e.target.value }))} placeholder={t("modals.adjustStock.reasonPlaceholder")} style={inputStyle} />
           </Field>
-          <ModalActions onCancel={() => setShowAdjustModal(false)} onConfirm={adjustStock} saving={saving} label="Ajustar" />
+          <ModalActions onCancel={() => setShowAdjustModal(false)} onConfirm={adjustStock} saving={saving} label={t("modals.adjustStock.confirm")} cancelLabel={t("common.cancel")} savingLabel={t("common.saving")} />
         </Modal>
       )}
 
       {/* Modal: Agregar Equipo (serializado) */}
       {showAddUnitModal && selected && (
-        <Modal title={`+ Agregar Equipo en ${selected.name}`} onClose={closeAddUnitModal}>
-          <Field label="Producto">
+        <Modal title={t("modals.addUnit.title", { location: selected.name })} onClose={closeAddUnitModal}>
+          <Field label={t("common.product")}>
             {!showNewProduct ? (
               <>
                 <select value={unitForm.catalog_item_id} onChange={e => setUnitForm(f => ({ ...f, catalog_item_id: e.target.value }))} style={inputStyle}>
-                  <option value="">Selecciona un producto...</option>
+                  <option value="">{t("common.selectProduct")}</option>
                   {products.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
                 </select>
                 <button type="button" onClick={() => setShowNewProduct(true)}
                   style={{ background: "none", border: "none", color: "var(--amber)", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "6px 0 0" }}>
-                  + ¿No está en la lista? Crear producto nuevo
+                  {t("modals.addUnit.createNewProductLink")}
                 </button>
               </>
             ) : (
               <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: 10 }}>
-                <input value={newProductForm.item_code} onChange={e => setNewProductForm(f => ({ ...f, item_code: e.target.value }))} placeholder="Nombre / Código" style={{ ...inputStyle, marginBottom: 8 }} />
-                <input value={newProductForm.description} onChange={e => setNewProductForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ ...inputStyle, marginBottom: 8 }} />
-                <input type="number" step="0.01" value={newProductForm.price} onChange={e => setNewProductForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio (opcional)" style={{ ...inputStyle, marginBottom: 8 }} />
+                <input value={newProductForm.item_code} onChange={e => setNewProductForm(f => ({ ...f, item_code: e.target.value }))} placeholder={t("modals.addUnit.nameCodePlaceholder")} style={{ ...inputStyle, marginBottom: 8 }} />
+                <input value={newProductForm.description} onChange={e => setNewProductForm(f => ({ ...f, description: e.target.value }))} placeholder={t("modals.addUnit.descriptionPlaceholder")} style={{ ...inputStyle, marginBottom: 8 }} />
+                <input type="number" step="0.01" value={newProductForm.price} onChange={e => setNewProductForm(f => ({ ...f, price: e.target.value }))} placeholder={t("modals.addUnit.pricePlaceholder")} style={{ ...inputStyle, marginBottom: 8 }} />
                 {newProductError && <p style={{ fontSize: 12, color: "var(--warn)", marginBottom: 8 }}>{newProductError}</p>}
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setShowNewProduct(false); setNewProductError(""); }}>Cancelar</button>
+                  <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setShowNewProduct(false); setNewProductError(""); }}>{t("common.cancel")}</button>
                   <button type="button" className="btn btn-primary" style={{ flex: 1 }} disabled={savingNewProduct || !newProductForm.item_code.trim() || !newProductForm.description.trim()} onClick={createProduct}>
-                    {savingNewProduct ? "Creando..." : "Crear producto"}
+                    {savingNewProduct ? t("modals.addUnit.creating") : t("modals.addUnit.createProduct")}
                   </button>
                 </div>
               </div>
             )}
           </Field>
-          <Field label="Serial number">
+          <Field label={t("modals.addUnit.serialNumber")}>
             <div style={{ display: "flex", gap: 6 }}>
               <input value={unitForm.serial_number} onChange={e => setUnitForm(f => ({ ...f, serial_number: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
-              <button type="button" onClick={() => setShowUnitScanner(true)} title="Escanear código de barra" className="btn btn-ghost" style={{ padding: "0 14px" }}>📷</button>
+              <button type="button" onClick={() => setShowUnitScanner(true)} title={t("modals.addUnit.scanBarcode")} className="btn btn-ghost" style={{ padding: "0 14px" }}>📷</button>
             </div>
           </Field>
-          <Field label="Notas (opcional)">
+          <Field label={t("modals.addUnit.notesOptional")}>
             <input value={unitForm.notes} onChange={e => setUnitForm(f => ({ ...f, notes: e.target.value }))} style={inputStyle} />
           </Field>
-          <Field label="Foto (opcional)">
+          <Field label={t("modals.addUnit.photoOptional")}>
             {unitPhotoPreview && <img src={unitPhotoPreview} alt="preview" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, marginBottom: 8, display: "block" }} />}
             <input type="file" accept="image/*" onChange={e => {
               const file = e.target.files?.[0];
@@ -634,7 +650,7 @@ export default function InventarioClient({ locations: initialLocations, location
             }} style={inputStyle} />
           </Field>
           {unitError && <p style={{ fontSize: 12, color: "var(--warn)" }}>{unitError}</p>}
-          <ModalActions onCancel={closeAddUnitModal} onConfirm={addUnit} saving={savingUnit} label="Guardar" />
+          <ModalActions onCancel={closeAddUnitModal} onConfirm={addUnit} saving={savingUnit} label={t("modals.addUnit.save")} cancelLabel={t("common.cancel")} savingLabel={t("common.saving")} />
         </Modal>
       )}
 
@@ -642,7 +658,7 @@ export default function InventarioClient({ locations: initialLocations, location
       {lightboxUrl && (
         <div onClick={() => setLightboxUrl(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, cursor: "zoom-out" }}>
           <button onClick={() => setLightboxUrl(null)} style={{ position: "absolute", top: 20, right: 20, background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", fontSize: 24, borderRadius: "50%", width: 40, height: 40, cursor: "pointer" }}>✕</button>
-          <img src={lightboxUrl} alt="equipo" onClick={e => e.stopPropagation()} style={{ maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain", borderRadius: 8 }} />
+          <img src={lightboxUrl} alt={t("modals.addUnit.equipoAlt")} onClick={e => e.stopPropagation()} style={{ maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain", borderRadius: 8 }} />
         </div>
       )}
 
@@ -655,36 +671,36 @@ export default function InventarioClient({ locations: initialLocations, location
 
       {/* Modal: Transferir Stock */}
       {showTransferModal && selected && (
-        <Modal title={`⇄ Transferir desde ${selected.name}`} onClose={() => setShowTransferModal(false)}>
-          <Field label="Producto">
+        <Modal title={t("modals.transfer.title", { location: selected.name })} onClose={() => setShowTransferModal(false)}>
+          <Field label={t("common.product")}>
             <select value={transferForm.catalog_item_id} onChange={e => setTransferForm(f => ({ ...f, catalog_item_id: e.target.value }))} style={inputStyle}>
-              <option value="">Selecciona un producto...</option>
-              {selectedStock.map(s => <option key={s.catalog_item_id} value={s.catalog_item_id}>{s.catalog_items?.item_code} — {s.catalog_items?.name || s.catalog_items?.description} (disponible: {s.quantity})</option>)}
+              <option value="">{t("common.selectProduct")}</option>
+              {selectedStock.map(s => <option key={s.catalog_item_id} value={s.catalog_item_id}>{t("modals.transfer.stockOption", { code: s.catalog_items?.item_code, name: s.catalog_items?.name || s.catalog_items?.description, quantity: s.quantity })}</option>)}
             </select>
           </Field>
-          <Field label="Ubicación destino">
+          <Field label={t("modals.transfer.destination")}>
             <select value={transferForm.to_location_id} onChange={e => setTransferForm(f => ({ ...f, to_location_id: e.target.value }))} style={inputStyle}>
-              <option value="">Selecciona destino...</option>
+              <option value="">{t("modals.transfer.selectDestination")}</option>
               {flatOptions.filter(o => o.id !== selectedId).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
             </select>
           </Field>
-          <Field label="Cantidad">
+          <Field label={t("modals.transfer.quantity")}>
             <input type="number" value={transferForm.quantity} onChange={e => setTransferForm(f => ({ ...f, quantity: e.target.value }))} style={inputStyle} />
           </Field>
-          <Field label="Motivo (opcional)">
-            <input value={transferForm.reason} onChange={e => setTransferForm(f => ({ ...f, reason: e.target.value }))} placeholder="Reabastecer estante" style={inputStyle} />
+          <Field label={t("modals.adjustStock.reasonOptional")}>
+            <input value={transferForm.reason} onChange={e => setTransferForm(f => ({ ...f, reason: e.target.value }))} placeholder={t("modals.transfer.reasonPlaceholder")} style={inputStyle} />
           </Field>
-          <ModalActions onCancel={() => setShowTransferModal(false)} onConfirm={transferStock} saving={saving} label="Transferir" />
+          <ModalActions onCancel={() => setShowTransferModal(false)} onConfirm={transferStock} saving={saving} label={t("modals.transfer.confirm")} cancelLabel={t("common.cancel")} savingLabel={t("common.saving")} />
         </Modal>
       )}
 
       {/* Modal: Historial */}
       {showHistory && selected && (
-        <Modal title={`🕒 Historial — ${selected.name}`} onClose={() => setShowHistory(false)} wide>
+        <Modal title={t("modals.history.title", { location: selected.name })} onClose={() => setShowHistory(false)} wide>
           {loadingHistory ? (
-            <p style={{ fontSize: 13, color: "var(--muted)" }}>Cargando...</p>
+            <p style={{ fontSize: 13, color: "var(--muted)" }}>{t("modals.history.loading")}</p>
           ) : history.length === 0 ? (
-            <p style={{ fontSize: 13, color: "var(--muted)" }}>Sin movimientos registrados en esta ubicación.</p>
+            <p style={{ fontSize: 13, color: "var(--muted)" }}>{t("modals.history.empty")}</p>
           ) : (
             <div style={{ maxHeight: 400, overflowY: "auto" }}>
               {history.map(h => (
@@ -692,7 +708,7 @@ export default function InventarioClient({ locations: initialLocations, location
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{h.catalog_items?.item_code} — {h.catalog_items?.name || h.catalog_items?.description}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)" }}>
-                      {h.reason}{h.transfer_group_id ? " · transferencia" : ""} · {new Date(h.created_at).toLocaleString("es-PR")}
+                      {h.reason}{h.transfer_group_id ? t("modals.history.transferSuffix") : ""} · {new Date(h.created_at).toLocaleString(dateLocale)}
                       {h.created_by ? ` · ${h.created_by}` : ""}
                     </div>
                   </div>
@@ -718,11 +734,11 @@ function Field({ label, children }) {
   );
 }
 
-function ModalActions({ onCancel, onConfirm, saving, label }) {
+function ModalActions({ onCancel, onConfirm, saving, label, cancelLabel, savingLabel }) {
   return (
     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-      <button onClick={onCancel} className="btn btn-ghost">Cancelar</button>
-      <button onClick={onConfirm} disabled={saving} className="btn btn-primary">{saving ? "Guardando..." : label}</button>
+      <button onClick={onCancel} className="btn btn-ghost">{cancelLabel}</button>
+      <button onClick={onConfirm} disabled={saving} className="btn btn-primary">{saving ? savingLabel : label}</button>
     </div>
   );
 }

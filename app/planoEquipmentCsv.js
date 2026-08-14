@@ -4,8 +4,8 @@ import { getEquipmentType } from './equipmentIcons';
 // summing each marker's `quantity` (a marker can represent more than one
 // physical unit), and cable runs with footage (if the plan has a scale
 // defined), then downloads a CSV.
-export function exportEquipmentListCSV(markers, elementTypes, customIcons, cables, feetPerPixel, cableLengthFeet, planName) {
-  if (!markers?.length) { alert('No hay equipos colocados para exportar.'); return; }
+export function exportEquipmentListCSV(markers, elementTypes, customIcons, cables, feetPerPixel, cableLengthFeet, planName, t, tEquipmentTypes) {
+  if (!markers?.length) { alert(t('noEquipmentAlert')); return; }
 
   // system_name -> (element name -> quantity)
   const byCategory = new Map();
@@ -22,9 +22,10 @@ export function exportEquipmentListCSV(markers, elementTypes, customIcons, cable
       const cat = byCategory.get(el.system_name);
       cat.set(el.name, (cat.get(el.name) || 0) + qty);
     } else if (m.equipment_type) {
-      const t = getEquipmentType(m.equipment_type);
-      if (!t) continue;
-      legacy.set(t.label, (legacy.get(t.label) || 0) + qty);
+      const eqType = getEquipmentType(m.equipment_type);
+      if (!eqType) continue;
+      const label = tEquipmentTypes(eqType.key);
+      legacy.set(label, (legacy.get(label) || 0) + qty);
     }
   }
 
@@ -34,7 +35,7 @@ export function exportEquipmentListCSV(markers, elementTypes, customIcons, cable
     for (const [name, qty] of elements) rows.push([`  ${name}`, qty]);
   }
   if (legacy.size > 0) {
-    rows.push(['Sin categoría', '']);
+    rows.push([t('uncategorized'), '']);
     for (const [label, qty] of legacy) rows.push([`  ${label}`, qty]);
   }
   for (const ic of customIcons) {
@@ -43,18 +44,18 @@ export function exportEquipmentListCSV(markers, elementTypes, customIcons, cable
   }
 
   const total = markers.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
-  const csvRows = [['Tipo de Equipo', 'Cantidad'], ...rows, ['', ''], ['TOTAL EQUIPOS', total]];
+  const csvRows = [[t('columnType'), t('columnQuantity')], ...rows, ['', ''], [t('totalEquipment'), total]];
 
   if (cables?.length) {
     csvRows.push(['', '']);
-    csvRows.push(['Cableado', feetPerPixel ? 'Pies' : 'Sin escala definida']);
+    csvRows.push([t('cabling'), feetPerPixel ? t('feet') : t('noScaleDefined')]);
     let totalFeet = 0;
     cables.forEach((c, i) => {
       const feet = feetPerPixel ? cableLengthFeet(c) : null;
       if (feet != null) totalFeet += feet;
-      csvRows.push([c.label || `Cable ${i + 1}`, feet != null ? feet.toFixed(1) : '—']);
+      csvRows.push([c.label || t('cableDefaultLabel', { number: i + 1 }), feet != null ? feet.toFixed(1) : '—']);
     });
-    if (feetPerPixel) csvRows.push(['TOTAL PIETAJE', totalFeet.toFixed(1)]);
+    if (feetPerPixel) csvRows.push([t('totalFootage'), totalFeet.toFixed(1)]);
   }
 
   const csvContent = csvRows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
@@ -62,7 +63,7 @@ export function exportEquipmentListCSV(markers, elementTypes, customIcons, cable
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${planName}_Equipos.csv`;
+  link.download = `${planName}_${t('filenameSuffix')}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

@@ -5,26 +5,28 @@ import { Suspense } from 'react';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../Sidebar';
 import EstimateForm from '../../EstimateForm';
+import { getTranslations } from 'next-intl/server';
 
 export default async function EditarEstimadoPage({ params }) {
+  const t = await getTranslations('estimados.editEstimate');
   const { data: estimate } = await supabase.from('estimates').select('*').eq('id', params.id).single();
 
   if (!estimate) {
     return (
       <div className="admin-shell ds-estimados">
         <Sidebar />
-        <main className="main-content"><p>Estimado no encontrado.</p></main>
+        <main className="main-content"><p>{t('notFound')}</p></main>
       </div>
     );
   }
 
   if (!['draft', 'sent'].includes(estimate.status)) {
-    const statusLabel = { accepted: 'aceptado', cancelled: 'cancelado', converted: 'convertido a trabajo' };
+    const statusLabel = { accepted: t('status.accepted'), cancelled: t('status.cancelled'), converted: t('status.converted') };
     return (
       <div className="admin-shell ds-estimados">
         <Sidebar />
         <main className="main-content">
-          <p>Este estimado ya fue {statusLabel[estimate.status] ?? estimate.status} y no se puede editar.</p>
+          <p>{t('alreadyProcessed', { status: statusLabel[estimate.status] ?? estimate.status })}</p>
         </main>
       </div>
     );
@@ -40,7 +42,7 @@ export default async function EditarEstimadoPage({ params }) {
   );
 
   return (
-    <Suspense fallback={<div style={{ padding: 40 }}>Cargando...</div>}>
+    <Suspense fallback={<div style={{ padding: 40 }}>{t('loading')}</div>}>
       <EstimateForm initialData={{ estimate, items: itemsWithSignedUrls }} />
     </Suspense>
   );

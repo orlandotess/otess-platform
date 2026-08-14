@@ -5,6 +5,7 @@ import { Fragment } from 'react';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import EstimateActions from './EstimateActions';
+import { getTranslations } from 'next-intl/server';
 
 // Materials added by the cable/tubo calculator collapse into one client-facing
 // row by being saved as one parent item + accessory rows (parent_item_id),
@@ -48,10 +49,10 @@ function groupItemsForDisplay(items) {
 // Buckets the already-consolidated display rows into area sections, in the
 // order each area first appears — mirrors ProposalDocument.js's groupByArea()
 // so estimates render the same "Área / Área Total" sectioned layout.
-function groupDisplayByArea(displayItems) {
+function groupDisplayByArea(displayItems, generalLabel) {
   const areas = [];
   for (const entry of displayItems) {
-    const name = (entry.kind === 'group' ? entry.area : entry.item.area) || 'General';
+    const name = (entry.kind === 'group' ? entry.area : entry.item.area) || generalLabel;
     let area = areas.find(a => a.name === name);
     if (!area) { area = { name, entries: [] }; areas.push(area); }
     area.entries.push(entry);
@@ -72,6 +73,7 @@ function entryTotal(entry) {
 
 export default async function EstimaDetail({ params }) {
   const { id } = params;
+  const t = await getTranslations('estimados.detail');
 
   const { data: est } = await supabase
     .from('estimates')
@@ -79,7 +81,7 @@ export default async function EstimaDetail({ params }) {
     .eq('id', id)
     .single();
 
-  if (!est) return <div style={{ padding: 40 }}>Estimado no encontrado</div>;
+  if (!est) return <div style={{ padding: 40 }}>{t('notFound')}</div>;
 
   const { data: rawItems } = await supabase.from('estimate_line_items').select('*').eq('estimate_id', id).order('sort_order');
   const items = await Promise.all(
@@ -100,8 +102,9 @@ export default async function EstimaDetail({ params }) {
   for (const entry of displayItems) {
     if (entry.kind === 'single') entry.item.children = childrenByParentId.get(entry.item.id) ?? [];
   }
-  const displayAreas = groupDisplayByArea(displayItems);
-  const multiArea = displayAreas.length > 1 || (displayAreas[0]?.name && displayAreas[0].name !== 'General');
+  const generalLabel = t('general');
+  const displayAreas = groupDisplayByArea(displayItems, generalLabel);
+  const multiArea = displayAreas.length > 1 || (displayAreas[0]?.name && displayAreas[0].name !== generalLabel);
 
   const { data: clientContacts } = est.client_id
     ? await supabase.from('client_contacts').select('id, name, email').eq('client_id', est.client_id)
@@ -117,7 +120,7 @@ export default async function EstimaDetail({ params }) {
     ? est.clients.company
     : est.clients?.name;
 
-  const statusLabel = { draft: 'Borrador', sent: 'Enviado', accepted: 'Aceptado', cancelled: 'Cancelado', converted: 'Convertido a trabajo' };
+  const statusLabel = { draft: t('status.draft'), sent: t('status.sent'), accepted: t('status.accepted'), cancelled: t('status.cancelled'), converted: t('status.converted') };
   const statusCls = { draft: 'badge-gray', sent: 'badge-blue', accepted: 'badge-green', cancelled: 'badge-red', converted: 'badge-amber' };
 
   return (
@@ -164,17 +167,17 @@ export default async function EstimaDetail({ params }) {
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>(787) 513-8352 · info@otesspr.com</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--navy)', letterSpacing: -1 }}>ESTIMADO</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--navy)', letterSpacing: -1 }}>{t('estimateTitle')}</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace' }}>{est.estimate_number}</div>
               {est.title && <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)', marginTop: 4 }}>{est.title}</div>}
-              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8 }}>Fecha: <strong>{est.issued_at}</strong></div>
-              {est.valid_until && <div style={{ fontSize: 13, color: 'var(--muted)' }}>Válida hasta: <strong>{est.valid_until}</strong></div>}
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8 }}>{t('dateLabel')} <strong>{est.issued_at}</strong></div>
+              {est.valid_until && <div style={{ fontSize: 13, color: 'var(--muted)' }}>{t('validUntilLabel')} <strong>{est.valid_until}</strong></div>}
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: property ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 28 }}>
             <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '16px 20px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Preparado para</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>{t('preparedFor')}</div>
               <div style={{ fontWeight: 700, fontSize: 16 }}>{billToName}</div>
               {est.bill_to !== 'company' && est.clients?.company && (
                 <div style={{ color: 'var(--muted)', fontSize: 14 }}>{est.clients.company}</div>
@@ -187,13 +190,13 @@ export default async function EstimaDetail({ params }) {
               {est.clients?.email && <div style={{ color: 'var(--muted)', fontSize: 13 }}>{est.clients.email}</div>}
               {est.clients?.phone && <div style={{ color: 'var(--muted)', fontSize: 13 }}>{est.clients.phone}</div>}
               {est.clients?.client_type === 'b2b' && (
-                <span className="badge badge-blue" style={{ marginTop: 6, display: 'inline-block' }}>Comerciante Registrado B2B</span>
+                <span className="badge badge-blue" style={{ marginTop: 6, display: 'inline-block' }}>{t('b2bBadge')}</span>
               )}
             </div>
 
             {property && (
               <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '16px 20px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Propiedad del servicio</div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>{t('serviceProperty')}</div>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>{property.name}</div>
                 {property.street && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>{property.street}</div>}
                 {property.city && <div style={{ color: 'var(--muted)', fontSize: 13 }}>{property.city}{property.zip ? `, PR ${property.zip}` : ''}</div>}
@@ -209,12 +212,12 @@ export default async function EstimaDetail({ params }) {
           <table style={{ marginBottom: multiArea ? 8 : 0 }}>
             <thead>
               <tr style={{ background: 'var(--navy)' }}>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'left', fontSize: 11 }}>Descripción</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'center', fontSize: 11 }}>Tipo</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Cant.</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Precio</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>IVU</th>
-                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>Total</th>
+                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'left', fontSize: 11 }}>{t('table.description')}</th>
+                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'center', fontSize: 11 }}>{t('table.type')}</th>
+                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>{t('table.qty')}</th>
+                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>{t('table.price')}</th>
+                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>{t('table.tax')}</th>
+                <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>{t('table.total')}</th>
               </tr>
             </thead>
             <tbody>
@@ -233,16 +236,16 @@ export default async function EstimaDetail({ params }) {
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                     <span className={`badge ${entry.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
-                      {entry.type === 'labor' ? 'Labor' : 'Producto'}
+                      {entry.type === 'labor' ? t('table.laborType') : t('table.productType')}
                     </span>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>—</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>
                     —
-                    <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${entry.supplier_total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    <div style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${entry.supplier_total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
-                    {entry.tax_rate === 0 ? 'Exento' : `${(entry.tax_rate * 100).toFixed(1)}%`}
+                    {entry.tax_rate === 0 ? t('exempt') : `${(entry.tax_rate * 100).toFixed(1)}%`}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${(entry.line_total + entry.tax_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
@@ -259,7 +262,7 @@ export default async function EstimaDetail({ params }) {
                         <div style={{ whiteSpace: 'pre-wrap' }}>{entry.item.group_description?.trim() || entry.item.description}</div>
                         {childrenByParentId.get(entry.item.id)?.length > 0 && (
                           <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>
-                            {childrenByParentId.get(entry.item.id).length} accesorio{childrenByParentId.get(entry.item.id).length > 1 ? 's' : ''} incluido{childrenByParentId.get(entry.item.id).length > 1 ? 's' : ''}
+                            {t('accessoriesIncluded', { count: childrenByParentId.get(entry.item.id).length })}
                           </div>
                         )}
                       </div>
@@ -267,7 +270,7 @@ export default async function EstimaDetail({ params }) {
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                     <span className={`badge ${entry.item.type === 'labor' ? 'badge-amber' : 'badge-gray'}`} style={{ fontSize: 10 }}>
-                      {entry.item.type === 'labor' ? 'Labor' : 'Producto'}
+                      {entry.item.type === 'labor' ? t('table.laborType') : t('table.productType')}
                     </span>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>{entry.item.quantity}</td>
@@ -277,11 +280,11 @@ export default async function EstimaDetail({ params }) {
                     )}
                     ${Number(entry.item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     {entry.item.supplier_price != null && (
-                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>Costo: ${Number(entry.item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${Number(entry.item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                     )}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
-                    {entry.item.tax_rate === 0 ? 'Exento' : `${(entry.item.tax_rate * 100).toFixed(1)}%`}
+                    {entry.item.tax_rate === 0 ? t('exempt') : `${(entry.item.tax_rate * 100).toFixed(1)}%`}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }}>${entryTotal(entry).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
@@ -312,7 +315,7 @@ export default async function EstimaDetail({ params }) {
           </table>
           {multiArea && (
             <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: 'var(--muted)' }}>
-              {area.name} Total: ${area.entries.reduce((s, e) => s + entryTotal(e), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {t('areaTotal', { area: area.name, total: `$${area.entries.reduce((s, e) => s + entryTotal(e), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` })}
             </div>
           )}
           </div>
@@ -321,10 +324,10 @@ export default async function EstimaDetail({ params }) {
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <div style={{ width: 320 }}>
               {[
-                { label: 'Subtotal productos', value: est.subtotal_products },
-                { label: 'IVU productos (11.5%)', value: est.tax_products },
-                { label: 'Subtotal labor', value: est.subtotal_labor },
-                { label: `IVU labor (${est.clients?.client_type === 'b2b' ? '4%' : '11.5%'})`, value: est.tax_labor },
+                { label: t('totals.subtotalProducts'), value: est.subtotal_products },
+                { label: t('totals.taxProducts'), value: est.tax_products },
+                { label: t('totals.subtotalLabor'), value: est.subtotal_labor },
+                { label: t('totals.taxLabor', { rate: est.clients?.client_type === 'b2b' ? '4%' : '11.5%' }), value: est.tax_labor },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
                   <span style={{ color: 'var(--muted)' }}>{row.label}</span>
@@ -333,7 +336,7 @@ export default async function EstimaDetail({ params }) {
               ))}
               {est.discount_value > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ color: 'var(--muted)' }}>Descuento{est.discount_type === 'percent' ? ` (${Number(est.discount_value)}%)` : ''}</span>
+                  <span style={{ color: 'var(--muted)' }}>{t('totals.discount')}{est.discount_type === 'percent' ? ` (${Number(est.discount_value)}%)` : ''}</span>
                   <span>-${(Number(est.subtotal_products) + Number(est.tax_products) + Number(est.subtotal_labor) + Number(est.tax_labor) - Number(est.total)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
               )}
@@ -341,7 +344,7 @@ export default async function EstimaDetail({ params }) {
                 <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', textAlign: 'right', margin: '4px 0 0' }}>{est.discount_note}</p>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 20, fontWeight: 900, color: 'var(--navy)' }}>
-                <span>TOTAL</span>
+                <span>{t('totals.total')}</span>
                 <span>${Number(est.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
               </div>
             </div>
@@ -349,13 +352,13 @@ export default async function EstimaDetail({ params }) {
 
           {est.notes && (
             <div style={{ marginTop: 24, padding: '14px 18px', background: 'var(--surface-2)', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
-              <strong style={{ color: 'var(--navy)' }}>Notas:</strong> {est.notes}
+              <strong style={{ color: 'var(--navy)' }}>{t('notesLabel')}</strong> {est.notes}
             </div>
           )}
 
           {est.terms && (
             <div style={{ marginTop: 16, padding: '14px 18px', background: 'var(--surface-2)', borderRadius: 10, fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
-              <strong style={{ color: 'var(--navy)', display: 'block', marginBottom: 8, fontSize: 13 }}>Términos del Proyecto</strong>
+              <strong style={{ color: 'var(--navy)', display: 'block', marginBottom: 8, fontSize: 13 }}>{t('termsTitle')}</strong>
               {est.terms.split('\n').map((line, i) => line.trim() ? <p key={i} style={{ margin: '0 0 8px' }}>{line}</p> : null)}
             </div>
           )}

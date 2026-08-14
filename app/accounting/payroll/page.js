@@ -7,6 +7,7 @@ import { indexDayOverrides, splitRegularOvertime } from '../../../lib/payrollOve
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import PayrollClient from './PayrollCliente';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 // Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
 // /admin/timesheet) so the week boundary doesn't depend on the server's own
@@ -98,6 +99,9 @@ function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}, techWeek
 }
 
 export default async function AccountingPayroll({ searchParams }) {
+  const t = await getTranslations('accounting.payroll');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
   const view = searchParams?.view ?? 'month';
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
   const month = searchParams?.month !== undefined ? parseInt(searchParams.month) : new Date().getMonth();
@@ -151,7 +155,7 @@ export default async function AccountingPayroll({ searchParams }) {
   const ents = entries ?? [];
   const adjs = adjustments ?? [];
   const dayOvs = dayOverrides ?? [];
-  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].map(key => t(`months.${key}`));
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -191,10 +195,10 @@ export default async function AccountingPayroll({ searchParams }) {
     };
   });
 
-  const totalGross = techStats.reduce((a, t) => a + t.grossPay, 0);
-  const totalRetention = techStats.reduce((a, t) => a + t.retention, 0);
-  const totalNet = techStats.reduce((a, t) => a + t.netPay, 0);
-  const totalHours = techStats.reduce((a, t) => a + t.totalHours, 0);
+  const totalGross = techStats.reduce((a, row) => a + row.grossPay, 0);
+  const totalRetention = techStats.reduce((a, row) => a + row.retention, 0);
+  const totalNet = techStats.reduce((a, row) => a + row.netPay, 0);
+  const totalHours = techStats.reduce((a, row) => a + row.totalHours, 0);
 
   const yearBounds = prYearRange(year);
   const { data: allYearEntries } = view === 'year' ? await supabase
@@ -216,7 +220,7 @@ export default async function AccountingPayroll({ searchParams }) {
   });
 
   const { weekStart, weekEnd } = getWeekRange(weekOffset);
-  const fmtDate = d => new Date(d).toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const fmtDate = d => new Date(d).toLocaleDateString(dateLocale, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 
   return (
     <div className="admin-shell">
@@ -224,15 +228,15 @@ export default async function AccountingPayroll({ searchParams }) {
       <main className="main-content main-content-wide">
         <div className="page-header">
           <div>
-            <div className="page-title">Payroll</div>
+            <div className="page-title">{t('title')}</div>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>
               {view === 'week' ? `${fmtDate(weekStart)} — ${fmtDate(weekEnd)}` :
-               view === 'month' ? `${months[month]} ${year}` : `Año ${year}`}
+               view === 'month' ? `${months[month]} ${year}` : t('yearLabel', { year })}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Link href="/accounting/payroll/historial" className="btn btn-amber">📜 Historial</Link>
-            <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+            <Link href="/accounting/payroll/historial" className="btn btn-amber">📜 {t('history')}</Link>
+            <Link href="/accounting" className="btn btn-ghost">← {t('dashboard')}</Link>
           </div>
         </div>
 
@@ -240,9 +244,9 @@ export default async function AccountingPayroll({ searchParams }) {
         <div className="card" style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Vista</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('view')}</label>
               <div style={{ display: 'flex', gap: 6 }}>
-                {[['week','Semanal'],['month','Mensual'],['year','Anual']].map(([v, l]) => (
+                {[['week', t('viewWeek')], ['month', t('viewMonth')], ['year', t('viewYear')]].map(([v, l]) => (
                   <Link key={v} href={`/accounting/payroll?view=${v}&year=${year}&month=${month}`}
                     className={`btn ${v === view ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>
                     {l}
@@ -252,17 +256,17 @@ export default async function AccountingPayroll({ searchParams }) {
             </div>
             {view === 'week' && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Semana</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('week')}</label>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <Link href={`/accounting/payroll?view=week&week=${weekOffset - 1}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>← Anterior</Link>
-                  {weekOffset !== 0 && <Link href="/accounting/payroll?view=week" className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Actual</Link>}
-                  {weekOffset < 0 && <Link href={`/accounting/payroll?view=week&week=${weekOffset + 1}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Siguiente →</Link>}
+                  <Link href={`/accounting/payroll?view=week&week=${weekOffset - 1}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>← {t('previous')}</Link>
+                  {weekOffset !== 0 && <Link href="/accounting/payroll?view=week" className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>{t('current')}</Link>}
+                  {weekOffset < 0 && <Link href={`/accounting/payroll?view=week&week=${weekOffset + 1}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>{t('next')} →</Link>}
                 </div>
               </div>
             )}
             {(view === 'month' || view === 'year') && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Año</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('year')}</label>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {years.map(y => (
                     <Link key={y} href={`/accounting/payroll?view=${view}&year=${y}&month=${month}`}
@@ -275,7 +279,7 @@ export default async function AccountingPayroll({ searchParams }) {
             )}
             {view === 'month' && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Mes</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('month')}</label>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {months.map((m, i) => (
                     <Link key={i} href={`/accounting/payroll?view=month&year=${year}&month=${i}`}
@@ -292,19 +296,19 @@ export default async function AccountingPayroll({ searchParams }) {
         {/* Summary stats */}
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
           <div className="stat-card">
-            <div className="stat-label">Horas totales</div>
+            <div className="stat-label">{t('totalHours')}</div>
             <div className="stat-value">{fmtH(totalHours)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Gross Pay</div>
+            <div className="stat-label">{t('grossPay')}</div>
             <div className="stat-value" style={{ color: 'var(--navy)' }}>{fmt(totalGross)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Retención (10%)</div>
+            <div className="stat-label">{t('retention')}</div>
             <div className="stat-value" style={{ color: 'var(--warn)' }}>{fmt(totalRetention)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Net Pay</div>
+            <div className="stat-label">{t('netPay')}</div>
             <div className="stat-value" style={{ color: 'var(--ok)' }}>{fmt(totalNet)}</div>
           </div>
         </div>

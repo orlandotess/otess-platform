@@ -5,8 +5,10 @@ import { Suspense } from 'react';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../Sidebar';
 import PropuestaForm from '../../PropuestaForm';
+import { getTranslations } from 'next-intl/server';
 
 export default async function EditarPropuestaPage({ params }) {
+  const t = await getTranslations('propuestas.editProposal');
   const { data: proposal } = await supabase
     .from('proposals')
     .select('*, clients(name, email, phone, company, client_type)')
@@ -18,7 +20,7 @@ export default async function EditarPropuestaPage({ params }) {
       <div className="admin-shell">
         <Sidebar />
         <main className="main-content">
-          <p>Propuesta no encontrada.</p>
+          <p>{t('notFound')}</p>
         </main>
       </div>
     );
@@ -29,7 +31,7 @@ export default async function EditarPropuestaPage({ params }) {
       <div className="admin-shell">
         <Sidebar />
         <main className="main-content">
-          <p>Esta propuesta ya fue {proposal.status === 'aprobada' ? 'aprobada' : 'rechazada'} y no se puede editar.</p>
+          <p>{t('alreadyDecided', { decision: proposal.status === 'aprobada' ? 'approved' : 'rejected' })}</p>
         </main>
       </div>
     );
@@ -62,7 +64,7 @@ export default async function EditarPropuestaPage({ params }) {
   }
 
   return (
-    <Suspense fallback={<div style={{ padding: 40 }}>Cargando...</div>}>
+    <Suspense fallback={<div style={{ padding: 40 }}>{t('loading')}</div>}>
       <PropuestaForm
         initialData={{
           proposal: { ...proposal, cover_photo_signed_url: coverSignedUrl },

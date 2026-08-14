@@ -2,14 +2,12 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
-
-const DEFAULT_ABOUT_US = `Somos especialistas en la integración de tecnología para crear espacios inteligentes, seguros y eficientes. Nos dedicamos al diseño, instalación y automatización de sistemas de audio, video, iluminación, cableado estructurado, redes y seguridad, brindando así soluciones personalizadas para hogares, oficinas y negocios.
-
-En OTESS transformamos el entorno en un espacio moderno, funcional y seguro.`;
+import { useTranslations } from 'next-intl';
 
 export default function EmpresaClient({ settings }) {
   const router = useRouter();
-  const [aboutUs, setAboutUs] = useState(settings?.about_us ?? DEFAULT_ABOUT_US);
+  const t = useTranslations('propuestas.empresaClient');
+  const [aboutUs, setAboutUs] = useState(settings?.about_us ?? t('defaultAboutUs'));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
@@ -32,9 +30,9 @@ export default function EmpresaClient({ settings }) {
 
   return (
     <div className="card" style={{ maxWidth: 720 }}>
-      <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 6 }}>Sobre nosotros</p>
+      <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 6 }}>{t('aboutUsLabel')}</p>
       <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-        Este texto aparece en la página "About Us" de las propuestas enviadas a clientes.
+        {t('aboutUsDescription')}
       </p>
       <form onSubmit={handleSave}>
         <div className="form-group" style={{ marginBottom: 20 }}>
@@ -42,10 +40,10 @@ export default function EmpresaClient({ settings }) {
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Guardando...' : 'Guardar'}
+            {saving ? t('saving') : t('save')}
           </button>
-          {saved && <span style={{ color: 'var(--ok)', fontSize: 13, fontWeight: 600 }}>✓ Guardado</span>}
-          {error && <span style={{ color: 'var(--danger, #c0392b)', fontSize: 13, fontWeight: 600 }}>Error: {error}</span>}
+          {saved && <span style={{ color: 'var(--ok)', fontSize: 13, fontWeight: 600 }}>✓ {t('saved')}</span>}
+          {error && <span style={{ color: 'var(--danger, #c0392b)', fontSize: 13, fontWeight: 600 }}>{t('errorWithMessage', { error })}</span>}
         </div>
       </form>
     </div>

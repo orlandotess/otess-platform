@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import PhotoAnnotator from '../PhotoAnnotator';
 import BarcodeScanner from '../BarcodeScanner';
@@ -9,6 +9,7 @@ import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
 import { computeHours, prDayKey, prTimeParts, buildPRTimestamp } from '../../lib/hours';
 import { formatDatePR, formatDateTimePR, formatTimePR } from '../../lib/datetimeLocal';
 import { useJobChecklist } from '../../lib/useJobChecklist';
+import { useTranslations, useLocale } from 'next-intl';
 
 const ORANGE = '#E05C2A';
 const AMBER = '#e0972c';
@@ -35,16 +36,19 @@ function FieldIcon({ name }) {
 }
 const JOB_FIELDS = 'id, title, status, client_id, scheduled_start, scheduled_end, street, city, state, zip, property_name, clients(name, phone, email), job_contacts(id, name, phone, email, cargo)';
 const EXPENSE_CATEGORIES = [
-  { value: 'materiales', label: 'Materiales' },
-  { value: 'gasolina', label: 'Gasolina' },
-  { value: 'herramientas', label: 'Herramientas' },
-  { value: 'subcontratista', label: 'Subcontratista' },
-  { value: 'oficina', label: 'Oficina' },
-  { value: 'parking', label: 'Parking' },
-  { value: 'equipos', label: 'Equipos' },
-  { value: 'meals', label: 'Meals' },
-  { value: 'otro', label: 'Otro' },
+  { value: 'materiales', key: 'materiales' },
+  { value: 'gasolina', key: 'gasolina' },
+  { value: 'herramientas', key: 'herramientas' },
+  { value: 'subcontratista', key: 'subcontratista' },
+  { value: 'oficina', key: 'oficina' },
+  { value: 'parking', key: 'parking' },
+  { value: 'equipos', key: 'equipos' },
+  { value: 'meals', key: 'meals' },
+  { value: 'otro', key: 'otro' },
 ];
+const STATUS_KEYS = {
+  estimate: 'estimate', scheduled: 'scheduled', in_progress: 'inProgress', completed: 'completed', cancelled: 'cancelled',
+};
 function blankExpenseForm() {
   return { category: 'materiales', description: '', vendor: '', amount: '', expense_date: new Date().toISOString().slice(0, 10) };
 }
@@ -87,6 +91,10 @@ async function fetchTechJobs(techId) {
 }
 
 export default function FieldApp() {
+  const t = useTranslations('crew.app');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const translatedExpenseCategories = useMemo(() => EXPENSE_CATEGORIES.map(c => ({ ...c, label: t(`expenseCategories.${c.key}`) })), [t]);
   const [tab, setTab] = useState('home');
   const [jobs, setJobs] = useState([]);
   const [jobFilter, setJobFilter] = useState('today');
@@ -374,7 +382,7 @@ export default function FieldApp() {
     await supabase.from('task_items').update({ done: !item.done }).eq('id', item.id);
     const applyToggle = items => items.map(i => i.id === item.id ? { ...i, done: !i.done } : i);
     setDetailEntry(prev => prev && ({ ...prev, _raw: { ...prev._raw, task_items: applyToggle(prev._raw.task_items) } }));
-    setTechTasks(prev => prev.map(t => t.id === taskId ? { ...t, task_items: applyToggle(t.task_items ?? []) } : t));
+    setTechTasks(prev => prev.map(task => task.id === taskId ? { ...task, task_items: applyToggle(task.task_items ?? []) } : task));
   }
 
   // Clientes state
@@ -446,7 +454,7 @@ export default function FieldApp() {
       if (profile) setTechName(profile.name);
       const { data: allTechs } = await supabase.from('technicians').select('id, name');
       const target = normalizeName(profile?.name ?? 'OTESS');
-      const tech = (allTechs ?? []).find(t => normalizeName(t.name) === target);
+      const tech = (allTechs ?? []).find(techRow => normalizeName(techRow.name) === target);
       if (tech) setTechId(tech.id);
       setLoading(false);
     });
@@ -472,7 +480,7 @@ export default function FieldApp() {
   // Blocks Clock In on a day with an "ausencia" registered for this technician.
   function getClockBlockMessage() {
     if (!todayAbsence) return null;
-    return `Tienes una ausencia registrada hoy${todayAbsence.reason ? ': ' + todayAbsence.reason : ''}. No puedes marcar entrada.`;
+    return todayAbsence.reason ? t('alerts.absenceTodayWithReason', { reason: todayAbsence.reason }) : t('alerts.absenceToday');
   }
 
   useEffect(() => {
@@ -521,7 +529,7 @@ export default function FieldApp() {
 
     const seenTasks = new Set();
     const tasks = [];
-    const addTask = t => { if (t && !seenTasks.has(t.id)) { seenTasks.add(t.id); tasks.push(t); } };
+    const addTask = task => { if (task && !seenTasks.has(task.id)) { seenTasks.add(task.id); tasks.push(task); } };
     (tasksDirect ?? []).forEach(addTask);
     (tasksViaJunction ?? []).forEach(row => addTask(row.tasks));
 
@@ -650,7 +658,13 @@ export default function FieldApp() {
     }));
     setDetailNotes(notesWithUrls);
     const checklistWithUrls = await Promise.all(
-      (checklist ?? []).map(async i => ({ ...i, photo_signed_url: i.photo_url ? await getSignedUrl(i.photo_url) : null }))
+      (checklist ?? []).map(async i => {
+        if (i.photo_urls && i.photo_urls.length > 0) {
+          const signedUrls = (await Promise.all(i.photo_urls.map(p => getSignedUrl(p)))).filter(Boolean);
+          return { ...i, photo_signed_urls: signedUrls, photo_signed_url: signedUrls[0] ?? null };
+        }
+        return { ...i, photo_signed_url: i.photo_url ? await getSignedUrl(i.photo_url) : null };
+      })
     );
     setDetailChecklist(checklistWithUrls);
     const areasWithUrls = await Promise.all(
@@ -722,7 +736,7 @@ export default function FieldApp() {
   }
 
   async function deleteReport(reportId) {
-    if (!confirm('¿Eliminar este reporte? Las notas no se borran, solo el reporte.')) return;
+    if (!confirm(t('alerts.confirmDeleteReport'))) return;
     await supabase.from('job_reports').delete().eq('id', reportId);
     setDetailReports(prev => prev.filter(r => r.id !== reportId));
   }
@@ -756,7 +770,7 @@ export default function FieldApp() {
       setDetailReports(prev => prev.map(r => r.id === emailingReportId ? { ...r, sent_at: new Date().toISOString(), sent_to: reportEmailTo, sent_cc: cc.length ? cc : null } : r));
       setEmailingReportId(null);
     } else {
-      alert('Error: ' + data.error);
+      alert(t('alerts.errorWithMessage', { message: data.error }));
     }
   }
 
@@ -951,7 +965,7 @@ export default function FieldApp() {
     const newIn = buildPRTimestamp(baseDate, inH, inM);
     const newOut = editEntryOut ? (() => { const [h, m] = editEntryOut.split(':').map(Number); return buildPRTimestamp(baseDate, h, m); })() : null;
     if (newOut && computeHours(newIn.toISOString(), newOut.toISOString(), entry.lunch_minutes).invalid) {
-      setEditEntryError('La salida debe ser después de la entrada.');
+      setEditEntryError(t('time.errors.exitAfterEntry'));
       return;
     }
     setEditEntryError('');
@@ -971,7 +985,7 @@ export default function FieldApp() {
   }
 
   async function deleteEntry(entry) {
-    if (!confirm('¿Eliminar esta entrada de horario?')) return;
+    if (!confirm(t('alerts.confirmDeleteTimeEntry'))) return;
     await supabase.from('time_entries').delete().eq('id', entry.id);
     const baseDate = prDayKey(entry.clocked_in_at);
     const weekStart = getPayrollWeekDays()[0];
@@ -1002,10 +1016,10 @@ export default function FieldApp() {
     setUploadingPhoto(false);
     if (!error) {
       await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, photo_url: path, created_by: profileId }]);
-      setPhotoSuccess('Foto subida');
+      setPhotoSuccess(t('alerts.photoUploaded'));
       setTimeout(() => { setPhotoSuccess(''); setShowJobPhoto(false); setShowFab(false); setFabSelectedJob(null); }, 2000);
     } else {
-      setPhotoError('No se pudo subir el archivo. Verifica tu conexión e intenta de nuevo.');
+      setPhotoError(t('alerts.uploadFileFailedRetry'));
     }
   }
 
@@ -1045,7 +1059,7 @@ export default function FieldApp() {
       receipt_url: receiptPath,
     }]);
     setSavingExpense(false);
-    setExpenseSuccess('Gasto guardado');
+    setExpenseSuccess(t('alerts.expenseSaved'));
     setTimeout(closeExpenseModal, 1200);
   }
 
@@ -1115,7 +1129,7 @@ export default function FieldApp() {
   }
 
   async function deleteDetailExpense(id) {
-    if (!confirm('¿Eliminar este gasto?')) return;
+    if (!confirm(t('alerts.confirmDeleteExpense'))) return;
     await supabase.from('expenses').delete().eq('id', id);
     setDetailExpenses(prev => prev.filter(x => x.id !== id));
   }
@@ -1160,7 +1174,7 @@ export default function FieldApp() {
       }, ...prev]);
     }
     if (failedNames.length > 0) {
-      setDetailNoteError(`No se pudo subir: ${failedNames.join(', ')}. La nota se guardó, intenta subir el archivo de nuevo.`);
+      setDetailNoteError(t('alerts.notePhotosUploadFailed', { files: failedNames.join(', ') }));
     }
 
     setDetailNoteText(''); setDetailNoteTitle(''); setDetailNotePhase(''); setDetailPhotos([]); setDetailPhotoPreviews([]); setDetailUploadProgress({}); setSavingDetailNote(false);
@@ -1257,11 +1271,11 @@ export default function FieldApp() {
 
   async function saveNewClient(e) {
     e.preventDefault();
-    if (!newClientForm.name.trim()) { setNewClientError('El nombre es requerido'); return; }
+    if (!newClientForm.name.trim()) { setNewClientError(t('alerts.nameRequired')); return; }
     setSavingNewClient(true);
     setNewClientError('');
     const { data: client, error: err } = await supabase.from('clients').insert([newClientForm]).select().single();
-    if (err) { setNewClientError('No se pudo guardar. Intenta de nuevo.'); setSavingNewClient(false); return; }
+    if (err) { setNewClientError(t('alerts.saveFailedRetry')); setSavingNewClient(false); return; }
     if (newClientAddr.line1.trim()) {
       await supabase.from('client_properties').insert([{
         client_id: client.id, street: newClientAddr.line1.trim(), city: newClientAddr.city.trim(), state: 'PR', zip: newClientAddr.zip.trim(), is_primary: true,
@@ -1356,7 +1370,7 @@ export default function FieldApp() {
 
   async function invAddReel() {
     if (!invReelForm.catalog_item_id || !invReelForm.total_footage || !invLocationId) {
-      setInvReelError('Selecciona un producto y escribe el pietaje total.');
+      setInvReelError(t('alerts.selectProductAndFootage'));
       return;
     }
     setInvSavingReel(true);
@@ -1368,7 +1382,7 @@ export default function FieldApp() {
       p_code: invReelForm.code.trim() || null,
     });
     setInvSavingReel(false);
-    if (error) { setInvReelError('No se pudo guardar. Intenta de nuevo.'); return; }
+    if (error) { setInvReelError(t('alerts.saveFailedRetry')); return; }
     const prod = invProducts.find(p => p.id === invReelForm.catalog_item_id);
     const footage = parseFloat(invReelForm.total_footage);
     setInvReels(prev => [{
@@ -1385,7 +1399,7 @@ export default function FieldApp() {
     setInvSavingReel(true);
     const { error } = await supabase.rpc('use_reel_footage', { p_reel_id: reel.id, p_footage: footage });
     setInvSavingReel(false);
-    if (error) { alert('Error: ' + error.message); return; }
+    if (error) { alert(t('alerts.errorWithMessage', { message: error.message })); return; }
     setInvReels(prev => prev.map(r => r.id === reel.id ? { ...r, remaining_footage: r.remaining_footage - footage } : r));
     setInvReelFootageInputs(prev => ({ ...prev, [reel.id]: '' }));
   }
@@ -1412,7 +1426,7 @@ export default function FieldApp() {
   // app/catalogo/CatalogoClient.js::addItem, para no obligar al técnico a ir primero a Catálogo.
   async function createInvProduct() {
     if (!invNewProductForm.item_code.trim() || !invNewProductForm.description.trim()) {
-      setInvNewProductError('Escribe el nombre y la descripción.');
+      setInvNewProductError(t('alerts.enterNameAndDescription'));
       return;
     }
     setSavingInvNewProduct(true);
@@ -1424,7 +1438,7 @@ export default function FieldApp() {
       price: parseFloat(invNewProductForm.price) || 0,
     }]).select('id, item_code, description').single();
     setSavingInvNewProduct(false);
-    if (error) { setInvNewProductError('No se pudo crear el producto. Intenta de nuevo.'); return; }
+    if (error) { setInvNewProductError(t('alerts.createProductFailedRetry')); return; }
     setInvProducts(prev => [...prev, data].sort((a, b) => a.item_code.localeCompare(b.item_code)));
     setInvUnitForm(f => ({ ...f, catalog_item_id: data.id }));
     setShowInvNewProduct(false);
@@ -1433,7 +1447,7 @@ export default function FieldApp() {
 
   async function invAddUnit() {
     if (!invUnitForm.catalog_item_id || !invUnitForm.serial_number.trim() || !invLocationId) {
-      setInvUnitError('Selecciona un producto y escribe el serial number.');
+      setInvUnitError(t('alerts.selectProductAndSerial'));
       return;
     }
     setInvSavingUnit(true);
@@ -1443,7 +1457,7 @@ export default function FieldApp() {
       const ext = invUnitPhotoFile.name.split('.').pop();
       photo_path = `inventory/${invUnitForm.catalog_item_id}/${Date.now()}.${ext}`;
       const { error: upErr } = await uploadFileWithProgress('Job-photos', photo_path, invUnitPhotoFile, setInvUnitUploadProgress);
-      if (upErr) { setInvSavingUnit(false); setInvUnitError('No se pudo subir la foto. Intenta de nuevo.'); return; }
+      if (upErr) { setInvSavingUnit(false); setInvUnitError(t('alerts.uploadPhotoFailedRetry')); return; }
     }
     const { data, error } = await supabase.from('location_stock_units').insert([{
       location_id: invLocationId,
@@ -1455,7 +1469,7 @@ export default function FieldApp() {
     }]).select('*, catalog_items(item_code, name, description, photo_url)').single();
     setInvSavingUnit(false);
     if (error) {
-      setInvUnitError(error.code === '23505' ? 'Ese serial number ya existe en el sistema.' : 'No se pudo guardar. Intenta de nuevo.');
+      setInvUnitError(error.code === '23505' ? t('alerts.serialExists') : t('alerts.saveFailedRetry'));
       return;
     }
     const photo_signed_url = photo_path ? await getSignedUrl(photo_path) : null;
@@ -1475,7 +1489,7 @@ export default function FieldApp() {
       p_location_id: invLocationId,
     });
     setInvSaving(false);
-    if (error) { alert('Error: ' + error.message); return; }
+    if (error) { alert(t('alerts.errorWithMessage', { message: error.message })); return; }
     setInvStock(prev => {
       const idx = prev.findIndex(s => s.location_id === invLocationId && s.catalog_item_id === invAdjustForm.catalog_item_id);
       if (idx === -1) {
@@ -1493,19 +1507,17 @@ export default function FieldApp() {
   // Job the technician is currently clocked into, used to skip the "select job" step in the FAB
   const activeJob = clockedIn && activeEntry?.job_id ? allJobs.find(j => j.id === activeEntry.job_id) ?? null : null;
   const now = new Date();
-  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
+  const todayHeaderLabel = now.toLocaleDateString(dateLocale, { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase();
+  const greeting = now.getHours() < 12 ? t('home.goodMorning') : now.getHours() < 18 ? t('home.goodAfternoon') : t('home.goodEvening');
   const SC = { estimate: '#5b6473', scheduled: '#2a4cb5', in_progress: AMBER, completed: '#1a7a4a', cancelled: '#b52a2a' };
-  const SL = { estimate: 'Estimate', scheduled: 'Scheduled', in_progress: 'In Progress', completed: 'Done', cancelled: 'Cancelled' };
-  const DSH = ['Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue'];
+  const statusLabel = st => t(`status.${STATUS_KEYS[st] ?? 'estimate'}`);
   const card = { margin: '0 14px 12px', background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' };
   const navBtn = a => ({ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '10px 0 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 600, color: a ? ORANGE : '#aaa' });
   const ftab = a => ({ padding: '8px 16px', borderRadius: 50, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: a ? 'none' : '1.5px solid #dde1e7', background: a ? '#1a1a1a' : '#fff', color: a ? '#fff' : '#333' });
   const fmi = c => ({ background: c || ORANGE, color: '#fff', border: 'none', borderRadius: 50, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 8 });
   const menuItem = { display: 'block', width: '100%', textAlign: 'left', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid #eee', fontSize: 14, fontWeight: 600, color: '#333', cursor: 'pointer' };
-  const NavI = ({ tab: t, icon, label }) => (
-    <button style={navBtn(tab === t)} onClick={() => { setTab(t); setShowFab(false); }}>
+  const NavI = ({ tab: navTab, icon, label }) => (
+    <button style={navBtn(tab === navTab)} onClick={() => { setTab(navTab); setShowFab(false); }}>
       <FieldIcon name={icon} />{label}
     </button>
   );
@@ -1530,9 +1542,9 @@ export default function FieldApp() {
               <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>📍 {location}</div>
             )
           )}
-          {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>📅 {formatDatePR(j.scheduled_start, { weekday: 'short', month: 'short', day: 'numeric' }, 'en-US')}</div>}
+          {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>📅 {formatDatePR(j.scheduled_start, { weekday: 'short', month: 'short', day: 'numeric' }, dateLocale)}</div>}
         </div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 10px', borderRadius: 20, marginLeft: 10, whiteSpace: 'nowrap' }}>{SL[j.status]}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 10px', borderRadius: 20, marginLeft: 10, whiteSpace: 'nowrap' }}>{statusLabel(j.status)}</span>
       </div>
     );
   };
@@ -1556,7 +1568,6 @@ export default function FieldApp() {
     });
   }
   const weekDays = getWeekDays(calendarWeekOffset);
-  const WEEKDAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
   // Both a and b are UTC-midnight-anchored PR calendar days here (weekDays entries,
   // calendarSelectedDate) — dayKey() compares them without reapplying the device's own
@@ -1604,7 +1615,7 @@ export default function FieldApp() {
   const calendarEntries = [
     ...calendarJobs,
     ...techEvents.map(e => normalizeEntry('event', e)),
-    ...techTasks.map(t => normalizeEntry('task', t)),
+    ...techTasks.map(task => normalizeEntry('task', task)),
     ...techVisits.map(v => normalizeEntry('visit', v)),
     ...techSolicitudes.map(s => normalizeEntry('solicitud', s)),
   ];
@@ -1630,7 +1641,7 @@ export default function FieldApp() {
   const todayEntries = [
     ...jobs,
     ...techEvents.filter(e => isToday(e.start_at)).map(e => normalizeEntry('event', e)),
-    ...techTasks.filter(t => isToday(t.due_at)).map(t => normalizeEntry('task', t)),
+    ...techTasks.filter(task => isToday(task.due_at)).map(task => normalizeEntry('task', task)),
     ...techVisits.filter(v => isToday(v.scheduled_at)).map(v => normalizeEntry('visit', v)),
     ...techSolicitudes.filter(s => isToday(s.assessment_date)).map(s => normalizeEntry('solicitud', s)),
   ].sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
@@ -1656,32 +1667,32 @@ export default function FieldApp() {
         {tab === 'home' && (
           <div>
             <div style={{ padding: '20px 20px 8px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{DAYS[now.getDay()].toUpperCase()}, {MON[now.getMonth()]} {now.getDate()}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{todayHeaderLabel}</span>
             </div>
             <div style={{ padding: '0 20px 20px' }}><div style={{ fontSize: 27, fontWeight: 700 }}>{greeting}, {techName}</div></div>
             <div style={card}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ width: 40, height: 40, background: BG, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>⏱</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 15 }}>{clockedIn ? 'Clocked in' : 'Not clocked in'}</div>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>{clockedIn ? t('home.clockedIn') : t('home.notClockedIn')}</div>
                   <div style={{ fontSize: 12, color: !clockedIn && getClockBlockMessage() ? '#c04a1a' : '#888' }}>
-                    {clockedIn ? fmtE(elapsed) : (getClockBlockMessage() ?? 'Tap to start your shift')}
+                    {clockedIn ? fmtE(elapsed) : (getClockBlockMessage() ?? t('home.tapToStartShift'))}
                   </div>
                 </div>
                 <button disabled={!clockedIn && !!getClockBlockMessage()}
                   style={{ background: clockedIn ? '#1a7a4a' : (getClockBlockMessage() ? '#ccc' : ORANGE), color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: (!clockedIn && getClockBlockMessage()) ? 'not-allowed' : 'pointer' }}
                   onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
-                  {clockedIn ? 'Clock Out' : 'Clock In'}
+                  {clockedIn ? t('home.clockOut') : t('home.clockIn')}
                 </button>
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 20px 12px' }}>
-              <span style={{ fontSize: 17, fontWeight: 700 }}>Today's schedule</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: ORANGE, cursor: 'pointer' }} onClick={() => setTab('jobs')}>View all</span>
+              <span style={{ fontSize: 17, fontWeight: 700 }}>{t('home.todaySchedule')}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: ORANGE, cursor: 'pointer' }} onClick={() => setTab('jobs')}>{t('home.viewAll')}</span>
             </div>
             <div style={card}>
               {todayEntries.length === 0
-                ? <div style={{ textAlign: 'center', padding: '24px 0', color: '#888' }}>No jobs scheduled today.</div>
+                ? <div style={{ textAlign: 'center', padding: '24px 0', color: '#888' }}>{t('home.noJobsToday')}</div>
                 : todayEntries.slice(0, 3).map(j => <JobRow key={j.id} j={j} onClick={() => openEntry(j)} />)
               }
             </div>
@@ -1691,15 +1702,15 @@ export default function FieldApp() {
         {tab === 'jobs' && (
           <div>
             <div style={{ padding: '20px 20px 16px' }}>
-              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 14 }}>Jobs</div>
+              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 14 }}>{t('jobs.title')}</div>
               <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: 14 }}>
                 <span>🔍</span>
-                <input value={jobSearch} onChange={e => setJobSearch(e.target.value)} placeholder="Search jobs, customer or location..." style={{ border: 'none', background: 'none', fontSize: 15, outline: 'none', width: '100%' }} />
+                <input value={jobSearch} onChange={e => setJobSearch(e.target.value)} placeholder={t('jobs.searchPlaceholder')} style={{ border: 'none', background: 'none', fontSize: 15, outline: 'none', width: '100%' }} />
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {['today', 'upcoming', 'done', 'all'].map(f => (
                   <button key={f} style={ftab(jobFilter === f)} onClick={() => setJobFilter(f)}>
-                    {f === 'today' ? 'Today' : f === 'upcoming' ? 'Upcoming' : f === 'done' ? 'Done' : 'All'}
+                    {t(`jobs.filters.${f}`)}
                   </button>
                 ))}
               </div>
@@ -1715,8 +1726,8 @@ export default function FieldApp() {
                       (j.street ?? '').toLowerCase().includes(term) ||
                       (j.city ?? '').toLowerCase().includes(term))
                   : jobs;
-                return loading ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Loading...</div>
-                  : visibleJobs.length === 0 ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>No jobs here.</div>
+                return loading ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>{t('common.loading')}</div>
+                  : visibleJobs.length === 0 ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>{t('jobs.noJobsHere')}</div>
                     : visibleJobs.map((j, i) => <JobRow key={j._scheduleDayId ? `day-${j._scheduleDayId}` : `${j.id}-${i}`} j={j} onClick={() => openJobDetail(j)} />);
               })()}
             </div>
@@ -1727,24 +1738,24 @@ export default function FieldApp() {
           <div>
             <div style={{ padding: '20px 20px 8px', display: 'flex', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>My Timesheet</div>
-                <div style={{ fontSize: 12, color: '#888' }}>{MON[now.getMonth()]} {now.getDate()}, {now.getFullYear()}</div>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{t('time.title')}</div>
+                <div style={{ fontSize: 12, color: '#888' }}>{now.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
               </div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: ORANGE }}>Pending</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: ORANGE }}>{t('time.pending')}</span>
             </div>
             <div style={card}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ width: 40, height: 40, background: BG, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>⏱</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{clockedIn ? 'Clocked in' : 'Not clocked in'}</div>
+                  <div style={{ fontWeight: 600 }}>{clockedIn ? t('home.clockedIn') : t('home.notClockedIn')}</div>
                   <div style={{ fontSize: 12, color: !clockedIn && getClockBlockMessage() ? '#c04a1a' : '#888' }}>
-                    {clockedIn ? fmtE(elapsed) : (getClockBlockMessage() ?? fmtH(timeEntries) + ' logged this week')}
+                    {clockedIn ? fmtE(elapsed) : (getClockBlockMessage() ?? t('time.loggedThisWeek', { hours: fmtH(timeEntries) }))}
                   </div>
                 </div>
                 <button disabled={!clockedIn && !!getClockBlockMessage()}
                   style={{ background: clockedIn ? '#1a7a4a' : (getClockBlockMessage() ? '#eee' : '#f5ddd3'), color: clockedIn ? '#fff' : '#c04a1a', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: (!clockedIn && getClockBlockMessage()) ? 'not-allowed' : 'pointer' }}
                   onClick={clockedIn ? handleClockOut : () => handleClockIn()}>
-                  {clockedIn ? 'Clock Out' : 'Clock In'}
+                  {clockedIn ? t('home.clockOut') : t('home.clockIn')}
                 </button>
               </div>
             </div>
@@ -1759,7 +1770,7 @@ export default function FieldApp() {
                 const hasHours = parseFloat(dayHours) > 0;
                 return (
                   <div key={dkey} onClick={() => setSelectedDay({ date: dayDate, entries: dayEntries })} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: hasHours ? 'pointer' : 'default', padding: '6px 4px', borderRadius: 10, background: selectedDay?.date && dayKey(selectedDay.date) === dkey ? ORANGE + '18' : 'transparent' }}>
-                    <div style={{ fontSize: 11, color: isToday ? ORANGE : '#888', fontWeight: isToday ? 700 : 400 }}>{DSH[i]}</div>
+                    <div style={{ fontSize: 11, color: isToday ? ORANGE : '#888', fontWeight: isToday ? 700 : 400 }}>{dayDate.toLocaleDateString(dateLocale, { weekday: 'short', timeZone: 'UTC' })}</div>
                     <div style={{ fontSize: 12, color: hasHours ? '#16223d' : '#ccc', fontWeight: hasHours ? 700 : 400 }}>{hasHours ? dayHours + 'h' : '—'}</div>
                     <div style={{ fontSize: 12, color: isToday ? ORANGE : '#aaa', fontWeight: isToday ? 700 : 400 }}>{dayDate.getUTCDate()}</div>
                   </div>
@@ -1769,7 +1780,7 @@ export default function FieldApp() {
             {selectedDay && selectedDay.entries.length > 0 && (
               <div style={{ ...card, marginTop: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#16223d' }}>
-                  {selectedDay.date.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })}
+                  {selectedDay.date.toLocaleDateString(dateLocale, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })}
                 </div>
                 {selectedDay.entries.map((e, i) => {
                   const inTime = new Date(e.clocked_in_at);
@@ -1782,23 +1793,23 @@ export default function FieldApp() {
                       <div key={e.id} style={{ padding: '10px 0', borderBottom: i < selectedDay.entries.length - 1 ? '1px solid #eee' : 'none' }}>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                           <div>
-                            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Entrada</div>
+                            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{t('time.entry')}</div>
                             <input type="time" value={editEntryIn} onChange={ev => setEditEntryIn(ev.target.value)}
                               style={{ padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14 }} />
                           </div>
                           <div>
-                            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Salida</div>
+                            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{t('time.exit')}</div>
                             <input type="time" value={editEntryOut} onChange={ev => setEditEntryOut(ev.target.value)}
                               style={{ padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14 }} />
                           </div>
                           <div style={{ display: 'flex', gap: 6, marginTop: 16 }}>
                             <button onClick={() => saveEntryEdit(e)} disabled={savingEntry || !editEntryIn}
                               style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                              {savingEntry ? '...' : 'Guardar'}
+                              {savingEntry ? '...' : t('common.save')}
                             </button>
                             <button onClick={() => { setEditingEntryId(null); setEditEntryError(''); }}
                               style={{ background: '#f0f0f0', color: '#333', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                              Cancelar
+                              {t('common.cancel')}
                             </button>
                           </div>
                           {editEntryError && <div style={{ color: '#e74c3c', fontSize: 12, width: '100%' }}>⚠️ {editEntryError}</div>}
@@ -1810,14 +1821,14 @@ export default function FieldApp() {
                     <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < selectedDay.entries.length - 1 ? '1px solid #eee' : 'none' }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600 }}>
-                          {formatTimePR(inTime, { hour: '2-digit', minute: '2-digit' })}
-                          {outTime ? ' → ' + formatTimePR(outTime, { hour: '2-digit', minute: '2-digit' }) : ' → En progreso'}
+                          {formatTimePR(inTime, { hour: '2-digit', minute: '2-digit' }, dateLocale)}
+                          {outTime ? ' → ' + formatTimePR(outTime, { hour: '2-digit', minute: '2-digit' }, dateLocale) : ' → ' + t('time.inProgress')}
                         </div>
-                        {e.job_id && <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>Con trabajo</div>}
-                        {(e.lunch_minutes ?? 0) > 0 && <div style={{ fontSize: 11, color: ORANGE, marginTop: 2 }}>🍽️ Lunch -{(e.lunch_minutes / 60).toFixed(1)}h</div>}
+                        {e.job_id && <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{t('time.withJob')}</div>}
+                        {(e.lunch_minutes ?? 0) > 0 && <div style={{ fontSize: 11, color: ORANGE, marginTop: 2 }}>🍽️ {t('time.lunchMinus', { hours: (e.lunch_minutes / 60).toFixed(1) })}</div>}
                       </div>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                        {durInvalid && <span style={{ fontSize: 11, fontWeight: 700, color: '#e74c3c' }} title="Salida antes de la entrada o almuerzo mayor al turno">⚠️</span>}
+                        {durInvalid && <span style={{ fontSize: 11, fontWeight: 700, color: '#e74c3c' }} title={t('time.exitBeforeEntryTitle')}>⚠️</span>}
                         <div style={{ fontWeight: 700, color: dur ? '#16223d' : ORANGE, fontSize: 14 }}>
                           {dur ? dur + 'h' : '⏱'}
                         </div>
@@ -1831,30 +1842,30 @@ export default function FieldApp() {
             )}
             <div style={card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span style={{ color: '#888' }}>Hours this week</span>
+                <span style={{ color: '#888' }}>{t('time.hoursThisWeek')}</span>
                 <span style={{ fontWeight: 700 }}>{fmtH(timeEntries)}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ border: '1.5px solid #1abc9c', borderRadius: 12, padding: 14 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#1abc9c', marginBottom: 6 }}>REGULAR</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#1abc9c', marginBottom: 6, textTransform: 'uppercase' }}>{t('time.regular')}</div>
                   <div style={{ fontSize: 26, fontWeight: 700, color: '#1abc9c' }}>{fmtH(timeEntries)}</div>
                 </div>
                 <div style={{ border: '1.5px solid #dde1e7', borderRadius: 12, padding: 14 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#aaa', marginBottom: 6 }}>OVERTIME</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#aaa', marginBottom: 6, textTransform: 'uppercase' }}>{t('time.overtime')}</div>
                   <div style={{ fontSize: 26, fontWeight: 700, color: '#ccc' }}>0.0h</div>
                 </div>
               </div>
             </div>
 
             <div style={{ padding: '4px 20px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 15, fontWeight: 700 }}>Editar mi horario semanal</span>
+              <span style={{ fontSize: 15, fontWeight: 700 }}>{t('time.editWeeklySchedule')}</span>
             </div>
 
             {getPayrollWeekDays().filter(dateObj => dayKey(dateObj) <= todayPRKey).map(dateObj => {
               const key = dayKey(dateObj);
               const form = weekDayForms[key] ?? blankDayForm();
-              const dayLabel = dateObj.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
-              const dateLabel = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+              const dayLabel = dateObj.toLocaleDateString(dateLocale, { weekday: 'long', timeZone: 'UTC' });
+              const dateLabel = dateObj.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', timeZone: 'UTC' });
               const saving = savingDay === key;
               const isBlockedDay = isAbsenceBlockedDay(dateObj);
               return (
@@ -1869,13 +1880,13 @@ export default function FieldApp() {
 
                   {isBlockedDay && (
                     <div style={{ marginBottom: 14, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
-                      🚫 Ausencia registrada este día{todayAbsence.reason ? ': ' + todayAbsence.reason : ''}. No puedes registrar horas.
+                      🚫 {todayAbsence.reason ? t('time.absenceThisDayWithReason', { reason: todayAbsence.reason }) : t('time.absenceThisDay')}
                     </div>
                   )}
 
-                  {[['ENTRY', 'entry'], ['EXIT', 'exit']].map(([label, prefix]) => (
+                  {[['entry', 'entry'], ['exit', 'exit']].map(([labelKey, prefix]) => (
                     <div key={prefix} style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.06em', marginBottom: 6 }}>{label}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.06em', marginBottom: 6, textTransform: 'uppercase' }}>{t(`time.${labelKey}`)}</div>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <input type="text" inputMode="numeric" maxLength={2} placeholder="--" value={form[prefix + 'Hour']}
                           onChange={e => updateDayForm(key, { [prefix + 'Hour']: e.target.value.replace(/\D/g, '').slice(0, 2) })}
@@ -1898,33 +1909,33 @@ export default function FieldApp() {
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.06em', marginBottom: 6 }}>LUNCH</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.06em', marginBottom: 6, textTransform: 'uppercase' }}>{t('time.lunch')}</div>
                       <div onClick={() => updateDayForm(key, { lunch: !form.lunch })}
                         style={{ width: 44, height: 26, borderRadius: 50, background: form.lunch ? ORANGE : '#dde1e7', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
                         <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: form.lunch ? 21 : 3, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
                       </div>
                     </div>
-                    <input value={form.notes} onChange={e => updateDayForm(key, { notes: e.target.value })} placeholder="Notes..."
+                    <input value={form.notes} onChange={e => updateDayForm(key, { notes: e.target.value })} placeholder={t('time.notesPlaceholder')}
                       style={{ flex: 1, padding: '10px 14px', border: '1.5px solid #dde1e7', borderRadius: 50, fontSize: 13, outline: 'none' }} />
                   </div>
                   {dayFormStatus[key] === 'saved' && (
                     <div style={{ marginTop: 10, background: '#f0fdf4', border: '1px solid #86efac', color: '#166534', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
-                      ✅ Guardado
+                      ✅ {t('time.saved')}
                     </div>
                   )}
                   {dayFormStatus[key] === 'error' && (
                     <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
-                      ⚠️ No se pudo guardar. Verifica tu conexión e intenta de nuevo.
+                      ⚠️ {t('time.errors.saveFailed')}
                     </div>
                   )}
                   {dayFormStatus[key] === 'invalid' && (
                     <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
-                      ⚠️ La salida debe ser después de la entrada (revisa a.m./p.m.).
+                      ⚠️ {t('time.errors.exitAfterEntryAmPm')}
                     </div>
                   )}
                   {dayFormStatus[key] === 'blocked' && (
                     <div style={{ marginTop: 10, background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600 }}>
-                      🚫 No puedes registrar horas — ausencia registrada este día.
+                      🚫 {t('time.errors.blockedAbsence')}
                     </div>
                   )}
                 </div>
@@ -1936,15 +1947,15 @@ export default function FieldApp() {
         {tab === 'calendar' && (
           <div>
             <div style={{ padding: '20px 20px 12px' }}>
-              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>Calendar</div>
-              <div style={{ fontSize: 13, color: '#888' }}>{calendarSelectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</div>
+              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{t('calendar.title')}</div>
+              <div style={{ fontSize: 13, color: '#888' }}>{calendarSelectedDate.toLocaleDateString(dateLocale, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</div>
             </div>
 
             {/* Week navigation */}
             <div style={{ padding: '0 20px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button onClick={() => setCalendarWeekOffset(o => o - 1)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#888', cursor: 'pointer', padding: '4px 10px' }}>‹</button>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>
-                {weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} – {weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+                {weekDays[0].toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', timeZone: 'UTC' })} – {weekDays[6].toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', timeZone: 'UTC' })}
               </span>
               <button onClick={() => setCalendarWeekOffset(o => o + 1)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#888', cursor: 'pointer', padding: '4px 10px' }}>›</button>
             </div>
@@ -1959,7 +1970,7 @@ export default function FieldApp() {
                 const hasJobs = jobDaysSet.has(dayKey(d));
                 return (
                   <div key={i} onClick={() => setCalendarSelectedDate(d)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flex: 1 }}>
-                    <div style={{ fontSize: 11, color: isToday ? ORANGE : '#aaa', fontWeight: 600 }}>{WEEKDAY_LETTERS[i]}</div>
+                    <div style={{ fontSize: 11, color: isToday ? ORANGE : '#aaa', fontWeight: 600 }}>{d.toLocaleDateString(dateLocale, { weekday: 'narrow', timeZone: 'UTC' })}</div>
                     <div style={{
                       width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                       background: isSelected ? ORANGE : 'transparent', color: isSelected ? '#fff' : isToday ? ORANGE : '#333',
@@ -1976,17 +1987,17 @@ export default function FieldApp() {
             {/* Timeline for selected day */}
             <div style={card}>
               {loadingCalendar ? (
-                <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Cargando...</div>
+                <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>{t('common.loading')}</div>
               ) : jobsForSelectedDay.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>
                   <div style={{ fontSize: 40, marginBottom: 8 }}>📅</div>
-                  Sin trabajos asignados este día.
+                  {t('calendar.noJobsThisDay')}
                 </div>
               ) : (
                 jobsForSelectedDay.map((j, i) => (
                   <div key={j._scheduleDayId ? `day-${j._scheduleDayId}` : `${j.id}-${i}`} onClick={() => openEntry(j)} style={{ display: 'flex', gap: 12, paddingBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, marginBottom: i < jobsForSelectedDay.length - 1 ? 16 : 0, borderBottom: i < jobsForSelectedDay.length - 1 ? '1px solid #eee' : 'none', cursor: 'pointer' }}>
                     <div style={{ width: 62, flexShrink: 0, fontSize: 13, fontWeight: 700, color: ORANGE }}>
-                      {formatTimePR(j.scheduled_start, { hour: 'numeric', minute: '2-digit' }, 'en-US')}
+                      {formatTimePR(j.scheduled_start, { hour: 'numeric', minute: '2-digit' }, dateLocale)}
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: 15 }}>{j.title}</div>
@@ -1999,7 +2010,7 @@ export default function FieldApp() {
                         </a>
                       )}
                     </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 8px', borderRadius: 20, height: 'fit-content', whiteSpace: 'nowrap' }}>{SL[j.status]}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 8px', borderRadius: 20, height: 'fit-content', whiteSpace: 'nowrap' }}>{statusLabel(j.status)}</span>
                   </div>
                 ))
               )}
@@ -2009,9 +2020,9 @@ export default function FieldApp() {
 
         {tab === 'projects' && (
           <div>
-            <div style={{ padding: '20px 20px 16px' }}><div style={{ fontSize: 26, fontWeight: 700 }}>Projects</div></div>
+            <div style={{ padding: '20px 20px 16px' }}><div style={{ fontSize: 26, fontWeight: 700 }}>{t('projects.title')}</div></div>
             {allJobs.length === 0
-              ? <div style={{ ...card, textAlign: 'center', padding: '60px 20px', color: '#aaa' }}><div style={{ fontSize: 48, marginBottom: 12 }}>📋</div><div>No active projects</div></div>
+              ? <div style={{ ...card, textAlign: 'center', padding: '60px 20px', color: '#aaa' }}><div style={{ fontSize: 48, marginBottom: 12 }}>📋</div><div>{t('projects.noActiveProjects')}</div></div>
               : allJobs.map(j => (
                 <div key={j.id} style={{ ...card, cursor: 'pointer' }} onClick={() => openJobDetail(j)}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -2026,7 +2037,7 @@ export default function FieldApp() {
                         </a>
                       )}
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>{SL[j.status]}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>{statusLabel(j.status)}</span>
                   </div>
                 </div>
               ))
@@ -2037,22 +2048,22 @@ export default function FieldApp() {
         {tab === 'clientes' && (
           <div>
             <div style={{ padding: '20px 20px 16px' }}>
-              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 14 }}>Clientes</div>
+              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 14 }}>{t('clientes.title')}</div>
               <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <span>🔍</span>
                 <input
                   value={clientSearch}
                   onChange={e => setClientSearch(e.target.value)}
-                  placeholder="Buscar por nombre, teléfono, email..."
+                  placeholder={t('clientes.searchPlaceholder')}
                   style={{ border: 'none', background: 'none', fontSize: 15, outline: 'none', width: '100%' }}
                 />
               </div>
             </div>
             <div style={card}>
               {searchingClients ? (
-                <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Buscando...</div>
+                <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>{t('common.searching')}</div>
               ) : clientResults.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>No se encontraron clientes.</div>
+                <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>{t('clientes.noResults')}</div>
               ) : (
                 clientResults.map(c => (
                   <div key={c.id} onClick={() => openClientDetail(c)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2072,12 +2083,12 @@ export default function FieldApp() {
         {tab === 'inventario' && (
           <div>
             <div style={{ padding: '20px 20px 16px' }}>
-              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 14 }}>Inventario</div>
+              <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 14 }}>{t('inventario.title')}</div>
               <div style={{ position: 'relative' }}>
                 {invLocationId && !invLocationOpen ? (
                   <div style={{ display: 'flex', gap: 8 }}>
                     <div onClick={() => setInvLocationOpen(true)} style={{ flex: 1, background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 15 }}>
-                      {invSelectedLocation?.label ?? 'Ubicación'}
+                      {invSelectedLocation?.label ?? t('inventario.location')}
                     </div>
                     <button onClick={clearInvLocation} style={{ background: '#fff', border: 'none', borderRadius: 12, width: 44, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 15, color: '#888' }}>✕</button>
                   </div>
@@ -2089,7 +2100,7 @@ export default function FieldApp() {
                       value={invLocationQuery}
                       onChange={e => setInvLocationQuery(e.target.value)}
                       onFocus={() => setInvLocationOpen(true)}
-                      placeholder="Buscar ubicación..."
+                      placeholder={t('inventario.searchLocationPlaceholder')}
                       style={{ border: 'none', background: 'none', fontSize: 15, outline: 'none', width: '100%' }}
                     />
                   </div>
@@ -2099,7 +2110,7 @@ export default function FieldApp() {
                     <div onClick={() => setInvLocationOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
                     <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 11, maxHeight: 280, overflowY: 'auto' }}>
                       {invLocationResults.length === 0 ? (
-                        <div style={{ padding: '14px', color: '#aaa', fontSize: 13 }}>Sin resultados.</div>
+                        <div style={{ padding: '14px', color: '#aaa', fontSize: 13 }}>{t('common.noResults')}</div>
                       ) : invLocationResults.map(o => (
                         <div key={o.id} onClick={() => selectInvLocation(o)} style={{ padding: '12px 14px', borderBottom: '1px solid #eee', cursor: 'pointer', fontSize: 14 }}>{o.label}</div>
                       ))}
@@ -2110,23 +2121,23 @@ export default function FieldApp() {
             </div>
 
             {!invLoaded ? (
-              <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Cargando...</div>
+              <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>{t('common.loading')}</div>
             ) : !invLocationId ? (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#aaa' }}>Elige una ubicación para ver su stock.</div>
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#aaa' }}>{t('inventario.chooseLocation')}</div>
             ) : (
               <div style={card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>STOCK ({invSelectedStock.length})</div>
-                  <button onClick={() => setShowInvAdjust(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Ajustar</button>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>{t('inventario.stock')} ({invSelectedStock.length})</div>
+                  <button onClick={() => setShowInvAdjust(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ {t('inventario.adjust')}</button>
                 </div>
                 <input
                   value={invStockSearch}
                   onChange={e => setInvStockSearch(e.target.value)}
-                  placeholder="Buscar producto..."
+                  placeholder={t('inventario.searchProductPlaceholder')}
                   style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #eee', borderRadius: 8, fontSize: 13, outline: 'none', marginBottom: 10 }}
                 />
                 {invSelectedStock.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin productos en esta ubicación.</div>
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>{t('inventario.noProductsHere')}</div>
                 ) : (
                   invSelectedStock.map((s, idx) => {
                     const photoUrl = invCatalogPhotoUrls[s.catalog_items?.photo_url];
@@ -2156,17 +2167,17 @@ export default function FieldApp() {
             {invLoaded && invLocationId && (
               <div style={card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>EQUIPO ({invSelectedUnits.length})</div>
-                  <button onClick={() => setShowInvAddUnit(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Agregar equipo</button>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>{t('inventario.equipo')} ({invSelectedUnits.length})</div>
+                  <button onClick={() => setShowInvAddUnit(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ {t('inventario.addEquipo')}</button>
                 </div>
                 <input
                   value={invUnitSearch}
                   onChange={e => setInvUnitSearch(e.target.value)}
-                  placeholder="Buscar equipo (serial, descripción)..."
+                  placeholder={t('inventario.searchEquipoPlaceholder')}
                   style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #eee', borderRadius: 8, fontSize: 13, outline: 'none', marginBottom: 10 }}
                 />
                 {invSelectedUnits.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin equipo registrado en esta ubicación.</div>
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>{t('inventario.noEquipoHere')}</div>
                 ) : (
                   invSelectedUnits.map((u, idx) => {
                     const photoUrl = u.photo_signed_url || invCatalogPhotoUrls[u.catalog_items?.photo_url];
@@ -2181,7 +2192,7 @@ export default function FieldApp() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 600 }}>{u.catalog_items?.name || u.catalog_items?.description}</div>
                         {u.catalog_items?.name && u.catalog_items?.description && <div style={{ fontSize: 12, color: '#888' }}>{u.catalog_items.description}</div>}
-                        <div style={{ fontFamily: 'monospace', fontSize: 12, color: AMBER }}>SN: {u.serial_number}</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 12, color: AMBER }}>{t('inventario.snPrefix')} {u.serial_number}</div>
                         {u.notes && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{u.notes}</div>}
                       </div>
                     </div>
@@ -2194,11 +2205,11 @@ export default function FieldApp() {
             {invLoaded && invLocationId && (
               <div style={card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>CAJAS DE CABLE ({invSelectedReels.length})</div>
-                  <button onClick={() => setShowInvAddReel(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Agregar caja</button>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>{t('inventario.cajasDeCable')} ({invSelectedReels.length})</div>
+                  <button onClick={() => setShowInvAddReel(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ {t('inventario.addCaja')}</button>
                 </div>
                 {invSelectedReels.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>Sin cajas de cable en esta ubicación.</div>
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa' }}>{t('inventario.noCajasHere')}</div>
                 ) : (
                   invSelectedReels.map((r, idx) => {
                     const pct = r.total_footage > 0 ? Math.max(0, Math.min(100, (r.remaining_footage / r.total_footage) * 100)) : 0;
@@ -2215,15 +2226,15 @@ export default function FieldApp() {
                             )}
                             <div style={{ fontSize: 14, fontWeight: 600 }}>{r.catalog_items?.name || r.catalog_items?.description}{r.code ? ` · ${r.code}` : ''}</div>
                           </div>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: pct <= 15 ? '#b52a2a' : '#16223d', flexShrink: 0 }}>{r.remaining_footage} / {r.total_footage} pies</div>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: pct <= 15 ? '#b52a2a' : '#16223d', flexShrink: 0 }}>{t('inventario.feetOfTotal', { remaining: r.remaining_footage, total: r.total_footage })}</div>
                         </div>
                         <div style={{ background: '#eee', borderRadius: 20, height: 6, overflow: 'hidden', marginBottom: 8 }}>
                           <div style={{ background: pct <= 15 ? '#b52a2a' : ORANGE, height: '100%', width: `${pct}%` }} />
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <input type="number" value={invReelFootageInputs[r.id] ?? ''} onChange={e => setInvReelFootageInputs(prev => ({ ...prev, [r.id]: e.target.value }))} placeholder="Pies usados"
+                          <input type="number" value={invReelFootageInputs[r.id] ?? ''} onChange={e => setInvReelFootageInputs(prev => ({ ...prev, [r.id]: e.target.value }))} placeholder={t('inventario.feetUsedPlaceholder')}
                             style={{ flex: 1, padding: '8px 10px', border: '1.5px solid #eee', borderRadius: 8, fontSize: 13, outline: 'none' }} />
-                          <button onClick={() => invUseReelFootage(r)} disabled={invSavingReel || !invReelFootageInputs[r.id]} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Usar</button>
+                          <button onClick={() => invUseReelFootage(r)} disabled={invSavingReel || !invReelFootageInputs[r.id]} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('inventario.use')}</button>
                         </div>
                       </div>
                     );
@@ -2248,14 +2259,14 @@ export default function FieldApp() {
 
           <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
             {loadingClientDetail ? (
-              <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>Cargando...</div>
+              <div style={{ textAlign: 'center', padding: '32px 0', color: '#888' }}>{t('common.loading')}</div>
             ) : (
               <>
                 {/* Contact card */}
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>Contacto</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>{t('clientes.contact')}</div>
                   <span style={{ fontSize: 11, fontWeight: 700, color: clientDetail.client_type === 'b2b' ? '#2a4cb5' : '#888', background: (clientDetail.client_type === 'b2b' ? '#2a4cb5' : '#888') + '18', padding: '4px 10px', borderRadius: 20, marginBottom: 10, display: 'inline-block' }}>
-                    {clientDetail.client_type === 'b2b' ? 'B2B' : 'Consumidor final'}
+                    {clientDetail.client_type === 'b2b' ? t('clientes.b2b') : t('clientes.finalConsumer')}
                   </span>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                     {clientDetail.phone && <a href={`tel:${clientDetail.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {clientDetail.phone}</a>}
@@ -2266,7 +2277,7 @@ export default function FieldApp() {
                 {/* Additional contacts */}
                 {clientDetailContacts.length > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>👤 Contactos adicionales</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>👤 {t('clientes.additionalContacts')}</div>
                     {clientDetailContacts.map(ct => (
                       <div key={ct.id} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid #f0f0f0' }}>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{ct.name}</div>
@@ -2282,7 +2293,7 @@ export default function FieldApp() {
                 {/* Properties */}
                 {clientDetailProperties.length > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>📍 Propiedades</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>📍 {t('clientes.properties')}</div>
                     {clientDetailProperties.map(p => (
                       <div key={p.id} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid #f0f0f0' }}>
                         {p.name && <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>}
@@ -2291,7 +2302,7 @@ export default function FieldApp() {
                         {(p.street || p.city) && (() => {
                           const links = buildMapsLinks(p.street, p.city, p.state, p.zip);
                           return (
-                            <a href={links.direct ?? links.google} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>🗺️ Ver en Maps</a>
+                            <a href={links.direct ?? links.google} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>🗺️ {t('clientes.viewOnMaps')}</a>
                           );
                         })()}
                       </div>
@@ -2301,18 +2312,18 @@ export default function FieldApp() {
 
                 {/* Job history */}
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>🔧 Historial de trabajos ({clientDetailJobs.length})</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 10 }}>🔧 {t('clientes.jobHistory')} ({clientDetailJobs.length})</div>
                   {clientDetailJobs.length === 0 ? (
-                    <div style={{ color: '#aaa', fontSize: 14, textAlign: 'center', padding: '12px 0' }}>Sin trabajos registrados.</div>
+                    <div style={{ color: '#aaa', fontSize: 14, textAlign: 'center', padding: '12px 0' }}>{t('clientes.noJobsRegistered')}</div>
                   ) : (
                     clientDetailJobs.map((j, i) => (
                       <div key={j.id} onClick={() => { setClientDetail(null); openJobDetail(j); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < clientDetailJobs.length - 1 ? '1px solid #f0f0f0' : 'none', cursor: 'pointer' }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{j.title}</div>
-                          {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>{formatDatePR(j.scheduled_start, { month: 'short', day: 'numeric', year: 'numeric' })}</div>}
+                          {j.scheduled_start && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>{formatDatePR(j.scheduled_start, { month: 'short', day: 'numeric', year: 'numeric' }, dateLocale)}</div>}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 8px', borderRadius: 20 }}>{SL[j.status]}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: SC[j.status], background: SC[j.status] + '18', padding: '4px 8px', borderRadius: 20 }}>{statusLabel(j.status)}</span>
                           <span style={{ color: ORANGE, fontSize: 14 }}>›</span>
                         </div>
                       </div>
@@ -2335,17 +2346,17 @@ export default function FieldApp() {
               <div style={{ fontSize: 12, color: '#888' }}>{detailJob.clients?.name}</div>
             </div>
             {activeEntry?.job_id === detailJob.id ? (
-              <button onClick={handleClockOut} style={{ background: '#1a7a4a', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>⏱ Clock Out</button>
+              <button onClick={handleClockOut} style={{ background: '#1a7a4a', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>⏱ {t('home.clockOut')}</button>
             ) : (
               <button onClick={() => handleClockIn(detailJob.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                {clockedIn ? '⏱ Cambiar a este job' : '⏱ Clock In'}
+                {clockedIn ? `⏱ ${t('jobDetail.switchToThisJob')}` : `⏱ ${t('home.clockIn')}`}
               </button>
             )}
           </div>
 
           <div style={{ background: '#fff', display: 'flex', borderBottom: '1px solid #dde1e7', flexShrink: 0 }}>
-            {[['info', '📋 Info'], ['checklist', `✅ (${completedCount}/${realChecklistCount})`], ['notes', `📸 (${detailNotes.length})`], ['gastos', `💸 ${detailExpenses.length > 0 ? fmtMoney(totalDetailExpenses) : ''}`], ['reports', `📄 (${detailReports.length})`]].map(([t, label]) => (
-              <button key={t} onClick={() => setDetailTab(t)} style={{ flex: 1, padding: '12px 8px', background: 'none', border: 'none', borderBottom: detailTab === t ? '2px solid ' + ORANGE : '2px solid transparent', fontWeight: detailTab === t ? 700 : 500, color: detailTab === t ? ORANGE : '#888', cursor: 'pointer', fontSize: 13 }}>
+            {[['info', `📋 ${t('jobDetail.tabs.info')}`], ['checklist', `✅ (${completedCount}/${realChecklistCount})`], ['notes', `📸 (${detailNotes.length})`], ['gastos', `💸 ${detailExpenses.length > 0 ? fmtMoney(totalDetailExpenses) : ''}`], ['reports', `📄 (${detailReports.length})`]].map(([tabKey, label]) => (
+              <button key={tabKey} onClick={() => setDetailTab(tabKey)} style={{ flex: 1, padding: '12px 8px', background: 'none', border: 'none', borderBottom: detailTab === tabKey ? '2px solid ' + ORANGE : '2px solid transparent', fontWeight: detailTab === tabKey ? 700 : 500, color: detailTab === tabKey ? ORANGE : '#888', cursor: 'pointer', fontSize: 13 }}>
                 {label}
               </button>
             ))}
@@ -2358,22 +2369,22 @@ export default function FieldApp() {
               <div>
                 {/* Status */}
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>Estado</div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: SC[detailJob.status], background: SC[detailJob.status] + '18', padding: '5px 12px', borderRadius: 20 }}>{SL[detailJob.status]}</span>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>{t('jobDetail.status')}</div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: SC[detailJob.status], background: SC[detailJob.status] + '18', padding: '5px 12px', borderRadius: 20 }}>{statusLabel(detailJob.status)}</span>
                 </div>
 
                 {/* Scheduled date */}
                 {detailJob.scheduled_start && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>Fecha programada</div>
-                    <div style={{ fontSize: 14 }}>{formatDateTimePR(detailJob.scheduled_start, { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>{t('jobDetail.scheduledDate')}</div>
+                    <div style={{ fontSize: 14 }}>{formatDateTimePR(detailJob.scheduled_start, { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale)}</div>
                   </div>
                 )}
 
                 {/* Cliente */}
                 {detailJob.clients?.name && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>Cliente</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>{t('jobDetail.client')}</div>
                     <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>{detailJob.clients.name}</div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {detailJob.clients?.phone && <a href={`tel:${detailJob.clients.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#1a7a4a', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>📞 {detailJob.clients.phone}</a>}
@@ -2385,7 +2396,7 @@ export default function FieldApp() {
                 {/* Contactos encargados */}
                 {(detailJob.job_contacts ?? []).length > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>👤 Contactos encargados</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>👤 {t('jobDetail.contactsInCharge')}</div>
                     {detailJob.job_contacts.map((c, idx) => (
                       <div key={c.id} style={{ marginTop: idx > 0 ? 14 : 0 }}>
                         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: c.cargo ? 2 : 10 }}>{c.name}</div>
@@ -2402,7 +2413,7 @@ export default function FieldApp() {
                 {/* Propiedad */}
                 {(detailJob.property_name || detailJob.street || detailJob.city) && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>📍 Propiedad</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>📍 {t('jobDetail.property')}</div>
                     {detailJob.property_name && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detailJob.property_name}</div>}
                     {detailJob.street && <div style={{ fontSize: 14, color: '#555' }}>{detailJob.street}</div>}
                     {detailJob.city && <div style={{ fontSize: 14, color: '#555', marginBottom: 10 }}>{detailJob.city}{detailJob.state ? `, ${detailJob.state}` : ''}{detailJob.zip ? ` ${detailJob.zip}` : ''}</div>}
@@ -2411,7 +2422,7 @@ export default function FieldApp() {
                       if (links.direct) {
                         return (
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <a href={links.direct} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ Abrir ubicación</a>
+                            <a href={links.direct} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>🗺️ {t('jobDetail.openLocation')}</a>
                           </div>
                         );
                       }
@@ -2429,7 +2440,7 @@ export default function FieldApp() {
                 {/* Planos */}
                 {detailPlanos.length > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>🗺️ Planos</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>🗺️ {t('jobDetail.planos')}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {detailPlanos.map(p => (
                         <a key={p.id} href={`/planos/${p.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}>
@@ -2448,42 +2459,42 @@ export default function FieldApp() {
             {/* CHECKLIST TAB */}
             {detailTab === 'checklist' && (
               <div>
-                <input ref={checkItemPhotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCheckItemPhotoFile} />
+                <input ref={checkItemPhotoInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleCheckItemPhotoFile} />
                 <input ref={areaPhotoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAreaPhotoFile} />
                 {realChecklistCount > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontWeight: 700, fontSize: 14 }}>Progreso</span>
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>{t('checklist.progress')}</span>
                       <span style={{ fontWeight: 700, color: progress === 100 ? '#1a7a4a' : ORANGE }}>{progress}%</span>
                     </div>
                     <div style={{ background: '#eee', borderRadius: 50, height: 8 }}>
                       <div style={{ background: progress === 100 ? '#1a7a4a' : ORANGE, borderRadius: 50, height: 8, width: progress + '%', transition: 'width 0.3s' }} />
                     </div>
-                    <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{completedCount} de {realChecklistCount} completados</div>
+                    <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>{t('checklist.completedOf', { completed: completedCount, total: realChecklistCount })}</div>
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                  <button onClick={() => setAddingArea(true)} style={{ flex: 1, background: '#fff', color: ORANGE, border: `1.5px solid ${ORANGE}`, borderRadius: 10, padding: '10px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>+ Nueva área</button>
+                  <button onClick={() => setAddingArea(true)} style={{ flex: 1, background: '#fff', color: ORANGE, border: `1.5px solid ${ORANGE}`, borderRadius: 10, padding: '10px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>+ {t('checklist.newArea')}</button>
                 </div>
 
                 {addingArea && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', gap: 8 }}>
                     <input autoFocus value={newAreaName} onChange={e => setNewAreaName(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addArea()}
-                      placeholder="Nombre del área (ej: Área 1)..." style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
-                    <button onClick={addArea} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>Crear</button>
+                      placeholder={t('checklist.areaNamePlaceholder')} style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+                    <button onClick={addArea} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>{t('checklist.create')}</button>
                     <button onClick={() => { setAddingArea(false); setNewAreaName(''); }} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer', color: '#888' }}>×</button>
                   </div>
                 )}
 
                 <div style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   <form onSubmit={addCheckItem} style={{ display: 'flex', gap: 8 }}>
-                    <input value={newCheckItem} onChange={e => setNewCheckItem(e.target.value)} placeholder="Agregar ítem (sin área)..." style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+                    <input value={newCheckItem} onChange={e => setNewCheckItem(e.target.value)} placeholder={t('checklist.addItemNoAreaPlaceholder')} style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
                     <button type="submit" style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>+</button>
                   </form>
                 </div>
                 {detailChecklist.length === 0
-                  ? <div style={{ background: '#fff', borderRadius: 14, padding: '32px 18px', textAlign: 'center', color: '#aaa', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>Sin ítems.</div>
+                  ? <div style={{ background: '#fff', borderRadius: 14, padding: '32px 18px', textAlign: 'center', color: '#aaa', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>{t('checklist.noItems')}</div>
                   : (() => {
                     return Object.entries(groupedMap).map(([groupKey, items]) => {
                       const groupName = groupKey === '__none__' ? null : groupKey;
@@ -2510,7 +2521,7 @@ export default function FieldApp() {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               {uploadingAreaPhotoKey === groupKey && (
-                                <span style={{ fontSize: 11, color: '#aaa' }}>Subiendo...</span>
+                                <span style={{ fontSize: 11, color: '#aaa' }}>{t('checklist.uploading')}</span>
                               )}
                               {areaPhotos[groupName]?.photo_signed_url && (
                                 <img src={areaPhotos[groupName].photo_signed_url}
@@ -2524,11 +2535,11 @@ export default function FieldApp() {
                                 <>
                                   <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setAreaMenuOpen(null)} />
                                   <div style={{ position: 'absolute', right: 0, top: 28, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #eee', zIndex: 99, minWidth: 160, overflow: 'hidden' }}>
-                                    <button onClick={() => renameArea(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Renombrar</button>
-                                    <button onClick={() => duplicateArea(groupKey)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>⧉ Duplicar área</button>
-                                    <button onClick={() => triggerAreaPhotoUpload(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {areaPhotos[groupName]?.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
-                                    {areaPhotos[groupName]?.photo_signed_url && <button onClick={() => removeAreaPhoto(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
-                                    <button onClick={() => deleteArea(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 Eliminar área</button>
+                                    <button onClick={() => renameArea(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ {t('checklist.rename')}</button>
+                                    <button onClick={() => duplicateArea(groupKey)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>⧉ {t('checklist.duplicateArea')}</button>
+                                    <button onClick={() => triggerAreaPhotoUpload(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {areaPhotos[groupName]?.photo_signed_url ? t('checklist.changePhoto') : t('checklist.addPhoto')}</button>
+                                    {areaPhotos[groupName]?.photo_signed_url && <button onClick={() => removeAreaPhoto(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 {t('checklist.removePhoto')}</button>}
+                                    <button onClick={() => deleteArea(groupName)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 {t('checklist.deleteArea')}</button>
                                   </div>
                                 </>
                               )}
@@ -2562,14 +2573,14 @@ export default function FieldApp() {
                                     <input autoFocus value={editingCheckItemText} onChange={e => setEditingCheckItemText(e.target.value)}
                                       onKeyDown={e => { if (e.key === 'Enter') saveEditCheckItem(item.id); if (e.key === 'Escape') setEditingCheckItemId(null); }}
                                       style={{ flex: 1, padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-                                    <button onClick={() => saveEditCheckItem(item.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Guardar</button>
+                                    <button onClick={() => saveEditCheckItem(item.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{t('common.save')}</button>
                                     <button onClick={() => setEditingCheckItemId(null)} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: '#888' }}>×</button>
                                   </div>
                                 ) : (
                                   <>
                                     <div style={{ fontSize: 14, fontWeight: 600, textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? '#aaa' : '#333' }}>
-                                      {item.item_type === 'product' && <span title="Producto" style={{ marginRight: 5 }}>📦</span>}
-                                      {item.item_type === 'labor' && <span title="Labor" style={{ marginRight: 5 }}>🔧</span>}
+                                      {item.item_type === 'product' && <span title={t('checklist.productType')} style={{ marginRight: 5 }}>📦</span>}
+                                      {item.item_type === 'labor' && <span title={t('checklist.laborType')} style={{ marginRight: 5 }}>🔧</span>}
                                       {item.description}
                                       {children.length > 0 && (
                                         <span style={{ fontSize: 11, fontWeight: 600, color: '#aaa', marginLeft: 6 }}>
@@ -2579,23 +2590,31 @@ export default function FieldApp() {
                                     </div>
                                     {item.completed && item.completed_at && (
                                       <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                                        {item.item_type === 'product' ? 'Entregado' : 'Completado'} {formatDatePR(item.completed_at)}
+                                        {item.item_type === 'product' ? t('checklist.delivered') : t('checklist.completed')} {formatDatePR(item.completed_at, {}, dateLocale)}
                                       </div>
                                     )}
                                     {item.assigned_technician_id && (
                                       <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                                        🧑‍🔧 {item.technicians?.name ?? 'Técnico'}
+                                        🧑‍🔧 {item.technicians?.name ?? t('checklist.technicianFallback')}
                                       </div>
                                     )}
                                   </>
                                 )}
                               </div>
                               {uploadingCheckItemPhotoId === item.id && (
-                                <span style={{ fontSize: 11, color: '#aaa' }}>Subiendo...</span>
+                                <span style={{ fontSize: 11, color: '#aaa' }}>{t('common.uploading')}</span>
                               )}
                               {item.photo_signed_url && editingCheckItemId !== item.id && (
-                                <img src={item.photo_signed_url} onClick={e => { e.stopPropagation(); setLightbox({ urls: [item.photo_signed_url], index: 0 }); }}
-                                  style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+                                <div style={{ position: 'relative', flexShrink: 0 }}
+                                  onClick={e => { e.stopPropagation(); setLightbox({ urls: item.photo_signed_urls?.length ? item.photo_signed_urls : [item.photo_signed_url], index: 0 }); }}>
+                                  <img src={item.photo_signed_url}
+                                    style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }} />
+                                  {item.photo_signed_urls?.length > 1 && (
+                                    <span style={{ position: 'absolute', bottom: -4, right: -4, background: ORANGE, color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: 8, padding: '1px 4px', minWidth: 14, textAlign: 'center' }}>
+                                      {item.photo_signed_urls.length}
+                                    </span>
+                                  )}
+                                </div>
                               )}
                               {editingCheckItemId !== item.id && (
                                 <div style={{ position: 'relative' }}>
@@ -2605,14 +2624,14 @@ export default function FieldApp() {
                                     <>
                                       <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setCheckItemMenuOpen(null)} />
                                       <div style={{ position: 'absolute', right: 0, top: 24, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #eee', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
-                                        <button onClick={() => startEditCheckItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
-                                        <button onClick={() => duplicateCheckItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
+                                        <button onClick={() => startEditCheckItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ {t('common.edit')}</button>
+                                        <button onClick={() => duplicateCheckItem(item)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 {t('common.duplicate')}</button>
                                         {!item.parent_item_id && (
-                                          <button onClick={() => { setAddingSubItemFor(item.id); setCheckItemMenuOpen(null); setExpandedItems(prev => ({ ...prev, [item.id]: true })); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>➕ Agregar sub-tarea</button>
+                                          <button onClick={() => { setAddingSubItemFor(item.id); setCheckItemMenuOpen(null); setExpandedItems(prev => ({ ...prev, [item.id]: true })); }} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>➕ {t('checklist.addSubTask')}</button>
                                         )}
-                                        <button onClick={() => triggerCheckItemPhotoUpload(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {item.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
-                                        {item.photo_signed_url && <button onClick={() => removeCheckItemPhoto(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
-                                        <button onClick={() => deleteCheckItem(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 Eliminar</button>
+                                        <button onClick={() => triggerCheckItemPhotoUpload(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {item.photo_signed_url ? t('checklist.addMorePhotos') : t('checklist.addPhoto')}</button>
+                                        {item.photo_signed_url && <button onClick={() => removeCheckItemPhoto(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 {item.photo_signed_urls?.length > 1 ? t('checklist.removePhotos') : t('checklist.removePhoto')}</button>}
+                                        <button onClick={() => deleteCheckItem(item.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 {t('common.delete')}</button>
                                       </div>
                                     </>
                                   )}
@@ -2638,7 +2657,7 @@ export default function FieldApp() {
                                       <input autoFocus value={editingCheckItemText} onChange={e => setEditingCheckItemText(e.target.value)}
                                         onKeyDown={e => { if (e.key === 'Enter') saveEditCheckItem(sub.id); if (e.key === 'Escape') setEditingCheckItemId(null); }}
                                         style={{ flex: 1, padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
-                                      <button onClick={() => saveEditCheckItem(sub.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Guardar</button>
+                                      <button onClick={() => saveEditCheckItem(sub.id)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{t('common.save')}</button>
                                       <button onClick={() => setEditingCheckItemId(null)} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 6, padding: '5px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer', color: '#888' }}>×</button>
                                     </div>
                                   ) : (
@@ -2646,15 +2665,23 @@ export default function FieldApp() {
                                       <div style={{ fontSize: 13, fontWeight: 500, textDecoration: sub.completed ? 'line-through' : 'none', color: sub.completed ? '#aaa' : '#333' }}>{sub.description}</div>
                                       {sub.assigned_technician_id && (
                                         <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                                          🧑‍🔧 {sub.technicians?.name ?? 'Técnico'}
+                                          🧑‍🔧 {sub.technicians?.name ?? t('checklist.technicianFallback')}
                                         </div>
                                       )}
                                     </>
                                   )}
                                 </div>
                                 {sub.photo_signed_url && editingCheckItemId !== sub.id && (
-                                  <img src={sub.photo_signed_url} onClick={e => { e.stopPropagation(); setLightbox({ urls: [sub.photo_signed_url], index: 0 }); }}
-                                    style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+                                  <div style={{ position: 'relative', flexShrink: 0 }}
+                                    onClick={e => { e.stopPropagation(); setLightbox({ urls: sub.photo_signed_urls?.length ? sub.photo_signed_urls : [sub.photo_signed_url], index: 0 }); }}>
+                                    <img src={sub.photo_signed_url}
+                                      style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }} />
+                                    {sub.photo_signed_urls?.length > 1 && (
+                                      <span style={{ position: 'absolute', bottom: -4, right: -4, background: ORANGE, color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: 8, padding: '1px 4px', minWidth: 14, textAlign: 'center' }}>
+                                        {sub.photo_signed_urls.length}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                                 {editingCheckItemId !== sub.id && (
                                   <div style={{ position: 'relative' }}>
@@ -2664,11 +2691,11 @@ export default function FieldApp() {
                                       <>
                                         <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setCheckItemMenuOpen(null)} />
                                         <div style={{ position: 'absolute', right: 0, top: 24, background: '#fff', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #eee', zIndex: 99, minWidth: 150, overflow: 'hidden' }}>
-                                          <button onClick={() => startEditCheckItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ Editar</button>
-                                          <button onClick={() => duplicateCheckItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 Duplicar</button>
-                                          <button onClick={() => triggerCheckItemPhotoUpload(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {sub.photo_signed_url ? 'Cambiar foto' : 'Agregar foto'}</button>
-                                          {sub.photo_signed_url && <button onClick={() => removeCheckItemPhoto(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 Quitar foto</button>}
-                                          <button onClick={() => deleteCheckItem(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 Eliminar</button>
+                                          <button onClick={() => startEditCheckItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>✏️ {t('common.edit')}</button>
+                                          <button onClick={() => duplicateCheckItem(sub)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📄 {t('common.duplicate')}</button>
+                                          <button onClick={() => triggerCheckItemPhotoUpload(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>📷 {sub.photo_signed_url ? t('checklist.addMorePhotos') : t('checklist.addPhoto')}</button>
+                                          {sub.photo_signed_url && <button onClick={() => removeCheckItemPhoto(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer' }}>🗑 {sub.photo_signed_urls?.length > 1 ? t('checklist.removePhotos') : t('checklist.removePhoto')}</button>}
+                                          <button onClick={() => deleteCheckItem(sub.id)} style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 14, cursor: 'pointer', color: '#c0392b' }}>🗑 {t('common.delete')}</button>
                                         </div>
                                       </>
                                     )}
@@ -2682,7 +2709,7 @@ export default function FieldApp() {
                                 <input autoFocus value={newSubItemText[item.id] ?? ''}
                                   onChange={e => setNewSubItemText(prev => ({ ...prev, [item.id]: e.target.value }))}
                                   onKeyDown={e => { if (e.key === 'Enter') addSubItem(item); if (e.key === 'Escape') setAddingSubItemFor(null); }}
-                                  placeholder="Descripción de la sub-tarea..."
+                                  placeholder={t('checklist.subtaskDescriptionPlaceholder')}
                                   style={{ flex: 1, padding: '6px 10px', border: '1.5px solid #dde1e7', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
                                 <button onClick={() => addSubItem(item)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontWeight: 700, cursor: 'pointer' }}>+</button>
                                 <button onClick={() => setAddingSubItemFor(null)} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 8, padding: '6px 12px', fontWeight: 700, cursor: 'pointer', color: '#888' }}>×</button>
@@ -2697,7 +2724,7 @@ export default function FieldApp() {
                               <input autoFocus value={newAreaItemText[groupKey] ?? ''}
                                 onChange={e => setNewAreaItemText(prev => ({ ...prev, [groupKey]: e.target.value }))}
                                 onKeyDown={e => e.key === 'Enter' && addItemToArea(groupName)}
-                                placeholder="Descripción del ítem..."
+                                placeholder={t('checklist.itemDescriptionPlaceholder')}
                                 style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
                               <button onClick={() => addItemToArea(groupName)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>+</button>
                               <button onClick={() => setAddingItemArea(null)} style={{ background: 'none', border: '1.5px solid #dde1e7', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer', color: '#888' }}>×</button>
@@ -2705,7 +2732,7 @@ export default function FieldApp() {
                           ) : (
                             <button onClick={() => setAddingItemArea(groupKey)}
                               style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 13, fontWeight: 600, padding: '4px 0' }}>
-                              + Nuevo ítem
+                              + {t('checklist.newItem')}
                             </button>
                           )
                         )}
@@ -2723,12 +2750,12 @@ export default function FieldApp() {
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   <form onSubmit={saveDetailNote}>
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                      <input value={detailNoteTitle} onChange={e => setDetailNoteTitle(e.target.value)} placeholder="Título (opcional)"
+                      <input value={detailNoteTitle} onChange={e => setDetailNoteTitle(e.target.value)} placeholder={t('notes.titlePlaceholder')}
                         style={{ flex: 1, padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontWeight: 600, outline: 'none' }} />
-                      <input type="number" value={detailNotePhase} onChange={e => setDetailNotePhase(e.target.value)} placeholder="Fase #"
+                      <input type="number" value={detailNotePhase} onChange={e => setDetailNotePhase(e.target.value)} placeholder={t('notes.phasePlaceholder')}
                         style={{ width: 90, padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, outline: 'none' }} />
                     </div>
-                    <textarea value={detailNoteText} onChange={e => setDetailNoteText(e.target.value)} placeholder="Escribe una nota..." rows={3}
+                    <textarea value={detailNoteText} onChange={e => setDetailNoteText(e.target.value)} placeholder={t('notes.notePlaceholder')} rows={3}
                       style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', marginBottom: 8 }} />
                     {detailPhotoPreviews.length > 0 && (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -2737,7 +2764,7 @@ export default function FieldApp() {
                             <img src={preview} onClick={() => setAnnotatingIdx(idx)} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }} />
                             {!savingDetailNote && (
                               <button type="button" onClick={() => setAnnotatingIdx(idx)}
-                                style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Marcar</button>
+                                style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ {t('notes.markAnnotate')}</button>
                             )}
                             {savingDetailNote && (
                               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', borderRadius: '0 0 8px 8px', padding: '3px 6px' }}>
@@ -2775,20 +2802,20 @@ export default function FieldApp() {
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="button" onClick={() => fileRef2.current?.click()} style={{ padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>📷{detailPhotos.length > 0 ? ` ${detailPhotos.length}` : ''}</button>
                       <button type="submit" disabled={savingDetailNote} style={{ flex: 1, padding: '10px 14px', background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                        {savingDetailNote ? 'Subiendo...' : '💾 Guardar'}
+                        {savingDetailNote ? t('common.uploading') : `💾 ${t('common.save')}`}
                       </button>
                     </div>
                   </form>
                 </div>
                 {detailNotes.length === 0
-                  ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>No hay notas aún.</div>
+                  ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>{t('notes.noNotesYet')}</div>
                   : detailNotes.map(n => (
                     <div key={n.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#aaa' }}>
-                          {n.phase_number != null && <span style={{ background: '#1e293b', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>Fase {n.phase_number}</span>}
+                          {n.phase_number != null && <span style={{ background: '#1e293b', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>{t('notes.phaseLabel', { number: n.phase_number })}</span>}
                           {n.author_name && <>{n.author_name} · </>}
-                          {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale)}
                         </div>
                         {n.created_by === profileId && editingDetailNoteId !== n.id && (
                           <button onClick={() => { setEditingDetailNoteId(n.id); setEditingDetailNoteText(n.note ?? ''); setEditingDetailNoteTitle(n.title ?? ''); setEditingDetailNotePhase(n.phase_number != null ? String(n.phase_number) : ''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: 14 }}>✏️</button>
@@ -2819,7 +2846,7 @@ export default function FieldApp() {
                         if (isPdf) return (
                           <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: '#f0f0f0', borderRadius: 10, textDecoration: 'none', marginBottom: 8 }}>
                             <span style={{ fontSize: 24 }}>📄</span>
-                            <span style={{ fontSize: 13, fontWeight: 600 }}>Ver documento PDF</span>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{t('notes.viewPdfDocument')}</span>
                           </a>
                         );
                         return isVideo ? (
@@ -2832,16 +2859,16 @@ export default function FieldApp() {
                       {editingDetailNoteId === n.id ? (
                         <div>
                           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                            <input value={editingDetailNoteTitle} onChange={e => setEditingDetailNoteTitle(e.target.value)} placeholder="Título (opcional)"
+                            <input value={editingDetailNoteTitle} onChange={e => setEditingDetailNoteTitle(e.target.value)} placeholder={t('notes.titlePlaceholder')}
                               style={{ flex: 1, padding: 8, border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, fontWeight: 600, outline: 'none' }} />
-                            <input type="number" value={editingDetailNotePhase} onChange={e => setEditingDetailNotePhase(e.target.value)} placeholder="Fase #"
+                            <input type="number" value={editingDetailNotePhase} onChange={e => setEditingDetailNotePhase(e.target.value)} placeholder={t('notes.phasePlaceholder')}
                               style={{ width: 80, padding: 8, border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, outline: 'none' }} />
                           </div>
                           <textarea autoFocus value={editingDetailNoteText} onChange={e => setEditingDetailNoteText(e.target.value)} rows={3}
                             style={{ width: '100%', padding: 8, border: '1.5px solid #dde1e7', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', marginBottom: 8 }} />
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <button type="button" onClick={() => saveDetailNoteEdit(n.id)} style={{ padding: '6px 14px', background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Guardar</button>
-                            <button type="button" onClick={() => { setEditingDetailNoteId(null); setEditingDetailNoteText(''); setEditingDetailNoteTitle(''); setEditingDetailNotePhase(''); }} style={{ padding: '6px 14px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                            <button type="button" onClick={() => saveDetailNoteEdit(n.id)} style={{ padding: '6px 14px', background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>{t('common.save')}</button>
+                            <button type="button" onClick={() => { setEditingDetailNoteId(null); setEditingDetailNoteText(''); setEditingDetailNoteTitle(''); setEditingDetailNotePhase(''); }} style={{ padding: '6px 14px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>{t('common.cancel')}</button>
                           </div>
                         </div>
                       ) : (
@@ -2861,41 +2888,41 @@ export default function FieldApp() {
               <div>
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   {!showDetailExpenseForm ? (
-                    <button onClick={() => setShowDetailExpenseForm(true)} style={{ width: '100%', padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>+ Agregar gasto</button>
+                    <button onClick={() => setShowDetailExpenseForm(true)} style={{ width: '100%', padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>+ {t('expenses.addExpense')}</button>
                   ) : (
                     <form onSubmit={addDetailExpense}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                         <select value={detailExpenseForm.category} onChange={e => setDetailExpenseForm(f => ({ ...f, category: e.target.value }))}
                           style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }}>
-                          {EXPENSE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                          {translatedExpenseCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                         </select>
                         <input type="date" value={detailExpenseForm.expense_date} onChange={e => setDetailExpenseForm(f => ({ ...f, expense_date: e.target.value }))}
                           style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
                       </div>
-                      <input value={detailExpenseForm.description} onChange={e => setDetailExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción"
+                      <input value={detailExpenseForm.description} onChange={e => setDetailExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder={t('common.descriptionPlaceholder')}
                         style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                        <input value={detailExpenseForm.vendor} onChange={e => setDetailExpenseForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor (opcional)"
+                        <input value={detailExpenseForm.vendor} onChange={e => setDetailExpenseForm(f => ({ ...f, vendor: e.target.value }))} placeholder={t('expenses.vendorPlaceholder')}
                           style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-                        <input type="number" step="0.01" value={detailExpenseForm.amount} onChange={e => setDetailExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="Monto"
+                        <input type="number" step="0.01" value={detailExpenseForm.amount} onChange={e => setDetailExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder={t('expenses.amountPlaceholder')}
                           style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
                       </div>
                       {detailExpensePhotoPreview && (
-                        <img src={detailExpensePhotoPreview} alt="recibo" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+                        <img src={detailExpensePhotoPreview} alt={t('expenses.receipt')} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
                       )}
                       <input ref={fileRef4} type="file" accept="image/*" onChange={e => handleDetailExpensePhoto(e.target.files?.[0])} style={{ display: 'none' }} />
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button type="button" onClick={() => fileRef4.current?.click()} style={{ padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>📷 Recibo</button>
+                        <button type="button" onClick={() => fileRef4.current?.click()} style={{ padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>📷 {t('expenses.receipt')}</button>
                         <button type="submit" disabled={savingDetailExpense || !detailExpenseForm.description.trim() || !detailExpenseForm.amount} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                          {savingDetailExpense ? 'Guardando...' : '💾 Guardar'}
+                          {savingDetailExpense ? t('common.saving') : `💾 ${t('common.save')}`}
                         </button>
-                        <button type="button" onClick={() => setShowDetailExpenseForm(false)} style={{ padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                        <button type="button" onClick={() => setShowDetailExpenseForm(false)} style={{ padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
                       </div>
                     </form>
                   )}
                 </div>
                 {detailExpenses.length === 0
-                  ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>No hay gastos registrados para este trabajo.</div>
+                  ? <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>{t('expenses.noExpensesForJob')}</div>
                   : detailExpenses.map(exp => (
                     <div key={exp.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                       {editingExpenseId === exp.id ? (
@@ -2903,25 +2930,25 @@ export default function FieldApp() {
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                             <select value={editExpenseForm.category} onChange={e => setEditExpenseForm(f => ({ ...f, category: e.target.value }))}
                               style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }}>
-                              {EXPENSE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                              {translatedExpenseCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                             </select>
                             <input type="date" value={editExpenseForm.expense_date} onChange={e => setEditExpenseForm(f => ({ ...f, expense_date: e.target.value }))}
                               style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
                           </div>
-                          <input value={editExpenseForm.description} onChange={e => setEditExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción"
+                          <input value={editExpenseForm.description} onChange={e => setEditExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder={t('common.descriptionPlaceholder')}
                             style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                            <input value={editExpenseForm.vendor} onChange={e => setEditExpenseForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor (opcional)"
+                            <input value={editExpenseForm.vendor} onChange={e => setEditExpenseForm(f => ({ ...f, vendor: e.target.value }))} placeholder={t('expenses.vendorPlaceholder')}
                               style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-                            <input type="number" step="0.01" value={editExpenseForm.amount} onChange={e => setEditExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="Monto"
+                            <input type="number" step="0.01" value={editExpenseForm.amount} onChange={e => setEditExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder={t('expenses.amountPlaceholder')}
                               style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button type="button" onClick={saveExpenseEdit} disabled={savingExpenseEdit || !editExpenseForm.description.trim() || !editExpenseForm.amount}
                               style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                              {savingExpenseEdit ? 'Guardando...' : '💾 Guardar'}
+                              {savingExpenseEdit ? t('common.saving') : `💾 ${t('common.save')}`}
                             </button>
-                            <button type="button" onClick={cancelEditExpense} style={{ padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                            <button type="button" onClick={cancelEditExpense} style={{ padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
                           </div>
                         </div>
                       ) : (
@@ -2929,7 +2956,7 @@ export default function FieldApp() {
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontWeight: 700, fontSize: 14 }}>{exp.description}</div>
                             <div style={{ fontSize: 12, color: '#888', marginTop: 3 }}>
-                              {EXPENSE_CATEGORIES.find(c => c.value === exp.category)?.label ?? exp.category} · {exp.expense_date}{exp.vendor ? ` · ${exp.vendor}` : ''}
+                              {translatedExpenseCategories.find(c => c.value === exp.category)?.label ?? exp.category} · {exp.expense_date}{exp.vendor ? ` · ${exp.vendor}` : ''}
                             </div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -2950,28 +2977,28 @@ export default function FieldApp() {
               <div>
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>Reportes para el cliente</div>
-                    <button onClick={openNewReport} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>+ Nuevo</button>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{t('reports.forClient')}</div>
+                    <button onClick={openNewReport} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>+ {t('reports.new')}</button>
                   </div>
-                  <p style={{ color: '#888', fontSize: 12.5, margin: 0 }}>Agrupa notas y fotos por fase para compartir el avance del trabajo — envía por email al cliente.</p>
+                  <p style={{ color: '#888', fontSize: 12.5, margin: 0 }}>{t('reports.groupsDescription')}</p>
                 </div>
 
                 {detailReports.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>No hay reportes aún.</div>
+                  <div style={{ textAlign: 'center', padding: '32px 0', color: '#aaa' }}>{t('reports.noReportsYet')}</div>
                 ) : detailReports.map(r => (
                   <div key={r.id} style={{ background: '#fff', borderRadius: 14, padding: '14px 18px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{r.title}</div>
                     <div style={{ fontSize: 12, color: '#888', marginTop: 3 }}>
-                      {(r.note_ids ?? []).length} nota{(r.note_ids ?? []).length === 1 ? '' : 's'} ·{' '}
-                      {r.sent_at ? `Enviado a ${r.sent_to} el ${formatDatePR(r.sent_at)}` : 'No enviado'}
+                      {t('reports.noteCount', { count: (r.note_ids ?? []).length })} ·{' '}
+                      {r.sent_at ? t('reports.sentTo', { to: r.sent_to, date: formatDatePR(r.sent_at, {}, dateLocale) }) : t('reports.notSent')}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-                      <a href={`/reporte/${r.id}`} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', background: '#f0f0f0', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#333', textDecoration: 'none' }}>👁 Ver</a>
-                      <button onClick={() => openReportEmail(r)} style={{ padding: '6px 12px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📧 Enviar</button>
+                      <a href={`/reporte/${r.id}`} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', background: '#f0f0f0', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#333', textDecoration: 'none' }}>👁 {t('reports.view')}</a>
+                      <button onClick={() => openReportEmail(r)} style={{ padding: '6px 12px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>📧 {t('reports.send')}</button>
                       {r.created_by === profileId && (
                         <>
-                          <button onClick={() => openEditReport(r)} style={{ padding: '6px 12px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✏️ Editar</button>
-                          <button onClick={() => deleteReport(r.id)} style={{ padding: '6px 12px', background: '#fef2f2', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#b91c1c', cursor: 'pointer' }}>🗑 Eliminar</button>
+                          <button onClick={() => openEditReport(r)} style={{ padding: '6px 12px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✏️ {t('common.edit')}</button>
+                          <button onClick={() => deleteReport(r.id)} style={{ padding: '6px 12px', background: '#fef2f2', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#b91c1c', cursor: 'pointer' }}>🗑 {t('common.delete')}</button>
                         </>
                       )}
                     </div>
@@ -2995,7 +3022,7 @@ export default function FieldApp() {
             {detailEntry.clients?.name && <div style={{ fontSize: 14, color: '#555', marginBottom: 6 }}>{detailEntry.clients.name}</div>}
             {detailEntry.scheduled_start && (
               <div style={{ fontSize: 14, color: '#555', marginBottom: 6 }}>
-                🕐 {formatDateTimePR(detailEntry.scheduled_start, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }, 'en-US')}
+                🕐 {formatDateTimePR(detailEntry.scheduled_start, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }, dateLocale)}
               </div>
             )}
             {detailEntry._kind === 'event' && detailEntry._raw.address && (
@@ -3014,7 +3041,7 @@ export default function FieldApp() {
             {detailEntry._kind === 'task' && detailEntry._raw.task_type === 'checklist' && (detailEntry._raw.task_items ?? []).length > 0 && (
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 13, color: '#555', fontWeight: 700, marginBottom: 8 }}>
-                  ✅ Checklist ({detailEntry._raw.task_items.filter(i => i.done).length}/{detailEntry._raw.task_items.length})
+                  ✅ {t('detailEntry.checklist')} ({detailEntry._raw.task_items.filter(i => i.done).length}/{detailEntry._raw.task_items.length})
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
                   {[...detailEntry._raw.task_items].sort((a, b) => a.sort_order - b.sort_order).map(item => (
@@ -3028,7 +3055,7 @@ export default function FieldApp() {
             )}
             {(detailEntry._kind === 'event' || detailEntry._kind === 'task' || detailEntry._kind === 'solicitud') && (
               <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 13, color: '#555', fontWeight: 700, marginBottom: 8 }}>📝 Notas</div>
+                <div style={{ fontSize: 13, color: '#555', fontWeight: 700, marginBottom: 8 }}>📝 {t('detailEntry.notes')}</div>
                 <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 220, overflowY: 'auto' }}>
                   {detailEntryNotes.map(n => (
                     <div key={n.id} style={{ background: '#f7f7f7', borderRadius: 8, padding: '8px 10px', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -3038,16 +3065,16 @@ export default function FieldApp() {
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: n.note ? 6 : 0 }}>
                             {n.photo_signed_urls.filter(Boolean).map((url, i) => (
                               <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                                <img src={url} alt="note photo" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
+                                <img src={url} alt={t('detailEntry.notePhotoAlt')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
                               </a>
                             ))}
                           </div>
                         )}
                         <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                          {n.author_name ?? 'Alguien'} · {formatDateTimePR(n.created_at, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }, 'en-US')}
+                          {n.author_name ?? t('detailEntry.someone')} · {formatDateTimePR(n.created_at, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }, dateLocale)}
                         </div>
                       </div>
-                      <button onClick={() => deleteDetailEntryNote(n)} title="Delete note"
+                      <button onClick={() => deleteDetailEntryNote(n)} title={t('detailEntry.deleteNote')}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: 14, flexShrink: 0 }}>🗑</button>
                     </div>
                   ))}
@@ -3056,7 +3083,7 @@ export default function FieldApp() {
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
                     {newEntryNotePhotos.map((p, i) => (
                       <div key={i} style={{ position: 'relative', width: 44, height: 44 }}>
-                        <img src={p.previewUrl} alt="pending photo" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
+                        <img src={p.previewUrl} alt={t('detailEntry.pendingPhotoAlt')} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
                         <button type="button" onClick={() => setNewEntryNotePhotos(prev => prev.filter((_, idx) => idx !== i))}
                           style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', background: '#c0392b', color: '#fff', border: 'none', fontSize: 10, lineHeight: 1, cursor: 'pointer' }}>×</button>
                       </div>
@@ -3064,7 +3091,7 @@ export default function FieldApp() {
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <input value={newEntryNoteText} onChange={e => setNewEntryNoteText(e.target.value)} placeholder="Add a note..."
+                  <input value={newEntryNoteText} onChange={e => setNewEntryNoteText(e.target.value)} placeholder={t('detailEntry.addNotePlaceholder')}
                     style={{ flex: 1, borderRadius: 8, border: '1px solid #ddd', padding: '10px 12px', fontSize: 14 }}
                     onKeyDown={e => { if (e.key === 'Enter') addDetailEntryNote(); }} />
                   <input ref={entryNotePhotoInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
@@ -3073,11 +3100,11 @@ export default function FieldApp() {
                       setNewEntryNotePhotos(prev => [...prev, ...files.map(file => ({ file, previewUrl: URL.createObjectURL(file) }))]);
                       e.target.value = '';
                     }} />
-                  <button type="button" onClick={() => entryNotePhotoInputRef.current?.click()} title="Attach photo"
+                  <button type="button" onClick={() => entryNotePhotoInputRef.current?.click()} title={t('detailEntry.attachPhoto')}
                     style={{ background: '#f0f0f0', border: '1px solid #ddd', borderRadius: 8, padding: '0 14px', fontSize: 16, cursor: 'pointer' }}>📷</button>
                   <button onClick={addDetailEntryNote} disabled={savingEntryNote || (!newEntryNoteText.trim() && newEntryNotePhotos.length === 0)}
                     style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '0 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                    {savingEntryNote ? '...' : 'Add'}
+                    {savingEntryNote ? '...' : t('detailEntry.add')}
                   </button>
                 </div>
               </div>
@@ -3086,7 +3113,7 @@ export default function FieldApp() {
               <button
                 onClick={() => openMaintenanceReport(detailEntry._raw)}
                 style={{ marginTop: 16, width: '100%', background: '#fff', color: ORANGE, border: `1.5px solid ${ORANGE}`, borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                📄 Generate report
+                📄 {t('maintReport.generateReport')}
               </button>
             )}
             {detailEntry._kind === 'task' && (
@@ -3097,13 +3124,13 @@ export default function FieldApp() {
                   loadTechScheduleExtras();
                 }}
                 style={{ marginTop: 8, width: '100%', background: detailEntry._raw.completed ? '#eee' : ORANGE, color: detailEntry._raw.completed ? '#333' : '#fff', border: 'none', borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                {detailEntry._raw.completed ? 'Mark as pending' : 'Mark as done'}
+                {detailEntry._raw.completed ? t('detailEntry.markAsPending') : t('detailEntry.markAsDone')}
               </button>
             )}
             {detailEntry._kind === 'solicitud' && (
               <a href={`/solicitudes/${detailEntry._raw.id}`} target="_blank" rel="noopener noreferrer"
                 style={{ display: 'block', marginTop: 14, width: '100%', textAlign: 'center', background: '#fff', color: ORANGE, border: `1.5px solid ${ORANGE}`, borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, textDecoration: 'none', boxSizing: 'border-box' }}>
-                📄 Ver solicitud completa
+                📄 {t('detailEntry.viewFullSolicitud')}
               </a>
             )}
             {detailEntry._kind === 'solicitud' && (
@@ -3118,7 +3145,7 @@ export default function FieldApp() {
                   loadTechScheduleExtras();
                 }}
                 style={{ marginTop: 8, width: '100%', background: detailEntry._raw.assessment_completed ? '#eee' : ORANGE, color: detailEntry._raw.assessment_completed ? '#333' : '#fff', border: 'none', borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                {detailEntry._raw.assessment_completed ? 'Marcar como pendiente' : 'Marcar evaluación completada'}
+                {detailEntry._raw.assessment_completed ? t('detailEntry.markEvalPending') : t('detailEntry.markEvalCompleted')}
               </button>
             )}
           </div>
@@ -3171,7 +3198,7 @@ export default function FieldApp() {
                 galleryIdx: lightbox.index,
               });
             }}
-              style={{ position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 20, padding: '10px 18px', cursor: 'pointer', zIndex: 3 }}>✏️ Editar</button>
+              style={{ position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 20, padding: '10px 18px', cursor: 'pointer', zIndex: 3 }}>✏️ {t('common.edit')}</button>
           )}
 
           {lightbox.urls.length > 1 && (
@@ -3185,7 +3212,7 @@ export default function FieldApp() {
               style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 24, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', zIndex: 2 }}>‹</button>
           )}
 
-          <img src={lightbox.urls[lightbox.index]} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }} />
+          <img src={lightbox.urls[lightbox.index]} alt={t('common.photoAlt')} onClick={e => e.stopPropagation()} style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }} />
 
           {lightbox.urls.length > 1 && lightbox.index < lightbox.urls.length - 1 && (
             <button onClick={e => { e.stopPropagation(); setLightbox(l => ({ ...l, index: l.index + 1 })); }}
@@ -3196,7 +3223,7 @@ export default function FieldApp() {
 
       {/* Dropdown menu — replaces the standalone + FAB in the same bottom-right spot, houses
           Nuevo, Clientes, Actualizar and Salir so nothing floats loose near the tab bar. */}
-      <button aria-label="Menú" style={{ position: 'fixed', bottom: 96, right: 20, width: 52, height: 52, background: showMenu ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 22, color: '#fff' }}
+      <button aria-label={t('menu.menu')} style={{ position: 'fixed', bottom: 96, right: 20, width: 52, height: 52, background: showMenu ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 22, color: '#fff' }}
         onClick={() => setShowMenu(v => !v)}>
         {showMenu ? '✕' : '☰'}
       </button>
@@ -3205,12 +3232,12 @@ export default function FieldApp() {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowMenu(false)} />
           <div style={{ position: 'fixed', bottom: 156, right: 20, zIndex: 99, background: '#fff', borderRadius: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', overflow: 'hidden', minWidth: 190 }}>
-            <button style={menuItem} onClick={() => { setShowMenu(false); if (tab === 'clientes') { setShowNewClient(true); } else { setShowFab(true); } }}>➕ Nuevo</button>
-            <button style={menuItem} onClick={() => { setShowMenu(false); setTab('clientes'); }}>👥 Clientes</button>
-            <button style={menuItem} onClick={() => { setShowMenu(false); setTab('inventario'); }}>📦 Inventario</button>
-            <button style={menuItem} onClick={() => { setShowMenu(false); setRefreshing(true); window.location.reload(); }}>🔄 Actualizar</button>
-            <button style={menuItem} onClick={() => { setShowMenu(false); window.location.href = '/'; }}>🏢 Panel de oficina</button>
-            <button style={{ ...menuItem, borderBottom: 'none', color: '#b52a2a' }} onClick={() => { setShowMenu(false); handleLogout(); }}>🚪 Salir</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); if (tab === 'clientes') { setShowNewClient(true); } else { setShowFab(true); } }}>➕ {t('menu.newItem')}</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setTab('clientes'); }}>👥 {t('clientes.title')}</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setTab('inventario'); }}>📦 {t('inventario.title')}</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setRefreshing(true); window.location.reload(); }}>🔄 {t('menu.refresh')}</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); window.location.href = '/'; }}>🏢 {t('menu.officePanel')}</button>
+            <button style={{ ...menuItem, borderBottom: 'none', color: '#b52a2a' }} onClick={() => { setShowMenu(false); handleLogout(); }}>🚪 {t('menu.logout')}</button>
           </div>
         </>
       )}
@@ -3219,10 +3246,10 @@ export default function FieldApp() {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 97 }} onClick={() => setShowFab(false)} />
           <div style={{ position: 'fixed', bottom: 140, right: 20, zIndex: 98, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-            <button style={fmi('#2a4cb5')} onClick={() => { setFabSelectedJob(activeJob); setShowJobNote(true); setShowFab(false); }}><FieldIcon name="note" />Agregar nota</button>
-            <button style={fmi('#1a7a4a')} onClick={() => { setFabSelectedJob(activeJob); setShowJobPhoto(true); setShowFab(false); }}><FieldIcon name="camera" />Agregar foto</button>
-            <button style={fmi('#7a4cb5')} onClick={() => { setExpenseJob(activeJob ?? undefined); setShowJobExpense(true); setShowFab(false); }}><FieldIcon name="cash" />Agregar gasto</button>
-            <button style={fmi(ORANGE)} onClick={() => { setShowJobClock(true); setShowFab(false); }}><FieldIcon name="time" />Clock In a trabajo</button>
+            <button style={fmi('#2a4cb5')} onClick={() => { setFabSelectedJob(activeJob); setShowJobNote(true); setShowFab(false); }}><FieldIcon name="note" />{t('fab.addNote')}</button>
+            <button style={fmi('#1a7a4a')} onClick={() => { setFabSelectedJob(activeJob); setShowJobPhoto(true); setShowFab(false); }}><FieldIcon name="camera" />{t('fab.addPhoto')}</button>
+            <button style={fmi('#7a4cb5')} onClick={() => { setExpenseJob(activeJob ?? undefined); setShowJobExpense(true); setShowFab(false); }}><FieldIcon name="cash" />{t('fab.addExpense')}</button>
+            <button style={fmi(ORANGE)} onClick={() => { setShowJobClock(true); setShowFab(false); }}><FieldIcon name="time" />{t('fab.clockInToJob')}</button>
           </div>
         </>
       )}
@@ -3231,43 +3258,43 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={closeNewClientModal}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>👤 Nuevo cliente</div>
-              <button onClick={closeNewClientModal} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>👤 {t('newClientModal.title')}</div>
+              <button onClick={closeNewClientModal} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             <form onSubmit={saveNewClient}>
               {newClientError && (
                 <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '8px 10px', fontSize: 12, marginBottom: 12 }}>⚠️ {newClientError}</div>
               )}
               <div style={{ marginBottom: 8 }}>
-                <input value={newClientForm.name} onChange={e => setNewClientForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre *"
+                <input value={newClientForm.name} onChange={e => setNewClientForm(f => ({ ...f, name: e.target.value }))} placeholder={t('newClientModal.namePlaceholder')}
                   style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                <input value={newClientForm.phone} onChange={e => setNewClientForm(f => ({ ...f, phone: e.target.value }))} placeholder="Teléfono"
+                <input value={newClientForm.phone} onChange={e => setNewClientForm(f => ({ ...f, phone: e.target.value }))} placeholder={t('newClientModal.phonePlaceholder')}
                   style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
-                <input type="email" value={newClientForm.email} onChange={e => setNewClientForm(f => ({ ...f, email: e.target.value }))} placeholder="Email"
+                <input type="email" value={newClientForm.email} onChange={e => setNewClientForm(f => ({ ...f, email: e.target.value }))} placeholder={t('newClientModal.emailPlaceholder')}
                   style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
               </div>
               <div style={{ marginBottom: 8 }}>
-                <input value={newClientForm.company} onChange={e => setNewClientForm(f => ({ ...f, company: e.target.value }))} placeholder="Empresa (opcional)"
+                <input value={newClientForm.company} onChange={e => setNewClientForm(f => ({ ...f, company: e.target.value }))} placeholder={t('newClientModal.companyPlaceholder')}
                   style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
               </div>
               <select value={newClientForm.client_type} onChange={e => setNewClientForm(f => ({ ...f, client_type: e.target.value }))}
                 style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', marginBottom: 8 }}>
-                <option value="final">Consumidor final</option>
-                <option value="b2b">Comerciante registrado B2B</option>
+                <option value="final">{t('clientes.finalConsumer')}</option>
+                <option value="b2b">{t('newClientModal.b2bOption')}</option>
               </select>
-              <input value={newClientAddr.line1} onChange={e => setNewClientAddr(a => ({ ...a, line1: e.target.value }))} placeholder="Dirección (opcional)"
+              <input value={newClientAddr.line1} onChange={e => setNewClientAddr(a => ({ ...a, line1: e.target.value }))} placeholder={t('newClientModal.addressPlaceholder')}
                 style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', marginBottom: 8 }} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                <input value={newClientAddr.city} onChange={e => setNewClientAddr(a => ({ ...a, city: e.target.value }))} placeholder="Ciudad"
+                <input value={newClientAddr.city} onChange={e => setNewClientAddr(a => ({ ...a, city: e.target.value }))} placeholder={t('newClientModal.cityPlaceholder')}
                   style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
-                <input value={newClientAddr.zip} onChange={e => setNewClientAddr(a => ({ ...a, zip: e.target.value }))} placeholder="Código postal"
+                <input value={newClientAddr.zip} onChange={e => setNewClientAddr(a => ({ ...a, zip: e.target.value }))} placeholder={t('newClientModal.zipPlaceholder')}
                   style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" disabled={savingNewClient} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>{savingNewClient ? 'Guardando...' : 'Guardar cliente'}</button>
-                <button type="button" onClick={closeNewClientModal} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                <button type="submit" disabled={savingNewClient} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>{savingNewClient ? t('common.saving') : t('clientes.saveClient')}</button>
+                <button type="button" onClick={closeNewClientModal} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
               </div>
             </form>
           </div>
@@ -3278,20 +3305,20 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setShowJobClock(false)}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>⏱ Clock In a trabajo</div>
-              <button onClick={() => setShowJobClock(false)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>⏱ {t('jobClockModal.title')}</div>
+              <button onClick={() => setShowJobClock(false)} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
-            {allJobs.length === 0 ? <p style={{ color: '#888' }}>No hay trabajos activos.</p>
+            {allJobs.length === 0 ? <p style={{ color: '#888' }}>{t('jobClockModal.noActiveJobs')}</p>
               : allJobs.map(j => {
                 const isActive = activeEntry?.job_id === j.id;
                 return (
                   <div key={j.id} onClick={() => { setShowJobClock(false); isActive ? handleClockOut() : handleClockIn(j.id); }} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
                     <div><div style={{ fontWeight: 600 }}>{j.title}{isActive ? ' ✅' : ''}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div>
-                    <span style={{ color: isActive ? '#1a7a4a' : ORANGE, fontWeight: 700 }}>{isActive ? 'Clock Out' : '→'}</span>
+                    <span style={{ color: isActive ? '#1a7a4a' : ORANGE, fontWeight: 700 }}>{isActive ? t('home.clockOut') : '→'}</span>
                   </div>
                 );
               })}
-            <button onClick={() => setShowJobClock(false)} style={{ marginTop: 16, width: '100%', padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={() => setShowJobClock(false)} style={{ marginTop: 16, width: '100%', padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
           </div>
         </div>
       )}
@@ -3300,20 +3327,20 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => { setShowJobNote(false); setFabSelectedJob(null); }}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>📝 Agregar nota</div>
-              <button onClick={() => { setShowJobNote(false); setFabSelectedJob(null); }} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📝 {t('jobNoteModal.title')}</div>
+              <button onClick={() => { setShowJobNote(false); setFabSelectedJob(null); }} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             {!fabSelectedJob
-              ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
+              ? <>{<p style={{ color: '#888', marginBottom: 12 }}>{t('fab.selectJob')}</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
               : <form onSubmit={saveFabNote}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <div style={{ fontWeight: 600, color: ORANGE }}>{fabSelectedJob.title}</div>
-                  <button type="button" onClick={() => setFabSelectedJob(null)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>Cambiar</button>
+                  <button type="button" onClick={() => setFabSelectedJob(null)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>{t('common.change')}</button>
                 </div>
-                <textarea value={fabNoteText} onChange={e => setFabNoteText(e.target.value)} placeholder="Escribe tu nota..." style={{ width: '100%', minHeight: 100, padding: 12, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none' }} />
+                <textarea value={fabNoteText} onChange={e => setFabNoteText(e.target.value)} placeholder={t('jobNoteModal.notePlaceholder')} style={{ width: '100%', minHeight: 100, padding: 12, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none' }} />
                 <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                  <button type="submit" disabled={savingFabNote} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>{savingFabNote ? 'Guardando...' : 'Guardar'}</button>
-                  <button type="button" onClick={() => { setFabSelectedJob(null); setShowJobNote(false); }} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                  <button type="submit" disabled={savingFabNote} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>{savingFabNote ? t('common.saving') : t('common.save')}</button>
+                  <button type="button" onClick={() => { setFabSelectedJob(null); setShowJobNote(false); }} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
                 </div>
               </form>
             }
@@ -3325,16 +3352,16 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => { setShowJobPhoto(false); setFabSelectedJob(null); }}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>📸 Agregar foto</div>
-              <button onClick={() => { setShowJobPhoto(false); setFabSelectedJob(null); }} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📸 {t('jobPhotoModal.title')}</div>
+              <button onClick={() => { setShowJobPhoto(false); setFabSelectedJob(null); }} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             {photoSuccess ? <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#1a7a4a', fontWeight: 700 }}>{photoSuccess} ✅</div>
               : !fabSelectedJob
-                ? <>{<p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo:</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
+                ? <>{<p style={{ color: '#888', marginBottom: 12 }}>{t('fab.selectJob')}</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
                 : <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <div style={{ fontWeight: 600, color: ORANGE }}>{fabSelectedJob.title}</div>
-                    <button type="button" onClick={() => setFabSelectedJob(null)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>Cambiar</button>
+                    <button type="button" onClick={() => setFabSelectedJob(null)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>{t('common.change')}</button>
                   </div>
                   {photoError && (
                     <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '8px 10px', fontSize: 12, marginBottom: 12 }}>
@@ -3343,14 +3370,14 @@ export default function FieldApp() {
                   )}
                   <input ref={fileRef} type="file" accept="image/*,application/pdf" onChange={uploadFabPhoto} style={{ display: 'none' }} />
                   <button onClick={() => fileRef.current?.click()} disabled={uploadingPhoto} style={{ width: '100%', padding: 16, background: '#f0f0f0', border: '2px dashed #dde1e7', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', color: '#555' }}>
-                    {uploadingPhoto ? `📤 Subiendo... ${fabUploadProgress}%` : '📷 Tomar foto o elegir de galería'}
+                    {uploadingPhoto ? `📤 ${t('common.uploading')} ${fabUploadProgress}%` : `📷 ${t('fab.takeOrChoosePhoto')}`}
                   </button>
                   {uploadingPhoto && (
                     <div style={{ background: '#e5e7eb', borderRadius: 20, height: 8, overflow: 'hidden', marginTop: 10 }}>
                       <div style={{ background: ORANGE, height: '100%', width: `${fabUploadProgress}%`, transition: 'width 0.2s' }} />
                     </div>
                   )}
-                  <button onClick={() => { setFabSelectedJob(null); setShowJobPhoto(false); }} style={{ marginTop: 10, width: '100%', padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                  <button onClick={() => { setFabSelectedJob(null); setShowJobPhoto(false); }} style={{ marginTop: 10, width: '100%', padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
                 </div>
             }
           </div>
@@ -3361,22 +3388,22 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setShowInvAdjust(false)}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>📦 Ajustar stock — {invLocById[invLocationId]?.name}</div>
-              <button onClick={() => setShowInvAdjust(false)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📦 {t('inventario.adjustStockModalTitle', { location: invLocById[invLocationId]?.name })}</div>
+              <button onClick={() => setShowInvAdjust(false)} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             <select value={invAdjustForm.catalog_item_id} onChange={e => setInvAdjustForm(f => ({ ...f, catalog_item_id: e.target.value }))}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
-              <option value="">Selecciona un producto...</option>
+              <option value="">{t('inventario.selectProductOption')}</option>
               {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
             </select>
-            <input type="number" value={invAdjustForm.delta} onChange={e => setInvAdjustForm(f => ({ ...f, delta: e.target.value }))} placeholder="Cantidad (negativo para restar)"
+            <input type="number" value={invAdjustForm.delta} onChange={e => setInvAdjustForm(f => ({ ...f, delta: e.target.value }))} placeholder={t('inventario.quantityPlaceholder')}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
-            <input value={invAdjustForm.reason} onChange={e => setInvAdjustForm(f => ({ ...f, reason: e.target.value }))} placeholder="Motivo (opcional) — Ej: usado en trabajo"
+            <input value={invAdjustForm.reason} onChange={e => setInvAdjustForm(f => ({ ...f, reason: e.target.value }))} placeholder={t('inventario.reasonPlaceholder')}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16 }} />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowInvAdjust(false)} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => setShowInvAdjust(false)} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
               <button onClick={invAdjustStock} disabled={invSaving || !invAdjustForm.catalog_item_id || !invAdjustForm.delta} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                {invSaving ? 'Guardando...' : 'Ajustar'}
+                {invSaving ? t('common.saving') : t('inventario.adjust')}
               </button>
             </div>
           </div>
@@ -3387,55 +3414,55 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={closeInvAddUnitModal}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>📦 Agregar equipo — {invLocById[invLocationId]?.name}</div>
-              <button onClick={closeInvAddUnitModal} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📦 {t('inventario.addEquipoModalTitle', { location: invLocById[invLocationId]?.name })}</div>
+              <button onClick={closeInvAddUnitModal} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             {!showInvNewProduct ? (
               <>
                 <select value={invUnitForm.catalog_item_id} onChange={e => setInvUnitForm(f => ({ ...f, catalog_item_id: e.target.value }))}
                   style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
-                  <option value="">Selecciona un producto...</option>
+                  <option value="">{t('inventario.selectProductOption')}</option>
                   {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
                 </select>
                 <button type="button" onClick={() => setShowInvNewProduct(true)}
                   style={{ background: 'none', border: 'none', color: ORANGE, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, marginBottom: 12 }}>
-                  + ¿No está en la lista? Crear producto nuevo
+                  + {t('inventario.createNewProductLink')}
                 </button>
               </>
             ) : (
               <div style={{ background: '#f6f7fa', borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Nuevo producto</div>
-                <input value={invNewProductForm.item_code} onChange={e => setInvNewProductForm(f => ({ ...f, item_code: e.target.value }))} placeholder="Nombre / Código"
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{t('inventario.newProduct')}</div>
+                <input value={invNewProductForm.item_code} onChange={e => setInvNewProductForm(f => ({ ...f, item_code: e.target.value }))} placeholder={t('inventario.nameCodePlaceholder')}
                   style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
-                <input value={invNewProductForm.description} onChange={e => setInvNewProductForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción"
+                <input value={invNewProductForm.description} onChange={e => setInvNewProductForm(f => ({ ...f, description: e.target.value }))} placeholder={t('common.descriptionPlaceholder')}
                   style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
-                <input type="number" step="0.01" value={invNewProductForm.price} onChange={e => setInvNewProductForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio (opcional)"
+                <input type="number" step="0.01" value={invNewProductForm.price} onChange={e => setInvNewProductForm(f => ({ ...f, price: e.target.value }))} placeholder={t('inventario.pricePlaceholder')}
                   style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
                 {invNewProductError && <p style={{ color: '#b52a2a', fontSize: 12, marginBottom: 8 }}>{invNewProductError}</p>}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" onClick={() => { setShowInvNewProduct(false); setInvNewProductError(''); }} style={{ flex: 1, padding: 10, background: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                  <button type="button" onClick={() => { setShowInvNewProduct(false); setInvNewProductError(''); }} style={{ flex: 1, padding: 10, background: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
                   <button type="button" onClick={createInvProduct} disabled={savingInvNewProduct || !invNewProductForm.item_code.trim() || !invNewProductForm.description.trim()}
                     style={{ flex: 1, padding: 10, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                    {savingInvNewProduct ? 'Creando...' : 'Crear producto'}
+                    {savingInvNewProduct ? t('common.creating') : t('inventario.createProduct')}
                   </button>
                 </div>
               </div>
             )}
             <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-              <input value={invUnitForm.serial_number} onChange={e => setInvUnitForm(f => ({ ...f, serial_number: e.target.value }))} placeholder="Serial number"
+              <input value={invUnitForm.serial_number} onChange={e => setInvUnitForm(f => ({ ...f, serial_number: e.target.value }))} placeholder={t('inventario.serialNumberPlaceholder')}
                 style={{ flex: 1, padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-              <button type="button" onClick={() => setShowInvScanner(true)} title="Escanear código de barra"
+              <button type="button" onClick={() => setShowInvScanner(true)} title={t('inventario.scanBarcode')}
                 style={{ padding: '0 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontSize: 16, cursor: 'pointer' }}>📷</button>
             </div>
-            <input value={invUnitForm.notes} onChange={e => setInvUnitForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notas (opcional)"
+            <input value={invUnitForm.notes} onChange={e => setInvUnitForm(f => ({ ...f, notes: e.target.value }))} placeholder={t('inventario.notesPlaceholder')}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
 
             {invUnitPhotoPreview ? (
-              <img src={invUnitPhotoPreview} alt="preview" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+              <img src={invUnitPhotoPreview} alt={t('common.previewAlt')} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
             ) : null}
             <input ref={fileRefInvUnit} type="file" accept="image/*" onChange={e => handleInvUnitPhotoSelect(e.target.files?.[0])} style={{ display: 'none' }} />
             <button type="button" onClick={() => fileRefInvUnit.current?.click()} style={{ width: '100%', padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>
-              📷 {invUnitPhotoFile ? 'Cambiar foto' : 'Agregar foto'}
+              📷 {invUnitPhotoFile ? t('checklist.changePhoto') : t('checklist.addPhoto')}
             </button>
             {invSavingUnit && invUnitPhotoFile && (
               <div style={{ background: '#e5e7eb', borderRadius: 20, height: 8, overflow: 'hidden', marginBottom: 8 }}>
@@ -3444,9 +3471,9 @@ export default function FieldApp() {
             )}
             {invUnitError && <p style={{ color: '#b52a2a', fontSize: 13, marginBottom: 8 }}>{invUnitError}</p>}
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button onClick={closeInvAddUnitModal} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={closeInvAddUnitModal} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
               <button onClick={invAddUnit} disabled={invSavingUnit || !invUnitForm.catalog_item_id || !invUnitForm.serial_number.trim()} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                {invSavingUnit ? 'Guardando...' : 'Guardar'}
+                {invSavingUnit ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>
@@ -3464,23 +3491,23 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={closeInvAddReelModal}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>🧵 Agregar caja de cable — {invLocById[invLocationId]?.name}</div>
-              <button onClick={closeInvAddReelModal} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>🧵 {t('inventario.addCajaModalTitle', { location: invLocById[invLocationId]?.name })}</div>
+              <button onClick={closeInvAddReelModal} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             <select value={invReelForm.catalog_item_id} onChange={e => setInvReelForm(f => ({ ...f, catalog_item_id: e.target.value }))}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
-              <option value="">Selecciona un producto...</option>
+              <option value="">{t('inventario.selectProductOption')}</option>
               {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
             </select>
-            <input value={invReelForm.code} onChange={e => setInvReelForm(f => ({ ...f, code: e.target.value }))} placeholder="Código de la caja (opcional)"
+            <input value={invReelForm.code} onChange={e => setInvReelForm(f => ({ ...f, code: e.target.value }))} placeholder={t('inventario.reelCodePlaceholder')}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
-            <input type="number" value={invReelForm.total_footage} onChange={e => setInvReelForm(f => ({ ...f, total_footage: e.target.value }))} placeholder="Pies totales"
+            <input type="number" value={invReelForm.total_footage} onChange={e => setInvReelForm(f => ({ ...f, total_footage: e.target.value }))} placeholder={t('inventario.totalFeetPlaceholder')}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16 }} />
             {invReelError && <p style={{ color: '#b52a2a', fontSize: 13, marginBottom: 8 }}>{invReelError}</p>}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={closeInvAddReelModal} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={closeInvAddReelModal} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
               <button onClick={invAddReel} disabled={invSavingReel || !invReelForm.catalog_item_id || !invReelForm.total_footage} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                {invSavingReel ? 'Guardando...' : 'Guardar'}
+                {invSavingReel ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>
@@ -3491,16 +3518,16 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={closeExpenseModal}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>💸 Agregar gasto</div>
-              <button onClick={closeExpenseModal} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>💸 {t('expenses.addExpense')}</div>
+              <button onClick={closeExpenseModal} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             {expenseSuccess ? (
               <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#1a7a4a', fontWeight: 700 }}>{expenseSuccess} ✅</div>
             ) : expenseJob === undefined ? (
               <>
-                <p style={{ color: '#888', marginBottom: 12 }}>Selecciona el trabajo o registra un gasto general:</p>
+                <p style={{ color: '#888', marginBottom: 12 }}>{t('expenses.selectJobOrGeneral')}</p>
                 <div onClick={() => setExpenseJob(null)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 700, color: '#7a4cb5' }}>💼 Gasto general</div>
+                  <div style={{ fontWeight: 700, color: '#7a4cb5' }}>💼 {t('expenses.generalExpense')}</div>
                   <span style={{ color: ORANGE }}>→</span>
                 </div>
                 {allJobs.map(j => (
@@ -3509,41 +3536,41 @@ export default function FieldApp() {
                     <span style={{ color: ORANGE }}>→</span>
                   </div>
                 ))}
-                <button onClick={closeExpenseModal} style={{ marginTop: 16, width: '100%', padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={closeExpenseModal} style={{ marginTop: 16, width: '100%', padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
               </>
             ) : (
               <form onSubmit={saveExpense}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ fontWeight: 600, color: ORANGE }}>{expenseJob ? expenseJob.title : 'Gasto general'}</div>
-                  <button type="button" onClick={() => setExpenseJob(undefined)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>Cambiar</button>
+                  <div style={{ fontWeight: 600, color: ORANGE }}>{expenseJob ? expenseJob.title : t('expenses.generalExpense')}</div>
+                  <button type="button" onClick={() => setExpenseJob(undefined)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>{t('common.change')}</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                   <select value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}
                     style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }}>
-                    {EXPENSE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    {translatedExpenseCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
                   <input type="date" value={expenseForm.expense_date} onChange={e => setExpenseForm(f => ({ ...f, expense_date: e.target.value }))}
                     style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
                 </div>
-                <input value={expenseForm.description} onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción"
+                <input value={expenseForm.description} onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder={t('common.descriptionPlaceholder')}
                   style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                  <input value={expenseForm.vendor} onChange={e => setExpenseForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor (opcional)"
+                  <input value={expenseForm.vendor} onChange={e => setExpenseForm(f => ({ ...f, vendor: e.target.value }))} placeholder={t('expenses.vendorPlaceholder')}
                     style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-                  <input type="number" step="0.01" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="Monto"
+                  <input type="number" step="0.01" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder={t('expenses.amountPlaceholder')}
                     style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
                 </div>
                 {expensePhotoPreview && (
-                  <img src={expensePhotoPreview} alt="recibo" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+                  <img src={expensePhotoPreview} alt={t('expenses.receipt')} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
                 )}
                 <input ref={fileRef3} type="file" accept="image/*" onChange={e => handleExpensePhotoSelect(e.target.files?.[0])} style={{ display: 'none' }} />
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" onClick={() => fileRef3.current?.click()} style={{ padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>📷 Recibo</button>
+                  <button type="button" onClick={() => fileRef3.current?.click()} style={{ padding: '10px 14px', background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>📷 {t('expenses.receipt')}</button>
                   <button type="submit" disabled={savingExpense || !expenseForm.description.trim() || !expenseForm.amount} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                    {savingExpense ? 'Guardando...' : '💾 Guardar'}
+                    {savingExpense ? t('common.saving') : `💾 ${t('common.save')}`}
                   </button>
                 </div>
-                <button type="button" onClick={closeExpenseModal} style={{ marginTop: 10, width: '100%', padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                <button type="button" onClick={closeExpenseModal} style={{ marginTop: 10, width: '100%', padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
               </form>
             )}
           </div>
@@ -3554,32 +3581,32 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setShowReportModal(false)}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>{editingReportId ? '✏️ Editar reporte' : '📄 Nuevo reporte'}</div>
-              <button onClick={() => setShowReportModal(false)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>{editingReportId ? `✏️ ${t('reports.editReport')}` : `📄 ${t('reports.newReport')}`}</div>
+              <button onClick={() => setShowReportModal(false)} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
 
-            <input value={reportTitle} onChange={e => setReportTitle(e.target.value)} placeholder="Título — Ej: Avance de instalación, semana 1" autoFocus
+            <input value={reportTitle} onChange={e => setReportTitle(e.target.value)} placeholder={t('reports.titlePlaceholder')} autoFocus
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 8, marginBottom: 8 }}>
               <input type="date" value={reportVisitDate} onChange={e => setReportVisitDate(e.target.value)}
                 style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }} />
-              <input value={reportPersonnel} onChange={e => setReportPersonnel(e.target.value)} placeholder="Personal presente"
+              <input value={reportPersonnel} onChange={e => setReportPersonnel(e.target.value)} placeholder={t('reports.personnelPlaceholder')}
                 style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
             </div>
 
-            <textarea value={reportSummary} onChange={e => setReportSummary(e.target.value)} rows={3} placeholder="Resumen de actividades..."
+            <textarea value={reportSummary} onChange={e => setReportSummary(e.target.value)} rows={3} placeholder={t('reports.summaryPlaceholder')}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 12 }} />
 
-            <p style={{ fontWeight: 700, fontSize: 12, color: '#555', marginBottom: 8 }}>SELECCIONA LAS NOTAS/FOTOS A INCLUIR</p>
+            <p style={{ fontWeight: 700, fontSize: 12, color: '#555', marginBottom: 8 }}>{t('reports.selectNotesToInclude')}</p>
             {detailNotes.length === 0 ? (
-              <p style={{ color: '#aaa', fontSize: 13 }}>Este trabajo no tiene notas todavía.</p>
+              <p style={{ color: '#aaa', fontSize: 13 }}>{t('reports.jobHasNoNotesYet')}</p>
             ) : (() => {
               const groups = {};
               [...detailNotes]
                 .sort((a, b) => (a.phase_number ?? Infinity) - (b.phase_number ?? Infinity) || new Date(b.created_at) - new Date(a.created_at))
                 .forEach(n => {
-                  const key = n.phase_number != null ? `Fase ${n.phase_number}` : 'Sin fase';
+                  const key = n.phase_number != null ? t('notes.phaseLabel', { number: n.phase_number }) : t('reports.noPhase');
                   if (!groups[key]) groups[key] = [];
                   groups[key].push(n);
                 });
@@ -3618,18 +3645,18 @@ export default function FieldApp() {
               ));
             })()}
 
-            <textarea value={reportObservations} onChange={e => setReportObservations(e.target.value)} rows={3} placeholder="Observaciones — una por línea"
+            <textarea value={reportObservations} onChange={e => setReportObservations(e.target.value)} rows={3} placeholder={t('reports.observationsPlaceholder')}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginTop: 14, marginBottom: 8 }} />
-            <textarea value={reportRecommendations} onChange={e => setReportRecommendations(e.target.value)} rows={3} placeholder="Recomendaciones — una por línea"
+            <textarea value={reportRecommendations} onChange={e => setReportRecommendations(e.target.value)} rows={3} placeholder={t('reports.recommendationsPlaceholder')}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 8 }} />
-            <input value={reportPreparedBy} onChange={e => setReportPreparedBy(e.target.value)} placeholder="Preparado por (opcional)"
+            <input value={reportPreparedBy} onChange={e => setReportPreparedBy(e.target.value)} placeholder={t('reports.preparedByPlaceholder')}
               style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14 }} />
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={saveReport} disabled={savingReport || !reportTitle.trim()} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                {savingReport ? 'Guardando...' : '💾 Guardar reporte'}
+                {savingReport ? t('common.saving') : `💾 ${t('reports.saveReport')}`}
               </button>
-              <button onClick={() => setShowReportModal(false)} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => setShowReportModal(false)} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
             </div>
           </div>
         </div>
@@ -3639,17 +3666,17 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setEmailingReportId(null)}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>📧 Enviar reporte por email</div>
-              <button onClick={() => setEmailingReportId(null)} aria-label="Cerrar" style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📧 {t('emailReportModal.title')}</div>
+              <button onClick={() => setEmailingReportId(null)} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             <form onSubmit={sendReportEmail}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>EMAIL DEL CLIENTE</p>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>{t('emailReportModal.clientEmail')}</p>
               <input type="email" required value={reportEmailTo} onChange={e => setReportEmailTo(e.target.value)} autoFocus
                 style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14 }} />
 
               {detailClientContacts.filter(c => c.email).length > 0 && (
                 <>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>COPIAR A (CC)</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>{t('emailReportModal.cc')}</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1.5px solid #dde1e7', borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
                     {detailClientContacts.filter(c => c.email).map(c => (
                       <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
@@ -3662,15 +3689,15 @@ export default function FieldApp() {
                 </>
               )}
 
-              <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>OTROS CORREOS EN COPIA (OPCIONAL)</p>
-              <input value={reportEmailCcExtra} onChange={e => setReportEmailCcExtra(e.target.value)} placeholder="correo1@ejemplo.com, correo2@ejemplo.com"
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 6 }}>{t('emailReportModal.otherEmailsCc')}</p>
+              <input value={reportEmailCcExtra} onChange={e => setReportEmailCcExtra(e.target.value)} placeholder={t('emailReportModal.emailsPlaceholder')}
                 style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16 }} />
 
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="submit" disabled={sendingReport} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                  {sendingReport ? 'Enviando...' : '📤 Enviar'}
+                  {sendingReport ? t('common.sending') : `📤 ${t('reports.send')}`}
                 </button>
-                <button type="button" onClick={() => setEmailingReportId(null)} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                <button type="button" onClick={() => setEmailingReportId(null)} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
               </div>
             </form>
           </div>
@@ -3678,17 +3705,18 @@ export default function FieldApp() {
       )}
 
       <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, background: '#fff', borderTop: '1px solid #dde1e7', display: 'flex', zIndex: 100, paddingBottom: 'env(safe-area-inset-bottom,4px)' }}>
-        <NavI tab="home" icon="home" label="Home" />
-        <NavI tab="jobs" icon="jobs" label="Jobs" />
-        <NavI tab="time" icon="time" label="Time" />
-        <NavI tab="calendar" icon="calendar" label="Calendar" />
-        <NavI tab="projects" icon="projects" label="Projects" />
+        <NavI tab="home" icon="home" label={t('nav.home')} />
+        <NavI tab="jobs" icon="jobs" label={t('nav.jobs')} />
+        <NavI tab="time" icon="time" label={t('nav.time')} />
+        <NavI tab="calendar" icon="calendar" label={t('nav.calendar')} />
+        <NavI tab="projects" icon="projects" label={t('nav.projects')} />
       </nav>
     </div>
   );
 }
 
 function MaintenanceReportForm({ task, techName, saving, onCancel, onSubmit }) {
+  const t = useTranslations('crew.app');
   const technicianNames = [task.technicians?.name, ...(task.task_technicians ?? []).map(tt => tt.technicians?.name)].filter(Boolean).join(', ');
   const [title, setTitle] = useState(task.title);
   const [visitDate, setVisitDate] = useState((task.due_at || '').slice(0, 10));
@@ -3698,25 +3726,25 @@ function MaintenanceReportForm({ task, techName, saving, onCancel, onSubmit }) {
   return (
     <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px calc(24px + env(safe-area-inset-bottom,0px))', width: '100%', maxWidth: 430, margin: '0 auto' }} onClick={e => e.stopPropagation()}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, fontSize: 18 }}>📄 Generate report</div>
+        <div style={{ fontWeight: 700, fontSize: 18 }}>📄 {t('maintReport.generateReport')}</div>
         <button onClick={onCancel} style={{ background: 'none', border: 'none', fontSize: 20, color: '#888', cursor: 'pointer' }}>×</button>
       </div>
-      <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>The checklist and notes/photos from this visit are included automatically.</p>
+      <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>{t('maintReport.checklistNotesIncluded')}</p>
       <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
         <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>Title</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>{t('maintReport.titleLabel')}</label>
           <input value={title} onChange={e => setTitle(e.target.value)} style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
         </div>
         <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>Visit date</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>{t('maintReport.visitDateLabel')}</label>
           <input type="date" value={visitDate} onChange={e => setVisitDate(e.target.value)} style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
         </div>
         <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>Personnel present</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>{t('maintReport.personnelLabel')}</label>
           <input value={personnel} onChange={e => setPersonnel(e.target.value)} style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
         </div>
         <div>
-          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>Prepared by</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#888' }}>{t('maintReport.preparedByLabel')}</label>
           <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
         </div>
       </div>
@@ -3724,7 +3752,7 @@ function MaintenanceReportForm({ task, techName, saving, onCancel, onSubmit }) {
         disabled={!title.trim() || saving}
         onClick={() => onSubmit({ task, title, visitDate, personnel, preparedBy })}
         style={{ width: '100%', background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-        {saving ? 'Generating...' : 'Generate report'}
+        {saving ? t('maintReport.generating') : t('maintReport.generateReport')}
       </button>
     </div>
   );

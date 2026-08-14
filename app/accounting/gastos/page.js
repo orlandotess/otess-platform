@@ -5,18 +5,7 @@ import { supabaseServer as supabase } from "../../../lib/supabase";
 import Sidebar from "../../Sidebar";
 import Link from "next/link";
 import GastosClient from "./GastosClient";
-
-const CATEGORY_LABELS = {
-  materiales: "Materiales",
-  gasolina: "Gasolina",
-  herramientas: "Herramientas",
-  subcontratista: "Subcontratista",
-  oficina: "Oficina",
-  parking: "Parking",
-  equipos: "Equipos",
-  meals: "Meals",
-  otro: "Otro",
-};
+import { getTranslations, getLocale } from "next-intl/server";
 
 // Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
 // admin/timesheet, accounting/payroll, and accounting/facturas) so the
@@ -40,13 +29,29 @@ function getWeekRange(offset = 0) {
 const nowPR = () => new Date(Date.now() - 4 * 60 * 60 * 1000);
 
 export default async function GastosPage({ searchParams }) {
+  const t = await getTranslations("accounting.gastos");
+  const locale = await getLocale();
+  const dateLocale = locale === "en" ? "en-US" : "es-PR";
+
+  const CATEGORY_LABELS = {
+    materiales: t("expenseCategories.materiales"),
+    gasolina: t("expenseCategories.gasolina"),
+    herramientas: t("expenseCategories.herramientas"),
+    subcontratista: t("expenseCategories.subcontratista"),
+    oficina: t("expenseCategories.oficina"),
+    parking: t("expenseCategories.parking"),
+    equipos: t("expenseCategories.equipos"),
+    meals: t("expenseCategories.meals"),
+    otro: t("expenseCategories.otro"),
+  };
+
   const view = searchParams?.view ?? "month";
   const year = parseInt(searchParams?.year ?? nowPR().getUTCFullYear());
   const month = searchParams?.month !== undefined && searchParams.month !== "" ? parseInt(searchParams.month) : nowPR().getUTCMonth();
   const weekOffset = parseInt(searchParams?.week ?? "0");
 
   let dateStart, dateEnd, periodLabel;
-  const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  const months = Array.from({ length: 12 }, (_, i) => t(`months.${i}`));
   const currentYear = nowPR().getUTCFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
 
@@ -54,7 +59,7 @@ export default async function GastosPage({ searchParams }) {
     const { weekStart, weekEnd } = getWeekRange(weekOffset);
     dateStart = weekStart.toISOString().slice(0, 10);
     dateEnd = weekEnd.toISOString().slice(0, 10);
-    const fmtDate = d => d.toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+    const fmtDate = d => d.toLocaleDateString(dateLocale, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
     periodLabel = `${fmtDate(weekStart)} — ${fmtDate(weekEnd)}`;
   } else if (view === "month") {
     dateStart = new Date(year, month, 1).toISOString().slice(0, 10);
@@ -63,7 +68,7 @@ export default async function GastosPage({ searchParams }) {
   } else {
     dateStart = `${year}-01-01`;
     dateEnd = `${year}-12-31`;
-    periodLabel = `Año ${year}`;
+    periodLabel = t("periodYear", { year });
   }
 
   const [{ data: expenses }, { data: jobs }] = await Promise.all([
@@ -95,12 +100,12 @@ export default async function GastosPage({ searchParams }) {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Gastos</div>
-            <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>Materiales, gasolina, herramientas y otros — {periodLabel}</p>
+            <div className="page-title">{t("title")}</div>
+            <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>{t("subtitle", { period: periodLabel })}</p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            <Link href="/accounting/gastos/recurrentes" className="btn btn-ghost">🔁 Gastos recurrentes</Link>
-            <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+            <Link href="/accounting/gastos/recurrentes" className="btn btn-ghost">{t("recurringLink")}</Link>
+            <Link href="/accounting" className="btn btn-ghost">{t("dashboardLink")}</Link>
           </div>
         </div>
 
@@ -108,9 +113,9 @@ export default async function GastosPage({ searchParams }) {
         <div className="card" style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Vista</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("viewLabel")}</label>
               <div style={{ display: "flex", gap: 6 }}>
-                {[["week", "Semanal"], ["month", "Mensual"], ["year", "Anual"]].map(([v, l]) => (
+                {[["week", t("view.week")], ["month", t("view.month")], ["year", t("view.year")]].map(([v, l]) => (
                   <Link key={v} href={`/accounting/gastos?view=${v}&year=${year}&month=${month ?? ""}`}
                     className={`btn ${v === view ? "btn-primary" : "btn-ghost"}`} style={{ padding: "6px 14px", fontSize: 13 }}>
                     {l}
@@ -121,18 +126,18 @@ export default async function GastosPage({ searchParams }) {
 
             {view === "week" && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Semana</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("weekLabel")}</label>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <Link href={`/accounting/gastos?view=week&week=${weekOffset - 1}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>← Anterior</Link>
-                  {weekOffset !== 0 && <Link href="/accounting/gastos?view=week" className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>Actual</Link>}
-                  {weekOffset < 0 && <Link href={`/accounting/gastos?view=week&week=${weekOffset + 1}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>Siguiente →</Link>}
+                  <Link href={`/accounting/gastos?view=week&week=${weekOffset - 1}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>{t("previousWeek")}</Link>
+                  {weekOffset !== 0 && <Link href="/accounting/gastos?view=week" className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>{t("currentWeek")}</Link>}
+                  {weekOffset < 0 && <Link href={`/accounting/gastos?view=week&week=${weekOffset + 1}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>{t("nextWeek")}</Link>}
                 </div>
               </div>
             )}
 
             {view !== "week" && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Año</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("yearLabel")}</label>
                 <div style={{ display: "flex", gap: 6 }}>
                   {years.map(y => (
                     <Link key={y} href={`/accounting/gastos?view=${view}&year=${y}&month=${month ?? ""}`}
@@ -146,10 +151,10 @@ export default async function GastosPage({ searchParams }) {
 
             {view === "month" && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Mes</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("monthLabel")}</label>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <Link href={`/accounting/gastos?view=year&year=${year}`} className="btn btn-ghost" style={{ padding: "6px 14px", fontSize: 13 }}>
-                    Todo el año
+                    {t("fullYear")}
                   </Link>
                   {months.map((m, i) => (
                     <Link key={i} href={`/accounting/gastos?view=month&year=${year}&month=${i}`}
@@ -166,19 +171,19 @@ export default async function GastosPage({ searchParams }) {
         {/* Summary stats */}
         <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 20 }}>
           <div className="stat-card">
-            <div className="stat-label">Total gastos</div>
+            <div className="stat-label">{t("stats.total")}</div>
             <div className="stat-value">{fmt(total)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Gastos generales</div>
+            <div className="stat-label">{t("stats.general")}</div>
             <div className="stat-value" style={{ color: "var(--navy)" }}>{fmt(totalGeneral)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Gastos por trabajo</div>
+            <div className="stat-label">{t("stats.byJob")}</div>
             <div className="stat-value" style={{ color: "var(--amber)" }}>{fmt(totalPorTrabajo)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Transacciones</div>
+            <div className="stat-label">{t("stats.transactions")}</div>
             <div className="stat-value">{rows.length}</div>
           </div>
         </div>
@@ -186,7 +191,7 @@ export default async function GastosPage({ searchParams }) {
         {/* By category */}
         {rows.length > 0 && (
           <div className="card" style={{ marginBottom: 20 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)", marginBottom: 14 }}>Por categoría — {periodLabel}</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)", marginBottom: 14 }}>{t("byCategoryTitle", { period: periodLabel })}</p>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${Object.keys(byCategory).length}, 1fr)`, gap: 12 }}>
               {Object.entries(byCategory).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => (
                 <div key={cat}>

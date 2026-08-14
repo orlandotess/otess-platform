@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { CatalogDescriptionInput } from './LineItemRow';
 import { supabase } from '../lib/supabase';
 
@@ -38,6 +39,7 @@ function mergeAccessoryMaterials(map, materials) {
 }
 
 export default function CableCalculator({ areaOptions = [], vendorOptions = [], catalogItems = [], onAdd, onClose }) {
+  const t = useTranslations('shared.cableCalculator');
   const catalogOptions = catalogItems.filter(c => c.type === 'product' && !c.internal_only);
   function resolveCatalogMaterial(value) {
     return catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
@@ -48,14 +50,14 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   const [description, setDescription] = useState('');
   const [vendor, setVendor] = useState('');
   const [feetPerBox, setFeetPerBox] = useState(DEFAULT_FEET_PER_UNIT.cable);
-  const [materialGroupTitle, setMaterialGroupTitle] = useState('Materiales de cable');
+  const [materialGroupTitle, setMaterialGroupTitle] = useState(t('materialGroupTitleDefault.cable'));
 
-  const unitLabel = calcType === 'tubo' ? 'tubo' : 'caja';
+  const unitLabel = calcType === 'tubo' ? t('unit.tubo') : t('unit.box');
 
   function handleTypeChange(type) {
     setCalcType(type);
     setFeetPerBox(DEFAULT_FEET_PER_UNIT[type]);
-    setMaterialGroupTitle(type === 'tubo' ? 'Materiales de tubería' : 'Materiales de cable');
+    setMaterialGroupTitle(t(`materialGroupTitleDefault.${type}`));
   }
 
   // ---------------------------------------------------------------------
@@ -176,19 +178,19 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       const existing = map.get(key);
       map.set(key, { type: existing ? existing.type : type, feet: (existing?.feet || 0) + feet });
     });
-    return [...map.values()].map(t => ({ ...t, boxes: feetPerBox > 0 ? Math.ceil(t.feet / parseFloat(feetPerBox)) : 0 }));
+    return [...map.values()].map(tt => ({ ...tt, boxes: feetPerBox > 0 ? Math.ceil(tt.feet / parseFloat(feetPerBox)) : 0 }));
   })();
 
   const cableMaterialTotals = (() => {
     const map = new Map();
     cableRows.forEach(row => mergeAccessoryMaterials(map, row.materials));
-    cableTypeTotals.forEach(t => {
-      if (t.boxes <= 0) return;
-      const key = t.type.toLowerCase();
+    cableTypeTotals.forEach(tt => {
+      if (tt.boxes <= 0) return;
+      const key = tt.type.toLowerCase();
       const existing = map.get(key);
       map.set(key, {
-        desc: existing ? existing.desc : t.type,
-        qty: (existing?.qty || 0) + t.boxes,
+        desc: existing ? existing.desc : tt.type,
+        qty: (existing?.qty || 0) + tt.boxes,
         unit_price: existing?.unit_price ?? 0,
         supplier_price: existing?.supplier_price ?? 0,
         msrp: existing?.msrp ?? '',
@@ -226,7 +228,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
         }])
       ));
       const failed = results.find(r => r.error);
-      if (failed) alert('No se pudo guardar en el catálogo: ' + failed.error.message);
+      if (failed) alert(t('saveCatalogError', { error: failed.error.message }));
     }
     materialTotals.forEach((item, groupIndex) => {
       onAdd({
@@ -256,7 +258,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                   value={mat.description}
                   onChange={v => onFieldChange(midx, 'description', v)}
                   catalogOptions={catalogOptions}
-                  placeholder="Material (ej. Caja PVC 4x4x2)"
+                  placeholder={t('accessory.materialPlaceholder')}
                   fontSize={12}
                   fontWeight={400}
                 />
@@ -265,7 +267,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                 type="number"
                 value={mat.quantity}
                 onChange={e => onFieldChange(midx, 'quantity', e.target.value)}
-                placeholder="Cant."
+                placeholder={t('accessory.quantityPlaceholder')}
                 min="0"
                 step="1"
                 style={{ width: 70, fontSize: 12 }}
@@ -278,31 +280,31 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                   type="number"
                   value={mat.supplier_price ?? ''}
                   onChange={e => onFieldChange(midx, 'supplier_price', e.target.value)}
-                  placeholder="Costo"
+                  placeholder={t('accessory.costPlaceholder')}
                   min="0"
                   step="0.01"
                   style={{ width: 80, fontSize: 11 }}
                 />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 400, textTransform: 'none', letterSpacing: 'normal' }}>
                   <input type="checkbox" checked={!!mat.saveToCatalog} onChange={e => onFieldChange(midx, 'saveToCatalog', e.target.checked)} />
-                  Guardar en catálogo
+                  {t('accessory.saveToCatalog')}
                 </label>
                 {mat.saveToCatalog && (
                   <>
                     <input
                       value={mat.newItemCode || suggestItemCode(mat.description)}
                       onChange={e => onFieldChange(midx, 'newItemCode', e.target.value)}
-                      placeholder="Código"
+                      placeholder={t('accessory.codePlaceholder')}
                       style={{ width: 90, fontSize: 11, fontFamily: 'monospace' }}
                     />
                     <input
                       type="number"
                       value={mat.markup_pct ?? ''}
                       onChange={e => onFieldChange(midx, 'markup_pct', e.target.value)}
-                      placeholder="Markup %"
+                      placeholder={t('accessory.markupPlaceholder')}
                       min="0"
                       step="1"
-                      title="% sobre el costo — calcula el precio de venta en el catálogo"
+                      title={t('accessory.markupTitle')}
                       style={{ width: 70, fontSize: 11 }}
                     />
                   </>
@@ -311,7 +313,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
             )}
           </div>
         ))}
-        <button type="button" className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px', marginTop: 6, marginLeft: 20 }} onClick={onAddClick}>+ Material</button>
+        <button type="button" className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px', marginTop: 6, marginLeft: 20 }} onClick={onAddClick}>+ {t('accessory.addMaterial')}</button>
       </>
     );
   }
@@ -319,7 +321,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: calcType === 'cable' ? 560 : 420, maxHeight: '90vh', overflowY: 'auto' }}>
-        <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>🧮 Calcular cable/tubo</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>🧮 {t('title')}</h2>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <button
@@ -327,19 +329,19 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
             className={calcType === 'cable' ? 'btn btn-primary' : 'btn btn-ghost'}
             style={{ flex: 1, justifyContent: 'center', fontSize: 13 }}
             onClick={() => handleTypeChange('cable')}
-          >Cable</button>
+          >{t('typeCable')}</button>
           <button
             type="button"
             className={calcType === 'tubo' ? 'btn btn-primary' : 'btn btn-ghost'}
             style={{ flex: 1, justifyContent: 'center', fontSize: 13 }}
             onClick={() => handleTypeChange('tubo')}
-          >Tubería</button>
+          >{t('typeTubo')}</button>
         </div>
 
         {calcType === 'tubo' && (
           <div className="form-group" style={{ marginBottom: 12 }}>
-            <label>Área</label>
-            <input list="cable-calc-area-options" value={area} onChange={e => setArea(e.target.value)} placeholder="Piso 1, Oficina 2..." />
+            <label>{t('areaLabel')}</label>
+            <input list="cable-calc-area-options" value={area} onChange={e => setArea(e.target.value)} placeholder={t('areaPlaceholder')} />
           </div>
         )}
         <datalist id="cable-calc-area-options">
@@ -348,14 +350,14 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
 
         {calcType === 'tubo' && (
           <div className="form-group" style={{ marginBottom: 12 }}>
-            <label>Descripción del material</label>
-            <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Tubo PVC 3/4..." />
+            <label>{t('materialDescriptionLabel')}</label>
+            <input value={description} onChange={e => setDescription(e.target.value)} placeholder={t('materialDescriptionPlaceholder')} />
           </div>
         )}
 
         <div className="form-group" style={{ marginBottom: 12 }}>
-          <label>Suplidor</label>
-          <input list="cable-calc-vendor-options" value={vendor} onChange={e => setVendor(e.target.value)} placeholder="Adi, Multi Electric..." />
+          <label>{t('vendorLabel')}</label>
+          <input list="cable-calc-vendor-options" value={vendor} onChange={e => setVendor(e.target.value)} placeholder={t('vendorPlaceholder')} />
           <datalist id="cable-calc-vendor-options">
             {vendorOptions.map(v => <option key={v} value={v} />)}
           </datalist>
@@ -363,21 +365,21 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
 
         {calcType === 'tubo' ? (
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', marginBottom: 8 }}>Lados / corridas</label>
+            <label style={{ display: 'block', marginBottom: 8 }}>{t('segments.label')}</label>
             {segments.map((seg, idx) => (
               <div key={idx} style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <input
                     value={seg.label}
                     onChange={e => updateSegment(idx, 'label', e.target.value)}
-                    placeholder={`Lado ${idx + 1}`}
+                    placeholder={t('segments.sidePlaceholder', { number: idx + 1 })}
                     style={{ flex: 1 }}
                   />
                   <input
                     type="number"
                     value={seg.feet}
                     onChange={e => updateSegment(idx, 'feet', e.target.value)}
-                    placeholder="Pies"
+                    placeholder={t('segments.feetPlaceholder')}
                     min="0"
                     step="0.1"
                     style={{ width: 100 }}
@@ -405,17 +407,17 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                 )}
               </div>
             ))}
-            <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addSegment}>+ Agregar lado</button>
+            <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addSegment}>+ {t('segments.addSide')}</button>
           </div>
         ) : (
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', marginBottom: 8 }}>Corridas de cable</label>
+            <label style={{ display: 'block', marginBottom: 8 }}>{t('cableRows.label')}</label>
             <div style={{ display: 'flex', gap: 6, fontSize: 10, color: 'var(--muted)', fontWeight: 700, marginBottom: 4, padding: '0 4px' }}>
-              <span style={{ flex: '2 1 0' }}>NOMBRE</span>
-              <span style={{ flex: '1.2 1 0' }}>ÁREA</span>
-              <span style={{ flex: '1.4 1 0' }}>TIPO</span>
-              <span style={{ width: 56 }}>CANT.</span>
-              <span style={{ width: 56 }}>PIES</span>
+              <span style={{ flex: '2 1 0' }}>{t('cableRows.columns.name')}</span>
+              <span style={{ flex: '1.2 1 0' }}>{t('cableRows.columns.area')}</span>
+              <span style={{ flex: '1.4 1 0' }}>{t('cableRows.columns.type')}</span>
+              <span style={{ width: 56 }}>{t('cableRows.columns.qty')}</span>
+              <span style={{ width: 56 }}>{t('cableRows.columns.feet')}</span>
               <span style={{ width: 16 }} />
             </div>
             {cableRows.map((row, idx) => (
@@ -424,32 +426,32 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                   <input
                     value={row.name}
                     onChange={e => updateCableRow(idx, 'name', e.target.value)}
-                    placeholder="Ej: Escritorio 1, Cam #2..."
+                    placeholder={t('cableRows.namePlaceholder')}
                     style={{ flex: '2 1 0', fontSize: 12.5 }}
                   />
                   <input
                     list="cable-calc-area-options"
                     value={row.area}
                     onChange={e => updateCableRow(idx, 'area', e.target.value)}
-                    placeholder="Área"
+                    placeholder={t('cableRows.columns.area')}
                     style={{ flex: '1.2 1 0', fontSize: 12.5 }}
                   />
                   <input
                     list={`cable-type-options-${idx}`}
                     value={row.type}
                     onChange={e => updateCableRow(idx, 'type', e.target.value)}
-                    placeholder="Tipo"
+                    placeholder={t('cableRows.columns.type')}
                     style={{ flex: '1.4 1 0', fontSize: 12.5 }}
                   />
                   <datalist id={`cable-type-options-${idx}`}>
-                    {cableTypeOptions.map(t => <option key={t} value={t} />)}
+                    {cableTypeOptions.map(ct => <option key={ct} value={ct} />)}
                   </datalist>
                   <input
                     type="number"
                     className="compact-number"
                     value={row.qty}
                     onChange={e => updateCableRow(idx, 'qty', e.target.value)}
-                    placeholder="Cant."
+                    placeholder={t('accessory.quantityPlaceholder')}
                     min="0"
                     step="1"
                     style={{ width: 56, fontSize: 12.5 }}
@@ -459,7 +461,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                     className="compact-number"
                     value={row.feet}
                     onChange={e => updateCableRow(idx, 'feet', e.target.value)}
-                    placeholder="Pies"
+                    placeholder={t('segments.feetPlaceholder')}
                     min="0"
                     step="1"
                     style={{ width: 56, fontSize: 12.5 }}
@@ -476,50 +478,50 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                 )}
               </div>
             ))}
-            <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addCableRow}>+ Agregar corrida</button>
+            <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addCableRow}>+ {t('cableRows.addRow')}</button>
           </div>
         )}
 
         {materialTotals.length > 0 && (
           <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 13 }}>
             <div className="form-group" style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: 11 }}>Título del grupo (en el estimado, estos materiales se combinan en una sola línea por área)</label>
-              <input value={materialGroupTitle} onChange={e => setMaterialGroupTitle(e.target.value)} placeholder="Materiales de cable" style={{ fontSize: 13 }} />
+              <label style={{ fontSize: 11 }}>{t('groupTitleLabel')}</label>
+              <input value={materialGroupTitle} onChange={e => setMaterialGroupTitle(e.target.value)} placeholder={t('materialGroupTitleDefault.cable')} style={{ fontSize: 13 }} />
             </div>
-            <p style={{ fontWeight: 700, color: 'var(--navy)', margin: '0 0 6px' }}>Materiales</p>
+            <p style={{ fontWeight: 700, color: 'var(--navy)', margin: '0 0 6px' }}>{t('materialsHeading')}</p>
             {materialTotals.map(item => (
               <div key={item.desc} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span style={{ color: 'var(--muted)' }}>{item.desc}{item.supplier_price > 0 && ` (costo $${item.supplier_price.toFixed(2)})`}</span><span style={{ fontWeight: 700 }}>{item.qty}</span>
+                <span style={{ color: 'var(--muted)' }}>{item.desc}{item.supplier_price > 0 && ` (${t('costSuffix', { cost: item.supplier_price.toFixed(2) })})`}</span><span style={{ fontWeight: 700 }}>{item.qty}</span>
               </div>
             ))}
           </div>
         )}
 
         <div className="form-group" style={{ marginBottom: 16 }}>
-          <label>Pies por {unitLabel}</label>
+          <label>{t('feetPerUnitLabel', { unit: unitLabel })}</label>
           <input type="number" value={feetPerBox} onChange={e => setFeetPerBox(e.target.value)} min="0" step="1" placeholder={DEFAULT_FEET_PER_UNIT[calcType]} />
         </div>
 
         <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ color: 'var(--muted)' }}>Pies totales</span><span style={{ fontWeight: 700 }}>{calcType === 'tubo' ? totalFeet : cableTotalFeet}</span>
+            <span style={{ color: 'var(--muted)' }}>{t('totalFeetLabel')}</span><span style={{ fontWeight: 700 }}>{calcType === 'tubo' ? totalFeet : cableTotalFeet}</span>
           </div>
           {calcType === 'tubo' ? (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--muted)' }}>Tubos necesarios</span><span style={{ fontWeight: 700 }}>{boxesNeeded}</span>
+              <span style={{ color: 'var(--muted)' }}>{t('tubesNeededLabel')}</span><span style={{ fontWeight: 700 }}>{boxesNeeded}</span>
             </div>
           ) : (
-            cableTypeTotals.map(t => (
-              <div key={t.type} style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                <span style={{ color: 'var(--muted)' }}>{t.type} ({t.feet} pies)</span><span style={{ fontWeight: 700 }}>{t.boxes} caja{t.boxes !== 1 ? 's' : ''}</span>
+            cableTypeTotals.map(ct => (
+              <div key={ct.type} style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                <span style={{ color: 'var(--muted)' }}>{t('cableTypeFeet', { type: ct.type, feet: ct.feet })}</span><span style={{ fontWeight: 700 }}>{t('boxesCount', { count: ct.boxes })}</span>
               </div>
             ))
           )}
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" className="btn btn-primary" disabled={materialTotals.length === 0} onClick={handleAdd} style={{ flex: 1, justifyContent: 'center' }}>Agregar línea</button>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button type="button" className="btn btn-primary" disabled={materialTotals.length === 0} onClick={handleAdd} style={{ flex: 1, justifyContent: 'center' }}>{t('addLine')}</button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>{t('cancel')}</button>
         </div>
       </div>
     </div>

@@ -1,7 +1,8 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import LineItemRow from '../../LineItemRow';
 import LineItemPicker from '../../LineItemPicker';
 import TaxBreakdown from '../../TaxBreakdown';
@@ -12,13 +13,17 @@ import { isoToLocalInput, localInputToIso, formatDateTimePR } from '../../../lib
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 
 const statusOptions = [
-  { value: 'nueva', label: 'Nueva' },
-  { value: 'necesita_aprobacion', label: 'Necesita aprobación' },
-  { value: 'evaluacion_completa', label: 'Evaluación completa' },
+  { value: 'nueva', key: 'nueva' },
+  { value: 'necesita_aprobacion', key: 'necesitaAprobacion' },
+  { value: 'evaluacion_completa', key: 'evaluacionCompleta' },
 ];
 
 export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls, clientProperties = [], clientContacts = [], technicians = [], taxRules = [], currentRole = null }) {
   const router = useRouter();
+  const t = useTranslations('solicitudes.tabs');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const translatedStatusOptions = useMemo(() => statusOptions.map(o => ({ ...o, label: t(`status.${o.key}`) })), [t]);
   const fmt = n => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const clientType = solicitud.clients?.client_type ?? 'final';
   const isOpen = !['convertida', 'archivada'].includes(solicitud.status);
@@ -33,7 +38,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
   const [deletingSolicitud, setDeletingSolicitud] = useState(false);
 
   async function convertirATrabajo() {
-    if (!confirm(`¿Convertir "${solicitud.title}" en un trabajo? Se creará un nuevo trabajo con esta información.`)) return;
+    if (!confirm(t('confirmConvert', { title: solicitud.title }))) return;
     setConverting(true);
     try {
       const { data: last } = await supabase.from('jobs').select('job_number').order('created_at', { ascending: false }).limit(1).single();
@@ -122,7 +127,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
     const { error } = await supabase.from('solicitudes').delete().eq('id', solicitud.id);
     if (error) {
       setDeletingSolicitud(false);
-      alert('No se pudo eliminar la solicitud: ' + error.message);
+      alert(t('deleteError', { error: error.message }));
       return;
     }
     // Full reload (not router.push) so the list doesn't serve a stale
@@ -411,38 +416,38 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
         {/* Info general */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Información general</p>
-            {!editingDetails && <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditingDetails(true)}>Editar</button>}
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('generalInfo.title')}</p>
+            {!editingDetails && <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditingDetails(true)}>{t('common.edit')}</button>}
           </div>
-          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>Cliente: <strong style={{ color: 'var(--navy)' }}>{solicitud.clients?.name ?? '—'}</strong></p>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>{t('generalInfo.clientLabel')} <strong style={{ color: 'var(--navy)' }}>{solicitud.clients?.name ?? '—'}</strong></p>
           {editingDetails ? (
             <>
               <div className="form-group">
-                <label>Título</label>
+                <label>{t('generalInfo.titleLabel')}</label>
                 <input value={titleForm} onChange={e => setTitleForm(e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Descripción</label>
+                <label>{t('generalInfo.descriptionLabel')}</label>
                 <textarea value={descForm} onChange={e => setDescForm(e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Vendedor</label>
+                <label>{t('generalInfo.salespersonLabel')}</label>
                 <input value={salespersonForm} onChange={e => setSalespersonForm(e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Notas internas</label>
+                <label>{t('generalInfo.notesLabel')}</label>
                 <textarea value={notesForm} onChange={e => setNotesForm(e.target.value)} />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary" disabled={savingDetails} onClick={saveDetails}>{savingDetails ? 'Guardando...' : 'Guardar'}</button>
-                <button className="btn btn-ghost" onClick={() => setEditingDetails(false)}>Cancelar</button>
+                <button className="btn btn-primary" disabled={savingDetails} onClick={saveDetails}>{savingDetails ? t('common.saving') : t('common.save')}</button>
+                <button className="btn btn-ghost" onClick={() => setEditingDetails(false)}>{t('common.cancel')}</button>
               </div>
             </>
           ) : (
             <>
               {solicitud.description && <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginBottom: 10 }}>{solicitud.description}</p>}
-              {solicitud.salesperson && <p style={{ fontSize: 13, color: 'var(--muted)' }}>Vendedor: {solicitud.salesperson}</p>}
-              {solicitud.notes && <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6 }}>Notas: {solicitud.notes}</p>}
+              {solicitud.salesperson && <p style={{ fontSize: 13, color: 'var(--muted)' }}>{t('generalInfo.salespersonPrefix', { name: solicitud.salesperson })}</p>}
+              {solicitud.notes && <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6 }}>{t('generalInfo.notesPrefix', { notes: solicitud.notes })}</p>}
             </>
           )}
         </div>
@@ -450,7 +455,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
         {/* Imágenes de la solicitud */}
         {intakePhotoUrls.length > 0 && (
           <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>📷 Imágenes</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('images.title')}</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               {intakePhotoUrls.map((url, idx) => (
                 <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
@@ -464,56 +469,56 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
         {/* Evaluación en sitio */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>📍 Evaluación en sitio</p>
-            {!editingAssessment && <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditingAssessment(true)}>Editar</button>}
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('assessment.title')}</p>
+            {!editingAssessment && <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditingAssessment(true)}>{t('common.edit')}</button>}
           </div>
           {editingAssessment ? (
             <>
               <div className="form-group">
-                <label>Fecha y hora de la visita</label>
+                <label>{t('assessment.dateLabel')}</label>
                 <input type="datetime-local" value={assessmentDate} onChange={e => setAssessmentDate(e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Instrucciones para el técnico</label>
+                <label>{t('assessment.instructionsLabel')}</label>
                 <textarea value={assessmentInstructions} onChange={e => setAssessmentInstructions(e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Técnicos (opcional, puedes escoger más de uno)</label>
+                <label>{t('assessment.techniciansLabel')}</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-                  {technicians.map(t => {
-                    const checked = technicianIds.includes(t.id);
+                  {technicians.map(tech => {
+                    const checked = technicianIds.includes(tech.id);
                     return (
-                      <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleTechnician(t.id)} style={{ margin: 0 }} />
-                        {t.name}
+                      <label key={tech.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleTechnician(tech.id)} style={{ margin: 0 }} />
+                        {tech.name}
                       </label>
                     );
                   })}
-                  {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
+                  {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>{t('assessment.noTechnicians')}</p>}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary" disabled={savingAssessment} onClick={saveAssessment}>{savingAssessment ? 'Guardando...' : 'Guardar'}</button>
-                <button className="btn btn-ghost" onClick={() => setEditingAssessment(false)}>Cancelar</button>
+                <button className="btn btn-primary" disabled={savingAssessment} onClick={saveAssessment}>{savingAssessment ? t('common.saving') : t('common.save')}</button>
+                <button className="btn btn-ghost" onClick={() => setEditingAssessment(false)}>{t('common.cancel')}</button>
               </div>
             </>
           ) : (
             <>
               <p style={{ fontSize: 14, marginBottom: 6 }}>
-                {solicitud.assessment_date ? formatDateTimePR(solicitud.assessment_date) : 'Sin programar'}
+                {solicitud.assessment_date ? formatDateTimePR(solicitud.assessment_date, {}, dateLocale) : t('assessment.notScheduled')}
               </p>
               {solicitud.assessment_instructions && <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>{solicitud.assessment_instructions}</p>}
               {(() => {
                 const names = [solicitud.technicians?.name, ...(solicitud.solicitud_technicians ?? []).map(st => st.technicians?.name)].filter(Boolean);
                 return (
                   <p style={{ fontSize: 13, color: names.length ? 'var(--navy)' : 'var(--muted)', marginBottom: 10 }}>
-                    👤 {names.length ? names.join(', ') : 'Sin técnico asignado'}
+                    {names.length ? t('assessment.assignedTechnicians', { names: names.join(', ') }) : t('assessment.noTechnicianAssigned')}
                   </p>
                 );
               })()}
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
                 <input type="checkbox" checked={!!solicitud.assessment_completed} onChange={toggleAssessmentComplete} />
-                Evaluación completada
+                {t('assessment.completedLabel')}
               </label>
             </>
           )}
@@ -522,18 +527,18 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
         {/* Propiedad */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>🏠 Propiedad</p>
-            {!editingProperty && <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditingProperty(true)}>Editar</button>}
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('property.title')}</p>
+            {!editingProperty && <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setEditingProperty(true)}>{t('common.edit')}</button>}
           </div>
           {editingProperty ? (
             <>
               {clientProperties.length > 0 && !showNewProperty && (
                 <div className="form-group">
-                  <label>Propiedad del cliente</label>
+                  <label>{t('property.clientPropertyLabel')}</label>
                   {propertyForm.property_id ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
                       <span style={{ flex: 1, fontWeight: 600 }}>{propertyLabel(clientProperties.find(p => p.id === propertyForm.property_id) ?? { name: propertyForm.property_name })}</span>
-                      <button type="button" onClick={() => setPropertyForm(f => ({ ...f, property_id: '' }))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>Cambiar</button>
+                      <button type="button" onClick={() => setPropertyForm(f => ({ ...f, property_id: '' }))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>{t('common.change')}</button>
                     </div>
                   ) : (
                     <>
@@ -541,10 +546,10 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
                         const p = clientProperties.find(p => p.id === e.target.value);
                         if (p) selectProperty(p); else setPropertyForm(f => ({ ...f, property_id: '' }));
                       }}>
-                        <option value="">— Seleccionar propiedad —</option>
+                        <option value="">{t('property.selectPlaceholder')}</option>
                         {clientProperties.map(p => <option key={p.id} value={p.id}>{propertyLabel(p)}</option>)}
                       </select>
-                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>+ Agregar propiedad nueva</button>
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>{t('property.addNew')}</button>
                     </>
                   )}
                 </div>
@@ -552,26 +557,26 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
               {(clientProperties.length === 0 || showNewProperty || propertyForm.property_id) && (
                 <>
                   {clientProperties.length > 0 && showNewProperty && (
-                    <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>‹ Usar propiedad existente</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>{t('property.useExisting')}</button>
                   )}
                   <div className="form-group">
-                    <label>Nombre de la propiedad</label>
+                    <label>{t('property.nameLabel')}</label>
                     <input value={propertyForm.property_name} onChange={e => setPropertyForm(f => ({ ...f, property_name: e.target.value }))} />
                   </div>
                   <div className="form-group">
-                    <label>Dirección</label>
+                    <label>{t('property.addressLabel')}</label>
                     <input value={propertyForm.street} onChange={e => setPropertyForm(f => ({ ...f, street: e.target.value }))} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
-                    <div className="form-group"><label>Ciudad</label><input value={propertyForm.city} onChange={e => setPropertyForm(f => ({ ...f, city: e.target.value }))} /></div>
-                    <div className="form-group"><label>Estado</label><input value={propertyForm.state} onChange={e => setPropertyForm(f => ({ ...f, state: e.target.value }))} /></div>
-                    <div className="form-group"><label>Zip</label><input value={propertyForm.zip} onChange={e => setPropertyForm(f => ({ ...f, zip: e.target.value }))} /></div>
+                    <div className="form-group"><label>{t('property.cityLabel')}</label><input value={propertyForm.city} onChange={e => setPropertyForm(f => ({ ...f, city: e.target.value }))} /></div>
+                    <div className="form-group"><label>{t('property.stateLabel')}</label><input value={propertyForm.state} onChange={e => setPropertyForm(f => ({ ...f, state: e.target.value }))} /></div>
+                    <div className="form-group"><label>{t('property.zipLabel')}</label><input value={propertyForm.zip} onChange={e => setPropertyForm(f => ({ ...f, zip: e.target.value }))} /></div>
                   </div>
                 </>
               )}
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary" disabled={savingProperty} onClick={saveProperty}>{savingProperty ? 'Guardando...' : 'Guardar'}</button>
-                <button className="btn btn-ghost" onClick={() => { setEditingProperty(false); setShowNewProperty(false); }}>Cancelar</button>
+                <button className="btn btn-primary" disabled={savingProperty} onClick={saveProperty}>{savingProperty ? t('common.saving') : t('common.save')}</button>
+                <button className="btn btn-ghost" onClick={() => { setEditingProperty(false); setShowNewProperty(false); }}>{t('common.cancel')}</button>
               </div>
             </>
           ) : (
@@ -579,16 +584,16 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
               {solicitud.property_name && <p style={{ fontWeight: 600, fontSize: 14 }}>{solicitud.property_name}</p>}
               {fullAddress ? (
                 <a href={mapsLinks.direct || mapsLinks.google} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>📍 {fullAddress}</a>
-              ) : <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin dirección</p>}
+              ) : <p style={{ fontSize: 13, color: 'var(--muted)' }}>{t('property.noAddress')}</p>}
             </>
           )}
         </div>
 
         {/* Contacto */}
         <div className="card">
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>👤 Contactos encargados</p>
+          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('contacts.title')}</p>
           {assignedContacts.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Sin contactos asignados.</p>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>{t('contacts.none')}</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
               {assignedContacts.map(c => (
@@ -601,7 +606,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <button onClick={() => editContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️ Editar</button>
+                    <button onClick={() => editContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>{t('contacts.editButton')}</button>
                     <button onClick={() => removeContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warn)', fontSize: 14 }}>✕</button>
                   </div>
                 </div>
@@ -609,40 +614,40 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
             </div>
           )}
           {editingContactId && (
-            <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>Editando contacto — cambia los datos y guarda, o cancela.</p>
+            <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>{t('contacts.editingHint')}</p>
           )}
           {clientContacts.length > 0 && (
             <div className="form-group">
-              <label>Seleccionar contacto del cliente</label>
+              <label>{t('contacts.selectExistingLabel')}</label>
               <select value={contactDraft.contact_id} onChange={e => pickExistingContact(e.target.value)}>
-                <option value="">— Seleccionar contacto —</option>
+                <option value="">{t('contacts.selectPlaceholder')}</option>
                 {clientContacts.map(c => <option key={c.id} value={c.id}>{contactLabel(c)}</option>)}
               </select>
             </div>
           )}
-          <div className="form-group"><label>Nombre</label><input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} /></div>
+          <div className="form-group"><label>{t('common.name')}</label><input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} /></div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div className="form-group"><label>Teléfono</label><input value={contactDraft.phone} onChange={e => setContactDraft(d => ({ ...d, phone: e.target.value }))} /></div>
-            <div className="form-group"><label>Email</label><input type="email" value={contactDraft.email} onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))} /></div>
+            <div className="form-group"><label>{t('common.phone')}</label><input value={contactDraft.phone} onChange={e => setContactDraft(d => ({ ...d, phone: e.target.value }))} /></div>
+            <div className="form-group"><label>{t('common.email')}</label><input type="email" value={contactDraft.email} onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))} /></div>
           </div>
-          <div className="form-group"><label>Cargo</label><input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder="Ej: Project Manager" /></div>
+          <div className="form-group"><label>{t('contacts.positionLabel')}</label><input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder={t('contacts.positionPlaceholder')} /></div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-primary" disabled={!contactDraft.name.trim() || savingContact} onClick={addContact}>
-              {savingContact ? 'Guardando...' : editingContactId ? '💾 Guardar cambios' : '+ Agregar contacto'}
+              {savingContact ? t('common.saving') : editingContactId ? t('contacts.saveChanges') : t('contacts.addContact')}
             </button>
-            {editingContactId && <button className="btn btn-ghost" onClick={cancelEditContact}>Cancelar</button>}
+            {editingContactId && <button className="btn btn-ghost" onClick={cancelEditContact}>{t('common.cancel')}</button>}
           </div>
         </div>
 
         {/* Líneas */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Producto / Servicio</p>
-            <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setAddingLine(true)}>+ Agregar línea</button>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('lineItems.title')}</p>
+            <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setAddingLine(true)}>{t('lineItems.addLine')}</button>
           </div>
           {!isTecnico && (
             <div style={{ marginBottom: 16 }}>
-              <LineItemPicker catalogOptions={catalogItems} onSelect={addLineItemFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+              <LineItemPicker catalogOptions={catalogItems} onSelect={addLineItemFromCatalog} placeholder={t('lineItems.catalogSearchPlaceholder')} />
             </div>
           )}
           {lineItems.map(item => (
@@ -675,33 +680,33 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
                 photoUrl={newLine.photoPreview} onPhotoSelect={handleNewLinePhoto} fmt={fmt}
                 actions={<button type="button" onClick={() => setAddingLine(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>}
               />
-              <button className="btn btn-primary" style={{ marginTop: 8 }} disabled={savingLine} onClick={addLineItem}>{savingLine ? 'Guardando...' : 'Agregar'}</button>
+              <button className="btn btn-primary" style={{ marginTop: 8 }} disabled={savingLine} onClick={addLineItem}>{savingLine ? t('common.saving') : t('lineItems.addButton')}</button>
             </div>
           )}
-          {lineItems.length === 0 && !addingLine && <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin líneas todavía.</p>}
+          {lineItems.length === 0 && !addingLine && <p style={{ fontSize: 13, color: 'var(--muted)' }}>{t('lineItems.none')}</p>}
         </div>
 
         {/* Notas */}
         <div className="card">
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Notas</p>
+          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('notes.title')}</p>
           <form onSubmit={saveNote} style={{ marginBottom: 16 }}>
-            <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Agregar una nota..." style={{ marginBottom: 8 }} />
+            <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder={t('notes.placeholder')} style={{ marginBottom: 8 }} />
             {pendingPhotoPreviews.length > 0 && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
                 {pendingPhotoPreviews.map((p, i) => <img key={i} src={p} alt="" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6 }} />)}
               </div>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()} style={{ fontSize: 12 }}>📷 Adjuntar fotos</button>
+              <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()} style={{ fontSize: 12 }}>{t('notes.attachPhotos')}</button>
               <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
-              <button type="submit" className="btn btn-primary" disabled={savingNote} style={{ fontSize: 12 }}>{savingNote ? 'Guardando...' : 'Agregar nota'}</button>
+              <button type="submit" className="btn btn-primary" disabled={savingNote} style={{ fontSize: 12 }}>{savingNote ? t('common.saving') : t('notes.addNote')}</button>
             </div>
           </form>
           {notesList.map(n => (
             <div key={n.id} style={{ padding: '10px 0', borderTop: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{formatDateTimePR(n.created_at)}</span>
-                <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>Eliminar</button>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{formatDateTimePR(n.created_at, {}, dateLocale)}</span>
+                <button onClick={() => deleteNote(n.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>{t('common.delete')}</button>
               </div>
               {n.note && <p style={{ fontSize: 14, marginTop: 4, whiteSpace: 'pre-wrap' }}>{n.note}</p>}
               {n.photo_urls?.length > 0 && (
@@ -715,54 +720,55 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
               )}
             </div>
           ))}
-          {notesList.length === 0 && <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin notas todavía.</p>}
+          {notesList.length === 0 && <p style={{ fontSize: 13, color: 'var(--muted)' }}>{t('notes.none')}</p>}
         </div>
       </div>
 
       {/* Sidebar de acciones */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div className="card">
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 12 }}>Estado</p>
+          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 12 }}>{t('status.title')}</p>
           {isTecnico ? (
             <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-              {statusOptions.find(o => o.value === solicitud.status)?.label
-                ?? (solicitud.status === 'convertida' ? 'Convertida' : solicitud.status === 'archivada' ? 'Archivada' : solicitud.status)}
-              {' '}— cambios de estado los hace la oficina.
+              {t('status.tecnicoNotice', {
+                status: translatedStatusOptions.find(o => o.value === solicitud.status)?.label
+                  ?? (solicitud.status === 'convertida' ? t('status.convertida') : solicitud.status === 'archivada' ? t('status.archivada') : solicitud.status),
+              })}
             </p>
           ) : (
             <>
               {isOpen ? (
                 <select value={solicitud.status} onChange={e => updateStatus(e.target.value)} style={{ marginBottom: 12 }}>
-                  {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {translatedStatusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               ) : (
                 <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
-                  {solicitud.status === 'convertida' ? 'Esta solicitud ya fue convertida.' : 'Esta solicitud está archivada.'}
+                  {solicitud.status === 'convertida' ? t('status.alreadyConverted') : t('status.archivedNotice')}
                 </p>
               )}
               {isOpen && (
                 <button className="btn btn-amber" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} disabled={converting} onClick={convertirATrabajo}>
-                  {converting ? 'Convirtiendo...' : '✓ Convertir a Trabajo'}
+                  {converting ? t('status.converting') : t('status.convertToJob')}
                 </button>
               )}
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} disabled={archiving} onClick={toggleArchive}>
-                {archiving ? 'Guardando...' : solicitud.status === 'archivada' ? 'Desarchivar' : 'Archivar'}
+                {archiving ? t('common.saving') : solicitud.status === 'archivada' ? t('status.unarchive') : t('status.archive')}
               </button>
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginTop: 8, color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setShowDeleteSolicitud(true)}>
-                🗑 Eliminar
+                {t('status.deleteButton')}
               </button>
 
               {showDeleteSolicitud && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
                   <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-                    <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar solicitud?</h2>
-                    <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente y no se puede deshacer.</p>
+                    <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteModal.title')}</h2>
+                    <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteModal.body')}</p>
                     <div style={{ display: 'flex', gap: 10 }}>
                       <button className="btn btn-ghost" onClick={deleteSolicitud} disabled={deletingSolicitud}
                         style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                        {deletingSolicitud ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                        {deletingSolicitud ? t('deleteModal.deleting') : t('deleteModal.confirm')}
                       </button>
-                      <button className="btn btn-ghost" onClick={() => setShowDeleteSolicitud(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+                      <button className="btn btn-ghost" onClick={() => setShowDeleteSolicitud(false)} style={{ flex: 1, justifyContent: 'center' }}>{t('common.cancel')}</button>
                     </div>
                   </div>
                 </div>
@@ -773,7 +779,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
 
         {!isTecnico && lineItems.length > 0 && (
           <div className="card">
-            <TaxBreakdown lineas={lineItems} clientType={clientType} taxRules={taxRules} title="Resumen IVU" />
+            <TaxBreakdown lineas={lineItems} clientType={clientType} taxRules={taxRules} title={t('taxSummaryTitle')} />
           </div>
         )}
       </div>

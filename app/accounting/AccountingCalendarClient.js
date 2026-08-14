@@ -1,6 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useTranslations, useLocale } from 'next-intl';
 
 const EVENT_COLORS = {
   job: 'var(--info)',
@@ -13,24 +14,30 @@ const EVENT_COLORS = {
   payment: 'var(--ok)',
   retencion: '#8e44ad',
 };
-const EVENT_LABELS = {
-  job: 'Trabajo programado',
-  visit: 'Visita',
-  event: 'Evento',
-  task: 'Tarea',
-  absence: 'Ausencia de técnico',
-  invoice_issued: 'Factura emitida',
-  invoice_due: 'Factura vence',
-  payment: 'Pago recibido',
-  retencion: 'Retención registrada',
+const EVENT_TYPE_KEYS = {
+  job: 'job',
+  visit: 'visit',
+  event: 'event',
+  task: 'task',
+  absence: 'absence',
+  invoice_issued: 'invoiceIssued',
+  invoice_due: 'invoiceDue',
+  payment: 'payment',
+  retencion: 'retencion',
 };
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function AccountingCalendarClient({ year, month, jobs, visits, calendarEvents, tasks, absences, invoicesIssued, invoicesDue, payments, retenciones }) {
+  const t = useTranslations('accounting.calendarClient');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const EVENT_LABELS = useMemo(() => Object.fromEntries(
+    Object.entries(EVENT_TYPE_KEYS).map(([type, key]) => [type, t(`eventTypes.${key}`)])
+  ), [t]);
   const [selectedDate, setSelectedDate] = useState(null);
   const today = new Date().toISOString().slice(0, 10);
-  const monthName = new Date(year, month, 1).toLocaleString('es-PR', { month: 'long' });
+  const monthName = new Date(year, month, 1).toLocaleString(dateLocale, { month: 'long' });
   const monthLabel = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
   const calendarHref = `/calendario?view=month&year=${year}&month=${month}`;
@@ -44,16 +51,16 @@ export default function AccountingCalendarClient({ year, month, jobs, visits, ca
       map[d].push(ev);
     };
     jobs.forEach(j => add(j.scheduled_start, { type: 'job', label: j.title, href: `/trabajos/${j.id}`, sub: j.clients?.name }));
-    visits.forEach(v => add(v.scheduled_at, { type: 'visit', label: v.requests?.title ?? 'Visita', href: `/solicitudes/${v.request_id}`, sub: v.requests?.clients?.name }));
+    visits.forEach(v => add(v.scheduled_at, { type: 'visit', label: v.requests?.title ?? t('visitFallback'), href: `/solicitudes/${v.request_id}`, sub: v.requests?.clients?.name }));
     calendarEvents.forEach(e => add(e.start_at, { type: 'event', label: e.title, href: calendarHref, sub: e.clients?.name }));
-    tasks.forEach(t => add(t.due_at, { type: 'task', label: t.title, href: calendarHref, sub: t.clients?.name }));
-    absences.forEach(a => add(a.date, { type: 'absence', label: `${a.technicians?.name ?? 'Técnico'} ausente`, href: '/admin/ausencias' }));
+    tasks.forEach(task => add(task.due_at, { type: 'task', label: task.title, href: calendarHref, sub: task.clients?.name }));
+    absences.forEach(a => add(a.date, { type: 'absence', label: t('technicianAbsent', { name: a.technicians?.name ?? t('technicianFallback') }), href: '/admin/ausencias' }));
     invoicesIssued.forEach(i => add(i.issued_at, { type: 'invoice_issued', label: i.invoice_number, href: `/facturas/${i.id}`, sub: i.clients?.name }));
     invoicesDue.forEach(i => add(i.due_at, { type: 'invoice_due', label: i.invoice_number, href: `/facturas/${i.id}`, sub: i.clients?.name }));
     payments.forEach(p => add(p.paid_at, { type: 'payment', label: fmt(p.amount), href: `/facturas/${p.invoice_id}`, sub: p.invoices?.invoice_number }));
     retenciones.forEach(r => add(r.fecha, { type: 'retencion', label: fmt(r.retencion_aplicada), href: '/accounting/retenciones?tab=cliente', sub: r.clients?.name }));
     return map;
-  }, [jobs, visits, calendarEvents, tasks, absences, invoicesIssued, invoicesDue, payments, retenciones, calendarHref]);
+  }, [jobs, visits, calendarEvents, tasks, absences, invoicesIssued, invoicesDue, payments, retenciones, calendarHref, t]);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -75,19 +82,19 @@ export default function AccountingCalendarClient({ year, month, jobs, visits, ca
   return (
     <div className="card" style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>📅 Calendario — {monthLabel} {year}</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>📅 {t('calendarTitle', { month: monthLabel, year })}</h2>
         <div style={{ display: 'flex', gap: 6 }}>
-          <Link href={`/accounting?cyear=${prevMonth.y}&cmonth=${prevMonth.m}`} className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }}>← Anterior</Link>
-          <Link href="/accounting" className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }}>Hoy</Link>
-          <Link href={`/accounting?cyear=${nextMonth.y}&cmonth=${nextMonth.m}`} className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }}>Siguiente →</Link>
+          <Link href={`/accounting?cyear=${prevMonth.y}&cmonth=${prevMonth.m}`} className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }}>← {t('previous')}</Link>
+          <Link href="/accounting" className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }}>{t('today')}</Link>
+          <Link href={`/accounting?cyear=${nextMonth.y}&cmonth=${nextMonth.m}`} className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }}>{t('next')} →</Link>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20 }}>
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 2 }}>
-            {['D', 'L', 'M', 'X', 'J', 'V', 'S'].map(d => (
-              <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--muted)', padding: '4px 0' }}>{d}</div>
+            {['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map(d => (
+              <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--muted)', padding: '4px 0' }}>{t(`weekdayLetters.${d}`)}</div>
             ))}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
@@ -105,8 +112,8 @@ export default function AccountingCalendarClient({ year, month, jobs, visits, ca
                   <div style={{ fontSize: 12, fontWeight: isToday ? 800 : 500, color: cell.current ? 'var(--text)' : 'var(--muted)' }}>{cell.day}</div>
                   {dayEvents.length > 0 && (
                     <div style={{ display: 'flex', gap: 2, marginTop: 4, flexWrap: 'wrap' }}>
-                      {uniqueTypes.slice(0, 4).map(t => (
-                        <div key={t} style={{ width: 6, height: 6, borderRadius: '50%', background: EVENT_COLORS[t] }} />
+                      {uniqueTypes.slice(0, 4).map(type => (
+                        <div key={type} style={{ width: 6, height: 6, borderRadius: '50%', background: EVENT_COLORS[type] }} />
                       ))}
                       {dayEvents.length > 4 && <span style={{ fontSize: 9, color: 'var(--muted)' }}>+{dayEvents.length - 4}</span>}
                     </div>
@@ -127,12 +134,12 @@ export default function AccountingCalendarClient({ year, month, jobs, visits, ca
 
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 10 }}>
-            {selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-PR', { weekday: 'long', month: 'short', day: 'numeric' }) : 'Selecciona un día'}
+            {selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString(dateLocale, { weekday: 'long', month: 'short', day: 'numeric' }) : t('selectADay')}
           </div>
           {!selectedDate ? (
-            <div style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>Haz clic en un día para ver sus eventos.</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>{t('clickADayHint')}</div>
           ) : selectedEvents.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>Sin eventos ese día.</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>{t('noEventsThatDay')}</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {selectedEvents.map((ev, i) => (

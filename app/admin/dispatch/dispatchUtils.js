@@ -96,12 +96,15 @@ export function formatHourLabel(h) {
   return `${hh}:00${period}`;
 }
 
-export const STATUS_BADGE = {
-  estimate:    { cls: 'badge-gray',  label: 'Estimado' },
-  scheduled:   { cls: 'badge-blue',  label: 'Programado' },
-  in_progress: { cls: 'badge-amber', label: 'En progreso' },
-  completed:   { cls: 'badge-green', label: 'Completado' },
-  cancelled:   { cls: 'badge-red',   label: 'Cancelado' },
+// Solo cls + key acá (sin labels) — cada componente que lo consume arma su propio
+// mapa traducido vía useMemo con su propio namespace de next-intl (mismo patrón que
+// app/trabajos/TrabajosTableClient.js y app/trabajos/[id]/page.js).
+export const STATUS_BADGE_DEFS = {
+  estimate:    { cls: 'badge-gray',  key: 'estimate' },
+  scheduled:   { cls: 'badge-blue',  key: 'scheduled' },
+  in_progress: { cls: 'badge-amber', key: 'in_progress' },
+  completed:   { cls: 'badge-green', key: 'completed' },
+  cancelled:   { cls: 'badge-red',   key: 'cancelled' },
 };
 
 export const STATUS_TINT = {

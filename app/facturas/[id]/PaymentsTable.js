@@ -2,12 +2,14 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
-const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
 const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function PaymentsTable({ payments, invoiceId, invoiceStatus, invoiceTotal, totalRetained }) {
   const router = useRouter();
+  const t = useTranslations('facturas.paymentsTable');
+  const methodLabel = { cash: t('method.cash'), check: t('method.check'), card: t('method.card'), transfer: t('method.transfer') };
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -52,7 +54,7 @@ export default function PaymentsTable({ payments, invoiceId, invoiceStatus, invo
   }
 
   async function deletePayment(p) {
-    if (!confirm(`¿Eliminar este pago de ${fmtMoney(p.amount)}?`)) return;
+    if (!confirm(t('confirmDelete', { amount: fmtMoney(p.amount) }))) return;
     setDeletingId(p.id);
     await supabase.from('payments').delete().eq('id', p.id);
     const newTotalPaid = payments.filter(x => x.id !== p.id).reduce((a, x) => a + Number(x.amount), 0);
@@ -62,7 +64,7 @@ export default function PaymentsTable({ payments, invoiceId, invoiceStatus, invo
   }
 
   if (!payments?.length) {
-    return <p style={{ color: 'var(--muted)', fontSize: 14 }}>No hay pagos registrados aún.</p>;
+    return <p style={{ color: 'var(--muted)', fontSize: 14 }}>{t('empty')}</p>;
   }
 
   return (
@@ -70,10 +72,10 @@ export default function PaymentsTable({ payments, invoiceId, invoiceStatus, invo
       <table>
         <thead>
           <tr>
-            <th>Fecha</th>
-            <th>Método</th>
-            <th>Referencia</th>
-            <th>Monto</th>
+            <th>{t('columns.date')}</th>
+            <th>{t('columns.method')}</th>
+            <th>{t('columns.reference')}</th>
+            <th>{t('columns.amount')}</th>
             <th></th>
           </tr>
         </thead>
@@ -98,37 +100,37 @@ export default function PaymentsTable({ payments, invoiceId, invoiceStatus, invo
       {editing && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Editar pago</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('editTitle')}</h2>
             <form onSubmit={saveEdit}>
               <div className="form-row" style={{ marginBottom: 16 }}>
                 <div className="form-group">
-                  <label>Monto *</label>
+                  <label>{t('amountLabel')}</label>
                   <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} step="0.01" min="0.01" required />
                 </div>
                 <div className="form-group">
-                  <label>Fecha</label>
+                  <label>{t('dateLabel')}</label>
                   <input type="date" value={form.paid_at} onChange={e => setForm(f => ({ ...f, paid_at: e.target.value }))} />
                 </div>
               </div>
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label>Método de pago</label>
+                <label>{t('methodLabel')}</label>
                 <select value={form.method} onChange={e => setForm(f => ({ ...f, method: e.target.value }))}>
                   {Object.entries(methodLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label>Referencia</label>
-                <input value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} placeholder="Cheque #, confirmación, etc." />
+                <label>{t('referenceLabel')}</label>
+                <input value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} placeholder={t('referencePlaceholder')} />
               </div>
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Notas</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Opcional" style={{ minHeight: 60 }} />
+                <label>{t('notesLabel')}</label>
+                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder={t('notesPlaceholder')} style={{ minHeight: 60 }} />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
-                  {saving ? 'Guardando...' : '💾 Guardar cambios'}
+                  {saving ? t('saving') : t('saveChanges')}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setEditing(null)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setEditing(null)}>{t('cancel')}</button>
               </div>
             </form>
           </div>

@@ -5,30 +5,35 @@ import { supabaseServer as supabase } from '../../lib/supabase';
 import { formatDatePR, formatTimePR } from '../../lib/datetimeLocal';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 const statusBadge = {
-  draft:     { cls: 'badge-gray',  label: 'Borrador' },
-  sent:      { cls: 'badge-blue',  label: 'Enviada' },
-  paid:      { cls: 'badge-green', label: 'Pagada' },
-  cancelled: { cls: 'badge-red',   label: 'Cancelada' },
+  draft:     { cls: 'badge-gray',  key: 'draft' },
+  sent:      { cls: 'badge-blue',  key: 'sent' },
+  paid:      { cls: 'badge-green', key: 'paid' },
+  cancelled: { cls: 'badge-red',   key: 'cancelled' },
 };
 
-function statusFor(inv, today) {
+function statusFor(inv, today, t) {
   if (inv.status === 'sent' && inv.due_at && inv.due_at < today) {
-    return { cls: 'badge-red', label: 'Vencida' };
+    return { cls: 'badge-red', label: t('status.overdue'), overdue: true };
   }
-  return statusBadge[inv.status] ?? statusBadge.draft;
+  const badge = statusBadge[inv.status] ?? statusBadge.draft;
+  return { cls: badge.cls, label: t(`status.${badge.key}`), overdue: false };
 }
 
-function formatViewedAt(dateStr) {
+function formatViewedAt(dateStr, locale, t) {
   const isToday = formatDatePR(dateStr, {}, 'en-CA') === formatDatePR(new Date(), {}, 'en-CA');
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
   if (isToday) {
-    return `hoy ${formatTimePR(dateStr, { hour: '2-digit', minute: '2-digit' })}`;
+    return t('today', { time: formatTimePR(dateStr, { hour: '2-digit', minute: '2-digit' }, dateLocale) });
   }
-  return formatDatePR(dateStr, { month: 'short', day: 'numeric' });
+  return formatDatePR(dateStr, { month: 'short', day: 'numeric' }, dateLocale);
 }
 
 export default async function FacturasPage() {
+  const t = await getTranslations('facturas.list');
+  const locale = await getLocale();
   const today = new Date().toISOString().slice(0, 10);
   const [{ data: invoices }, { data: views }] = await Promise.all([
     supabase
@@ -60,24 +65,24 @@ export default async function FacturasPage() {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <div className="page-title">Facturas</div>
+          <div className="page-title">{t('title')}</div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Link href="/facturas/recurrentes" className="btn btn-ghost">Recurrentes</Link>
-            <Link href="/facturas/nueva" className="btn btn-primary">+ Nueva factura</Link>
+            <Link href="/facturas/recurrentes" className="btn btn-ghost">{t('recurring')}</Link>
+            <Link href="/facturas/nueva" className="btn btn-primary">{t('newInvoice')}</Link>
           </div>
         </div>
 
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
           <div className="stat-card">
-            <div className="stat-label">Total facturas</div>
+            <div className="stat-label">{t('stats.total')}</div>
             <div className="stat-value">{invoices?.length ?? 0}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Pendiente cobro</div>
+            <div className="stat-label">{t('stats.pending')}</div>
             <div className="stat-value" style={{ color: 'var(--amber)', fontSize: 22 }}>${totalPending.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Cobrado</div>
+            <div className="stat-label">{t('stats.collected')}</div>
             <div className="stat-value" style={{ color: 'var(--ok)', fontSize: 22 }}>${totalPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
         </div>
@@ -86,27 +91,27 @@ export default async function FacturasPage() {
           {!invoices?.length ? (
             <div className="empty">
               <div className="empty-glyph">🧾</div>
-              <h3>No hay facturas aún</h3>
-              <p>Cuando factures a un cliente, aparecerá aquí.</p>
-              <Link href="/facturas/nueva" className="btn btn-primary btn-sm">+ Crear factura</Link>
+              <h3>{t('empty.title')}</h3>
+              <p>{t('empty.text')}</p>
+              <Link href="/facturas/nueva" className="btn btn-primary btn-sm">{t('empty.cta')}</Link>
             </div>
           ) : (
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>Cliente</th>
-                    <th>Estado</th>
-                    <th>Fecha</th>
-                    <th>Vence</th>
-                    <th>Total</th>
-                    <th>Vistas</th>
+                    <th>{t('columns.number')}</th>
+                    <th>{t('columns.client')}</th>
+                    <th>{t('columns.status')}</th>
+                    <th>{t('columns.date')}</th>
+                    <th>{t('columns.due')}</th>
+                    <th>{t('columns.total')}</th>
+                    <th>{t('columns.views')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoices.map(inv => {
-                    const b = statusFor(inv, today);
+                    const b = statusFor(inv, today, t);
                     const viewInfo = viewsByInvoice[inv.id];
                     return (
                       <tr key={inv.id}>
@@ -114,8 +119,8 @@ export default async function FacturasPage() {
                         <td>{inv.clients?.name ?? '—'}</td>
                         <td>
                           <span className={`badge ${b.cls}`}>{b.label}</span>
-                          {b.label === 'Vencida' && inv.reminders_paused_at && (
-                            <span className="badge badge-gray" style={{ marginLeft: 4 }} title="Recordatorios pausados">⏸</span>
+                          {b.overdue && inv.reminders_paused_at && (
+                            <span className="badge badge-gray" style={{ marginLeft: 4 }} title={t('remindersPaused')}>⏸</span>
                           )}
                         </td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at ?? '—'}</td>
@@ -124,10 +129,10 @@ export default async function FacturasPage() {
                         <td>
                           {viewInfo ? (
                             <span
-                              title={`Última vista: ${formatViewedAt(viewInfo.lastViewedAt)}`}
+                              title={t('lastViewed', { date: formatViewedAt(viewInfo.lastViewedAt, locale, t) })}
                               style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--navy)', fontWeight: 600, background: 'var(--navy-tint)', padding: '3px 8px', borderRadius: 12 }}
                             >
-                              👁️ {viewInfo.count} · {formatViewedAt(viewInfo.lastViewedAt)}
+                              👁️ {viewInfo.count} · {formatViewedAt(viewInfo.lastViewedAt, locale, t)}
                             </span>
                           ) : (
                             <span style={{ fontSize: 12, color: 'var(--muted)' }}>—</span>

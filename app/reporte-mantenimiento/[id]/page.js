@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import ReporteActions from './ReporteActions';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 function lines(text) {
   return (text ?? '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -18,6 +19,9 @@ function Section({ title, children }) {
 
 export default async function ReporteMantenimientoPublico({ params }) {
   const { id } = params;
+  const t = await getTranslations('reportes.mantenimiento');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
 
   const { data: report } = await supabase
     .from('maintenance_reports')
@@ -29,8 +33,8 @@ export default async function ReporteMantenimientoPublico({ params }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 48 }}>🔍</div>
-        <h2 style={{ color: '#16223d' }}>Reporte no encontrado</h2>
-        <p style={{ color: '#888' }}>El enlace puede haber expirado o ser incorrecto.</p>
+        <h2 style={{ color: '#16223d' }}>{t('notFoundTitle')}</h2>
+        <p style={{ color: '#888' }}>{t('notFoundBody')}</p>
       </div>
     </div>
   );
@@ -58,9 +62,9 @@ export default async function ReporteMantenimientoPublico({ params }) {
     return { ...n, photoUrls: urls.filter(Boolean) };
   }));
 
-  const technicianNames = [task?.technicians?.name, ...(task?.task_technicians ?? []).map(t => t.technicians?.name)].filter(Boolean).join(', ');
-  const fmtDate = d => d ? new Date(`${d}T00:00:00`).toLocaleDateString('es-PR', { year: 'numeric', month: 'long', day: 'numeric' }) : null;
-  const fmtDateTime = d => d ? new Date(d).toLocaleString('es-PR', { timeZone: 'America/Puerto_Rico', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;
+  const technicianNames = [task?.technicians?.name, ...(task?.task_technicians ?? []).map(tt => tt.technicians?.name)].filter(Boolean).join(', ');
+  const fmtDate = d => d ? new Date(`${d}T00:00:00`).toLocaleDateString(dateLocale, { year: 'numeric', month: 'long', day: 'numeric' }) : null;
+  const fmtDateTime = d => d ? new Date(d).toLocaleString(dateLocale, { timeZone: 'America/Puerto_Rico', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;
   const doneCount = checklist.filter(i => i.done).length;
 
   return (
@@ -82,27 +86,27 @@ export default async function ReporteMantenimientoPublico({ params }) {
                 <div style={{ color: '#999', fontSize: 12 }}>(787) 513-8352 · info@otesspr.com</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ color: '#16223d', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em' }}>REPORTE DE MANTENIMIENTO</div>
+                <div style={{ color: '#16223d', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em' }}>{t('title')}</div>
               </div>
             </div>
 
             <div style={{ padding: '28px 32px' }}>
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.08em' }}>Reporte</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.08em' }}>{t('reportLabel')}</div>
                 <div style={{ fontWeight: 700, fontSize: 20, color: '#16223d' }}>{report.title}</div>
                 {task?.title && <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>{task.title}</div>}
               </div>
 
               {(report.visit_date || technicianNames) && (
                 <div style={{ fontSize: 13, color: '#555', marginBottom: 20, lineHeight: 1.8 }}>
-                  {report.visit_date && <div>Fecha de visita: <strong style={{ color: '#16223d' }}>{fmtDate(report.visit_date)}</strong></div>}
-                  {(report.personnel || technicianNames) && <div>Personal presente: <strong style={{ color: '#16223d' }}>{report.personnel || technicianNames}</strong></div>}
+                  {report.visit_date && <div>{t('visitDateLabel')} <strong style={{ color: '#16223d' }}>{fmtDate(report.visit_date)}</strong></div>}
+                  {(report.personnel || technicianNames) && <div>{t('personnelLabel')} <strong style={{ color: '#16223d' }}>{report.personnel || technicianNames}</strong></div>}
                 </div>
               )}
 
               {client && (
                 <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 20, border: '1px solid #f0f0f0' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Cliente</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>{t('clientLabel')}</div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{client.name}</div>
                   {client.company && <div style={{ color: '#999', fontSize: 13 }}>{client.company}</div>}
                 </div>
@@ -110,13 +114,13 @@ export default async function ReporteMantenimientoPublico({ params }) {
 
               {task?.address && (
                 <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 20, border: '1px solid #f0f0f0' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Dirección</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>{t('addressLabel')}</div>
                   <div style={{ color: '#444', fontSize: 13 }}>{task.address}</div>
                 </div>
               )}
 
               {report.summary && (
-                <Section title="Resumen de la Visita">
+                <Section title={t('summaryTitle')}>
                   {lines(report.summary).map((p, i) => (
                     <p key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, margin: '0 0 10px' }}>{p}</p>
                   ))}
@@ -124,7 +128,7 @@ export default async function ReporteMantenimientoPublico({ params }) {
               )}
 
               {checklistWithUrls.length > 0 && (
-                <Section title={`Checklist (${doneCount}/${checklistWithUrls.length} completados)`}>
+                <Section title={t('checklistTitle', { done: doneCount, total: checklistWithUrls.length })}>
                   <div style={{ display: 'grid', gap: 14 }}>
                     {checklistWithUrls.map(item => (
                       <div key={item.id}>
@@ -148,7 +152,7 @@ export default async function ReporteMantenimientoPublico({ params }) {
               )}
 
               {notesWithUrls.length > 0 && (
-                <Section title="Notas de la Visita">
+                <Section title={t('notesTitle')}>
                   <div style={{ display: 'grid', gap: 14 }}>
                     {notesWithUrls.map(n => (
                       <div key={n.id}>
@@ -157,12 +161,12 @@ export default async function ReporteMantenimientoPublico({ params }) {
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                             {n.photoUrls.map((url, i) => (
                               <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                                <img src={url} alt="Foto de la visita" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' }} />
+                                <img src={url} alt={t('visitPhotoAlt')} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' }} />
                               </a>
                             ))}
                           </div>
                         )}
-                        <div style={{ fontSize: 11.5, color: '#999' }}>{n.author_name ?? 'Técnico'} · {fmtDateTime(n.created_at)}</div>
+                        <div style={{ fontSize: 11.5, color: '#999' }}>{n.author_name ?? t('technicianFallback')} · {fmtDateTime(n.created_at)}</div>
                       </div>
                     ))}
                   </div>
@@ -170,7 +174,7 @@ export default async function ReporteMantenimientoPublico({ params }) {
               )}
 
               {report.observations && (
-                <Section title="Observaciones">
+                <Section title={t('observationsTitle')}>
                   <ul style={{ margin: 0, paddingLeft: 20 }}>
                     {lines(report.observations).map((o, i) => (
                       <li key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, marginBottom: 6 }}>{o}</li>
@@ -180,7 +184,7 @@ export default async function ReporteMantenimientoPublico({ params }) {
               )}
 
               {report.recommendations && (
-                <Section title="Recomendaciones">
+                <Section title={t('recommendationsTitle')}>
                   <ol style={{ margin: 0, paddingLeft: 20 }}>
                     {lines(report.recommendations).map((r, i) => (
                       <li key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, marginBottom: 6 }}>{r}</li>
@@ -198,7 +202,7 @@ export default async function ReporteMantenimientoPublico({ params }) {
         </div>
 
         <div style={{ textAlign: 'center', color: '#bbb', fontSize: 12, padding: '16px 0' }}>
-          <p>¿Preguntas? Contáctanos en <a href="mailto:info@otesspr.com" style={{ color: '#e0972c' }}>info@otesspr.com</a> o al (787) 513-8352</p>
+          <p>{t('footer.questions')} <a href="mailto:info@otesspr.com" style={{ color: '#e0972c' }}>info@otesspr.com</a> {t('footer.orCall', { phone: '(787) 513-8352' })}</p>
         </div>
       </div>
     </div>

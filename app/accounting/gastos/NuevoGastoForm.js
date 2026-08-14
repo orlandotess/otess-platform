@@ -1,22 +1,25 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { useTranslations } from 'next-intl';
 
-const expenseCategories = [
-  { value: 'materiales', label: 'Materiales' },
-  { value: 'gasolina', label: 'Gasolina' },
-  { value: 'herramientas', label: 'Herramientas' },
-  { value: 'subcontratista', label: 'Subcontratista' },
-  { value: 'oficina', label: 'Oficina' },
-  { value: 'parking', label: 'Parking' },
-  { value: 'equipos', label: 'Equipos' },
-  { value: 'meals', label: 'Meals' },
-  { value: 'otro', label: 'Otro' },
+const expenseCategoryDefs = [
+  { value: 'materiales', key: 'materiales' },
+  { value: 'gasolina', key: 'gasolina' },
+  { value: 'herramientas', key: 'herramientas' },
+  { value: 'subcontratista', key: 'subcontratista' },
+  { value: 'oficina', key: 'oficina' },
+  { value: 'parking', key: 'parking' },
+  { value: 'equipos', key: 'equipos' },
+  { value: 'meals', key: 'meals' },
+  { value: 'otro', key: 'otro' },
 ];
 
 function jobLabel(j) { return `${j.job_number ? j.job_number + ' — ' : ''}${j.title}`; }
 
 export default function NuevoGastoForm({ jobs = [], onSaved, onCancel }) {
+  const t = useTranslations('accounting.newGastoForm');
+  const expenseCategories = useMemo(() => expenseCategoryDefs.map(c => ({ value: c.value, label: t(`expenseCategories.${c.key}`) })), [t]);
   const [jobSearch, setJobSearch] = useState('');
   const [jobId, setJobId] = useState('');
   const [form, setForm] = useState({
@@ -69,34 +72,34 @@ export default function NuevoGastoForm({ jobs = [], onSaved, onCancel }) {
 
   return (
     <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--amber)' }}>
-      <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Nuevo gasto</p>
+      <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('title')}</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
         <div className="form-group">
-          <label>Categoría</label>
+          <label>{t('categoryLabel')}</label>
           <select value={form.category} onChange={e => set('category', e.target.value)}>
             {expenseCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </div>
         <div className="form-group">
-          <label>Fecha</label>
+          <label>{t('dateLabel')}</label>
           <input type="date" value={form.expense_date} onChange={e => set('expense_date', e.target.value)} />
         </div>
         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-          <label>Descripción</label>
-          <input value={form.description} onChange={e => set('description', e.target.value)} placeholder="Ej: Cable THHN, gasolina de la semana, taladro nuevo..." />
+          <label>{t('descriptionLabel')}</label>
+          <input value={form.description} onChange={e => set('description', e.target.value)} placeholder={t('descriptionPlaceholder')} />
         </div>
         <div className="form-group">
-          <label>Suplidor (opcional)</label>
-          <input value={form.vendor} onChange={e => set('vendor', e.target.value)} placeholder="Ej: Home Depot" />
+          <label>{t('vendorLabel')}</label>
+          <input value={form.vendor} onChange={e => set('vendor', e.target.value)} placeholder={t('vendorPlaceholder')} />
         </div>
         <div className="form-group">
-          <label>Monto</label>
+          <label>{t('amountLabel')}</label>
           <input type="number" step="0.01" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="0.00" />
         </div>
         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-          <label>Trabajo (opcional — deja vacío para gasto general)</label>
-          <input list="gasto-job-datalist" value={jobSearch} onChange={e => handleJobSearchChange(e.target.value)} placeholder="Buscar trabajo por número o título..." />
+          <label>{t('jobLabel')}</label>
+          <input list="gasto-job-datalist" value={jobSearch} onChange={e => handleJobSearchChange(e.target.value)} placeholder={t('jobPlaceholder')} />
           <datalist id="gasto-job-datalist">
             {jobs.map(j => <option key={j.id} value={jobLabel(j)} />)}
           </datalist>
@@ -104,18 +107,18 @@ export default function NuevoGastoForm({ jobs = [], onSaved, onCancel }) {
       </div>
 
       {photoPreview && (
-        <img src={photoPreview} alt="recibo" style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, marginBottom: 12 }} />
+        <img src={photoPreview} alt={t('receiptAlt')} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, marginBottom: 12 }} />
       )}
 
       <div style={{ display: 'flex', gap: 10 }}>
         <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>
-          📷 Recibo
+          {t('receiptButton')}
           <input type="file" accept="image/*" onChange={e => handlePhoto(e.target.files?.[0])} style={{ display: 'none' }} />
         </label>
         <button className="btn btn-primary" onClick={save} disabled={saving || !form.description.trim() || !form.amount}>
-          {saving ? 'Guardando...' : '💾 Guardar'}
+          {saving ? t('saving') : t('save')}
         </button>
-        <button className="btn btn-ghost" onClick={onCancel}>Cancelar</button>
+        <button className="btn btn-ghost" onClick={onCancel}>{t('cancel')}</button>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { Resend } from 'resend';
 import { createSupabaseServerClient, getCurrentRole } from '../../../lib/supabase-server';
 import { supabaseServer } from '../../../lib/supabase';
+import { getServerLocale, getEmailTranslator } from '../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const CODE_TTL_MINUTES = 10;
@@ -22,6 +23,9 @@ export async function POST() {
   if (role !== 'admin') {
     return Response.json({ error: 'No aplica para este usuario' }, { status: 400 });
   }
+
+  const locale = getServerLocale();
+  const t = await getEmailTranslator(locale, 'emails.verificationCode');
 
   const { data: lastCode } = await supabaseServer
     .from('login_verification_codes')
@@ -59,17 +63,17 @@ export async function POST() {
   </div>
 
   <div style="background:#fff;padding:32px">
-    <p style="color:#555;font-size:15px;margin-top:0">Tu código de verificación para entrar a la plataforma OTESS es:</p>
+    <p style="color:#555;font-size:15px;margin-top:0">${t('intro')}</p>
     <div style="text-align:center;margin:28px 0">
       <span style="display:inline-block;background:#f0f2f5;color:#16223d;padding:16px 28px;border-radius:10px;font-weight:700;font-size:32px;letter-spacing:8px">${code}</span>
     </div>
-    <p style="color:#666;font-size:14px">Este código expira en ${CODE_TTL_MINUTES} minutos.</p>
-    <p style="color:#999;font-size:12px">Si no intentaste iniciar sesión, ignora este correo.</p>
+    <p style="color:#666;font-size:14px">${t('expiresIn', { minutes: CODE_TTL_MINUTES })}</p>
+    <p style="color:#999;font-size:12px">${t('ignoreNotice')}</p>
   </div>
 
   <div style="background:#f0f2f5;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center">
-    <p style="color:#888;font-size:12px;margin:0">¿Preguntas? Contáctanos en <a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a> o al (787) 513-8352</p>
-    <p style="color:#aaa;font-size:11px;margin:8px 0 0">OT Electrical & Security Solutions · Carolina, Puerto Rico</p>
+    <p style="color:#888;font-size:12px;margin:0">${t('footerQuestions', { email: '<a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a>', phone: '(787) 513-8352' })}</p>
+    <p style="color:#aaa;font-size:11px;margin:8px 0 0">${t('footerAddress')}</p>
   </div>
 
 </div>
@@ -80,7 +84,7 @@ export async function POST() {
     await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: user.email,
-      subject: `${code} es tu código de verificación — OTESS`,
+      subject: t('subject', { code }),
       html,
     });
   } catch (err) {

@@ -2,8 +2,8 @@
 // and labor, parents and accessories), one row each. Distinct from
 // purchaseListCsv.js, which is a vendor-grouped shopping list of products
 // only; this is the raw "Proposal Data" export.
-export function exportProposalDataCSV(options, proposalNumber) {
-  const csvRows = [['Opcion', 'Area', 'Tipo', 'Descripcion', 'Cantidad', 'Precio Unitario', 'Descuento', 'Exento IVU', 'Total']];
+export function exportProposalDataCSV(options, proposalNumber, t) {
+  const csvRows = [[t('columnOption'), t('columnArea'), t('columnType'), t('columnDescription'), t('columnQuantity'), t('columnUnitPrice'), t('columnDiscount'), t('columnTaxExempt'), t('columnTotal')]];
 
   for (const opt of options ?? []) {
     const items = (opt.items ?? []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
@@ -20,17 +20,17 @@ export function exportProposalDataCSV(options, proposalNumber) {
       optionTotal += lineTotal;
       csvRows.push([
         opt.name,
-        it.area || 'General',
-        it.item_type === 'product' ? 'Producto' : 'Labor',
+        it.area || t('generalArea'),
+        it.item_type === 'product' ? t('typeProduct') : t('typeLabor'),
         `${isAccessory ? '  ↳ ' : ''}${it.description ?? ''}`,
         quantity,
         unitPrice.toFixed(2),
         discount.toFixed(2),
-        it.exempt_reason ? 'Si' : 'No',
+        it.exempt_reason ? t('yes') : t('no'),
         lineTotal.toFixed(2),
       ]);
     }
-    csvRows.push(['', '', '', '', '', '', '', `Total ${opt.name}`, optionTotal.toFixed(2)]);
+    csvRows.push(['', '', '', '', '', '', '', t('optionTotalLabel', { name: opt.name }), optionTotal.toFixed(2)]);
   }
 
   const csvContent = csvRows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
@@ -38,7 +38,7 @@ export function exportProposalDataCSV(options, proposalNumber) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${proposalNumber}_Datos.csv`;
+  link.download = `${proposalNumber}_${t('filenameSuffix')}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

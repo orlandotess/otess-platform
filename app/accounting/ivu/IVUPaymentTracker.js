@@ -1,8 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-
-const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+import { useTranslations, useLocale } from 'next-intl';
 
 function rowFor(payments, year, month) {
   return payments.find(p => p.year === year && p.month === month) ?? {
@@ -11,6 +10,11 @@ function rowFor(payments, year, month) {
 }
 
 export default function IVUPaymentTracker({ year, payments: initial }) {
+  const t = useTranslations('accounting.ivuPaymentTracker');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const MONTHS = Array.from({ length: 12 }, (_, i) => capitalize(new Date(2000, i, 1).toLocaleDateString(dateLocale, { month: 'long' })));
   const [payments, setPayments] = useState(initial);
   const [savingKey, setSavingKey] = useState(null);
 
@@ -46,18 +50,18 @@ export default function IVUPaymentTracker({ year, payments: initial }) {
 
   return (
     <div className="card">
-      <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 4 }}>Pagos de IVU — {year}</p>
+      <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 4 }}>{t('title', { year })}</p>
       <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 14 }}>
-        Marca cada mes como pagado, define la fecha límite y el día en que quieres que te recordemos si sigue pendiente.
+        {t('description')}
       </p>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Mes</th>
-              <th style={{ textAlign: 'center' }}>Pagado</th>
-              <th>Fecha límite</th>
-              <th>Recordarme el día</th>
+              <th>{t('columns.month')}</th>
+              <th style={{ textAlign: 'center' }}>{t('columns.paid')}</th>
+              <th>{t('columns.dueDate')}</th>
+              <th>{t('columns.remindDay')}</th>
               <th></th>
             </tr>
           </thead>
@@ -76,11 +80,11 @@ export default function IVUPaymentTracker({ year, payments: initial }) {
                       onBlur={() => save(m, {})} style={{ fontSize: 13, padding: '5px 8px', maxWidth: 160 }} />
                   </td>
                   <td>
-                    <input type="number" min="1" max="28" value={row.reminder_day ?? ''} placeholder="día"
+                    <input type="number" min="1" max="28" value={row.reminder_day ?? ''} placeholder={t('reminderPlaceholder')}
                       onChange={e => setLocal(m, { reminder_day: e.target.value })}
                       onBlur={() => save(m, {})} style={{ fontSize: 13, padding: '5px 8px', width: 70 }} />
                   </td>
-                  <td style={{ fontSize: 11, color: 'var(--muted)' }}>{savingKey === key ? 'Guardando...' : ''}</td>
+                  <td style={{ fontSize: 11, color: 'var(--muted)' }}>{savingKey === key ? t('saving') : ''}</td>
                 </tr>
               );
             })}

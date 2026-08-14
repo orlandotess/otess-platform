@@ -1,11 +1,15 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import { supabase } from '../../../lib/supabase';
 import SearchBox from '../../SearchBox';
 
 export default function PayrollClient({ techStats: initialStats, monthlyPayroll, view, year, months, periodStart, periodEnd, allTechnicians = [] }) {
   const router = useRouter();
+  const t = useTranslations('accounting.payrollClient');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
   const [stats, setStats] = useState(initialStats);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
@@ -23,7 +27,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     const end = new Date(periodEnd + 'T00:00:00');
     const friday = new Date(end);
     friday.setDate(end.getDate() + 3); // Tue (period end) + 3 = following Fri
-    return friday.toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    return friday.toLocaleDateString(dateLocale, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   })();
 
   function startEdit(tech) {
@@ -81,13 +85,13 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     }
 
     const updated = recalc(newRate, newRegular, newOvertime);
-    setStats(prev => prev.map(t => t.id === tech.id ? { ...t, hourly_rate: newRate, ...updated, hasOverride: hoursChanged } : t));
+    setStats(prev => prev.map(row => row.id === tech.id ? { ...row, hourly_rate: newRate, ...updated, hasOverride: hoursChanged } : row));
     setEditing(null);
     setSaving(false);
   }
 
   async function resetOverride(tech) {
-    if (!confirm(`¿Borrar el ajuste manual de ${tech.name} para este período? Las horas volverán al cálculo automático.`)) return;
+    if (!confirm(t('confirmResetOverride', { name: tech.name }))) return;
     setSaving(true);
 
     await supabase.from('payroll_adjustments').delete()
@@ -96,7 +100,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
       .eq('period_end', periodEnd);
 
     const updated = recalc(tech.hourly_rate, tech.regularHoursRaw, tech.overtimeHoursRaw);
-    setStats(prev => prev.map(t => t.id === tech.id ? { ...t, ...updated, hasOverride: false } : t));
+    setStats(prev => prev.map(row => row.id === tech.id ? { ...row, ...updated, hasOverride: false } : row));
     setEditing(null);
     setSaving(false);
   }
@@ -117,7 +121,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
       || (manualForm.grossPay !== '' && parseFloat(manualForm.grossPay) > 0);
     if (!manualTechId || !hasValue) return;
     setSavingManual(true);
-    const tech = stats.find(t => t.id === manualTechId) || allTechnicians.find(t => t.id === manualTechId);
+    const tech = stats.find(row => row.id === manualTechId) || allTechnicians.find(row => row.id === manualTechId);
     const regular = parseFloat(manualForm.regular) || 0;
     const overtime = parseFloat(manualForm.overtime) || 0;
     const grossOverride = manualForm.grossPay !== '' ? parseFloat(manualForm.grossPay) : null;
@@ -145,9 +149,9 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
         ? { regularHours: regular, overtimeHours: overtime, totalHours: regular + overtime, regularPay: grossOverride, overtimePay: 0, grossPay: grossOverride, retention: grossOverride * 0.10, netPay: grossOverride * 0.90 }
         : recalc(rate, regular, overtime);
       setStats(prev => {
-        const exists = prev.find(t => t.id === manualTechId);
+        const exists = prev.find(row => row.id === manualTechId);
         if (exists) {
-          return prev.map(t => t.id === manualTechId ? { ...t, ...updated, hasOverride: true } : t);
+          return prev.map(row => row.id === manualTechId ? { ...row, ...updated, hasOverride: true } : row);
         }
         return [...prev, { ...tech, ...updated, hasOverride: true }];
       });
@@ -163,13 +167,13 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     }
   }
 
-  const totGross = stats.reduce((a, t) => a + t.grossPay, 0);
-  const totRet = stats.reduce((a, t) => a + t.retention, 0);
-  const totNet = stats.reduce((a, t) => a + t.netPay, 0);
-  const totH = stats.reduce((a, t) => a + t.totalHours, 0);
+  const totGross = stats.reduce((a, row) => a + row.grossPay, 0);
+  const totRet = stats.reduce((a, row) => a + row.retention, 0);
+  const totNet = stats.reduce((a, row) => a + row.netPay, 0);
+  const totH = stats.reduce((a, row) => a + row.totalHours, 0);
 
   const query = search.trim().toLowerCase();
-  const visibleStats = query ? stats.filter(t => t.name.toLowerCase().includes(query)) : stats;
+  const visibleStats = query ? stats.filter(row => row.name.toLowerCase().includes(query)) : stats;
 
   const manualHasValue = parseFloat(manualForm.regular) > 0 || parseFloat(manualForm.overtime) > 0
     || (manualForm.grossPay !== '' && parseFloat(manualForm.grossPay) > 0);
@@ -180,83 +184,83 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
           <div>
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Por técnico</p>
-            {view === 'week' && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>💰 Fecha de pago: {payDate}</p>}
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('byTechnician')}</p>
+            {view === 'week' && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>💰 {t('payDate', { date: payDate })}</p>}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <SearchBox value={search} onChange={setSearch} placeholder="Buscar técnico..." />
-            <button className="btn btn-amber" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setShowManualAdd(true)}>+ Agregar payroll manual</button>
+            <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
+            <button className="btn btn-amber" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setShowManualAdd(true)}>{t('addManualPayroll')}</button>
           </div>
         </div>
-        {stats.every(t => t.totalHours === 0 && !t.hasOverride) ? (
-          <div className="empty"><p>No hay entradas de tiempo para este período.</p></div>
+        {stats.every(row => row.totalHours === 0 && !row.hasOverride) ? (
+          <div className="empty"><p>{t('emptyPeriod')}</p></div>
         ) : visibleStats.length === 0 ? (
-          <div className="empty"><p>Sin resultados para "{search}".</p></div>
+          <div className="empty"><p>{t('noResultsFor', { search })}</p></div>
         ) : (
           <div className="table-wrap">
             <table className="table-dense">
               <thead>
                 <tr>
-                  <th>Técnico</th>
-                  <th style={{ textAlign: 'right' }}>Tarifa/h</th>
-                  <th style={{ textAlign: 'right' }}>Horas Reg.</th>
-                  <th style={{ textAlign: 'right' }}>Horas OT</th>
-                  <th style={{ textAlign: 'right' }}>Total Horas</th>
-                  <th style={{ textAlign: 'right' }}>Pay Regular</th>
-                  <th style={{ textAlign: 'right' }}>Pay OT (1.5x)</th>
-                  <th style={{ textAlign: 'right' }}>Gross Pay</th>
-                  <th style={{ textAlign: 'right' }}>Retención (10%)</th>
-                  <th style={{ textAlign: 'right' }}>Net Pay</th>
+                  <th>{t('columns.technician')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.rate')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.regularHours')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.overtimeHours')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.totalHours')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.regularPay')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.overtimePay')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.grossPay')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.retention')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.netPay')}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {visibleStats.filter(t => t.totalHours > 0 || t.hasOverride || editing === t.id).map(t => (
-                  <tr key={t.id}>
-                    <td style={{ fontWeight: 700 }}>{t.name}</td>
+                {visibleStats.filter(row => row.totalHours > 0 || row.hasOverride || editing === row.id).map(row => (
+                  <tr key={row.id}>
+                    <td style={{ fontWeight: 700 }}>{row.name}</td>
                     <td style={{ textAlign: 'right' }}>
-                      {editing === t.id ? (
+                      {editing === row.id ? (
                         <input type="number" value={editData.rate} onChange={e => setEditData(d => ({ ...d, rate: e.target.value }))}
                           style={{ width: 80, padding: '4px 8px', border: '1.5px solid var(--amber)', borderRadius: 6, fontSize: 13, textAlign: 'right', outline: 'none' }} />
-                      ) : <span style={{ color: 'var(--muted)' }}>{fmt(t.hourly_rate)}/h</span>}
+                      ) : <span style={{ color: 'var(--muted)' }}>{fmt(row.hourly_rate)}/h</span>}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      {editing === t.id ? (
+                      {editing === row.id ? (
                         <input type="number" step="0.1" value={editData.regular} onChange={e => setEditData(d => ({ ...d, regular: e.target.value }))}
                           style={{ width: 80, padding: '4px 8px', border: '1.5px solid var(--amber)', borderRadius: 6, fontSize: 13, textAlign: 'right', outline: 'none' }} />
                       ) : (
-                        <span style={{ color: t.hasOverride ? 'var(--amber)' : 'var(--muted)' }}>
-                          {fmtH(t.regularHours)}{t.hasOverride ? ' ✏️' : ''}
+                        <span style={{ color: row.hasOverride ? 'var(--amber)' : 'var(--muted)' }}>
+                          {fmtH(row.regularHours)}{row.hasOverride ? ' ✏️' : ''}
                         </span>
                       )}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      {editing === t.id ? (
+                      {editing === row.id ? (
                         <input type="number" step="0.1" value={editData.overtime} onChange={e => setEditData(d => ({ ...d, overtime: e.target.value }))}
                           style={{ width: 80, padding: '4px 8px', border: '1.5px solid var(--amber)', borderRadius: 6, fontSize: 13, textAlign: 'right', outline: 'none' }} />
                       ) : (
-                        <span style={{ color: t.overtimeHours > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmtH(t.overtimeHours)}</span>
+                        <span style={{ color: row.overtimeHours > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmtH(row.overtimeHours)}</span>
                       )}
                     </td>
-                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtH(t.totalHours)}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(t.regularPay)}</td>
-                    <td style={{ textAlign: 'right', color: t.overtimePay > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmt(t.overtimePay)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(t.grossPay)}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--warn)' }}>{fmt(t.retention)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--ok)' }}>{fmt(t.netPay)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtH(row.totalHours)}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(row.regularPay)}</td>
+                    <td style={{ textAlign: 'right', color: row.overtimePay > 0 ? 'var(--amber)' : 'var(--muted)' }}>{fmt(row.overtimePay)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(row.grossPay)}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--warn)' }}>{fmt(row.retention)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--ok)' }}>{fmt(row.netPay)}</td>
                     <td>
-                      {editing === t.id ? (
+                      {editing === row.id ? (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => saveTech(t)} disabled={saving}>
+                          <button className="btn btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => saveTech(row)} disabled={saving}>
                             {saving ? '...' : '💾'}
                           </button>
                           <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditing(null)}>✕</button>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => startEdit(t)}>✏️</button>
-                          {t.hasOverride && (
-                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px', color: 'var(--warn)' }} onClick={() => resetOverride(t)} disabled={saving} title="Borrar ajuste manual">🗑</button>
+                          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => startEdit(row)}>✏️</button>
+                          {row.hasOverride && (
+                            <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px', color: 'var(--warn)' }} onClick={() => resetOverride(row)} disabled={saving} title={t('deleteOverride')}>🗑</button>
                           )}
                         </div>
                       )}
@@ -266,7 +270,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: '2px solid var(--border)' }}>
-                  <td colSpan={4} style={{ fontWeight: 700, paddingTop: 12 }}>TOTAL</td>
+                  <td colSpan={4} style={{ fontWeight: 700, paddingTop: 12 }}>{t('total')}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmtH(totH)}</td>
                   <td colSpan={2} style={{ paddingTop: 12 }}></td>
                   <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totGross)}</td>
@@ -282,15 +286,15 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
 
       {view === 'year' && (
         <div className="card">
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Desglose mensual {year}</p>
+          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>{t('monthlyBreakdown', { year })}</p>
           <div className="table-wrap">
             <table className="table-dense">
               <thead>
                 <tr>
-                  <th>Mes</th>
-                  <th style={{ textAlign: 'right' }}>Gross Pay</th>
-                  <th style={{ textAlign: 'right' }}>Retención (10%)</th>
-                  <th style={{ textAlign: 'right' }}>Net Pay</th>
+                  <th>{t('columns.month')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.grossPay')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.retention')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.netPay')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -305,7 +309,7 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: '2px solid var(--border)' }}>
-                  <td style={{ fontWeight: 700, paddingTop: 12 }}>TOTAL</td>
+                  <td style={{ fontWeight: 700, paddingTop: 12 }}>{t('total')}</td>
                   <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totGross)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--warn)', paddingTop: 12 }}>{fmt(totRet)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--ok)', paddingTop: 12 }}>{fmt(totNet)}</td>
@@ -318,45 +322,45 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
       {showManualAdd && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Agregar payroll manual</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('modal.title')}</h2>
             <div className="form-group" style={{ marginBottom: 14 }}>
-              <label>Técnico</label>
+              <label>{t('modal.technician')}</label>
               <select value={manualTechId} onChange={e => setManualTechId(e.target.value)}>
-                <option value="">— Seleccionar técnico —</option>
-                {allTechnicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                <option value="">{t('modal.selectTechnician')}</option>
+                {allTechnicians.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 14 }}>
-              <label>Fecha (define la semana de pago)</label>
+              <label>{t('modal.dateLabel')}</label>
               <input type="date" value={manualForm.date} onChange={e => setManualForm(f => ({ ...f, date: e.target.value }))} />
               <p style={{ fontSize: 11, color: 'var(--amber)', marginTop: 4, fontWeight: 700 }}>
-                Semana de pago: {manualWeekRange.start} — {manualWeekRange.end}
+                {t('modal.payWeek', { start: manualWeekRange.start, end: manualWeekRange.end })}
               </p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
               <div className="form-group">
-                <label>Horas regulares</label>
+                <label>{t('modal.regularHours')}</label>
                 <input type="number" step="0.1" min="0" value={manualForm.regular} onChange={e => setManualForm(f => ({ ...f, regular: e.target.value }))} placeholder="0.0" />
               </div>
               <div className="form-group">
-                <label>Horas overtime</label>
+                <label>{t('modal.overtimeHours')}</label>
                 <input type="number" step="0.1" min="0" value={manualForm.overtime} onChange={e => setManualForm(f => ({ ...f, overtime: e.target.value }))} placeholder="0.0" />
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 14 }}>
-              <label>Pago bruto directo (opcional — úsalo si no tienes las horas)</label>
+              <label>{t('modal.grossPayLabel')}</label>
               <input type="number" step="0.01" min="0" value={manualForm.grossPay} onChange={e => setManualForm(f => ({ ...f, grossPay: e.target.value }))} placeholder="0.00" />
-              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Si lo llenas, este monto reemplaza el cálculo de horas × tarifa. La retención (10%) y el neto se calculan sobre este bruto.</p>
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{t('modal.grossPayHint')}</p>
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, fontSize: 13, cursor: 'pointer' }}>
               <input type="checkbox" checked={manualForm.paid} onChange={e => setManualForm(f => ({ ...f, paid: e.target.checked }))} style={{ width: 16, height: 16, cursor: 'pointer' }} />
-              Ya fue pagado
+              {t('modal.alreadyPaid')}
             </label>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-primary" onClick={saveManualPayroll} disabled={savingManual || !manualTechId || !manualHasValue} style={{ flex: 1, justifyContent: 'center' }}>
-                {savingManual ? 'Guardando...' : '💾 Guardar'}
+                {savingManual ? t('modal.saving') : t('modal.save')}
               </button>
-              <button className="btn btn-ghost" onClick={() => { setShowManualAdd(false); setManualTechId(''); setManualForm({ regular: '', overtime: '', date: periodStart, grossPay: '', paid: false }); }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => { setShowManualAdd(false); setManualTechId(''); setManualForm({ regular: '', overtime: '', date: periodStart, grossPay: '', paid: false }); }}>{t('modal.cancel')}</button>
             </div>
           </div>
         </div>

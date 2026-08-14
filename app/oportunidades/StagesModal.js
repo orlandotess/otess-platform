@@ -1,17 +1,19 @@
 'use client';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useTranslations } from 'next-intl';
 
 const DIACRITICS_RE = new RegExp('[̀-ͯ]', 'g');
 
-function slugify(s) {
+function slugify(s, fallback) {
   const base = s.toLowerCase().trim()
     .normalize('NFD').replace(DIACRITICS_RE, '')
     .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  return (base || 'etapa') + '_' + Date.now().toString(36).slice(-4);
+  return (base || fallback) + '_' + Date.now().toString(36).slice(-4);
 }
 
 export default function StagesModal({ stages, opportunityCounts, onClose, onSaved }) {
+  const t = useTranslations('oportunidades.stagesModal');
   const [rows, setRows] = useState(stages.map(s => ({ ...s })));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -31,21 +33,22 @@ export default function StagesModal({ stages, opportunityCounts, onClose, onSave
   }
 
   function addStage() {
-    setRows(r => [...r, { id: null, key: slugify('Nueva etapa'), label: 'Nueva etapa' }]);
+    const newStageLabel = t('newStageLabel');
+    setRows(r => [...r, { id: null, key: slugify(newStageLabel, 'etapa'), label: newStageLabel }]);
   }
 
   function removeStage(i) {
     const row = rows[i];
     if (opportunityCounts[row.key] > 0) {
-      alert(`"${row.label}" tiene ${opportunityCounts[row.key]} oportunidad(es). Muévelas a otra etapa antes de eliminarla.`);
+      alert(t('removeStageBlocked', { label: row.label, count: opportunityCounts[row.key] }));
       return;
     }
     setRows(r => r.filter((_, idx) => idx !== i));
   }
 
   async function handleSave() {
-    if (rows.length === 0) { setError('Debe haber al menos una etapa'); return; }
-    if (rows.some(r => !r.label.trim())) { setError('Todas las etapas necesitan un nombre'); return; }
+    if (rows.length === 0) { setError(t('errors.atLeastOne')); return; }
+    if (rows.some(r => !r.label.trim())) { setError(t('errors.allNeedName')); return; }
     setSaving(true);
     setError('');
 
@@ -56,7 +59,7 @@ export default function StagesModal({ stages, opportunityCounts, onClose, onSave
     const removedKeys = stages.map(s => s.key).filter(k => !rows.some(r => r.key === k));
     if (removedKeys.length) {
       const { error: delErr } = await supabase.from('opportunity_stages').delete().in('key', removedKeys);
-      if (delErr) { setError('No se pudieron eliminar algunas etapas: ' + delErr.message); setSaving(false); return; }
+      if (delErr) { setError(t('errors.deleteFailed', { error: delErr.message })); setSaving(false); return; }
     }
 
     const { data: fresh, error: refErr } = await supabase.from('opportunity_stages').select('id, key, label, position').order('position');
@@ -69,7 +72,7 @@ export default function StagesModal({ stages, opportunityCounts, onClose, onSave
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 460, maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>Configurar Etapas</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{t('title')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
 
@@ -86,19 +89,19 @@ export default function StagesModal({ stages, opportunityCounts, onClose, onSave
               </div>
               <input value={row.label} onChange={e => updateLabel(i, e.target.value)} style={{ flex: 1 }} />
               <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 20, textAlign: 'right' }}>{opportunityCounts[row.key] ?? 0}</span>
-              <button type="button" onClick={() => removeStage(i)} title="Eliminar etapa"
+              <button type="button" onClick={() => removeStage(i)} title={t('removeStageTitle')}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warn)', fontSize: 16, padding: '0 4px' }}>×</button>
             </div>
           ))}
         </div>
 
-        <button type="button" className="btn btn-ghost btn-sm" onClick={addStage} style={{ marginBottom: 18 }}>+ Agregar etapa</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={addStage} style={{ marginBottom: 18 }}>+ {t('addStage')}</button>
 
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
-            {saving ? 'Guardando...' : '💾 Guardar'}
+            {saving ? t('saving') : t('save')}
           </button>
-          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>{t('cancel')}</button>
         </div>
       </div>
     </div>

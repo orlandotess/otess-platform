@@ -4,8 +4,10 @@ export const revalidate = 0;
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import CompraDetailClient from './detail-client';
+import { getTranslations } from 'next-intl/server';
 
 export default async function CompraDetailPage({ params }) {
+  const t = await getTranslations('compras.detail');
   const { data: order } = await supabase
     .from('purchase_orders')
     .select('*, vendors(id, name, contact_name, email, phone), purchase_order_items(*)')
@@ -17,7 +19,7 @@ export default async function CompraDetailPage({ params }) {
       <div className="admin-shell">
         <Sidebar />
         <main className="main-content">
-          <p>Orden de compra no encontrada.</p>
+          <p>{t('notFound')}</p>
         </main>
       </div>
     );

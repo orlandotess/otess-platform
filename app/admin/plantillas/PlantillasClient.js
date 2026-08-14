@@ -2,9 +2,11 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 export default function PlantillasClient({ templates: initial }) {
   const router = useRouter();
+  const tr = useTranslations('admin.plantillasClient');
   const [templates, setTemplates] = useState(initial);
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState('');
@@ -89,28 +91,28 @@ export default function PlantillasClient({ templates: initial }) {
     <div>
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showNew ? 20 : 0 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Plantillas ({templates.length})</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{tr('title', { count: templates.length })}</h2>
           <button className="btn btn-primary" onClick={() => setShowNew(!showNew)}>
-            {showNew ? 'Cancelar' : '+ Nueva plantilla'}
+            {showNew ? tr('cancel') : tr('newTemplate')}
           </button>
         </div>
 
         {showNew && (
           <form onSubmit={saveTemplate}>
             <div className="form-group" style={{ marginBottom: 12 }}>
-              <label>Nombre de la plantilla *</label>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Instalación CCTV" required />
+              <label>{tr('nameLabel')}</label>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder={tr('namePlaceholder')} required />
             </div>
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Descripción (opcional)</label>
-              <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Descripción breve..." />
+              <label>{tr('descriptionLabel')}</label>
+              <input value={description} onChange={e => setDescription(e.target.value)} placeholder={tr('descriptionPlaceholder')} />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Ítems del checklist</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>{tr('itemsLabel')}</label>
               {items.map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                   <input value={item} onChange={e => setItems(prev => prev.map((v, i) => i === idx ? e.target.value : v))}
-                    placeholder={`Ítem ${idx + 1}...`} style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                    placeholder={tr('itemPlaceholder', { number: idx + 1 })} style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
                   {items.length > 1 && (
                     <button type="button" onClick={() => setItems(prev => prev.filter((_, i) => i !== idx))}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>×</button>
@@ -118,37 +120,37 @@ export default function PlantillasClient({ templates: initial }) {
                 </div>
               ))}
               <button type="button" className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }} onClick={() => setItems(prev => [...prev, ''])}>
-                + Agregar ítem
+                {tr('addItem')}
               </button>
             </div>
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Guardando...' : '💾 Guardar plantilla'}
+              {saving ? tr('saving') : tr('saveTemplate')}
             </button>
           </form>
         )}
       </div>
 
       {templates.length === 0 ? (
-        <div className="card empty"><p>No hay plantillas. Crea la primera arriba.</p></div>
+        <div className="card empty"><p>{tr('emptyState')}</p></div>
       ) : (
         templates.map(t => (
           <div key={t.id} className="card" style={{ marginBottom: 12 }}>
             {editingId === t.id ? (
               <form onSubmit={e => updateTemplate(e, t.id)}>
                 <div className="form-group" style={{ marginBottom: 12 }}>
-                  <label>Nombre de la plantilla *</label>
-                  <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Ej: Instalación CCTV" required />
+                  <label>{tr('nameLabel')}</label>
+                  <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={tr('namePlaceholder')} required />
                 </div>
                 <div className="form-group" style={{ marginBottom: 16 }}>
-                  <label>Descripción (opcional)</label>
-                  <input value={editDescription} onChange={e => setEditDescription(e.target.value)} placeholder="Descripción breve..." />
+                  <label>{tr('descriptionLabel')}</label>
+                  <input value={editDescription} onChange={e => setEditDescription(e.target.value)} placeholder={tr('descriptionPlaceholder')} />
                 </div>
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Ítems del checklist</label>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>{tr('itemsLabel')}</label>
                   {editItems.map((item, idx) => (
                     <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                       <input value={item} onChange={e => setEditItems(prev => prev.map((v, i) => i === idx ? e.target.value : v))}
-                        placeholder={`Ítem ${idx + 1}...`} style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                        placeholder={tr('itemPlaceholder', { number: idx + 1 })} style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
                       {editItems.length > 1 && (
                         <button type="button" onClick={() => setEditItems(prev => prev.filter((_, i) => i !== idx))}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 18 }}>×</button>
@@ -156,14 +158,14 @@ export default function PlantillasClient({ templates: initial }) {
                     </div>
                   ))}
                   <button type="button" className="btn btn-ghost" style={{ fontSize: 13, padding: '6px 12px' }} onClick={() => setEditItems(prev => [...prev, ''])}>
-                    + Agregar ítem
+                    {tr('addItem')}
                   </button>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button type="submit" className="btn btn-primary" disabled={saving}>
-                    {saving ? 'Guardando...' : '💾 Guardar cambios'}
+                    {saving ? tr('saving') : tr('saveChanges')}
                   </button>
-                  <button type="button" className="btn btn-ghost" onClick={() => setEditingId(null)}>Cancelar</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => setEditingId(null)}>{tr('cancel')}</button>
                 </div>
               </form>
             ) : (
@@ -172,7 +174,7 @@ export default function PlantillasClient({ templates: initial }) {
                   <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => setExpanded(expanded === t.id ? null : t.id)}>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{t.name}</div>
                     {t.description && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>{t.description}</div>}
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{t.checklist_template_items?.length ?? 0} ítems</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{tr('itemCount', { count: t.checklist_template_items?.length ?? 0 })}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 4, marginLeft: 12 }}>
                     <button onClick={() => startEdit(t)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>✏️</button>

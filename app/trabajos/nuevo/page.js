@@ -10,10 +10,12 @@ import TaxBreakdown from '../../TaxBreakdown';
 import { calcularIVU } from '../../../lib/tax';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { localInputToIso } from '../../../lib/datetimeLocal';
+import { useTranslations } from 'next-intl';
 
 export default function NuevoTrabajo() {
+  const t = useTranslations('trabajos.newJob');
   return (
-    <Suspense fallback={<div style={{ padding: 40 }}>Cargando...</div>}>
+    <Suspense fallback={<div style={{ padding: 40 }}>{t('loading')}</div>}>
       <NuevoTrabajoForm />
     </Suspense>
   );
@@ -29,11 +31,12 @@ function emptyItem(overrides = {}) {
     ...overrides,
   };
 }
-function emptyArea(name = 'Área 1') {
+function emptyArea(name) {
   return { key: Math.random().toString(36).slice(2), name, items: [emptyItem()] };
 }
 
 function NuevoTrabajoForm() {
+  const t = useTranslations('trabajos.newJob');
   const router = useRouter();
   const searchParams = useSearchParams();
   const clientParam = searchParams.get('client');
@@ -50,7 +53,7 @@ function NuevoTrabajoForm() {
   });
   const [contactDraft, setContactDraft] = useState({ contact_id: '', name: '', phone: '', email: '', cargo: '' });
   const [editingContactKey, setEditingContactKey] = useState(null);
-  const [areas, setAreas] = useState([emptyArea()]);
+  const [areas, setAreas] = useState(() => [emptyArea(t('areaName', { number: 1 }))]);
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — item currently being dragged
   const [cableCalcTarget, setCableCalcTarget] = useState(null); // { areaKey } — which area the calculator adds into, or null when closed
@@ -137,7 +140,7 @@ function NuevoTrabajoForm() {
   const selectedProperty = properties.find(p => p.id === form.property_id);
 
   function addArea() {
-    setAreas(prev => [...prev, emptyArea(`Área ${prev.length + 1}`)]);
+    setAreas(prev => [...prev, emptyArea(t('areaName', { number: prev.length + 1 }))]);
   }
   function removeArea(areaKey) {
     setAreas(prev => prev.filter(a => a.key !== areaKey));
@@ -283,7 +286,7 @@ function NuevoTrabajoForm() {
   // parent/child awareness, so bundled accessories need their price zeroed
   // out here before they're fed in — same net effect as itemLineTotal above.
   const flatItemsForTax = areas.flatMap(a => a.items.map(it => it.parentKey && itemLineTotal(it, a) === 0 ? { ...it, unit_price: 0 } : it));
-  const t = calcularIVU(flatItemsForTax, clientType, taxRules);
+  const ivuResult = calcularIVU(flatItemsForTax, clientType, taxRules);
 
   const fullAddress = [form.street, form.city, form.state, form.zip].filter(Boolean).join(', ');
   const mapsLinks = buildMapsLinks(form.street, form.city, form.state, form.zip);
@@ -304,7 +307,7 @@ function NuevoTrabajoForm() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.client_id || !form.title.trim()) { setError('Cliente y título son requeridos'); return; }
+    if (!form.client_id || !form.title.trim()) { setError(t('errorRequired')); return; }
     setSaving(true); setError('');
 
     try {
@@ -411,7 +414,7 @@ function NuevoTrabajoForm() {
       }
       router.push(`/trabajos/${job.id}`);
     } catch (e) {
-      setError(e.message || 'Ocurrió un error al guardar el trabajo. Intenta de nuevo.');
+      setError(e.message || t('errorGeneric'));
     } finally {
       setSaving(false);
     }
@@ -422,9 +425,9 @@ function NuevoTrabajoForm() {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <div className="page-title">{quickMode ? 'Nueva solicitud' : 'Nuevo trabajo'}</div>
+          <div className="page-title">{quickMode ? t('pageTitleQuick') : t('pageTitleNew')}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>Solicitud rápida</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>{t('quickToggleLabel')}</span>
             <button type="button" onClick={() => setQuickMode(q => !q)}
               style={{ width: 44, height: 24, borderRadius: 20, border: 'none', cursor: 'pointer', position: 'relative', background: quickMode ? 'var(--amber)' : 'var(--border-strong)', transition: 'background 0.2s' }}>
               <span style={{ position: 'absolute', top: 2, left: quickMode ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--surface)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
@@ -435,7 +438,7 @@ function NuevoTrabajoForm() {
         {quickMode && quickSuccess && (
           <div className="card" style={{ marginBottom: 20, background: 'var(--ok-tint)', border: '1.5px solid var(--ok)' }}>
             <p style={{ fontSize: 13, color: 'var(--navy)', margin: 0, fontWeight: 600 }}>
-              ✓ Solicitud creada. Puedes seguir agregando más.
+              {t('quickSuccessMessage')}
             </p>
           </div>
         )}
@@ -443,7 +446,7 @@ function NuevoTrabajoForm() {
         {quickMode && !quickSuccess && (
           <div className="card" style={{ marginBottom: 20, background: 'var(--amber-tint)', border: '1.5px solid var(--amber)' }}>
             <p style={{ fontSize: 13, color: 'var(--navy)', margin: 0 }}>
-              Modo solicitud rápida: solo cliente + título. Se crea como <strong>Estimado</strong> sin fecha — la agendas después desde el calendario.
+              {t('quickModeInfoPre')} <strong>{t('quickModeInfoBold')}</strong> {t('quickModeInfoPost')}
             </p>
           </div>
         )}
@@ -454,23 +457,23 @@ function NuevoTrabajoForm() {
 
             {/* Info general */}
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('generalInfo')}</p>
               <div className="form-group" style={{ position: 'relative' }}>
-                <label>Cliente *</label>
+                <label>{t('clientLabel')}</label>
                 {selectedClient ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
-                    <span style={{ flex: 1, fontWeight: 600 }}>{selectedClient.name}{selectedClient.client_type === 'b2b' ? ' (B2B)' : ''}</span>
-                    <button type="button" onClick={() => { set('client_id', ''); set('bill_to', 'person'); setClientSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700 }}>Cambiar</button>
+                    <span style={{ flex: 1, fontWeight: 600 }}>{selectedClient.name}{selectedClient.client_type === 'b2b' ? t('b2bSuffix') : ''}</span>
+                    <button type="button" onClick={() => { set('client_id', ''); set('bill_to', 'person'); setClientSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700 }}>{t('change')}</button>
                   </div>
                 ) : showNewClient ? (
                   <div style={{ border: '1.5px solid var(--border)', borderRadius: 8, padding: 12 }}>
-                    <input value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Nombre del cliente" style={{ marginBottom: 8 }} />
-                    <input value={newClientPhone} onChange={e => setNewClientPhone(e.target.value)} placeholder="Teléfono (opcional)" style={{ marginBottom: 8 }} />
+                    <input value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder={t('newClientNamePlaceholder')} style={{ marginBottom: 8 }} />
+                    <input value={newClientPhone} onChange={e => setNewClientPhone(e.target.value)} placeholder={t('newClientPhonePlaceholder')} style={{ marginBottom: 8 }} />
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="button" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={creatingClient} onClick={handleCreateQuickClient}>
-                        {creatingClient ? 'Creando...' : 'Crear cliente'}
+                        {creatingClient ? t('creatingClient') : t('createClient')}
                       </button>
-                      <button type="button" className="btn btn-ghost" onClick={() => setShowNewClient(false)}>Cancelar</button>
+                      <button type="button" className="btn btn-ghost" onClick={() => setShowNewClient(false)}>{t('cancel')}</button>
                     </div>
                   </div>
                 ) : (
@@ -481,7 +484,7 @@ function NuevoTrabajoForm() {
                         value={clientSearch}
                         onChange={e => { setClientSearch(e.target.value); setShowClientDropdown(true); }}
                         onFocus={() => setShowClientDropdown(true)}
-                        placeholder="Buscar cliente por nombre..."
+                        placeholder={t('clientSearchPlaceholder')}
                         style={{ paddingLeft: 36 }}
                       />
                     </div>
@@ -490,18 +493,18 @@ function NuevoTrabajoForm() {
                         <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowClientDropdown(false)} />
                         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 240, overflowY: 'auto' }}>
                           {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 ? (
-                            <div style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13 }}>No se encontraron clientes.</div>
+                            <div style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13 }}>{t('noClientsFound')}</div>
                           ) : clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(c => (
                             <div key={c.id} onClick={() => { set('client_id', c.id); set('bill_to', c.report_name_source === 'company' ? 'company' : 'person'); setClientSearch(''); setShowClientDropdown(false); }}
                               style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 500, borderBottom: '1px solid var(--border)' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                              {c.name}{c.client_type === 'b2b' ? ' (B2B)' : ''}
+                              {c.name}{c.client_type === 'b2b' ? t('b2bSuffix') : ''}
                             </div>
                           ))}
                           <div onClick={() => { setShowClientDropdown(false); setShowNewClient(true); }}
                             style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--amber)' }}>
-                            + Crear cliente nuevo
+                            {t('createNewClient')}
                           </div>
                         </div>
                       </>
@@ -511,7 +514,7 @@ function NuevoTrabajoForm() {
               </div>
               {hasCompany && (
                 <div className="form-group" style={{ marginTop: 4 }}>
-                  <label>Facturar a</label>
+                  <label>{t('billToLabel')}</label>
                   <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
                       <input type="radio" name="bill_to" value="person" checked={form.bill_to === 'person'} onChange={() => set('bill_to', 'person')} />
@@ -525,36 +528,36 @@ function NuevoTrabajoForm() {
                 </div>
               )}
               <div className="form-group">
-                <label>{quickMode ? '¿Qué necesita el cliente? *' : 'Título del trabajo *'}</label>
-                <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="Ej: Instalación cámaras CCTV" />
+                <label>{quickMode ? t('jobTitleLabelQuick') : t('jobTitleLabel')}</label>
+                <input value={form.title} onChange={e => set('title', e.target.value)} placeholder={t('jobTitlePlaceholder')} />
               </div>
 
               {!quickMode && (
                 <>
                   <div className="form-group">
-                    <label>Estado</label>
+                    <label>{t('statusLabel')}</label>
                     <select value={form.status} onChange={e => set('status', e.target.value)}>
-                      <option value="estimate">Estimado</option>
-                      <option value="scheduled">Programado</option>
-                      <option value="in_progress">En progreso</option>
-                      <option value="completed">Completado</option>
+                      <option value="estimate">{t('status.estimate')}</option>
+                      <option value="scheduled">{t('status.scheduled')}</option>
+                      <option value="in_progress">{t('status.in_progress')}</option>
+                      <option value="completed">{t('status.completed')}</option>
                     </select>
                   </div>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Fecha inicio</label>
+                      <label>{t('startDateLabel')}</label>
                       <input type="datetime-local" value={form.scheduled_start} onChange={e => set('scheduled_start', e.target.value)} />
                     </div>
                     <div className="form-group">
-                      <label>Fecha fin</label>
+                      <label>{t('endDateLabel')}</label>
                       <input type="datetime-local" value={form.scheduled_end} onChange={e => set('scheduled_end', e.target.value)} />
                     </div>
                   </div>
                 </>
               )}
               <div className="form-group">
-                <label>Notas</label>
-                <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Notas internas del trabajo..." />
+                <label>{t('notesLabel')}</label>
+                <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder={t('notesPlaceholder')} />
               </div>
             </div>
 
@@ -562,22 +565,22 @@ function NuevoTrabajoForm() {
               <>
                 {/* Propiedad */}
                 <div className="card">
-                  <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>📍 Propiedad</p>
+                  <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('propertySection')}</p>
                   {properties.length > 0 && !showNewProperty && (
                     <div className="form-group">
-                      <label>Propiedad del cliente</label>
+                      <label>{t('clientPropertyLabel')}</label>
                       {selectedProperty ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
                           <span style={{ flex: 1, fontWeight: 600 }}>{selectedProperty.name}{selectedProperty.is_primary ? ' ★' : ''}{selectedProperty.city ? ` — ${selectedProperty.city}` : ''}</span>
-                          <button type="button" onClick={() => set('property_id', '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>Cambiar</button>
+                          <button type="button" onClick={() => set('property_id', '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>{t('change')}</button>
                         </div>
                       ) : (
                         <>
                           <select value={form.property_id} onChange={e => set('property_id', e.target.value)}>
-                            <option value="">— Seleccionar propiedad —</option>
+                            <option value="">{t('selectPropertyPlaceholder')}</option>
                             {properties.map(p => <option key={p.id} value={p.id}>{p.name}{p.is_primary ? ' ★' : ''}</option>)}
                           </select>
-                          <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>+ Agregar propiedad nueva</button>
+                          <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>{t('addNewProperty')}</button>
                         </>
                       )}
                     </div>
@@ -585,28 +588,28 @@ function NuevoTrabajoForm() {
                   {(properties.length === 0 || showNewProperty || selectedProperty) && (
                     <>
                       {properties.length > 0 && showNewProperty && (
-                        <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>‹ Usar propiedad existente</button>
+                        <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>{t('useExistingProperty')}</button>
                       )}
                       <div className="form-group">
-                        <label>Nombre de la propiedad</label>
-                        <input value={form.property_name} onChange={e => set('property_name', e.target.value)} placeholder="Ej: Oficina Principal, Almacén Caguas" />
+                        <label>{t('propertyNameLabel')}</label>
+                        <input value={form.property_name} onChange={e => set('property_name', e.target.value)} placeholder={t('propertyNamePlaceholder')} />
                       </div>
                       <div className="form-group">
-                        <label>Dirección</label>
-                        <input value={form.street} onChange={e => set('street', e.target.value)} placeholder="Calle y número" />
+                        <label>{t('addressLabel')}</label>
+                        <input value={form.street} onChange={e => set('street', e.target.value)} placeholder={t('addressPlaceholder')} />
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
                         <div className="form-group">
-                          <label>Ciudad</label>
-                          <input value={form.city} onChange={e => set('city', e.target.value)} placeholder="San Juan" />
+                          <label>{t('cityLabel')}</label>
+                          <input value={form.city} onChange={e => set('city', e.target.value)} placeholder={t('cityPlaceholder')} />
                         </div>
                         <div className="form-group">
-                          <label>Estado</label>
-                          <input value={form.state} onChange={e => set('state', e.target.value)} placeholder="PR" />
+                          <label>{t('stateLabel')}</label>
+                          <input value={form.state} onChange={e => set('state', e.target.value)} placeholder={t('statePlaceholder')} />
                         </div>
                         <div className="form-group">
-                          <label>Zip</label>
-                          <input value={form.zip} onChange={e => set('zip', e.target.value)} placeholder="00901" />
+                          <label>{t('zipLabel')}</label>
+                          <input value={form.zip} onChange={e => set('zip', e.target.value)} placeholder={t('zipPlaceholder')} />
                         </div>
                       </div>
                     </>
@@ -616,21 +619,21 @@ function NuevoTrabajoForm() {
                       {mapsLinks.direct ? (
                         <a href={mapsLinks.direct} target="_blank" rel="noopener noreferrer"
                           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                          🗺️ Abrir ubicación
+                          {t('openLocation')}
                         </a>
                       ) : (
                         <>
                           <a href={mapsLinks.google} target="_blank" rel="noopener noreferrer"
                             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                            🗺️ Google Maps
+                            {t('googleMaps')}
                           </a>
                           <a href={mapsLinks.apple} target="_blank" rel="noopener noreferrer"
                             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                            🍎 Apple Maps
+                            {t('appleMaps')}
                           </a>
                           <a href={mapsLinks.waze} target="_blank" rel="noopener noreferrer"
                             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                            🚗 Waze
+                            {t('waze')}
                           </a>
                         </>
                       )}
@@ -640,7 +643,7 @@ function NuevoTrabajoForm() {
 
                 {/* Contacto */}
                 <div className="card">
-                  <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>👤 Contactos encargados</p>
+                  <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('contactsSection')}</p>
                   {form.contacts.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
                       {form.contacts.map(c => (
@@ -653,7 +656,7 @@ function NuevoTrabajoForm() {
                             )}
                           </div>
                           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                            <button type="button" onClick={() => editContact(c.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️ Editar</button>
+                            <button type="button" onClick={() => editContact(c.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>{t('editContact')}</button>
                             <button type="button" onClick={() => removeContact(c.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warn)', fontSize: 14 }}>✕</button>
                           </div>
                         </div>
@@ -661,48 +664,48 @@ function NuevoTrabajoForm() {
                     </div>
                   )}
                   {editingContactKey && (
-                    <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>Editando contacto — cambia los datos y guarda, o cancela.</p>
+                    <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>{t('editingContactNotice')}</p>
                   )}
                   {contacts.length > 0 && (
                     <div className="form-group">
-                      <label>Seleccionar contacto del cliente</label>
+                      <label>{t('selectContactLabel')}</label>
                       <select value={contactDraft.contact_id} onChange={e => pickExistingContact(e.target.value)}>
-                        <option value="">— Seleccionar contacto —</option>
+                        <option value="">{t('selectContactPlaceholder')}</option>
                         {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_primary ? ' ★' : ''}</option>)}
                       </select>
                     </div>
                   )}
                   <div className="form-group">
-                    <label>Nombre</label>
-                    <input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} placeholder="Nombre del contacto" />
+                    <label>{t('contactNameLabel')}</label>
+                    <input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} placeholder={t('contactNamePlaceholder')} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div className="form-group">
-                      <label>Teléfono</label>
-                      <input value={contactDraft.phone} onChange={e => setContactDraft(d => ({ ...d, phone: e.target.value }))} placeholder="787-000-0000" />
+                      <label>{t('phoneLabel')}</label>
+                      <input value={contactDraft.phone} onChange={e => setContactDraft(d => ({ ...d, phone: e.target.value }))} placeholder={t('phonePlaceholder')} />
                     </div>
                     <div className="form-group">
-                      <label>Email</label>
-                      <input type="email" value={contactDraft.email} onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))} placeholder="contacto@email.com" />
+                      <label>{t('emailLabel')}</label>
+                      <input type="email" value={contactDraft.email} onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))} placeholder={t('emailPlaceholder')} />
                     </div>
                   </div>
                   <div className="form-group">
-                    <label>Cargo</label>
-                    <input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder="Ej: Project Manager" />
+                    <label>{t('positionLabel')}</label>
+                    <input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder={t('positionPlaceholder')} />
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addContact} disabled={!contactDraft.name.trim()}>
-                      {editingContactKey ? '💾 Guardar cambios' : '+ Agregar contacto'}
+                      {editingContactKey ? t('saveContactChanges') : t('addContact')}
                     </button>
                     {editingContactKey && (
-                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={cancelEditContact}>Cancelar</button>
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={cancelEditContact}>{t('cancel')}</button>
                     )}
                   </div>
                 </div>
 
                 {/* Áreas de trabajo */}
                 <div className="card">
-                  <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Áreas del trabajo</p>
+                  <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('areasSection')}</p>
 
                   {areas.map((area, areaIndex) => (
                     <div key={area.key}
@@ -713,7 +716,7 @@ function NuevoTrabajoForm() {
                         <input value={area.name} onChange={e => updateAreaName(area.key, e.target.value)}
                           style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0 }} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{area.name} Total: {fmt(areaTotal(area))}</span>
+                          <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{t('areaTotal', { name: area.name, total: fmt(areaTotal(area)) })}</span>
                           <div style={{ position: 'relative' }}>
                             <button type="button" onClick={() => setAreaMenuOpen(o => o === area.key ? null : area.key)}
                               style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, padding: '2px 6px' }}>⋮</button>
@@ -724,7 +727,7 @@ function NuevoTrabajoForm() {
                                   <button type="button" disabled={areas.length <= 1}
                                     onClick={() => { removeArea(area.key); setAreaMenuOpen(null); }}
                                     style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: areas.length <= 1 ? 'default' : 'pointer', borderRadius: 6, color: areas.length <= 1 ? 'var(--muted)' : 'var(--warn)' }}>
-                                    🗑 Eliminar área
+                                    {t('deleteArea')}
                                   </button>
                                 </div>
                               </>
@@ -734,7 +737,7 @@ function NuevoTrabajoForm() {
                       </div>
 
                       <div style={{ marginBottom: 10 }}>
-                        <LineItemPicker catalogOptions={catalogItems} onSelect={item => addFromCatalog(area.key, item)} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+                        <LineItemPicker catalogOptions={catalogItems} onSelect={item => addFromCatalog(area.key, item)} placeholder={t('catalogSearchPlaceholder')} />
                       </div>
 
                       {area.items.map((item, itemIndex) => (
@@ -803,7 +806,7 @@ function NuevoTrabajoForm() {
                                   draggable
                                   onDragStart={() => setDragItem({ areaKey: area.key, itemKey: item.key })}
                                   onDragEnd={() => setDragItem(null)}
-                                  title="Arrastrar para mover a otra área"
+                                  title={t('dragToMoveArea')}
                                   style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 15, padding: '0 4px', userSelect: 'none' }}
                                 >⠿</span>
                                 <button type="button" onClick={() => removeItem(area.key, item.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
@@ -813,14 +816,14 @@ function NuevoTrabajoForm() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 32, marginBottom: 8, marginTop: -4 }}>
                             <button type="button" onClick={() => addAccessory(area.key, item.key)}
                               style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
-                              + Accesorio
+                              {t('addAccessory')}
                             </button>
                             {area.items.some(child => child.parentKey === item.key) && (
                               <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
-                                title="Si está activo, el precio de los accesorios se combina en el total de este producto (no se muestran precios individuales). Si lo desactivas, cada accesorio se cotiza por separado.">
+                                title={t('combinePriceTitle')}>
                                 <input type="checkbox" checked={item.combinePrice !== false}
                                   onChange={e => setItem(area.key, item.key, 'combinePrice', e.target.checked)} />
-                                Combinar precio de accesorios
+                                {t('combinePriceLabel')}
                               </label>
                             )}
                           </div>
@@ -828,13 +831,13 @@ function NuevoTrabajoForm() {
                         )
                       ))}
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key, { type: 'product', tax_category: 'product' })}>+ Añadir producto</button>
-                        <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key)}>+ Añadir labor</button>
-                        <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ areaKey: area.key })}>🧮 Calcular cable/tubo</button>
+                        <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key, { type: 'product', tax_category: 'product' })}>{t('addProduct')}</button>
+                        <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key)}>{t('addLabor')}</button>
+                        <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ areaKey: area.key })}>{t('calculateCable')}</button>
                       </div>
                     </div>
                   ))}
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addArea}>+ Agregar área</button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addArea}>{t('addArea')}</button>
                 </div>
               </>
             )}
@@ -842,9 +845,9 @@ function NuevoTrabajoForm() {
             {quickMode && (
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
-                  {saving ? 'Guardando...' : 'Crear solicitud'}
+                  {saving ? t('saving') : t('createRequest')}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ justifyContent: 'center' }}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ justifyContent: 'center' }}>{t('cancel')}</button>
               </div>
             )}
           </div>
@@ -854,18 +857,18 @@ function NuevoTrabajoForm() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div className="card">
                 <TaxBreakdown
-                  lineas={flatItemsForTax} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                  lineas={flatItemsForTax} clientType={clientType} taxRules={taxRules} title={t('taxSummaryTitle')}
                   note={clientType === 'b2b' && (
                     <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
-                      Cliente B2B — Labor al 4%
+                      {t('b2bLaborNote')}
                     </div>
                   )}
                 />
               </div>
               <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
-                {saving ? 'Guardando...' : 'Guardar trabajo'}
+                {saving ? t('saving') : t('saveJob')}
               </button>
-              <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>Cancelar</button>
+              <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>{t('cancel')}</button>
             </div>
           )}
         </form>

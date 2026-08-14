@@ -7,6 +7,7 @@ import { indexDayOverrides, splitRegularOvertime } from "../../../../lib/payroll
 import Sidebar from "../../../Sidebar";
 import Link from "next/link";
 import HistorialClient from "./HistorialClient";
+import { getTranslations } from "next-intl/server";
 
 // Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
 // /admin/timesheet and /accounting/payroll) so this doesn't depend on the
@@ -22,6 +23,7 @@ function getWeekRange(offset = 0) {
 }
 
 export default async function PayrollHistorial() {
+  const t = await getTranslations("accounting.payrollHistorial");
   const [{ data: technicians }, { data: allEntries }, { data: allAdjustments }, { data: allDayOverrides }] = await Promise.all([
     supabase.from("technicians").select("*").order("name"),
     supabase.from("time_entries").select("*").not("clocked_out_at", "is", null).order("clocked_in_at"),
@@ -55,7 +57,7 @@ export default async function PayrollHistorial() {
     weekStarts.add(ws.toISOString().slice(0, 10));
   });
 
-  const months = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"].map(key => t(`months.${key}`));
 
   // Build rows: one per technician per week
   const rows = [];
@@ -130,11 +132,11 @@ export default async function PayrollHistorial() {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Historial de Payroll</div>
-            <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>Todos los pagos por técnico</p>
+            <div className="page-title">{t("title")}</div>
+            <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>{t("subtitle")}</p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            <Link href="/accounting/payroll" className="btn btn-ghost">← Resumen</Link>
+            <Link href="/accounting/payroll" className="btn btn-ghost">← {t("summary")}</Link>
           </div>
         </div>
 

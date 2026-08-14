@@ -5,17 +5,22 @@ import { getCurrentRole } from '../../../lib/supabase-server';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import SolicitudTabs from './SolicitudTabs';
+import { getTranslations } from 'next-intl/server';
 
-const statusBadge = {
-  nueva:                { cls: 'badge-blue',  label: 'Nueva' },
-  necesita_aprobacion:  { cls: 'badge-amber', label: 'Necesita aprobación' },
-  evaluacion_completa:  { cls: 'badge-green', label: 'Evaluación completa' },
-  convertida:           { cls: 'badge-dark',  label: 'Convertida' },
-  archivada:            { cls: 'badge-gray',  label: 'Archivada' },
+const statusBadgeCls = {
+  nueva:                'badge-blue',
+  necesita_aprobacion:  'badge-amber',
+  evaluacion_completa:  'badge-green',
+  convertida:           'badge-dark',
+  archivada:            'badge-gray',
 };
 
 export default async function SolicitudDetail({ params }) {
   const { id } = params;
+  const t = await getTranslations('solicitudes.detail');
+  const statusBadge = Object.fromEntries(
+    Object.entries(statusBadgeCls).map(([k, cls]) => [k, { cls, label: t(`status.${k}`) }])
+  );
   const currentRole = await getCurrentRole();
   const isTecnico = currentRole === 'tecnico';
 
@@ -30,8 +35,8 @@ export default async function SolicitudDetail({ params }) {
   if (!solicitud) {
     const notFoundHeader = (
       <div className="page-header">
-        <div className="page-title">Solicitud no encontrada</div>
-        <Link href={isTecnico ? '/crew' : '/solicitudes'} className="btn btn-ghost">← Volver</Link>
+        <div className="page-title">{t('notFound')}</div>
+        <Link href={isTecnico ? '/crew' : '/solicitudes'} className="btn btn-ghost">{t('back')}</Link>
       </div>
     );
     return isTecnico ? (
@@ -97,12 +102,12 @@ export default async function SolicitudDetail({ params }) {
           <span className={`badge ${b.cls}`} style={{ marginTop: 6, display: 'inline-block' }}>{b.label}</span>
           {solicitud.jobs && (
             <Link href={`/trabajos/${solicitud.jobs.id}`} style={{ marginLeft: 10, fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>
-              → Ver trabajo {solicitud.jobs.job_number}
+              {t('viewJob', { jobNumber: solicitud.jobs.job_number })}
             </Link>
           )}
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <Link href={isTecnico ? '/crew' : '/solicitudes'} className="btn btn-ghost">← {isTecnico ? 'Crew App' : 'Solicitudes'}</Link>
+          <Link href={isTecnico ? '/crew' : '/solicitudes'} className="btn btn-ghost">{isTecnico ? t('backCrew') : t('backList')}</Link>
         </div>
       </div>
 

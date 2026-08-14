@@ -1,9 +1,11 @@
 "use client";
 import { useRef, useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 
 const COLORS = ["#e05c2a", "#e74c3c", "#27ae60", "#2a4cb5", "#f1c40f", "#ffffff", "#000000"];
 
 export default function PhotoAnnotator({ imageUrl, onSave, onCancel }) {
+  const t = useTranslations("shared.photoAnnotator");
   const canvasRef = useRef(null);
   const imgRef = useRef(null);
   const [tool, setTool] = useState("pen"); // pen | arrow | circle | text
@@ -149,10 +151,10 @@ export default function PhotoAnnotator({ imageUrl, onSave, onCancel }) {
     }, "image/jpeg", 0.92);
   }
 
-  const toolBtn = (t, icon, label) => (
-    <button onClick={() => setTool(t)} style={{
-      padding: "8px 14px", borderRadius: 8, border: "2px solid", borderColor: tool === t ? "var(--navy)" : "var(--border)",
-      background: tool === t ? "var(--navy)" : "var(--surface)", color: tool === t ? "#fff" : "var(--navy)",
+  const toolBtn = (toolName, icon, label) => (
+    <button onClick={() => setTool(toolName)} style={{
+      padding: "8px 14px", borderRadius: 8, border: "2px solid", borderColor: tool === toolName ? "var(--navy)" : "var(--border)",
+      background: tool === toolName ? "var(--navy)" : "var(--surface)", color: tool === toolName ? "#fff" : "var(--navy)",
       fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
     }}>
       {icon} {label}
@@ -162,11 +164,11 @@ export default function PhotoAnnotator({ imageUrl, onSave, onCancel }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 3000, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", justifyContent: "center" }}>
-        {toolBtn("pen", "✏️", "Lápiz")}
-        {toolBtn("arrow", "➡️", "Flecha")}
-        {toolBtn("circle", "⭕", "Círculo")}
-        {toolBtn("text", "🔤", "Texto")}
-        <button onClick={undo} style={{ padding: "8px 14px", borderRadius: 8, border: "2px solid var(--border)", background: "var(--surface)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>↩️ Deshacer</button>
+        {toolBtn("pen", "✏️", t("toolPen"))}
+        {toolBtn("arrow", "➡️", t("toolArrow"))}
+        {toolBtn("circle", "⭕", t("toolCircle"))}
+        {toolBtn("text", "🔤", t("toolText"))}
+        <button onClick={undo} style={{ padding: "8px 14px", borderRadius: 8, border: "2px solid var(--border)", background: "var(--surface)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>↩️ {t("undo")}</button>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 14, alignItems: "center" }}>
@@ -195,15 +197,15 @@ export default function PhotoAnnotator({ imageUrl, onSave, onCancel }) {
           <div style={{ position: "absolute", left: textInput.x, top: textInput.y - 20, display: "flex", gap: 6, background: "var(--surface)", padding: 6, borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
             <input autoFocus value={textValue} onChange={e => setTextValue(e.target.value)}
               onKeyDown={e => e.key === "Enter" && addText()}
-              style={{ border: "1px solid var(--border)", borderRadius: 4, padding: "4px 8px", fontSize: 13, width: 140 }} placeholder="Texto..." />
-            <button onClick={addText} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>OK</button>
+              style={{ border: "1px solid var(--border)", borderRadius: 4, padding: "4px 8px", fontSize: 13, width: 140 }} placeholder={t("textPlaceholder")} />
+            <button onClick={addText} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{t("confirmButton")}</button>
           </div>
         )}
       </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-        <button onClick={handleSave} style={{ background: "var(--ok)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>💾 Guardar</button>
-        <button onClick={onCancel} style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
+        <button onClick={handleSave} style={{ background: "var(--ok)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>💾 {t("saveButton")}</button>
+        <button onClick={onCancel} style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{t("cancelButton")}</button>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import DispatchBoard from './DispatchBoard';
 import { todayPR } from './dispatchUtils';
+import { getTranslations } from 'next-intl/server';
 
 // Puerto Rico usa AST (UTC-4) todo el año, sin horario de verano — el offset fijo es seguro aquí.
 function dayBoundsPR(day) {
@@ -20,6 +21,7 @@ function dayBoundsPR(day) {
 const JOB_FIELDS = 'id, title, job_number, status, technician_id, scheduled_start, scheduled_end, property_name, street, city, clients(name), technicians(name), job_technicians(technician_id, technicians(name))';
 
 export default async function DispatchPage({ searchParams }) {
+  const t = await getTranslations('admin.dispatch');
   const day = searchParams?.day ?? todayPR();
   const { start, end } = dayBoundsPR(day);
 
@@ -87,7 +89,7 @@ export default async function DispatchPage({ searchParams }) {
     .eq('date', day);
 
   const absencesByTech = {};
-  for (const a of absenceRows ?? []) absencesByTech[a.technician_id] = a.reason || 'Ausente';
+  for (const a of absenceRows ?? []) absencesByTech[a.technician_id] = a.reason || t('absentDefault');
 
   // Clock-ins abiertos (Crew App) — para mostrar en qué job está cada técnico ahora
   // mismo, sin importar el día que se esté viendo en el board.

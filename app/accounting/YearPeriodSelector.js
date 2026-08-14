@@ -1,9 +1,11 @@
 'use client';
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { withParams } from './updatePeriodParams';
 
 export default function YearPeriodSelector({ year }) {
+  const t = useTranslations('accounting.yearSelector');
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -25,7 +27,7 @@ export default function YearPeriodSelector({ year }) {
         onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 16, fontWeight: 800, color: 'var(--navy)' }}
       >
-        📆 Año {year}
+        📆 {t('yearLabel', { year })}
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>▾</span>
       </button>
 
@@ -35,7 +37,7 @@ export default function YearPeriodSelector({ year }) {
           <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.15)', padding: 14, zIndex: 21, width: 240 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <button type="button" className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 13 }} onClick={() => go(year - 1)}>‹</button>
-              <strong style={{ fontSize: 14, color: 'var(--navy)' }}>Seleccionar año</strong>
+              <strong style={{ fontSize: 14, color: 'var(--navy)' }}>{t('selectYear')}</strong>
               <button type="button" className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 13 }} onClick={() => go(year + 1)}>›</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 12 }}>
@@ -57,7 +59,7 @@ export default function YearPeriodSelector({ year }) {
             </div>
             {year !== currentYear && (
               <button type="button" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', fontSize: 13 }} onClick={() => go(currentYear)}>
-                Volver al año actual
+                {t('backToCurrentYear')}
               </button>
             )}
           </div>

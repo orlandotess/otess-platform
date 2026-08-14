@@ -8,13 +8,12 @@ import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { buildChecklistItemsFromLineItems } from '../../../lib/generateChecklistFromLineItems';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { localInputToIso } from '../../../lib/datetimeLocal';
-
-const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
-
-Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
+import { useTranslations } from 'next-intl';
 
 export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, title: initialTitle = '', clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null, archivedAt: initialArchivedAt = null }) {
   const router = useRouter();
+  const t = useTranslations('estimados.actions');
+  const tPurchaseListCsv = useTranslations('shared.purchaseListCsv');
   const [archivedAt, setArchivedAt] = useState(initialArchivedAt);
   const [archiving, setArchiving] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
@@ -45,7 +44,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
   const billToName = billTo === 'company' && clientCompany ? clientCompany : clientName;
 
   const toOptions = [
-    ...(clientEmail ? [{ label: clientName ? `${clientName} (cliente)` : 'Cliente', email: clientEmail }] : []),
+    ...(clientEmail ? [{ label: clientName ? t('emailModal.clientLabelWithName', { name: clientName }) : t('emailModal.clientLabel'), email: clientEmail }] : []),
     ...clientContacts.filter(c => c.email).map(c => ({ label: c.name, email: c.email })),
   ];
   const isCustomEmail = !toOptions.some(o => o.email === emailTo);
@@ -97,7 +96,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
         state: prop?.state || null,
         zip: prop?.zip || null,
       }]).select().single();
-      if (jobErr) { alert(jobErr.message); return; }
+      if (jobErr) { alert(t('errorWithMessage', { error: jobErr.message })); return; }
 
       let poMessage = null;
       if (items.length) {
@@ -107,7 +106,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
           supplier_price: i.supplier_price, exempt_reason: i.exempt_reason,
           area: i.area, vendor: i.vendor, photo_url: i.photo_url, sort_order: i.sort_order,
         }))).select();
-        if (itemsErr) { alert(itemsErr.message); return; }
+        if (itemsErr) { alert(t('errorWithMessage', { error: itemsErr.message })); return; }
 
         try {
           const normalized = (insertedItems ?? []).map(it => ({
@@ -117,7 +116,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
           const { orders } = await generatePurchaseOrders(normalized, {
             sourceType: 'job', sourceId: job.id, sourceLabel: `${jobNumber} — ${billToName || estimateNumber}`,
           });
-          if (orders.length) poMessage = `${orders.length} orden(es) de compra generada(s) automáticamente.`;
+          if (orders.length) poMessage = t('poGenerated', { count: orders.length });
         } catch (poErr) {
           console.error('Error generando orden de compra automática:', poErr);
         }
@@ -162,7 +161,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
     const data = await res.json();
     setSending(false);
     if (data.success) { setEmailSent(true); setShowEmail(false); router.refresh(); }
-    else alert('Error: ' + data.error);
+    else alert(t('errorWithMessage', { error: data.error }));
   }
 
   async function saveNumber(e) {
@@ -206,7 +205,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
     const newValue = archivedAt ? null : new Date().toISOString();
     const { error } = await supabase.from('estimates').update({ archived_at: newValue }).eq('id', estimateId);
     setArchiving(false);
-    if (error) { alert('Error al archivar el estimado: ' + error.message); return; }
+    if (error) { alert(t('archiveError', { error: error.message })); return; }
     setArchivedAt(newValue);
     router.refresh();
   }
@@ -217,63 +216,63 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
     const { error } = await supabase.from('estimates').delete().eq('id', estimateId);
     if (error) {
       setDeleting(false);
-      alert('No se pudo eliminar el estimado: ' + error.message);
+      alert(t('deleteError', { error: error.message }));
       return;
     }
     window.location.href = '/estimados';
   }
 
   const moreItems = [
-    { key: 'purchase', label: '📦 Lista de compra', onClick: () => exportPurchaseListCSV(items, estimateNumber) },
-    ['draft', 'sent'].includes(status) && { key: 'items', label: '🧾 Editar líneas', onClick: () => router.push(`/estimados/${estimateId}/editar`) },
-    { key: 'number', label: '✏️ Editar # de estimado', onClick: () => { setNewNumber(estimateNumber); setShowEditNumber(true); } },
-    { key: 'title', label: '✏️ Editar título', onClick: () => { setTitle(initialTitle); setShowEditTitle(true); } },
-    clientCompany && { key: 'billto', label: '👤 A nombre de', onClick: () => setShowEditBillTo(true) },
-    clientProperties.length > 0 && { key: 'property', label: '🏠 Propiedad', onClick: () => setShowEditProperty(true) },
-    { key: 'terms', label: '📋 Términos', onClick: () => setShowEditTerms(true) },
-    { key: 'archive', label: archiving ? '⏳ Guardando...' : archivedAt ? '📤 Desarchivar' : '📦 Archivar', onClick: toggleArchive },
-    { key: 'delete', label: '🗑 Eliminar estimado', onClick: () => setShowDelete(true), warn: true },
+    { key: 'purchase', label: `📦 ${t('menu.purchaseList')}`, onClick: () => exportPurchaseListCSV(items, estimateNumber, tPurchaseListCsv) },
+    ['draft', 'sent'].includes(status) && { key: 'items', label: `🧾 ${t('menu.editLines')}`, onClick: () => router.push(`/estimados/${estimateId}/editar`) },
+    { key: 'number', label: `✏️ ${t('menu.editNumber')}`, onClick: () => { setNewNumber(estimateNumber); setShowEditNumber(true); } },
+    { key: 'title', label: `✏️ ${t('menu.editTitle')}`, onClick: () => { setTitle(initialTitle); setShowEditTitle(true); } },
+    clientCompany && { key: 'billto', label: `👤 ${t('menu.billTo')}`, onClick: () => setShowEditBillTo(true) },
+    clientProperties.length > 0 && { key: 'property', label: `🏠 ${t('menu.property')}`, onClick: () => setShowEditProperty(true) },
+    { key: 'terms', label: `📋 ${t('menu.terms')}`, onClick: () => setShowEditTerms(true) },
+    { key: 'archive', label: archiving ? `⏳ ${t('saving')}` : archivedAt ? `📤 ${t('menu.unarchive')}` : `📦 ${t('menu.archive')}`, onClick: toggleArchive },
+    { key: 'delete', label: `🗑 ${t('menu.deleteEstimate')}`, onClick: () => setShowDelete(true), warn: true },
   ].filter(Boolean);
 
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', position: 'relative' }}>
       <button className="btn btn-ghost" onClick={handlePdf} disabled={generatingPdf}>
-        {generatingPdf ? '⏳ Generando...' : '🖨️ PDF'}
+        {generatingPdf ? `⏳ ${t('generatingPdf')}` : '🖨️ PDF'}
       </button>
-      <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 Email</button>
-      {status === 'draft' && <button className="btn btn-primary" onClick={() => updateStatus('sent')}>📤 Enviar</button>}
+      <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 {t('emailBtn')}</button>
+      {status === 'draft' && <button className="btn btn-primary" onClick={() => updateStatus('sent')}>📤 {t('send')}</button>}
       {status === 'sent' && (
         <>
-          <span className="badge badge-blue" style={{ padding: '8px 16px', fontSize: 13 }}>📤 Enviado</span>
-          <button className="btn btn-primary" onClick={() => updateStatus('accepted')}>✓ Marcar como aceptado</button>
-          <button className="btn btn-ghost" onClick={() => updateStatus('cancelled')}>Cancelar</button>
+          <span className="badge badge-blue" style={{ padding: '8px 16px', fontSize: 13 }}>📤 {t('sentBadge')}</span>
+          <button className="btn btn-primary" onClick={() => updateStatus('accepted')}>✓ {t('markAsAccepted')}</button>
+          <button className="btn btn-ghost" onClick={() => updateStatus('cancelled')}>{t('cancel')}</button>
         </>
       )}
       {status === 'accepted' && (
         <>
-          <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Aceptado</span>
+          <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ {t('acceptedBadge')}</span>
           <button className="btn btn-amber" onClick={() => setShowConvert(true)} disabled={converting}>
-            {converting ? 'Convirtiendo...' : '🔧 Convertir a trabajo'}
+            {converting ? t('converting') : `🔧 ${t('convertToJob')}`}
           </button>
-          <button className="btn btn-ghost" onClick={() => updateStatus('cancelled')}>Cancelar</button>
+          <button className="btn btn-ghost" onClick={() => updateStatus('cancelled')}>{t('cancel')}</button>
         </>
       )}
       {status === 'converted' && (
         <>
-          <span className="badge badge-amber" style={{ padding: '8px 16px', fontSize: 13 }}>🔧 Convertido a trabajo</span>
-          {convertedToJobId && <Link href={`/trabajos/${convertedToJobId}`} className="btn btn-ghost">Ver trabajo →</Link>}
+          <span className="badge badge-amber" style={{ padding: '8px 16px', fontSize: 13 }}>🔧 {t('convertedBadge')}</span>
+          {convertedToJobId && <Link href={`/trabajos/${convertedToJobId}`} className="btn btn-ghost">{t('viewJob')} →</Link>}
         </>
       )}
       {status === 'cancelled' && (
         <>
-          <span className="badge badge-red" style={{ padding: '8px 16px', fontSize: 13 }}>Cancelado</span>
-          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => updateStatus('sent')}>Revertir a enviado</button>
+          <span className="badge badge-red" style={{ padding: '8px 16px', fontSize: 13 }}>{t('cancelledBadge')}</span>
+          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => updateStatus('sent')}>{t('revertToSent')}</button>
         </>
       )}
-      {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Enviado</span>}
-      {archivedAt && <span className="badge badge-gray" style={{ padding: '8px 16px', fontSize: 13 }}>📦 Archivado</span>}
+      {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ {t('sentEmailBadge')}</span>}
+      {archivedAt && <span className="badge badge-gray" style={{ padding: '8px 16px', fontSize: 13 }}>📦 {t('archivedBadge')}</span>}
 
-      <button className="btn btn-ghost" onClick={() => setShowMore(v => !v)}>⋯ Más</button>
+      <button className="btn btn-ghost" onClick={() => setShowMore(v => !v)}>⋯ {t('more')}</button>
       {showMore && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setShowMore(false)} />
@@ -296,18 +295,18 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       {showEditTerms && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Términos del Proyecto</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('termsModal.title')}</h2>
             <form onSubmit={saveTerms}>
               <div className="form-group" style={{ marginBottom: 20 }}>
                 <textarea value={terms} onChange={e => setTerms(e.target.value)} rows={10} style={{ fontSize: 13, lineHeight: 1.7, width: '100%' }} />
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
-                <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setTerms(DEFAULT_TERMS)}>
-                  Usar plantilla predeterminada
+                <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setTerms(t('defaultTerms'))}>
+                  {t('termsModal.useDefault')}
                 </button>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center' }}>Guardar</button>
-                  <button type="button" className="btn btn-ghost" onClick={() => setShowEditTerms(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center' }}>{t('save')}</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowEditTerms(false)}>{t('cancel')}</button>
                 </div>
               </div>
             </form>
@@ -319,14 +318,14 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       {showEditProperty && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Propiedad del servicio</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('propertyModal.title')}</h2>
             <form onSubmit={saveProperty}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${!propertyId ? 'var(--navy)' : 'var(--border)'}`, background: !propertyId ? 'var(--info-tint)' : 'var(--surface)' }}>
                   <input type="radio" name="property" value="" checked={!propertyId} onChange={() => setPropertyId('')} />
                   <div>
-                    <div style={{ fontWeight: 700 }}>Sin propiedad</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>No asignar propiedad</div>
+                    <div style={{ fontWeight: 700 }}>{t('propertyModal.none')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('propertyModal.noneDesc')}</div>
                   </div>
                 </label>
                 {clientProperties.map(p => (
@@ -340,8 +339,8 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEditProperty(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{t('save')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditProperty(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -352,27 +351,27 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       {showEditBillTo && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>A nombre de</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('billToModal.title')}</h2>
             <form onSubmit={saveBillTo}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'person' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'person' ? 'var(--info-tint)' : 'var(--surface)' }}>
                   <input type="radio" name="bill_to" value="person" checked={billTo === 'person'} onChange={() => setBillTo('person')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>{clientName}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Persona</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('billToModal.person')}</div>
                   </div>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'company' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'company' ? 'var(--info-tint)' : 'var(--surface)' }}>
                   <input type="radio" name="bill_to" value="company" checked={billTo === 'company'} onChange={() => setBillTo('company')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>{clientCompany}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Empresa</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('billToModal.company')}</div>
                   </div>
                 </label>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEditBillTo(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{t('save')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditBillTo(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -383,15 +382,15 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       {showEditNumber && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Editar número de estimado</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('numberModal.title')}</h2>
             <form onSubmit={saveNumber}>
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Número de estimado</label>
+                <label>{t('numberModal.label')}</label>
                 <input value={newNumber} onChange={e => setNewNumber(e.target.value)} placeholder="EST-1001" required />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEditNumber(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{t('save')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditNumber(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -402,15 +401,15 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       {showEditTitle && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Título del estimado</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('titleModal.title')}</h2>
             <form onSubmit={saveTitle}>
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Título</label>
-                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Sistema de cámaras - Oficina Principal" autoFocus />
+                <label>{t('titleModal.label')}</label>
+                <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t('titleModal.placeholder')} autoFocus />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEditTitle(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{t('save')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditTitle(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -421,22 +420,22 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       {showConvert && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}>Convertir a trabajo</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>Se creará un nuevo trabajo con esta información. Agendar es opcional — puedes hacerlo después desde Trabajos.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}>{t('convertModal.title')}</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>{t('convertModal.body')}</p>
             <form onSubmit={convertToJob}>
               <div className="form-group">
-                <label>Inicio (opcional)</label>
+                <label>{t('convertModal.startLabel')}</label>
                 <input type="datetime-local" value={convScheduledStart} onChange={e => setConvScheduledStart(e.target.value)} />
               </div>
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Fin (opcional)</label>
+                <label>{t('convertModal.endLabel')}</label>
                 <input type="datetime-local" value={convScheduledEnd} onChange={e => setConvScheduledEnd(e.target.value)} />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={converting} style={{ flex: 1, justifyContent: 'center' }}>
-                  {converting ? 'Convirtiendo...' : (convScheduledStart && convScheduledEnd) ? 'Convertir y agendar' : 'Convertir'}
+                  {converting ? t('converting') : (convScheduledStart && convScheduledEnd) ? t('convertModal.convertAndSchedule') : t('convertModal.convert')}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowConvert(false)} disabled={converting}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowConvert(false)} disabled={converting}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -447,14 +446,14 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar estimado?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteModal.title')}</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteModal.body')}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteEstimate} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                {deleting ? t('deleting') : `🗑 ${t('deleteModal.confirm')}`}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>{t('cancel')}</button>
             </div>
           </div>
         </div>
@@ -464,24 +463,24 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       {showEmail && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Enviar estimado por email</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('emailModal.title')}</h2>
             <form onSubmit={sendEmail}>
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label>Para</label>
+                <label>{t('emailModal.to')}</label>
                 {toOptions.length > 0 && (
                   <select value={isCustomEmail ? '__custom__' : emailTo} onChange={e => setEmailTo(e.target.value === '__custom__' ? '' : e.target.value)}>
                     {toOptions.map(o => <option key={o.email} value={o.email}>{o.label} — {o.email}</option>)}
-                    <option value="__custom__">Otro correo...</option>
+                    <option value="__custom__">{t('emailModal.other')}</option>
                   </select>
                 )}
                 {(toOptions.length === 0 || isCustomEmail) && (
-                  <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="cliente@email.com" required autoFocus={toOptions.length > 0} style={toOptions.length > 0 ? { marginTop: 8 } : undefined} />
+                  <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder={t('emailModal.emailPlaceholder')} required autoFocus={toOptions.length > 0} style={toOptions.length > 0 ? { marginTop: 8 } : undefined} />
                 )}
               </div>
 
               {clientContacts.filter(c => c.email).length > 0 && (
                 <div className="form-group" style={{ marginBottom: 16 }}>
-                  <label>Copiar a (CC)</label>
+                  <label>{t('emailModal.cc')}</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1.5px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
                     {clientContacts.filter(c => c.email).map(c => (
                       <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
@@ -495,15 +494,15 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
               )}
 
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Otros correos en copia (opcional)</label>
-                <input value={emailCcExtra} onChange={e => setEmailCcExtra(e.target.value)} placeholder="correo1@ejemplo.com, correo2@ejemplo.com" />
+                <label>{t('emailModal.ccExtra')}</label>
+                <input value={emailCcExtra} onChange={e => setEmailCcExtra(e.target.value)} placeholder={t('emailModal.ccExtraPlaceholder')} />
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sending} style={{ flex: 1, justifyContent: 'center' }}>
-                  {sending ? 'Enviando...' : '📧 Enviar'}
+                  {sending ? t('sending') : `📧 ${t('send')}`}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEmail(false)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEmail(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>

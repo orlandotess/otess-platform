@@ -3,6 +3,7 @@ import { withRetry } from '../../../../lib/withRetry';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { calcularIVU, tasaParaLinea } from '../../../../lib/tax';
 import { nextBusinessDay } from '../../../../lib/businessDays';
+import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -38,6 +39,8 @@ export async function GET(request) {
   }
 
   const today = todayPR();
+  const locale = getServerLocale();
+  const t = await getEmailTranslator(locale, 'emails.recurringInvoice');
 
   const { data: due, error: dueErr } = await supabase
     .from('recurring_invoices')
@@ -65,7 +68,7 @@ export async function GET(request) {
     try {
       const client = r.clients;
       if (!client?.email) {
-        failures.push({ recurringId: r.id, clientName: client?.name ?? 'desconocido', reason: 'El cliente no tiene email registrado' });
+        failures.push({ recurringId: r.id, clientName: client?.name ?? t('unknownClient'), reason: t('noEmail') });
         continue;
       }
 
@@ -114,7 +117,7 @@ export async function GET(request) {
 
       const { error: liErr } = await supabase.from('invoice_line_items').insert(lineItems.map(li => ({ ...li, invoice_id: invoice.id })));
       if (liErr) {
-        failures.push({ recurringId: r.id, clientName: client.name, reason: `${invoiceNumber} se creó pero sus líneas no se guardaron (${liErr.message}) — ábrela y agrégalas manualmente` });
+        failures.push({ recurringId: r.id, clientName: client.name, reason: t('lineItemsFailed', { invoiceNumber, message: liErr.message }) });
       }
 
       // The invoice now exists either way — advance the schedule so we never generate a duplicate
@@ -139,10 +142,10 @@ export async function GET(request) {
         });
         generated.push({ recurringId: r.id, clientName: client.name, invoiceNumber, total });
       } catch (sendErr) {
-        failures.push({ recurringId: r.id, clientName: client.name, reason: `${invoiceNumber} se creó pero no se pudo enviar (${sendErr.message}) — envíala manualmente desde Facturas` });
+        failures.push({ recurringId: r.id, clientName: client.name, reason: t('sendFailed', { invoiceNumber, message: sendErr.message }) });
       }
     } catch (err) {
-      failures.push({ recurringId: r.id, clientName: r.clients?.name ?? 'desconocido', reason: err.message });
+      failures.push({ recurringId: r.id, clientName: r.clients?.name ?? t('unknownClient'), reason: err.message });
     }
   }
 
@@ -155,8 +158,8 @@ export async function GET(request) {
     await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
-      subject: `Facturas recurrentes — ${generated.length} enviadas, ${failures.length} con error`,
-      html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">Resumen del envío automático de facturas recurrentes (${today}):</p><ul style="font-size:13px">${rows}</ul></div>`,
+      subject: t('subject', { generated: generated.length, failures: failures.length }),
+      html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${t('summaryIntro', { date: today })}</p><ul style="font-size:13px">${rows}</ul></div>`,
     }).catch(err => console.error('Error notificando resumen de recurrentes:', err));
   }
 

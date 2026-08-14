@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { formatTimePR, formatDatePR } from "../lib/datetimeLocal";
 import { prDayKey } from "../lib/hours";
+import { useTranslations, useLocale } from "next-intl";
 
 const TECH_COLORS = [
   "#16223d", "#e0972c", "#27ae60", "#2a4cb5", "#e05c2a",
@@ -10,17 +11,20 @@ const TECH_COLORS = [
 ];
 
 export default function DashboardCalendarClient({ techs, allJobs, year, month, monthName }) {
+  const t = useTranslations("home.calendarClient");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "es-PR";
   const [selectedTech, setSelectedTech] = useState("all");
 
   const techColors = useMemo(() => {
     const map = {};
     // Hashed by ID rather than array index so a technician keeps the same color
     // even after others are added/removed/reordered in the technicians table.
-    techs.forEach((t) => {
+    techs.forEach((tech) => {
       let hash = 0;
-      const id = String(t.id);
+      const id = String(tech.id);
       for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-      map[t.id] = TECH_COLORS[hash % TECH_COLORS.length];
+      map[tech.id] = TECH_COLORS[hash % TECH_COLORS.length];
     });
     return map;
   }, [techs]);
@@ -65,36 +69,37 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
     .filter(j => j.scheduled_start && prDayKey(j.scheduled_start) >= today && j.status !== "cancelled" && j.status !== "completed")
     .slice(0, 6);
 
-  const fmtTime = iso => formatTimePR(iso, { hour: "2-digit", minute: "2-digit" });
-  const fmtDay = iso => formatDatePR(iso, { weekday: "short", month: "short", day: "numeric" });
+  const fmtTime = iso => formatTimePR(iso, { hour: "2-digit", minute: "2-digit" }, dateLocale);
+  const fmtDay = iso => formatDatePR(iso, { weekday: "short", month: "short", day: "numeric" }, dateLocale);
+  const weekdayLetters = [t("weekdayLetters.sun"), t("weekdayLetters.mon"), t("weekdayLetters.tue"), t("weekdayLetters.wed"), t("weekdayLetters.thu"), t("weekdayLetters.fri"), t("weekdayLetters.sat")];
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--navy)" }}>📅 Calendario — {monthName} {year}</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--navy)" }}>📅 {t("calendarTitle", { month: monthName, year })}</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={() => setSelectedTech("all")}
               className={`btn ${selectedTech === "all" ? "btn-primary" : "btn-ghost"}`}
-              style={{ fontSize: 12, padding: "5px 12px" }}>Todos</button>
-            {techs.map(t => (
-              <button key={t.id} onClick={() => setSelectedTech(selectedTech === t.id ? "all" : t.id)}
+              style={{ fontSize: 12, padding: "5px 12px" }}>{t("all")}</button>
+            {techs.map(tech => (
+              <button key={tech.id} onClick={() => setSelectedTech(selectedTech === tech.id ? "all" : tech.id)}
                 style={{ fontSize: 12, padding: "5px 12px", borderRadius: 8, border: "2px solid", cursor: "pointer", fontWeight: 600,
-                  borderColor: techColors[t.id], background: selectedTech === t.id ? techColors[t.id] : "transparent",
-                  color: selectedTech === t.id ? "#fff" : techColors[t.id] }}>
-                {t.name}
+                  borderColor: techColors[tech.id], background: selectedTech === tech.id ? techColors[tech.id] : "transparent",
+                  color: selectedTech === tech.id ? "#fff" : techColors[tech.id] }}>
+                {tech.name}
               </button>
             ))}
           </div>
-          <Link href="/calendario" className="btn btn-ghost" style={{ fontSize: 13, padding: "7px 14px" }}>Ver completo →</Link>
+          <Link href="/calendario" className="btn btn-ghost" style={{ fontSize: 13, padding: "7px 14px" }}>{t("viewFull")}</Link>
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 20 }}>
         <div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 2 }}>
-            {["D","L","M","X","J","V","S"].map(d => (
-              <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--muted)", padding: "4px 0" }}>{d}</div>
+            {weekdayLetters.map((d, i) => (
+              <div key={i} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--muted)", padding: "4px 0" }}>{d}</div>
             ))}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
@@ -123,10 +128,10 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
           </div>
           {techs.length > 0 && (
             <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-              {techs.map(t => (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--muted)" }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: techColors[t.id] }} />
-                  {t.name}
+              {techs.map(tech => (
+                <div key={tech.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--muted)" }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: techColors[tech.id] }} />
+                  {tech.name}
                 </div>
               ))}
             </div>
@@ -134,9 +139,9 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
         </div>
 
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 10 }}>Próximos trabajos</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 10 }}>{t("upcomingJobs")}</div>
           {upcoming.length === 0 ? (
-            <div style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>No hay trabajos próximos.</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", padding: "12px 0" }}>{t("noUpcomingJobs")}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {upcoming.map(j => (

@@ -1,16 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import SearchBox from '../SearchBox';
 import { pickMapsLink } from '../../lib/mapsLinks';
 import { formatDatePR } from '../../lib/datetimeLocal';
+import { useTranslations, useLocale } from 'next-intl';
 
-const statusBadge = {
-  nueva:                { cls: 'badge-blue',  label: 'Nueva' },
-  necesita_aprobacion:  { cls: 'badge-amber', label: 'Necesita aprobación' },
-  evaluacion_completa:  { cls: 'badge-green', label: 'Evaluación completa' },
-  convertida:           { cls: 'badge-dark',  label: 'Convertida' },
-  archivada:            { cls: 'badge-gray',  label: 'Archivada' },
+const statusBadgeCls = {
+  nueva:                'badge-blue',
+  necesita_aprobacion:  'badge-amber',
+  evaluacion_completa:  'badge-green',
+  convertida:           'badge-dark',
+  archivada:            'badge-gray',
 };
 
 const OVERDUE_DAYS = 7;
@@ -34,18 +35,19 @@ function technicianNames(s) {
   return [s.technicians?.name, ...(s.solicitud_technicians ?? []).map(st => st.technicians?.name)].filter(Boolean).join(', ');
 }
 
-const FILTERS = [
-  { id: 'all',                 label: 'Todas' },
-  { id: 'nueva',                label: 'Nueva' },
-  { id: 'necesita_aprobacion',  label: 'Necesita aprobación' },
-  { id: 'evaluacion_completa',  label: 'Evaluación completa' },
-  { id: 'overdue',              label: 'Atrasada' },
-  { id: 'unscheduled',          label: 'Sin programar' },
-];
+const FILTER_IDS = ['all', 'nueva', 'necesita_aprobacion', 'evaluacion_completa', 'overdue', 'unscheduled'];
 
 export default function SolicitudesTableClient({ solicitudes }) {
+  const t = useTranslations('solicitudes.listTable');
+  const locale = useLocale();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+
+  const statusBadge = useMemo(() => Object.fromEntries(
+    Object.entries(statusBadgeCls).map(([k, cls]) => [k, { cls, label: t(`status.${k}`) }])
+  ), [t]);
+
+  const FILTERS = useMemo(() => FILTER_IDS.map(id => ({ id, label: t(`filters.${id}`) })), [t]);
 
   const counts = {
     all: solicitudes.length,
@@ -92,21 +94,21 @@ export default function SolicitudesTableClient({ solicitudes }) {
 
       <div className="card">
         <div style={{ marginBottom: 16 }}>
-          <SearchBox value={search} onChange={setSearch} placeholder="Buscar solicitud, cliente o ubicación..." />
+          <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
         </div>
         {visible.length === 0 ? (
-          <div className="empty"><p>Sin resultados.</p></div>
+          <div className="empty"><p>{t('noResults')}</p></div>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Solicitud</th>
-                  <th>Cliente</th>
-                  <th>Ubicación</th>
-                  <th>Técnico</th>
-                  <th>Estado</th>
-                  <th>Solicitada</th>
+                  <th>{t('columns.solicitud')}</th>
+                  <th>{t('columns.client')}</th>
+                  <th>{t('columns.location')}</th>
+                  <th>{t('columns.technician')}</th>
+                  <th>{t('columns.status')}</th>
+                  <th>{t('columns.requested')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -138,11 +140,11 @@ export default function SolicitudesTableClient({ solicitudes }) {
                       </td>
                       <td>
                         <span className={`badge ${b.cls}`}>{b.label}</span>
-                        {isOverdue(s) && <span className="badge badge-red" style={{ marginLeft: 6 }}>Atrasada</span>}
-                        {isUnscheduled(s) && <span className="badge badge-gray" style={{ marginLeft: 6 }}>Sin programar</span>}
+                        {isOverdue(s) && <span className="badge badge-red" style={{ marginLeft: 6 }}>{t('filters.overdue')}</span>}
+                        {isUnscheduled(s) && <span className="badge badge-gray" style={{ marginLeft: 6 }}>{t('filters.unscheduled')}</span>}
                       </td>
                       <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                        {s.requested_on ? formatDatePR(s.requested_on) : '—'}
+                        {s.requested_on ? formatDatePR(s.requested_on, {}, locale === 'en' ? 'en-US' : 'es-PR') : '—'}
                       </td>
                     </tr>
                   );

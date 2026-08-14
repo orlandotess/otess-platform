@@ -3,68 +3,63 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 import { useDebouncedValue } from '../lib/useDebounce';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
 
-const ventasLinks = [
- { href: '/oportunidades', label: 'Oportunidades', icon: 'target' },
- { href: '/clientes',   label: 'Clientes',   icon: 'users' },
- { href: '/solicitudes', label: 'Solicitudes', icon: 'inbox' },
- { href: '/propuestas', label: 'Propuestas', icon: 'fileText' },
- { href: '/estimados', label: 'Estimados', icon: 'calculator' },
+const ventasLinkDefs = [
+ { href: '/oportunidades', key: 'oportunidades', icon: 'target' },
+ { href: '/clientes',   key: 'clientes',   icon: 'users' },
+ { href: '/solicitudes', key: 'solicitudes', icon: 'inbox' },
+ { href: '/propuestas', key: 'propuestas', icon: 'fileText' },
+ { href: '/estimados', key: 'estimados', icon: 'calculator' },
 ];
 
-const campoLinks = [
- { href: '/trabajos',   label: 'Trabajos',   icon: 'bolt' },
- { href: '/calendario', label: 'Calendario', icon: 'calendar' },
- { href: '/admin/dispatch', label: 'Dispatch', icon: 'dispatch' },
- { href: '/mantenimientos', label: 'Mantenimientos', icon: 'wrench' },
- { href: '/boletos',    label: 'Boletos',    icon: 'ticket' },
- { href: '/crew',       label: 'Crew App',   icon: 'phone' },
- { href: '/planos',   label: 'Planos',   icon: 'map' },
- { href: '/admin/plantillas', label: 'Plantillas', icon: 'clipboard' },
+const campoLinkDefs = [
+ { href: '/trabajos',   key: 'trabajos',   icon: 'bolt' },
+ { href: '/calendario', key: 'calendario', icon: 'calendar' },
+ { href: '/admin/dispatch', key: 'dispatch', icon: 'dispatch' },
+ { href: '/mantenimientos', key: 'mantenimientos', icon: 'wrench' },
+ { href: '/boletos',    key: 'boletos',    icon: 'ticket' },
+ { href: '/crew',       key: 'crew',   icon: 'phone' },
+ { href: '/planos',   key: 'planos',   icon: 'map' },
+ { href: '/admin/plantillas', key: 'plantillas', icon: 'clipboard' },
 ];
 
-const recursosLinks = [
- { href: '/catalogo', label: 'Labor & Productos', icon: 'toolbox' },
- { href: '/inventario', label: 'Inventario', icon: 'building' },
- { href: '/compras',  label: 'Compras',  icon: 'box' },
+const recursosLinkDefs = [
+ { href: '/catalogo', key: 'catalogo', icon: 'toolbox' },
+ { href: '/inventario', key: 'inventario', icon: 'building' },
+ { href: '/compras',  key: 'compras',  icon: 'box' },
 ];
 
-const accountingLinks = [
- { href: '/accounting',               label: 'Dashboard',   icon: 'barChart' },
- { href: '/accounting/facturas',      label: 'Facturas',    icon: 'receipt' },
- { href: '/accounting/ivu',           label: 'IVU',         icon: 'bank' },
- { href: '/accounting/payroll',       label: 'Payroll',     icon: 'clock' },
- { href: '/accounting/rentabilidad',  label: 'Rentabilidad',icon: 'coins' },
- { href: '/accounting/retenciones',   label: 'Retenciones', icon: 'clipboard' },
- { href: '/accounting/cliente360',    label: 'Cliente 360', icon: 'compass' },
-  { href: '/admin/timesheet', label: 'Timesheet', icon: 'clock' },
+const accountingLinkDefs = [
+ { href: '/accounting',               key: 'accountingDashboard',   icon: 'barChart' },
+ { href: '/accounting/facturas',      key: 'facturas',    icon: 'receipt' },
+ { href: '/accounting/ivu',           key: 'ivu',         icon: 'bank' },
+ { href: '/accounting/payroll',       key: 'payroll',     icon: 'clock' },
+ { href: '/accounting/rentabilidad',  key: 'rentabilidad',icon: 'coins' },
+ { href: '/accounting/retenciones',   key: 'retenciones', icon: 'clipboard' },
+ { href: '/accounting/cliente360',    key: 'cliente360', icon: 'compass' },
+  { href: '/admin/timesheet', key: 'timesheet', icon: 'clock' },
 ];
 
-const adminLinks = [
- { href: '/admin/usuarios', label: 'Usuarios', icon: 'user' },
- { href: '/admin/ausencias', label: 'Ausencias', icon: 'userOff' },
+const adminLinkDefs = [
+ { href: '/admin/usuarios', key: 'usuarios', icon: 'user' },
+ { href: '/admin/ausencias', key: 'ausencias', icon: 'userOff' },
 ];
 
-const sections = [
- { id: 'ventas',     label: 'Ventas',        links: ventasLinks },
- { id: 'campo',      label: 'Campo',         links: campoLinks },
- { id: 'recursos',   label: 'Recursos',      links: recursosLinks },
- { id: 'accounting', label: 'Contabilidad',  links: accountingLinks },
- { id: 'admin',      label: 'Administración',links: adminLinks },
+const sectionDefs = [
+ { id: 'ventas',     key: 'ventas',     links: ventasLinkDefs },
+ { id: 'campo',      key: 'campo',      links: campoLinkDefs },
+ { id: 'recursos',   key: 'recursos',   links: recursosLinkDefs },
+ { id: 'accounting', key: 'accounting', links: accountingLinkDefs },
+ { id: 'admin',      key: 'admin',      links: adminLinkDefs },
 ];
 
 // Extra sections that exist in the app but aren't primary sidebar links —
 // still searchable so the sidebar search can reach the whole platform.
-const extraSearchableLinks = [
- { href: '/facturas/recurrentes', label: 'Facturas · Recurrentes', icon: 'receipt' },
- { href: '/propuestas/empresa', label: 'Propuestas · Empresa', icon: 'building' },
-];
-
-const searchableLinks = [
- { href: '/', label: 'Dashboard', icon: 'grid' },
- ...sections.flatMap(s => s.links.map(l => ({ ...l, label: `${s.label} · ${l.label}` }))),
- ...extraSearchableLinks,
+const extraSearchableLinkDefs = [
+ { href: '/facturas/recurrentes', key: 'facturasRecurrentes', icon: 'receipt' },
+ { href: '/propuestas/empresa', key: 'propuestasEmpresa', icon: 'building' },
 ];
 
 const ICON_PATHS = {
@@ -106,9 +101,21 @@ function NavIcon({ name }) {
 export default function Sidebar() {
  const path = usePathname();
  const router = useRouter();
+ const t = useTranslations('nav');
+ const locale = useLocale();
+ const sections = useMemo(() => sectionDefs.map(s => ({
+   id: s.id,
+   label: t(`sections.${s.key}`),
+   links: s.links.map(l => ({ ...l, label: t(`links.${l.key}`) })),
+ })), [t]);
+ const searchableLinks = useMemo(() => [
+   { href: '/', label: t('dashboard'), icon: 'grid' },
+   ...sections.flatMap(s => s.links.map(l => ({ ...l, label: `${s.label} · ${l.label}` }))),
+   ...extraSearchableLinkDefs.map(l => ({ ...l, label: t(`links.${l.key}`) })),
+ ], [t, sections]);
  const [openSections, setOpenSections] = useState(() => {
    const state = {};
-   for (const s of sections) {
+   for (const s of sectionDefs) {
      state[s.id] = s.id === 'campo' || s.links.some(l => path.startsWith(l.href));
    }
    return state;
@@ -120,6 +127,7 @@ export default function Sidebar() {
  const [hidden, setHidden] = useState(false);
  const [absenceCount, setAbsenceCount] = useState(0);
  const [darkMode, setDarkMode] = useState(false);
+ const [languageLoading, setLanguageLoading] = useState(false);
 
  useEffect(() => {
    setHidden(localStorage.getItem('sidebar-hidden') === '1');
@@ -135,6 +143,18 @@ export default function Sidebar() {
      localStorage.setItem('otess-theme', d ? 'light' : 'dark');
      return !d;
    });
+ }
+
+ async function toggleLanguage() {
+   setLanguageLoading(true);
+   const nextLocale = locale === 'es' ? 'en' : 'es';
+   await fetch('/api/set-locale', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({ locale: nextLocale }),
+   }).catch(() => {});
+   router.refresh();
+   setLanguageLoading(false);
  }
 
  // Ausencias del mes en curso, para el badge junto al link en "Administración".
@@ -235,7 +255,7 @@ export default function Sidebar() {
        <img src="/otess-logo.png" alt="OTESS" style={{ width: '100%', maxWidth: 132, minWidth: 0, height: 'auto', display: 'block' }} />
        <button
          onClick={toggleHidden}
-         title="Ocultar sidebar"
+         title={t('hideSidebar')}
          style={{ flexShrink: 0, background: 'rgba(22,34,61,0.06)', border: 'none', color: 'rgba(22,34,61,0.6)', width: 26, height: 26, borderRadius: 6, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
        >
          «
@@ -248,7 +268,7 @@ export default function Sidebar() {
        <input
          value={search}
          onChange={e => setSearch(e.target.value)}
-         placeholder="Buscar..."
+         placeholder={t('searchPlaceholder')}
          style={{
            width: '100%', padding: '8px 12px 8px 30px', borderRadius: 8, fontSize: 13,
            border: '1px solid #e2e5ea', background: '#f6f7fa',
@@ -270,7 +290,7 @@ export default function Sidebar() {
            ))}
 
            {entityLoading && (
-             <p style={{ padding: '8px 16px', fontSize: 12, color: 'rgba(22,34,61,0.45)' }}>Buscando…</p>
+             <p style={{ padding: '8px 16px', fontSize: 12, color: 'rgba(22,34,61,0.45)' }}>{t('searching')}</p>
            )}
 
            {groupedEntityResults.map(group => (
@@ -289,14 +309,14 @@ export default function Sidebar() {
            ))}
 
            {searchResults.length === 0 && !entityLoading && groupedEntityResults.length === 0 && (
-             <p style={{ padding: '10px 16px', fontSize: 13, color: 'rgba(22,34,61,0.5)' }}>Sin resultados.</p>
+             <p style={{ padding: '10px 16px', fontSize: 13, color: 'rgba(22,34,61,0.5)' }}>{t('noResults')}</p>
            )}
          </>
        ) : (
          <>
            <Link href="/" className={isActive('/') ? 'active' : ''}>
              <NavIcon name="grid" />
-             Dashboard
+             {t('dashboard')}
            </Link>
 
            {sections.map(s => (
@@ -335,6 +355,15 @@ export default function Sidebar() {
      </nav>
      <div style={{ padding: '16px 20px', borderTop: '1px solid #e2e5ea', display: 'flex', flexDirection: 'column', gap: 6 }}>
        <button
+         onClick={toggleLanguage}
+         disabled={languageLoading}
+         title={t('language')}
+         style={{ background: 'rgba(22,34,61,0.05)', border: 'none', color: 'rgba(22,34,61,0.65)', padding: '8px 14px', borderRadius: 8, cursor: languageLoading ? 'default' : 'pointer', width: '100%', fontSize: 13, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, opacity: languageLoading ? 0.6 : 1 }}
+       >
+         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><line x1="2.5" y1="12" x2="21.5" y2="12"/><path d="M12 2.5c2.5 2.5 3.8 6 3.8 9.5s-1.3 7-3.8 9.5c-2.5-2.5-3.8-6-3.8-9.5s1.3-7 3.8-9.5z"/></svg>
+         {locale === 'es' ? 'English' : 'Español'}
+       </button>
+       <button
          onClick={toggleDarkMode}
          style={{ background: 'rgba(22,34,61,0.05)', border: 'none', color: 'rgba(22,34,61,0.65)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', width: '100%', fontSize: 13, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
        >
@@ -343,20 +372,20 @@ export default function Sidebar() {
          ) : (
            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
          )}
-         {darkMode ? 'Modo claro' : 'Modo oscuro'}
+         {darkMode ? t('lightMode') : t('darkMode')}
        </button>
        <button
          onClick={handleLogout}
          style={{ background: 'rgba(22,34,61,0.05)', border: 'none', color: 'rgba(22,34,61,0.65)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', width: '100%', fontSize: 13, fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}
        >
          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-         Cerrar sesión
+         {t('logout')}
        </button>
      </div>
    </aside>
    <button
      onClick={toggleHidden}
-     title="Mostrar sidebar"
+     title={t('showSidebar')}
      className="sidebar-show-btn"
    >
      ☰
@@ -364,8 +393,8 @@ export default function Sidebar() {
    {path !== '/' && (
      <button
        onClick={handleBack}
-       title="Regresar"
-       aria-label="Regresar"
+       title={t('back')}
+       aria-label={t('back')}
        className="back-button"
      >
        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

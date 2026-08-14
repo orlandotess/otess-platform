@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
 import LineItemRow from '../LineItemRow';
 import CableCalculator from '../CableCalculator';
+import { useTranslations } from 'next-intl';
 
 function emptyItem(parentKey = null, itemType = 'labor') {
   return {
@@ -27,16 +28,16 @@ function emptyItem(parentKey = null, itemType = 'labor') {
     existingPhotoPath: null,
   };
 }
-function emptyArea(name = 'Área 1') {
+function emptyArea(name) {
   return { key: Math.random().toString(36).slice(2), name, items: [emptyItem()] };
 }
-function emptyOption(name = 'Propuesta') {
+function emptyOption(name, t) {
   return {
     key: Math.random().toString(36).slice(2),
     name,
     description: '',
     is_recommended: false,
-    areas: [emptyArea()],
+    areas: [emptyArea(t('area', { n: 1 }))],
   };
 }
 
@@ -44,11 +45,11 @@ function emptyOption(name = 'Propuesta') {
 // proposal_line_items rows an option was loaded with — same parent_item_id
 // grouping ProposalDocument.js's groupByArea() uses for display, so edit
 // mode reconstructs exactly what's on screen.
-function itemsToAreas(items) {
+function itemsToAreas(items, t) {
   const topLevel = (items ?? []).filter(it => !it.parent_item_id).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   const areas = [];
   topLevel.forEach(parent => {
-    const name = parent.area || 'General';
+    const name = parent.area || t('generalArea');
     let area = areas.find(a => a.name === name);
     if (!area) { area = { key: Math.random().toString(36).slice(2), name, items: [] }; areas.push(area); }
     const parentKey = Math.random().toString(36).slice(2);
@@ -89,7 +90,7 @@ function itemsToAreas(items) {
       });
     });
   });
-  return areas.length ? areas : [emptyArea()];
+  return areas.length ? areas : [emptyArea(t('area', { n: 1 }))];
 }
 
 export default function PropuestaForm({ initialData = null }) {
@@ -97,6 +98,7 @@ export default function PropuestaForm({ initialData = null }) {
   const searchParams = useSearchParams();
   const clientIdParam = searchParams.get('client');
   const isEdit = !!initialData;
+  const t = useTranslations('propuestas.form');
 
   const [clients, setClients] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
@@ -133,7 +135,7 @@ export default function PropuestaForm({ initialData = null }) {
   );
 
   function addPayment() {
-    setPaymentSchedule(prev => [...prev, { key: Math.random().toString(36).slice(2), label: `Pago ${prev.length + 1}`, basis: 'parts', percent: '', due_trigger: '' }]);
+    setPaymentSchedule(prev => [...prev, { key: Math.random().toString(36).slice(2), label: t('paymentLabel', { n: prev.length + 1 }), basis: 'parts', percent: '', due_trigger: '' }]);
   }
   function updatePayment(key, field, value) {
     setPaymentSchedule(prev => prev.map(p => p.key === key ? { ...p, [field]: value } : p));
@@ -148,19 +150,19 @@ export default function PropuestaForm({ initialData = null }) {
   const [selectedItemKeys, setSelectedItemKeys] = useState(new Set()); // parent item keys selected for bulk actions
   const [multiOption, setMultiOption] = useState((initialData?.options?.length ?? 0) > 1);
   const [options, setOptions] = useState(() => {
-    if (!initialData?.options?.length) return [emptyOption('Propuesta')];
+    if (!initialData?.options?.length) return [emptyOption(t('defaultOptionName'), t)];
     return initialData.options.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map(opt => ({
       key: Math.random().toString(36).slice(2),
       name: opt.name,
       description: opt.description ?? '',
       is_recommended: opt.is_recommended,
-      areas: itemsToAreas(opt.items),
+      areas: itemsToAreas(opt.items, t),
     }));
   });
   const [coverPhoto, setCoverPhoto] = useState(null);
   const [coverPreview, setCoverPreview] = useState(initialData?.proposal.cover_photo_signed_url ?? null);
   const [existingCoverPath, setExistingCoverPath] = useState(initialData?.proposal.cover_photo_url ?? null);
-  const [terms, setTerms] = useState(initialData?.proposal.terms ?? 'Esta propuesta es válida por 30 días a partir de la fecha de envío. Los precios incluyen materiales y labor según lo descrito. Cualquier trabajo adicional fuera del alcance será cotizado por separado.');
+  const [terms, setTerms] = useState(initialData?.proposal.terms ?? t('defaultTerms'));
   const [validUntil, setValidUntil] = useState(initialData?.proposal.valid_until ?? new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -198,18 +200,18 @@ export default function PropuestaForm({ initialData = null }) {
     setMultiOption(m => {
       const next = !m;
       if (next && options.length === 1) {
-        setOptions([{ ...options[0], name: 'Básico' }, emptyOption('Premium')]);
+        setOptions([{ ...options[0], name: t('basicOptionName') }, emptyOption(t('premiumOptionName'), t)]);
       }
       return next;
     });
   }
-  function addOption() { setOptions(prev => [...prev, emptyOption(`Opción ${prev.length + 1}`)]); }
+  function addOption() { setOptions(prev => [...prev, emptyOption(t('option', { n: prev.length + 1 }), t)]); }
   function removeOption(key) { setOptions(prev => prev.filter(o => o.key !== key)); }
   function updateOption(key, field, value) { setOptions(prev => prev.map(o => o.key === key ? { ...o, [field]: value } : o)); }
   function setRecommended(key) { setOptions(prev => prev.map(o => ({ ...o, is_recommended: o.key === key }))); }
 
   function addArea(optKey) {
-    setOptions(prev => prev.map(o => o.key === optKey ? { ...o, areas: [...o.areas, emptyArea(`Área ${o.areas.length + 1}`)] } : o));
+    setOptions(prev => prev.map(o => o.key === optKey ? { ...o, areas: [...o.areas, emptyArea(t('area', { n: o.areas.length + 1 }))] } : o));
   }
   function removeArea(optKey, areaKey) {
     setOptions(prev => prev.map(o => o.key === optKey ? { ...o, areas: o.areas.filter(a => a.key !== areaKey) } : o));
@@ -421,16 +423,16 @@ export default function PropuestaForm({ initialData = null }) {
   }
 
   async function handleSave() {
-    if (!selectedClient || !title.trim()) { setError('Cliente y título son requeridos'); return; }
-    if (isEdit && !proposalNumber.trim()) { setError('El número de propuesta es requerido'); return; }
-    if (propertyMode === 'new' && !newProperty.name.trim()) { setError('Ponle un nombre a la propiedad nueva'); return; }
+    if (!selectedClient || !title.trim()) { setError(t('errors.clientAndTitleRequired')); return; }
+    if (isEdit && !proposalNumber.trim()) { setError(t('errors.proposalNumberRequired')); return; }
+    if (propertyMode === 'new' && !newProperty.name.trim()) { setError(t('errors.propertyNameRequired')); return; }
     setSaving(true); setError('');
 
     let proposal;
     if (isEdit) {
       const { data: current } = await supabase.from('proposals').select('status').eq('id', initialData.proposal.id).single();
       if (!current || !['borrador', 'enviada', 'vista', 'cambios_requeridos'].includes(current.status)) {
-        setError('Esta propuesta ya no se puede editar (fue aprobada o rechazada).');
+        setError(t('errors.notEditable'));
         setSaving(false);
         return;
       }
@@ -549,7 +551,7 @@ export default function PropuestaForm({ initialData = null }) {
       const opt = options[i];
       const { data: optRow, error: optErr } = await supabase.from('proposal_options').insert([{
         proposal_id: proposal.id,
-        name: opt.name.trim() || `Opción ${i + 1}`,
+        name: opt.name.trim() || t('option', { n: i + 1 }),
         description: opt.description.trim() || null,
         is_recommended: opt.is_recommended,
         sort_order: i,
@@ -631,26 +633,26 @@ export default function PropuestaForm({ initialData = null }) {
     <div className="admin-shell ds-propuestas">
       <Sidebar />
       <main className="main-content">
-        <div className="page-header"><div className="page-title">{isEdit ? 'Editar propuesta' : 'Nueva propuesta'}</div></div>
+        <div className="page-header"><div className="page-title">{isEdit ? t('editTitle') : t('newTitle')}</div></div>
 
         {error && <p style={{ color: 'var(--warn)', fontSize: 14, marginBottom: 12 }}>{error}</p>}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 840 }}>
 
           <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('generalInfo')}</p>
 
             <div className="form-group" style={{ position: 'relative' }}>
-              <label>Cliente *</label>
+              <label>{t('client')}</label>
               {selectedClient ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
                   <span style={{ flex: 1, fontWeight: 600 }}>{selectedClient.name}</span>
-                  <button type="button" onClick={() => { setSelectedClient(null); setPropertyId(''); setPropertyMode('none'); setNewProperty({ name: '', street: '', city: '', state: 'PR', zip: '' }); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700 }}>Cambiar</button>
+                  <button type="button" onClick={() => { setSelectedClient(null); setPropertyId(''); setPropertyMode('none'); setNewProperty({ name: '', street: '', city: '', state: 'PR', zip: '' }); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700 }}>{t('change')}</button>
                 </div>
               ) : (
                 <div style={{ position: 'relative' }}>
                   <input value={clientSearch} onChange={e => { setClientSearch(e.target.value); setShowClientDropdown(true); }}
-                    onFocus={() => setShowClientDropdown(true)} placeholder="Buscar cliente..." />
+                    onFocus={() => setShowClientDropdown(true)} placeholder={t('searchClientPlaceholder')} />
                   {showClientDropdown && (
                     <>
                       <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowClientDropdown(false)} />
@@ -670,72 +672,72 @@ export default function PropuestaForm({ initialData = null }) {
 
             {isEdit && (
               <div className="form-group">
-                <label>Número de propuesta *</label>
-                <input value={proposalNumber} onChange={e => setProposalNumber(e.target.value)} placeholder="PROP-1001" style={{ maxWidth: 200 }} />
+                <label>{t('proposalNumber')}</label>
+                <input value={proposalNumber} onChange={e => setProposalNumber(e.target.value)} placeholder={t('proposalNumberPlaceholder')} style={{ maxWidth: 200 }} />
               </div>
             )}
 
             <div className="form-group">
-              <label>Título de la propuesta *</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Sistema de cámaras CCTV — Oficina Caguas" />
+              <label>{t('proposalTitle')}</label>
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t('proposalTitlePlaceholder')} />
             </div>
 
             <div className="form-group">
-              <label>Preparado por</label>
-              <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Nombre de quien prepara la propuesta" style={{ maxWidth: 300 }} />
+              <label>{t('preparedBy')}</label>
+              <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder={t('preparedByPlaceholder')} style={{ maxWidth: 300 }} />
             </div>
 
             <div className="form-group">
-              <label>Nota para el cliente</label>
-              <textarea value={introNote} onChange={e => setIntroNote(e.target.value)} placeholder="Mensaje introductorio que verá el cliente..." />
+              <label>{t('clientNote')}</label>
+              <textarea value={introNote} onChange={e => setIntroNote(e.target.value)} placeholder={t('clientNotePlaceholder')} />
             </div>
 
             <div className="form-group">
-              <label>Descripción del proyecto</label>
-              <textarea value={projectDescription} onChange={e => setProjectDescription(e.target.value)} placeholder="Alcance del proyecto: qué se va a hacer, en qué consiste el trabajo..." />
+              <label>{t('projectDescription')}</label>
+              <textarea value={projectDescription} onChange={e => setProjectDescription(e.target.value)} placeholder={t('projectDescriptionPlaceholder')} />
             </div>
 
             <div className="form-group">
-              <label>Foto de portada</label>
+              <label>{t('coverPhoto')}</label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', border: '1.5px dashed var(--border)', borderRadius: 8, cursor: 'pointer' }}>
                 {coverPreview ? (
                   <img src={coverPreview} style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 6 }} />
                 ) : <span style={{ fontSize: 20 }}>🖼️</span>}
-                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{coverPreview ? 'Cambiar foto de portada' : 'Subir foto de portada (opcional)'}</span>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{coverPreview ? t('changeCoverPhoto') : t('uploadCoverPhoto')}</span>
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleCoverPhoto(e.target.files?.[0])} />
               </label>
             </div>
 
             <div className="form-group">
-              <label>Válida hasta</label>
+              <label>{t('validUntil')}</label>
               <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} style={{ maxWidth: 200 }} />
             </div>
 
             <div className="form-group">
-              <label>Tipo de cliente (IVU)</label>
+              <label>{t('taxClientType')}</label>
               <select value={taxClientType} onChange={e => setTaxClientType(e.target.value)} style={{ maxWidth: 240 }}>
-                <option value="final">Consumidor regular (11.5% / 11.5%)</option>
-                <option value="b2b">B2B (11.5% producto / 4% labor)</option>
+                <option value="final">{t('taxFinalOption')}</option>
+                <option value="b2b">{t('taxB2bOption')}</option>
               </select>
             </div>
 
             <div style={{ display: 'flex', gap: 24, marginTop: 8 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                 <input type="checkbox" checked={requiresSignature} onChange={e => setRequiresSignature(e.target.checked)} />
-                Requiere firma del cliente
+                {t('requiresSignature')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                 <input type="checkbox" checked={multiOption} onChange={toggleMultiOption} />
-                Ofrecer múltiples opciones (paquetes)
+                {t('multiOptionToggle')}
               </label>
             </div>
           </div>
 
           {selectedClient && (
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>📍 Propiedad (opcional)</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('propertySection')}</p>
               <div className="form-group">
-                <label>Dirección del trabajo</label>
+                <label>{t('workAddress')}</label>
                 <select
                   value={propertyMode === 'existing' ? propertyId : (propertyMode === 'new' ? '__new__' : '')}
                   onChange={e => {
@@ -744,36 +746,36 @@ export default function PropuestaForm({ initialData = null }) {
                     else if (v === '') { setPropertyMode('none'); setPropertyId(''); }
                     else { setPropertyMode('existing'); setPropertyId(v); }
                   }}>
-                  <option value="">— Sin propiedad —</option>
+                  <option value="">{t('noProperty')}</option>
                   {properties.map(p => <option key={p.id} value={p.id}>{p.name}{p.is_primary ? ' ★' : ''}</option>)}
-                  <option value="__new__">+ Dirección nueva</option>
+                  <option value="__new__">{t('newPropertyOption')}</option>
                 </select>
               </div>
               {propertyMode === 'new' && (
                 <>
                   <div className="form-group">
-                    <label>Nombre de la propiedad</label>
-                    <input value={newProperty.name} onChange={e => setNewProperty(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Oficina Principal, Almacén Caguas" />
+                    <label>{t('propertyName')}</label>
+                    <input value={newProperty.name} onChange={e => setNewProperty(p => ({ ...p, name: e.target.value }))} placeholder={t('propertyNamePlaceholder')} />
                   </div>
                   <div className="form-group">
-                    <label>Dirección</label>
-                    <input value={newProperty.street} onChange={e => setNewProperty(p => ({ ...p, street: e.target.value }))} placeholder="Calle y número" />
+                    <label>{t('addressLabel')}</label>
+                    <input value={newProperty.street} onChange={e => setNewProperty(p => ({ ...p, street: e.target.value }))} placeholder={t('addressPlaceholder')} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
                     <div className="form-group">
-                      <label>Ciudad</label>
-                      <input value={newProperty.city} onChange={e => setNewProperty(p => ({ ...p, city: e.target.value }))} placeholder="San Juan" />
+                      <label>{t('city')}</label>
+                      <input value={newProperty.city} onChange={e => setNewProperty(p => ({ ...p, city: e.target.value }))} placeholder={t('cityPlaceholder')} />
                     </div>
                     <div className="form-group">
-                      <label>Estado</label>
-                      <input value={newProperty.state} onChange={e => setNewProperty(p => ({ ...p, state: e.target.value }))} placeholder="PR" />
+                      <label>{t('state')}</label>
+                      <input value={newProperty.state} onChange={e => setNewProperty(p => ({ ...p, state: e.target.value }))} placeholder={t('statePlaceholder')} />
                     </div>
                     <div className="form-group">
-                      <label>Zip</label>
-                      <input value={newProperty.zip} onChange={e => setNewProperty(p => ({ ...p, zip: e.target.value }))} placeholder="00901" />
+                      <label>{t('zip')}</label>
+                      <input value={newProperty.zip} onChange={e => setNewProperty(p => ({ ...p, zip: e.target.value }))} placeholder={t('zipPlaceholder')} />
                     </div>
                   </div>
-                  <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>Se guardará como propiedad del cliente para futuros estimados, facturas y trabajos.</p>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>{t('propertySavedNote')}</p>
                 </>
               )}
             </div>
@@ -784,18 +786,18 @@ export default function PropuestaForm({ initialData = null }) {
             const singleOption = optionsWithSelection.length === 1 ? optionsWithSelection[0] : null;
             return (
               <div style={{ position: 'sticky', top: 0, zIndex: 15, display: 'flex', alignItems: 'center', gap: 12, background: 'var(--navy)', color: '#fff', borderRadius: 10, padding: '10px 16px', marginBottom: 14 }}>
-                <span style={{ fontSize: 13, fontWeight: 700 }}>{selectedItemKeys.size} seleccionado{selectedItemKeys.size > 1 ? 's' : ''}</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{t('selectedCount', { count: selectedItemKeys.size })}</span>
                 {singleOption ? (
                   <select onChange={e => { if (e.target.value) bulkMoveSelectedToArea(singleOption.key, e.target.value); }} value=""
                     style={{ fontSize: 12.5, padding: '4px 8px', borderRadius: 6 }}>
-                    <option value="">↔ Mover a área...</option>
+                    <option value="">{t('moveToArea')}</option>
                     {singleOption.areas.map(a => <option key={a.key} value={a.key}>{a.name}</option>)}
                   </select>
                 ) : (
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Selección en varias opciones — solo se puede eliminar</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{t('multiSelectionWarning')}</span>
                 )}
-                <button type="button" onClick={bulkDeleteSelected} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 6, padding: '4px 10px', fontSize: 12.5, cursor: 'pointer' }}>🗑 Eliminar</button>
-                <button type="button" onClick={clearSelection} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 12.5, marginLeft: 'auto' }}>Cancelar selección</button>
+                <button type="button" onClick={bulkDeleteSelected} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 6, padding: '4px 10px', fontSize: 12.5, cursor: 'pointer' }}>{t('bulkDelete')}</button>
+                <button type="button" onClick={clearSelection} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 12.5, marginLeft: 'auto' }}>{t('cancelSelection')}</button>
               </div>
             );
           })()}
@@ -807,12 +809,12 @@ export default function PropuestaForm({ initialData = null }) {
                   <input value={opt.name} onChange={e => updateOption(opt.key, 'name', e.target.value)}
                     style={{ fontWeight: 700, fontSize: 15, border: 'none', background: 'none', color: 'var(--navy)', padding: 0 }} />
                 ) : (
-                  <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Contenido de la propuesta</p>
+                  <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('proposalContent')}</p>
                 )}
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   {multiOption && (
                     <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: opt.is_recommended ? 'var(--amber)' : 'var(--muted)', fontWeight: 600 }}>
-                      <input type="radio" checked={opt.is_recommended} onChange={() => setRecommended(opt.key)} /> Recomendada
+                      <input type="radio" checked={opt.is_recommended} onChange={() => setRecommended(opt.key)} /> {t('recommended')}
                     </label>
                   )}
                   {multiOption && options.length > 1 && (
@@ -822,7 +824,7 @@ export default function PropuestaForm({ initialData = null }) {
               </div>
               {multiOption && (
                 <input value={opt.description} onChange={e => updateOption(opt.key, 'description', e.target.value)}
-                  placeholder="Descripción breve de esta opción..." style={{ marginBottom: 14 }} />
+                  placeholder={t('optionDescriptionPlaceholder')} style={{ marginBottom: 14 }} />
               )}
 
               {/* Áreas */}
@@ -835,7 +837,7 @@ export default function PropuestaForm({ initialData = null }) {
                     <input value={area.name} onChange={e => updateAreaName(opt.key, area.key, e.target.value)}
                       style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0 }} />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{area.name} Total: {fmt(areaTotal(area))}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{t('areaTotal', { name: area.name, amount: fmt(areaTotal(area)) })}</span>
                       <div style={{ position: 'relative' }}>
                         <button type="button" onClick={() => setAreaMenuOpen(o => o === area.key ? null : area.key)}
                           style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, padding: '2px 6px' }}>⋮</button>
@@ -846,7 +848,7 @@ export default function PropuestaForm({ initialData = null }) {
                               <button type="button" disabled={opt.areas.length <= 1}
                                 onClick={() => { removeArea(opt.key, area.key); setAreaMenuOpen(null); }}
                                 style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: opt.areas.length <= 1 ? 'default' : 'pointer', borderRadius: 6, color: opt.areas.length <= 1 ? 'var(--muted)' : 'var(--warn)' }}>
-                                🗑 Eliminar área
+                                {t('deleteArea')}
                               </button>
                             </div>
                           </>
@@ -922,12 +924,12 @@ export default function PropuestaForm({ initialData = null }) {
                           actions={
                             <>
                               <input type="checkbox" checked={selectedItemKeys.has(it.key)} onChange={() => toggleItemSelection(it.key)}
-                                title="Seleccionar para acciones en lote" style={{ marginRight: 2, cursor: 'pointer' }} />
+                                title={t('selectForBulkTitle')} style={{ marginRight: 2, cursor: 'pointer' }} />
                               <span
                                 draggable
                                 onDragStart={() => setDragItem({ areaKey: area.key, itemKey: it.key })}
                                 onDragEnd={() => setDragItem(null)}
-                                title="Arrastrar para mover a otra área"
+                                title={t('dragToMoveTitle')}
                                 style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 15, padding: '0 4px', userSelect: 'none' }}
                               >⠿</span>
                               <button type="button" onClick={() => removeItem(opt.key, area.key, it.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
@@ -937,14 +939,14 @@ export default function PropuestaForm({ initialData = null }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 32, marginBottom: 8, marginTop: -4 }}>
                           <button type="button" onClick={() => addAccessory(opt.key, area.key, it.key)}
                             style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
-                            + Accesorio
+                            {t('addAccessory')}
                           </button>
                           {area.items.some(child => child.parentKey === it.key) && (
                             <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
-                              title="Si está activo, el precio de los accesorios se combina en el total de este producto (no se muestran precios individuales). Si lo desactivas, cada accesorio se cotiza por separado.">
+                              title={t('combineAccessoryPricesTooltip')}>
                               <input type="checkbox" checked={it.combinePrice !== false}
                                 onChange={e => updateItem(opt.key, area.key, it.key, 'combinePrice', e.target.checked)} />
-                              Combinar precio de accesorios
+                              {t('combineAccessoryPrices')}
                             </label>
                           )}
                         </div>
@@ -952,81 +954,81 @@ export default function PropuestaForm({ initialData = null }) {
                     )
                   ))}
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key, 'product')}>+ Añadir producto</button>
-                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key, 'labor')}>+ Añadir labor</button>
-                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ optKey: opt.key, areaKey: area.key })}>🧮 Calcular cable/tubo</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key, 'product')}>{t('addProduct')}</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key, 'labor')}>{t('addLabor')}</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ optKey: opt.key, areaKey: area.key })}>{t('calculateCable')}</button>
                   </div>
                 </div>
               ))}
-              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => addArea(opt.key)}>+ Agregar área</button>
+              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => addArea(opt.key)}>{t('addArea')}</button>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>Total venta: {fmt(optionTotal(opt))}</span>
+                <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>{t('totalSale', { amount: fmt(optionTotal(opt)) })}</span>
               </div>
             </div>
           ))}
 
           {multiOption && (
-            <button type="button" className="btn btn-ghost" onClick={addOption} style={{ justifyContent: 'center' }}>+ Agregar otra opción</button>
+            <button type="button" className="btn btn-ghost" onClick={addOption} style={{ justifyContent: 'center' }}>{t('addOption')}</button>
           )}
 
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Payment Schedule (opcional)</p>
-              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addPayment}>+ Agregar pago</button>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('paymentScheduleTitle')}</p>
+              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addPayment}>{t('addPayment')}</button>
             </div>
-            {paymentSchedule.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--muted)' }}>Sin pagos parciales — se mostrará el total completo.</p>}
+            {paymentSchedule.length === 0 && <p style={{ fontSize: 12.5, color: 'var(--muted)' }}>{t('noPaymentsNote')}</p>}
             {paymentSchedule.map(p => (
               <div key={p.key} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 70px 1fr 32px', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                <input value={p.label} onChange={e => updatePayment(p.key, 'label', e.target.value)} placeholder="Ej: Pago 1" style={{ fontSize: 13 }} />
+                <input value={p.label} onChange={e => updatePayment(p.key, 'label', e.target.value)} placeholder={t('paymentLabelPlaceholder')} style={{ fontSize: 13 }} />
                 <select value={p.basis} onChange={e => updatePayment(p.key, 'basis', e.target.value)} style={{ fontSize: 12 }}>
-                  <option value="parts">% de Parts</option>
-                  <option value="labor">% de Labor</option>
-                  <option value="subtotal">% de Subtotal</option>
+                  <option value="parts">{t('basisPartsOption')}</option>
+                  <option value="labor">{t('basisLaborOption')}</option>
+                  <option value="subtotal">{t('basisSubtotalOption')}</option>
                 </select>
-                <input type="number" value={p.percent} onChange={e => updatePayment(p.key, 'percent', e.target.value)} placeholder="%" style={{ fontSize: 13 }} min="0" max="100" />
-                <input value={p.due_trigger} onChange={e => updatePayment(p.key, 'due_trigger', e.target.value)} placeholder="Ej: Al aprobar la propuesta" style={{ fontSize: 12 }} />
+                <input type="number" value={p.percent} onChange={e => updatePayment(p.key, 'percent', e.target.value)} placeholder={t('percentPlaceholder')} style={{ fontSize: 13 }} min="0" max="100" />
+                <input value={p.due_trigger} onChange={e => updatePayment(p.key, 'due_trigger', e.target.value)} placeholder={t('dueTriggerPlaceholder')} style={{ fontSize: 12 }} />
                 <button type="button" onClick={() => removePayment(p.key)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>×</button>
               </div>
             ))}
           </div>
 
           <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 4 }}>Descuento (opcional)</p>
-            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>Se aplica al total de cada opción, después de calcular el IVU.</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 4 }}>{t('discountCardTitle')}</p>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>{t('discountCardSubtitle')}</p>
             <div className="form-row">
               <div className="form-group" style={{ maxWidth: 110 }}>
-                <label>Tipo</label>
+                <label>{t('discountTypeLabel')}</label>
                 <select value={discountType} onChange={e => setDiscountType(e.target.value)}>
                   <option value="amount">$</option>
                   <option value="percent">%</option>
                 </select>
               </div>
               <div className="form-group">
-                <label>{discountType === 'percent' ? 'Porcentaje' : 'Monto'}</label>
+                <label>{discountType === 'percent' ? t('percentageLabel') : t('amountLabel')}</label>
                 <input type="number" min="0" step="0.01" value={discountValue}
                   onChange={e => setDiscountValue(e.target.value)} placeholder="0.00" />
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Nota del descuento</label>
+              <label>{t('discountNoteLabel')}</label>
               <input value={discountNote} onChange={e => setDiscountNote(e.target.value)}
-                placeholder="Ej: Descuento por referido, promoción de verano..." />
+                placeholder={t('discountNotePlaceholder')} />
             </div>
           </div>
 
           <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Términos y condiciones</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('termsTitle')}</p>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <textarea value={terms} onChange={e => setTerms(e.target.value)} placeholder="Términos y condiciones de la propuesta..." />
+              <textarea value={terms} onChange={e => setTerms(e.target.value)} placeholder={t('termsPlaceholder')} />
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button type="button" className="btn btn-primary" disabled={saving} onClick={handleSave} style={{ flex: 1, justifyContent: 'center' }}>
-              {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Guardar propuesta'}
+              {saving ? t('saving') : isEdit ? t('saveChanges') : t('saveProposal')}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => router.back()}>Cancelar</button>
+            <button type="button" className="btn btn-ghost" onClick={() => router.back()}>{t('cancel')}</button>
           </div>
         </div>
         {cableCalcTarget && (

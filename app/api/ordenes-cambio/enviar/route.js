@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { getCurrentRole } from '../../../../lib/supabase-server';
+import { getClientEmailTranslator } from '../../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -12,6 +13,7 @@ export async function POST(request) {
     }
 
     const { orderId, toEmail, cc } = await request.json();
+    const t = await getClientEmailTranslator('emails.changeOrderSend');
     const ccList = Array.isArray(cc) ? cc.filter(Boolean) : [];
     const [{ data: order }, { data: items }] = await Promise.all([
       supabase.from('change_orders').select('*, clients(name, email, company, client_type)').eq('id', orderId).single(),
@@ -34,7 +36,7 @@ export async function POST(request) {
             <td style="vertical-align:top">${i.description}</td>
           </tr></table>
         </td>
-        <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${i.type === 'labor' ? 'Labor' : 'Producto'}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${i.type === 'labor' ? t('typeLabor') : t('typeProduct')}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${i.quantity}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${fmt(i.unit_price)}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;font-size:14px">${fmt(Number(i.line_total) + Number(i.tax_amount))}</td>
@@ -54,20 +56,20 @@ export async function POST(request) {
       <div style="color:rgba(255,255,255,0.65);font-size:12px">(787) 513-8352 · info@otesspr.com</div>
     </div>
     <div style="text-align:right">
-      <div style="color:#fff;font-size:18px;font-weight:900">ORDEN DE CAMBIO</div>
+      <div style="color:#fff;font-size:18px;font-weight:900">${t('documentLabel')}</div>
       <div style="color:#e0972c;font-size:20px;font-weight:700;font-family:monospace">${order.change_order_number}</div>
-      <div style="color:rgba(255,255,255,0.65);font-size:12px;margin-top:6px">Fecha: <strong style="color:#fff">${order.issued_at}</strong></div>
-      ${order.valid_until ? `<div style="color:rgba(255,255,255,0.65);font-size:12px">Válida hasta: <strong style="color:#fff">${order.valid_until}</strong></div>` : ''}
+      <div style="color:rgba(255,255,255,0.65);font-size:12px;margin-top:6px">${t('dateLabel')} <strong style="color:#fff">${order.issued_at}</strong></div>
+      ${order.valid_until ? `<div style="color:rgba(255,255,255,0.65);font-size:12px">${t('validUntilLabel')} <strong style="color:#fff">${order.valid_until}</strong></div>` : ''}
     </div>
   </div>
 
   <div style="background:#fff;padding:28px 32px">
-    <p style="color:#555;font-size:15px;margin-top:0">Estimado/a <strong>${order.clients?.name}</strong>,</p>
-    <p style="color:#666;font-size:14px">Se ha preparado una orden de cambio <strong>${order.change_order_number}</strong>${order.title ? ` — ${order.title}` : ''} que requiere su aprobación. Puede revisarla y aprobarla en el siguiente enlace:</p>
+    <p style="color:#555;font-size:15px;margin-top:0">${t('greeting', { name: order.clients?.name ?? '' })}</p>
+    <p style="color:#666;font-size:14px">${t('intro', { number: order.change_order_number, title: order.title ? ` — ${order.title}` : '' })}</p>
 
     <div style="text-align:center;margin:24px 0">
       <a href="${publicUrl}" style="background:#e0972c;color:#fff;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;display:inline-block">
-        📄 Ver y aprobar orden de cambio
+        ${t('viewButton')}
       </a>
     </div>
 
@@ -76,11 +78,11 @@ export async function POST(request) {
     <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
       <thead>
         <tr style="background:#16223d">
-          <th style="color:#fff;padding:10px 12px;text-align:left;font-size:11px">Descripción</th>
-          <th style="color:#fff;padding:10px 12px;text-align:center;font-size:11px">Tipo</th>
-          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">Cant.</th>
-          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">Precio</th>
-          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">Total</th>
+          <th style="color:#fff;padding:10px 12px;text-align:left;font-size:11px">${t('tableDescription')}</th>
+          <th style="color:#fff;padding:10px 12px;text-align:center;font-size:11px">${t('tableType')}</th>
+          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">${t('tableQty')}</th>
+          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">${t('tablePrice')}</th>
+          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">${t('tableTotal')}</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -88,18 +90,18 @@ export async function POST(request) {
 
     <div style="display:flex;justify-content:flex-end">
       <div style="width:280px">
-        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Subtotal productos</span><span>${fmt(order.subtotal_products)}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">IVU productos (11.5%)</span><span>${fmt(order.tax_products)}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Subtotal labor</span><span>${fmt(order.subtotal_labor)}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">IVU labor (${order.clients?.client_type === 'b2b' ? '4%' : '11.5%'})</span><span>${fmt(order.tax_labor)}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>TOTAL</span><span>${fmt(order.total)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('subtotalProducts')}</span><span>${fmt(order.subtotal_products)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('taxProducts')}</span><span>${fmt(order.tax_products)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('subtotalLabor')}</span><span>${fmt(order.subtotal_labor)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('taxLabor', { rate: order.clients?.client_type === 'b2b' ? '4%' : '11.5%' })}</span><span>${fmt(order.tax_labor)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>${t('total')}</span><span>${fmt(order.total)}</span></div>
       </div>
     </div>
   </div>
 
   <div style="background:#f0f2f5;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center">
-    <p style="color:#888;font-size:12px;margin:0">¿Preguntas? Contáctanos en <a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a> o al (787) 513-8352</p>
-    <p style="color:#aaa;font-size:11px;margin:8px 0 0">OT Electrical & Security Solutions · Carolina, Puerto Rico</p>
+    <p style="color:#888;font-size:12px;margin:0">${t('footerQuestions', { email: '<a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a>', phone: '(787) 513-8352' })}</p>
+    <p style="color:#aaa;font-size:11px;margin:8px 0 0">${t('footerAddress')}</p>
   </div>
 
 </div>
@@ -110,7 +112,7 @@ export async function POST(request) {
       from: 'OTESS <info@otesspr.com>',
       to: toEmail,
       ...(ccList.length ? { cc: ccList } : {}),
-      subject: `Orden de cambio ${order.change_order_number} — requiere tu aprobación`,
+      subject: t('subject', { number: order.change_order_number }),
       html,
     });
     if (error) return Response.json({ error: error.message }, { status: 500 });

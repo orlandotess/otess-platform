@@ -1,9 +1,11 @@
+import { useTranslations } from 'next-intl';
 import JobCard from './JobCard';
 import { HORA_INICIO, HORA_FIN, SLOT_MINUTOS, SLOT_WIDTH, jobPosition } from './dispatchUtils';
 
 // Jobs que ya tienen hora para este día pero ningún técnico asignado — sin esta fila
 // quedaban invisibles (solo vivían en el panel "Sin asignar", que no está filtrado por día).
 export default function UnassignedLane({ jobs }) {
+  const t = useTranslations('admin.dispatchUnassignedLane');
   if (jobs.length === 0) return null;
   const totalWidth = ((HORA_FIN - HORA_INICIO) * 60 / SLOT_MINUTOS) * SLOT_WIDTH;
 
@@ -12,7 +14,7 @@ export default function UnassignedLane({ jobs }) {
       <div className="dispatch-tech-name">
         <div className="dispatch-tech-avatar dispatch-tech-avatar-empty">!</div>
         <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          Sin técnico
+          {t('noTechLabel')}
         </span>
       </div>
       <div className="dispatch-slots">

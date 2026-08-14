@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import PropuestaDetailClient from './detail-client';
+import { getTranslations } from 'next-intl/server';
 
 export default async function PropuestaDetailPage({ params }) {
+  const t = await getTranslations('propuestas.detailPage');
   const { data: proposal } = await supabase
     .from('proposals')
     .select('*, clients(id, name, phone, email, company, client_type, report_name_source, client_addresses(*), client_properties(*)), proposal_options(*, proposal_line_items(*))')
@@ -33,7 +35,7 @@ export default async function PropuestaDetailPage({ params }) {
       <div className="admin-shell ds-propuestas">
         <Sidebar />
         <main className="main-content">
-          <p>Propuesta no encontrada.</p>
+          <p>{t('notFound')}</p>
         </main>
       </div>
     );

@@ -5,8 +5,10 @@ import { Suspense } from 'react';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../Sidebar';
 import ChangeOrderForm from '../../ChangeOrderForm';
+import { getTranslations } from 'next-intl/server';
 
 export default async function EditarOrdenCambioPage({ params }) {
+  const t = await getTranslations('ordenesCambio.editOrder');
   const { data: order } = await supabase
     .from('change_orders')
     .select('*, clients(name, client_type), jobs(id, title)')
@@ -17,7 +19,7 @@ export default async function EditarOrdenCambioPage({ params }) {
     return (
       <div className="admin-shell">
         <Sidebar />
-        <main className="main-content"><p>Orden de cambio no encontrada.</p></main>
+        <main className="main-content"><p>{t('notFound')}</p></main>
       </div>
     );
   }
@@ -27,7 +29,7 @@ export default async function EditarOrdenCambioPage({ params }) {
       <div className="admin-shell">
         <Sidebar />
         <main className="main-content">
-          <p>Esta orden de cambio ya fue {order.status === 'aprobada' ? 'aprobada' : 'rechazada'} y no se puede editar.</p>
+          <p>{t('notEditable', { status: order.status })}</p>
         </main>
       </div>
     );
@@ -43,7 +45,7 @@ export default async function EditarOrdenCambioPage({ params }) {
   );
 
   return (
-    <Suspense fallback={<div style={{ padding: 40 }}>Cargando...</div>}>
+    <Suspense fallback={<div style={{ padding: 40 }}>{t('loading')}</div>}>
       <ChangeOrderForm initialData={{ order, items: itemsWithSignedUrls }} />
     </Suspense>
   );

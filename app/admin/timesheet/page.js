@@ -6,6 +6,7 @@ import { computeHours, prDayKey, prQueryBounds } from '../../../lib/hours';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import TimesheetClient from './TimesheetClient';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 function getWeekRange(offset = 0) {
   const now = new Date(Date.now() - 4 * 60 * 60 * 1000);
@@ -21,6 +22,10 @@ function getWeekRange(offset = 0) {
 }
 
 export default async function TimesheetPage({ searchParams }) {
+  const tr = await getTranslations('admin.timesheet');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+
   const weekOffset = parseInt(searchParams?.week ?? "0");
   const techFilter = searchParams?.tech ?? "all";
   const { weekStart, weekEnd } = getWeekRange(weekOffset);
@@ -51,7 +56,7 @@ export default async function TimesheetPage({ searchParams }) {
   const adjs = adjustments ?? [];
   const dayOvs = dayOverrides ?? [];
 
-  const fmtDate = d => new Date(d).toLocaleDateString("es-PR", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  const fmtDate = d => new Date(d).toLocaleDateString(dateLocale, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
@@ -114,31 +119,31 @@ export default async function TimesheetPage({ searchParams }) {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Timesheet</div>
+            <div className="page-title">{tr('title')}</div>
             <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>
               {fmtDate(weekStart)} — {fmtDate(weekEnd)}
             </p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            <Link href="/accounting/payroll?view=week" className="btn btn-ghost">⏱ Payroll</Link>
-            <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+            <Link href="/accounting/payroll?view=week" className="btn btn-ghost">{tr('payroll')}</Link>
+            <Link href="/accounting" className="btn btn-ghost">{tr('backToDashboard')}</Link>
           </div>
         </div>
 
         <div className="card" style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Semana</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{tr('week')}</label>
               <div style={{ display: "flex", gap: 6 }}>
-                <Link href={`/admin/timesheet?week=${weekOffset - 1}&tech=${techFilter}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>← Anterior</Link>
-                {weekOffset !== 0 && <Link href={`/admin/timesheet?tech=${techFilter}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>Actual</Link>}
-                {weekOffset < 0 && <Link href={`/admin/timesheet?week=${weekOffset + 1}&tech=${techFilter}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>Siguiente →</Link>}
+                <Link href={`/admin/timesheet?week=${weekOffset - 1}&tech=${techFilter}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>{tr('previous')}</Link>
+                {weekOffset !== 0 && <Link href={`/admin/timesheet?tech=${techFilter}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>{tr('current')}</Link>}
+                {weekOffset < 0 && <Link href={`/admin/timesheet?week=${weekOffset + 1}&tech=${techFilter}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>{tr('next')}</Link>}
               </div>
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Técnico</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{tr('technician')}</label>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                <Link href={`/admin/timesheet?week=${weekOffset}&tech=all`} className={`btn ${techFilter === "all" ? "btn-primary" : "btn-ghost"}`} style={{ padding: "6px 14px", fontSize: 13 }}>Todos</Link>
+                <Link href={`/admin/timesheet?week=${weekOffset}&tech=all`} className={`btn ${techFilter === "all" ? "btn-primary" : "btn-ghost"}`} style={{ padding: "6px 14px", fontSize: 13 }}>{tr('all')}</Link>
                 {techs.map(t => (
                   <Link key={t.id} href={`/admin/timesheet?week=${weekOffset}&tech=${t.id}`} className={`btn ${techFilter === t.id ? "btn-primary" : "btn-ghost"}`} style={{ padding: "6px 14px", fontSize: 13 }}>{t.name}</Link>
                 ))}
@@ -148,10 +153,10 @@ export default async function TimesheetPage({ searchParams }) {
         </div>
 
         <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 20 }}>
-          <div className="stat-card"><div className="stat-label">Horas regulares</div><div className="stat-value">{filtered.reduce((a, t) => a + t.regularHours, 0).toFixed(1)}h</div></div>
-          <div className="stat-card"><div className="stat-label">Overtime</div><div className="stat-value" style={{ color: "var(--warn)" }}>{filtered.reduce((a, t) => a + t.overtimeHours, 0).toFixed(1)}h</div></div>
-          <div className="stat-card"><div className="stat-label">Total horas</div><div className="stat-value">{filtered.reduce((a, t) => a + t.totalHours, 0).toFixed(1)}h</div></div>
-          <div className="stat-card"><div className="stat-label">Gross estimado</div><div className="stat-value" style={{ color: "var(--ok)" }}>${filtered.reduce((a, t) => a + t.grossPay, 0).toFixed(2)}</div></div>
+          <div className="stat-card"><div className="stat-label">{tr('regularHours')}</div><div className="stat-value">{filtered.reduce((a, t) => a + t.regularHours, 0).toFixed(1)}h</div></div>
+          <div className="stat-card"><div className="stat-label">{tr('overtime')}</div><div className="stat-value" style={{ color: "var(--warn)" }}>{filtered.reduce((a, t) => a + t.overtimeHours, 0).toFixed(1)}h</div></div>
+          <div className="stat-card"><div className="stat-label">{tr('totalHours')}</div><div className="stat-value">{filtered.reduce((a, t) => a + t.totalHours, 0).toFixed(1)}h</div></div>
+          <div className="stat-card"><div className="stat-label">{tr('grossEstimated')}</div><div className="stat-value" style={{ color: "var(--ok)" }}>${filtered.reduce((a, t) => a + t.grossPay, 0).toFixed(2)}</div></div>
         </div>
 
         <TimesheetClient key={`${weekStartStr}_${techFilter}`} techStats={techStats} weekDays={weekDays.map(d => d.toISOString())} techFilter={techFilter} />

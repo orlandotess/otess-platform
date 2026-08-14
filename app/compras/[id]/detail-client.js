@@ -3,13 +3,15 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
+import { useTranslations } from 'next-intl';
 
 const STATUS_BADGE = { pendiente: 'badge-gray', ordenado: 'badge-blue', recibido: 'badge-green', cancelado: 'badge-red' };
-const STATUS_LABELS = { pendiente: 'Pendiente', ordenado: 'Ordenado', recibido: 'Recibido', cancelado: 'Cancelado' };
-const SOURCE_LABELS = { proposal: 'Propuesta', job: 'Trabajo', change_order: 'Orden de cambio' };
 const SOURCE_HREF = { proposal: id => `/propuestas/${id}`, job: id => `/trabajos/${id}`, change_order: id => `/ordenes-cambio/${id}` };
 
 export default function CompraDetailClient({ order }) {
+  const t = useTranslations('compras.detailClient');
+  const STATUS_LABELS = { pendiente: t('status.pendiente'), ordenado: t('status.ordenado'), recibido: t('status.recibido'), cancelado: t('status.cancelado') };
+  const SOURCE_LABELS = { proposal: t('source.proposal'), job: t('source.job'), change_order: t('source.changeOrder') };
   const router = useRouter();
   const [status, setStatus] = useState(order.status);
   const [saving, setSaving] = useState(false);
@@ -56,7 +58,7 @@ export default function CompraDetailClient({ order }) {
       setEditing(false);
       router.refresh();
     } catch (err) {
-      alert('Error al guardar los cambios: ' + err.message);
+      alert(t('errorSavingChanges', { message: err.message }));
     } finally {
       setSavingItems(false);
     }
@@ -70,7 +72,7 @@ export default function CompraDetailClient({ order }) {
     if (newStatus === 'recibido') patch.received_at = now;
     const { error } = await supabase.from('purchase_orders').update(patch).eq('id', order.id);
     setSaving(false);
-    if (error) { alert('Error al cambiar el estado: ' + error.message); return; }
+    if (error) { alert(t('errorChangingStatus', { message: error.message })); return; }
     setStatus(newStatus);
     router.refresh();
   }
@@ -80,7 +82,7 @@ export default function CompraDetailClient({ order }) {
     const { error } = await supabase.from('purchase_orders').delete().eq('id', order.id);
     if (error) {
       setDeleting(false);
-      alert('No se pudo eliminar la orden: ' + error.message);
+      alert(t('errorDeleting', { message: error.message }));
       return;
     }
     router.push('/compras');
@@ -92,7 +94,7 @@ export default function CompraDetailClient({ order }) {
         <div>
           <div className="page-title">{order.order_number}</div>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-            {order.vendors?.name ?? 'Proveedor sin nombre'} ·{' '}
+            {order.vendors?.name ?? t('noVendorName')} ·{' '}
             <Link href={SOURCE_HREF[order.source_type]?.(order.source_id) ?? '#'} style={{ color: 'var(--navy)' }}>
               {SOURCE_LABELS[order.source_type] ?? order.source_type}: {order.source_label}
             </Link>
@@ -101,16 +103,16 @@ export default function CompraDetailClient({ order }) {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <span className={`badge ${STATUS_BADGE[status] ?? 'badge-gray'}`}>{STATUS_LABELS[status] ?? status}</span>
           {status === 'pendiente' && (
-            <button className="btn btn-primary" disabled={saving} onClick={() => changeStatus('ordenado')}>Marcar ordenado</button>
+            <button className="btn btn-primary" disabled={saving} onClick={() => changeStatus('ordenado')}>{t('markOrdered')}</button>
           )}
           {status === 'ordenado' && (
-            <button className="btn btn-primary" disabled={saving} onClick={() => changeStatus('recibido')}>Marcar recibido</button>
+            <button className="btn btn-primary" disabled={saving} onClick={() => changeStatus('recibido')}>{t('markReceived')}</button>
           )}
           {['pendiente', 'ordenado'].includes(status) && (
-            <button className="btn btn-ghost" disabled={saving} onClick={() => changeStatus('cancelado')}>Cancelar</button>
+            <button className="btn btn-ghost" disabled={saving} onClick={() => changeStatus('cancelado')}>{t('cancel')}</button>
           )}
           {status === 'pendiente' && !editing && (
-            <button className="btn btn-ghost" onClick={startEditing}>✏️ Editar</button>
+            <button className="btn btn-ghost" onClick={startEditing}>✏️ {t('edit')}</button>
           )}
           <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setShowDelete(true)}>🗑</button>
         </div>
@@ -119,21 +121,21 @@ export default function CompraDetailClient({ order }) {
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar orden de compra?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteConfirmTitle')}</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteConfirmBody')}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteOrder} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                {deleting ? t('deleting') : `🗑 ${t('deleteConfirmYes')}`}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>{t('cancel')}</button>
             </div>
           </div>
         </div>
       )}
 
       <div className="card" style={{ marginBottom: 20 }}>
-        <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Proveedor</p>
+        <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{t('vendorSectionTitle')}</p>
         <div style={{ fontWeight: 700, fontSize: 15 }}>{order.vendors?.name ?? '—'}</div>
         {order.vendors?.contact_name && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{order.vendors.contact_name}</div>}
         {order.vendors?.email && <div style={{ fontSize: 13, color: 'var(--muted)' }}>{order.vendors.email}</div>}
@@ -144,10 +146,10 @@ export default function CompraDetailClient({ order }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1.5px solid var(--border)' }}>
-              <th style={{ textAlign: 'left', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Descripción</th>
-              <th style={{ textAlign: 'center', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Cant.</th>
-              <th style={{ textAlign: 'right', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Costo unit.</th>
-              <th style={{ textAlign: 'right', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Total</th>
+              <th style={{ textAlign: 'left', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('table.description')}</th>
+              <th style={{ textAlign: 'center', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('table.qty')}</th>
+              <th style={{ textAlign: 'right', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('table.unitCost')}</th>
+              <th style={{ textAlign: 'right', padding: '12px 20px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>{t('table.total')}</th>
               {editing && <th style={{ padding: '12px 20px' }}></th>}
             </tr>
           </thead>
@@ -185,11 +187,11 @@ export default function CompraDetailClient({ order }) {
         <div style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1.5px solid var(--border)' }}>
           {editing ? (
             <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-primary" disabled={savingItems} onClick={saveItems}>{savingItems ? 'Guardando...' : 'Guardar cambios'}</button>
-              <button className="btn btn-ghost" disabled={savingItems} onClick={() => setEditing(false)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={savingItems} onClick={saveItems}>{savingItems ? t('saving') : t('saveChanges')}</button>
+              <button className="btn btn-ghost" disabled={savingItems} onClick={() => setEditing(false)}>{t('cancel')}</button>
             </div>
           ) : <div />}
-          <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>Total: {fmt(total)}</div>
+          <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>{t('totalLabel', { amount: fmt(total) })}</div>
         </div>
       </div>
     </div>

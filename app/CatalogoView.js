@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from 'next-intl';
 
 // Renderer genérico Tile/List para el catálogo — recibe los items ya
 // filtrados, columnas para la vista List (código, descripción, costo,
@@ -7,9 +8,11 @@
 // pasa la fila/tarjeta ya armada, así que se puede usar con cualquier tab
 // del catálogo sin que CatalogoView necesite conocer los detalles de cada
 // tipo de ítem.
-export default function CatalogoView({ items, view, columns = [], renderTile, emptyLabel = 'No hay ítems aún.' }) {
+export default function CatalogoView({ items, view, columns = [], renderTile, emptyLabel }) {
+  const t = useTranslations('shared.catalogoView');
+  const empty = emptyLabel ?? t('emptyDefault');
   if (items.length === 0) {
-    return <div className="empty"><p>{emptyLabel}</p></div>;
+    return <div className="empty"><p>{empty}</p></div>;
   }
 
   if (view === 'tile') {

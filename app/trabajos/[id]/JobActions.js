@@ -1,23 +1,27 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
-const statusOptions = [
-  { value: 'estimate',    label: 'Estimado' },
-  { value: 'scheduled',   label: 'Programado' },
-  { value: 'in_progress', label: 'En progreso' },
-  { value: 'completed',   label: 'Completado' },
-  { value: 'cancelled',   label: 'Cancelado' },
+const statusOptionDefs = [
+  { value: 'estimate',    key: 'estimate' },
+  { value: 'scheduled',   key: 'scheduled' },
+  { value: 'in_progress', key: 'in_progress' },
+  { value: 'completed',   key: 'completed' },
+  { value: 'cancelled',   key: 'cancelled' },
 ];
 
 export default function JobActions({ jobId, status, showTechOnly = false, technicians = [], currentTechId = null }) {
+  const t = useTranslations('trabajos.actions');
   const router = useRouter();
   const [newStatus, setNewStatus] = useState(status);
   const [techId, setTechId] = useState(currentTechId ?? '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+
+  const statusOptions = useMemo(() => statusOptionDefs.map(o => ({ value: o.value, label: t(`status.${o.key}`) })), [t]);
 
   async function updateStatus(val) {
     setNewStatus(val);
@@ -44,7 +48,7 @@ export default function JobActions({ jobId, status, showTechOnly = false, techni
     const { error } = await supabase.from('jobs').delete().eq('id', jobId);
     if (error) {
       setDeleting(false);
-      alert('No se pudo eliminar el trabajo: ' + error.message);
+      alert(t('deleteError', { error: error.message }));
       return;
     }
     // Full reload (not router.push) so the trabajos list doesn't serve a
@@ -60,7 +64,7 @@ export default function JobActions({ jobId, status, showTechOnly = false, techni
           onChange={e => assignTech(e.target.value)}
           style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }}
         >
-          <option value="">— Sin asignar —</option>
+          <option value="">{t('unassigned')}</option>
           {technicians.map(t => (
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
@@ -84,20 +88,20 @@ export default function JobActions({ jobId, status, showTechOnly = false, techni
         style={{ color: 'var(--warn)', borderColor: 'var(--warn)' }}
         onClick={() => setShowDelete(true)}
       >
-        🗑 Eliminar
+        {t('delete')}
       </button>
 
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar trabajo?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente y no se puede deshacer.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteConfirmTitle')}</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteConfirmText')}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteJob} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                {deleting ? t('deleting') : t('confirmDelete')}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>{t('cancel')}</button>
             </div>
           </div>
         </div>

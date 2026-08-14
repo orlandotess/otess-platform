@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ElementIcon } from '../../equipmentIcons';
 
 const CUSTOM_SECTION = '__custom__';
@@ -12,6 +13,7 @@ const CUSTOM_SECTION = '__custom__';
  * placement mode in the parent and closes the panel.
  */
 export default function AddElementPanel({ elementTypes, customIcons, onSelectElement, onSelectCustomIcon }) {
+  const t = useTranslations('planos.addElementPanel');
   const [search, setSearch] = useState('');
   const [openCategories, setOpenCategories] = useState(() => new Set());
 
@@ -63,7 +65,7 @@ export default function AddElementPanel({ elementTypes, customIcons, onSelectEle
         autoFocus
         value={search}
         onChange={e => setSearch(e.target.value)}
-        placeholder="🔍 Buscar elemento..."
+        placeholder={t('searchPlaceholder')}
         style={{ width: '100%', marginBottom: 10, fontSize: 13 }}
       />
       <div style={{ maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -82,7 +84,7 @@ export default function AddElementPanel({ elementTypes, customIcons, onSelectEle
                       type="button"
                       className="hover-lift"
                       onClick={() => onSelectElement(el.id)}
-                      title={el.is_path_tool ? `${el.name} — traza una línea entre dos equipos` : el.name}
+                      title={el.is_path_tool ? t('pathToolTitle', { name: el.name }) : el.name}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                         padding: '8px 4px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)',
@@ -101,7 +103,7 @@ export default function AddElementPanel({ elementTypes, customIcons, onSelectEle
 
         {customIcons.length > 0 && (!filtering || customMatches.length > 0) && (
           <div>
-            {categoryHeader(CUSTOM_SECTION, null, '🖼️ Mis íconos', customMatches.length, filtering || openCategories.has(CUSTOM_SECTION))}
+            {categoryHeader(CUSTOM_SECTION, null, `🖼️ ${t('myIcons')}`, customMatches.length, filtering || openCategories.has(CUSTOM_SECTION))}
             {(filtering || openCategories.has(CUSTOM_SECTION)) && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, padding: '4px 4px 8px' }}>
                 {customMatches.map(ic => (
@@ -127,7 +129,7 @@ export default function AddElementPanel({ elementTypes, customIcons, onSelectEle
         )}
 
         {categories.length === 0 && customIcons.length === 0 && (
-          <p style={{ fontSize: 12, color: 'var(--muted)' }}>No hay elementos en el catálogo.</p>
+          <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('noElements')}</p>
         )}
       </div>
     </div>

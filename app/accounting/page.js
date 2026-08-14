@@ -7,6 +7,7 @@ import { computeHours, prDayKey, prMonthRange, prYearRange, prWeekRangeFromDate 
 import { indexDayOverrides } from '../../lib/payrollOverrides';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 
 function getPeriods() {
   // Anchored to PR's fixed UTC-4 offset (matches admin/timesheet's
@@ -152,94 +153,94 @@ function computePayroll(periodStartStr, periodEndStr, techs, ents, adjustments, 
   return total;
 }
 
-function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt }) {
+function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt, t }) {
   const netEst = revenue.collected - payroll - ivu.ivuTotal - gastos;
   return (
     <div className="card" id={id} style={{ marginBottom: 24, scrollMarginTop: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: '2px solid var(--border)' }}>
         <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0 }}>{label}</h2>
-        <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>{revenue.count} facturas</span>
+        <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>{t('invoiceCount', { count: revenue.count })}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Facturado</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('billed')}</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--navy)' }}>{fmt(revenue.total)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Cobrado</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('collected')}</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--ok)' }}>{fmt(revenue.collected)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Pendiente</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('pending')}</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--amber)' }}>{fmt(revenue.outstanding)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Nómina</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('payroll')}</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--orange)' }}>{fmt(payroll)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Gastos</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('expenses')}</div>
           <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--warn)' }}>{fmt(gastos)}</div>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16, padding: '12px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Sub. Productos</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{t('subProducts')}</div>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{fmt(revenue.subProducts)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Sub. Labor</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{t('subLabor')}</div>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{fmt(revenue.subLabor)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>IVU Productos</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{t('ivuProducts')}</div>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{fmt(revenue.taxProducts)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>IVU Labor</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{t('ivuLabor')}</div>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{fmt(revenue.taxLabor)}</div>
         </div>
       </div>
       <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', marginBottom: 10 }}>Desglose IVU</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', marginBottom: 10 }}>{t('ivuBreakdown')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>IVU Total</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('ivuTotal')}</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)' }}>{fmt(ivu.ivuTotal)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Estatal (10.5%)</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('stateRate')}</div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>{fmt(ivu.ivuEstatal)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Municipal (1%)</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('municipalRate')}</div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>{fmt(ivu.ivuMunicipal)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>B2B Labor (4%)</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('b2bLaborRate')}</div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>{fmt(ivu.ivuLaborB2B)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Productos (11.5%)</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('productsRate')}</div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>{fmt(ivu.ivuProducts)}</div>
           </div>
         </div>
       </div>
       {margin.revenueWithCost > 0 && (
         <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', marginBottom: 10 }}>Margen (sobre líneas con costo registrado)</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', marginBottom: 10 }}>{t('marginTitle')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Facturado c/costo</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('billedWithCost')}</div>
               <div style={{ fontSize: 15, fontWeight: 700 }}>{fmt(margin.revenueWithCost)}</div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Costo suplidor</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('supplierCost')}</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--warn)' }}>{fmt(margin.cost)}</div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Margen</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('margin')}</div>
               <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ok)' }}>{fmt(margin.margin)} {margin.marginPct != null ? `(${margin.marginPct.toFixed(0)}%)` : ''}</div>
             </div>
           </div>
@@ -247,7 +248,7 @@ function PeriodSection({ label, id, revenue, ivu, payroll, margin, gastos, fmt }
       )}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: netEst >= 0 ? 'var(--ok)' : 'var(--warn)', background: netEst >= 0 ? 'var(--ok-tint)' : 'var(--danger-tint)', padding: '6px 14px', borderRadius: 8 }}>
-          Ganancia neta estimada: {fmt(netEst)}
+          {t('netEstimate', { amount: fmt(netEst) })}
         </div>
       </div>
     </div>
@@ -263,6 +264,7 @@ import WeekPeriodSelector from './WeekPeriodSelector';
 import YearPeriodSelector from './YearPeriodSelector';
 
 export default async function AccountingDashboard({ searchParams }) {
+  const t = await getTranslations('accounting.dashboard');
   const { yearStart, yearEnd, year, month } = getPeriods();
 
   // The "month" section defaults to the current month but can be changed to
@@ -377,16 +379,16 @@ export default async function AccountingDashboard({ searchParams }) {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Panel de Contabilidad</div>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>Resumen financiero de OTESS</p>
+            <div className="page-title">{t('pageTitle')}</div>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>{t('pageSubtitle')}</p>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <DashboardSearch invoices={invoices.map(i => ({ id: i.id, invoice_number: i.invoice_number, clientName: i.clients?.name, total: i.total, status: i.status }))} />
-            <Link href="/accounting/facturas" className="btn btn-ghost">🧾 Facturas</Link>
-            <Link href="/accounting/ivu" className="btn btn-ghost">🏛 IVU</Link>
-            <Link href="/accounting/payroll" className="btn btn-ghost">⏱ Nómina</Link>
-            <Link href="/accounting/gastos" className="btn btn-ghost">💸 Gastos</Link>
-            <Link href="/accounting/rentabilidad" className="btn btn-ghost">💰 Rentabilidad</Link>
+            <Link href="/accounting/facturas" className="btn btn-ghost">🧾 {t('navFacturas')}</Link>
+            <Link href="/accounting/ivu" className="btn btn-ghost">🏛 {t('navIvu')}</Link>
+            <Link href="/accounting/payroll" className="btn btn-ghost">⏱ {t('navPayroll')}</Link>
+            <Link href="/accounting/gastos" className="btn btn-ghost">💸 {t('navExpenses')}</Link>
+            <Link href="/accounting/rentabilidad" className="btn btn-ghost">💰 {t('navProfitability')}</Link>
           </div>
         </div>
 
@@ -405,6 +407,7 @@ export default async function AccountingDashboard({ searchParams }) {
           margin={computeMargin(getIds(selWeekPeriodStart, selWeekPeriodEnd), lines)}
           gastos={computeExpenses(selWeekPeriodStart, selWeekPeriodEnd, expenses)}
           fmt={fmt}
+          t={t}
         />
         <PeriodSection
           id="mes-seleccionado"
@@ -415,6 +418,7 @@ export default async function AccountingDashboard({ searchParams }) {
           margin={computeMargin(getIds(monthPeriodStart, monthPeriodEnd), lines)}
           gastos={computeExpenses(monthPeriodStart, monthPeriodEnd, expenses)}
           fmt={fmt}
+          t={t}
         />
         <PeriodSection
           id="ano-seleccionado"
@@ -425,6 +429,7 @@ export default async function AccountingDashboard({ searchParams }) {
           margin={computeMargin(getIds(selYearPeriodStart, selYearPeriodEnd), lines)}
           gastos={computeExpenses(selYearPeriodStart, selYearPeriodEnd, expenses)}
           fmt={fmt}
+          t={t}
         />
       </main>
     </div>

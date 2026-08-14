@@ -2,15 +2,20 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import SearchBox from '../../SearchBox';
+import { useTranslations } from 'next-intl';
 
-const statusBadge = {
-  draft:     { cls: 'badge-gray',  label: 'Borrador' },
-  sent:      { cls: 'badge-blue',  label: 'Enviada' },
-  paid:      { cls: 'badge-green', label: 'Pagada' },
-  cancelled: { cls: 'badge-red',   label: 'Cancelada' },
+const statusBadgeDefs = {
+  draft:     { cls: 'badge-gray',  key: 'draft' },
+  sent:      { cls: 'badge-blue',  key: 'sent' },
+  paid:      { cls: 'badge-green', key: 'paid' },
+  cancelled: { cls: 'badge-red',   key: 'cancelled' },
 };
 
 export default function FacturasTableClient({ invs, totalFacturado, collectedByInvoice = {}, retenidoByInvoice = {} }) {
+  const t = useTranslations('accounting.facturasReportTable');
+  const statusBadge = Object.fromEntries(
+    Object.entries(statusBadgeDefs).map(([k, v]) => [k, { cls: v.cls, label: t(`status.${v.key}`) }])
+  );
   const [search, setSearch] = useState('');
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const today = new Date().toISOString().slice(0, 10);
@@ -41,36 +46,36 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
   return (
     <div className="card">
       <div style={{ marginBottom: 16 }}>
-        <SearchBox value={search} onChange={setSearch} placeholder="Buscar # factura o cliente..." />
+        <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
       </div>
       {invs.length === 0 ? (
-        <div className="empty"><p>No hay facturas para este período.</p></div>
+        <div className="empty"><p>{t('empty')}</p></div>
       ) : visible.length === 0 ? (
-        <div className="empty"><p>Sin resultados para "{search}".</p></div>
+        <div className="empty"><p>{t('noResults', { search })}</p></div>
       ) : (
         <div className="table-wrap">
           <table className="table-dense">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Cliente</th>
-                <th>Tipo</th>
-                <th>Estado</th>
-                <th>Fecha</th>
-                <th>Vence</th>
-                <th style={{ textAlign: 'right' }}>Subtotal</th>
-                <th style={{ textAlign: 'right' }}>IVU Prod</th>
-                <th style={{ textAlign: 'right' }}>IVU Labor</th>
-                <th style={{ textAlign: 'right' }}>Total</th>
-                <th style={{ textAlign: 'right' }}>Cobrado</th>
-                <th style={{ textAlign: 'right' }}>Retención</th>
-                <th style={{ textAlign: 'right' }}>Pendiente</th>
+                <th>{t('columns.number')}</th>
+                <th>{t('columns.client')}</th>
+                <th>{t('columns.type')}</th>
+                <th>{t('columns.status')}</th>
+                <th>{t('columns.date')}</th>
+                <th>{t('columns.due')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.subtotal')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.ivuProd')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.ivuLabor')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.total')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.collected')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.withholding')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.pending')}</th>
               </tr>
             </thead>
             <tbody>
               {visible.map(inv => {
                 const overdue = isOverdue(inv);
-                const b = overdue ? { cls: 'badge-red', label: 'Vencida' } : (statusBadge[inv.status] ?? statusBadge.draft);
+                const b = overdue ? { cls: 'badge-red', label: t('status.overdue') } : (statusBadge[inv.status] ?? statusBadge.draft);
                 const subtotal = Number(inv.subtotal_products ?? 0) + Number(inv.subtotal_labor ?? 0);
                 const pend = pendiente(inv);
                 const ret = retenido(inv);
@@ -78,11 +83,11 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
                   <tr key={inv.id}>
                     <td style={{ fontWeight: 700, fontFamily: 'monospace' }}><Link href={`/facturas/${inv.id}`} style={{ color: 'inherit' }}>{inv.invoice_number}</Link></td>
                     <td style={{ fontWeight: 600 }}>{clientDisplay(inv)}</td>
-                    <td><span className={`badge ${inv.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`}>{inv.clients?.client_type === 'b2b' ? 'B2B' : 'Final'}</span></td>
+                    <td><span className={`badge ${inv.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`}>{inv.clients?.client_type === 'b2b' ? t('clientType.b2b') : t('clientType.final')}</span></td>
                     <td>
                       <span className={`badge ${b.cls}`}>{b.label}</span>
                       {overdue && inv.reminders_paused_at && (
-                        <span className="badge badge-gray" style={{ marginLeft: 4 }} title="Recordatorios pausados">⏸</span>
+                        <span className="badge badge-gray" style={{ marginLeft: 4 }} title={t('remindersPaused')}>⏸</span>
                       )}
                     </td>
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>{inv.issued_at ?? '—'}</td>
@@ -100,7 +105,7 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
             </tbody>
             <tfoot>
               <tr style={{ borderTop: '2px solid var(--border)' }}>
-                <td colSpan={6} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTALES {query ? '(visibles)' : ''}</td>
+                <td colSpan={6} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>{query ? t('totalsVisible') : t('totals')}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(counted.reduce((a, i) => a + Number(i.subtotal_products ?? 0) + Number(i.subtotal_labor ?? 0), 0))}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(counted.reduce((a, i) => a + Number(i.tax_products ?? 0), 0))}</td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(counted.reduce((a, i) => a + Number(i.tax_labor ?? 0), 0))}</td>
@@ -113,7 +118,7 @@ export default function FacturasTableClient({ invs, totalFacturado, collectedByI
           </table>
           {hasExcluded && (
             <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
-              Los totales excluyen facturas en borrador o canceladas ({visible.length - counted.length} de {visible.length}).
+              {t('excludedNote', { excluded: visible.length - counted.length, total: visible.length })}
             </p>
           )}
         </div>

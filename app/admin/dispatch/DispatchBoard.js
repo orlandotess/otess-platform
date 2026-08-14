@@ -2,6 +2,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { useTranslations } from 'next-intl';
 import { supabase } from '../../../lib/supabase';
 import GanttGrid from './GanttGrid';
 import JobsPanel from './JobsPanel';
@@ -16,6 +17,7 @@ const BUSINESS_HOUR_START = 7;
 
 export default function DispatchBoard({ technicians, scheduledJobs, unassignedJobs, absencesByTech = {}, openEntryByTech = {}, day }) {
   const router = useRouter();
+  const t = useTranslations('admin.dispatchBoard');
   const [jobs, setJobs] = useState(() => [...scheduledJobs, ...unassignedJobs]);
   const [view, setView] = useState('gantt');
   const [activeJob, setActiveJob] = useState(null);
@@ -83,7 +85,7 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
   // primera (el "dueño") es arrastrable, las demás son copias de solo lectura.
   const jobsByTech = useMemo(() => {
     const map = {};
-    for (const t of technicians) map[t.id] = [];
+    for (const tech of technicians) map[tech.id] = [];
     for (const j of jobs) {
       // El panel "Sin asignar" no está filtrado por día (trae todos los jobs sin
       // technician_id sin importar fecha) — sin este chequeo, uno con job_technicians
@@ -198,20 +200,20 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="dispatch-header">
-        <div className="page-title">Dispatch Board</div>
+        <div className="page-title">{t('title')}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ display: 'flex', gap: 4 }}>
             <button
               className={`btn btn-sm ${view === 'gantt' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setView('gantt')}
             >
-              Gantt
+              {t('viewGantt')}
             </button>
             <button
               className={`btn btn-sm ${view === 'lista' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setView('lista')}
             >
-              Lista
+              {t('viewList')}
             </button>
           </div>
           <div className="dispatch-daynav">
@@ -222,7 +224,7 @@ export default function DispatchBoard({ technicians, scheduledJobs, unassignedJo
               onChange={e => e.target.value && goToDay(e.target.value)}
               style={{ padding: '7px 10px', fontSize: 13, borderRadius: 8, border: '1px solid var(--border)' }}
             />
-            <button className="btn btn-ghost btn-sm" onClick={() => goToDay(todayPR())}>Hoy</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => goToDay(todayPR())}>{t('today')}</button>
             <button className="btn btn-ghost btn-sm" onClick={() => shiftDay(1)}>→</button>
           </div>
         </div>

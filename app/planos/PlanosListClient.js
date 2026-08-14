@@ -1,9 +1,11 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import SearchBox from '../SearchBox';
 
 export default function PlanosListClient({ plans }) {
+  const t = useTranslations('planos.listClient');
   const [search, setSearch] = useState('');
 
   const query = search.trim().toLowerCase();
@@ -17,10 +19,10 @@ export default function PlanosListClient({ plans }) {
   return (
     <div className="card">
       <div style={{ marginBottom: 16 }}>
-        <SearchBox value={search} onChange={setSearch} placeholder="Buscar plano, cliente o trabajo..." />
+        <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
       </div>
       {visible.length === 0 ? (
-        <div className="empty"><p>Sin resultados para "{search}".</p></div>
+        <div className="empty"><p>{t('noResults', { search })}</p></div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
           {visible.map(p => (
@@ -36,7 +38,7 @@ export default function PlanosListClient({ plans }) {
               <div style={{ padding: '10px 12px' }}>
                 <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{p.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                  {p.clients?.name ?? p.jobs?.title ?? 'Sin asignar'}
+                  {p.clients?.name ?? p.jobs?.title ?? t('unassigned')}
                 </div>
               </div>
             </Link>

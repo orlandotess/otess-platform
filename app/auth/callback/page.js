@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { supabase } from "../../../lib/supabase";
 
 export default function AuthCallback() {
   const router = useRouter();
+  const t = useTranslations("auth.callback");
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -45,16 +47,16 @@ export default function AuthCallback() {
   if (error) {
     return (
       <div style={{ padding: 40, fontFamily: "sans-serif", textAlign: "center" }}>
-        <h2>Error al procesar el enlace</h2>
+        <h2>{t("errorTitle")}</h2>
         <p style={{ color: "var(--ink-faint)" }}>{error}</p>
-        <a href="/login" style={{ color: "var(--amber)" }}>Ir a login</a>
+        <a href="/login" style={{ color: "var(--amber)" }}>{t("goToLogin")}</a>
       </div>
     );
   }
 
   return (
     <div style={{ padding: 40, fontFamily: "sans-serif", textAlign: "center" }}>
-      <p>Procesando...</p>
+      <p>{t("processing")}</p>
     </div>
   );
 }

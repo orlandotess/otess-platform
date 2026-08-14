@@ -1,9 +1,11 @@
 'use client';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 const NAVY = '#16223d';
 
 export default function OrdenCambioPublicClient({ order, items }) {
+  const t = useTranslations('ordenesCambio.publicClient');
   const [signedName, setSignedName] = useState('');
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState(order.status === 'aprobada');
@@ -24,7 +26,7 @@ export default function OrdenCambioPublicClient({ order, items }) {
     setApproving(false);
     if (!res.ok) {
       const d = await res.json();
-      setError(d.error ?? 'Error al aprobar');
+      setError(d.error ?? t('genericError'));
       return;
     }
     setApproved(true);
@@ -35,8 +37,8 @@ export default function OrdenCambioPublicClient({ order, items }) {
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', fontFamily: '-apple-system,sans-serif', padding: 20 }}>
         <div style={{ background: '#fff', borderRadius: 12, padding: 40, maxWidth: 420, textAlign: 'center', border: '1px solid #eee' }}>
           <div style={{ fontSize: 32, marginBottom: 12, color: '#1a7a4a' }}>✓</div>
-          <div style={{ fontSize: 19, fontWeight: 700, color: NAVY, marginBottom: 8 }}>Orden de cambio aprobada</div>
-          <p style={{ fontSize: 14, color: '#888' }}>Gracias — procederemos con el trabajo descrito.</p>
+          <div style={{ fontSize: 19, fontWeight: 700, color: NAVY, marginBottom: 8 }}>{t('approvedTitle')}</div>
+          <p style={{ fontSize: 14, color: '#888' }}>{t('approvedBody')}</p>
         </div>
       </div>
     );
@@ -61,9 +63,9 @@ export default function OrdenCambioPublicClient({ order, items }) {
       <div style={{ padding: '32px 16px' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 12, color: '#999', fontWeight: 600, letterSpacing: '0.03em' }}>{order.change_order_number} · ORDEN DE CAMBIO</div>
+          <div style={{ fontSize: 12, color: '#999', fontWeight: 600, letterSpacing: '0.03em' }}>{order.change_order_number} · {t('changeOrderLabel')}</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: NAVY, marginTop: 6, letterSpacing: '-0.3px' }}>{order.title}</div>
-          <div style={{ fontSize: 14, color: '#999', marginTop: 4 }}>Para {billToName}</div>
+          <div style={{ fontSize: 14, color: '#999', marginTop: 4 }}>{t('forLabel', { name: billToName })}</div>
         </div>
 
         {order.intro_note && (
@@ -80,10 +82,10 @@ export default function OrdenCambioPublicClient({ order, items }) {
                 <div key={areaName}>
                   {areaName !== 'General' && <div style={{ fontSize: 12.5, fontWeight: 700, color: NAVY, marginBottom: 8 }}>{areaName}</div>}
                   <div style={{ display: 'flex', fontSize: 10, fontWeight: 600, color: '#bbb', textTransform: 'uppercase', paddingBottom: 6, borderBottom: '1px solid #f0f0f0', marginBottom: 8 }}>
-                    <span style={{ flex: 1 }}>Items</span>
-                    <span style={{ width: 60, textAlign: 'right' }}>Precio</span>
-                    <span style={{ width: 30, textAlign: 'center' }}>Cant</span>
-                    <span style={{ width: 70, textAlign: 'right' }}>Total</span>
+                    <span style={{ flex: 1 }}>{t('itemsHeader')}</span>
+                    <span style={{ width: 60, textAlign: 'right' }}>{t('priceHeader')}</span>
+                    <span style={{ width: 30, textAlign: 'center' }}>{t('qtyHeader')}</span>
+                    <span style={{ width: 70, textAlign: 'right' }}>{t('totalHeader')}</span>
                   </div>
                   <div style={{ display: 'grid', gap: 10 }}>
                     {areaItems.map(it => (
@@ -99,20 +101,20 @@ export default function OrdenCambioPublicClient({ order, items }) {
                     ))}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0', fontSize: 12.5, fontWeight: 700, color: NAVY }}>
-                    {areaName} Total: {fmt(areaTotal)}
+                    {t('areaTotal', { name: areaName, amount: fmt(areaTotal) })}
                   </div>
                 </div>
               );
             })}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16, paddingTop: 16, borderTop: '1.5px solid #ddd', fontWeight: 800, fontSize: 18, color: NAVY }}>
-            <span>Total</span><span>{fmt(total)}</span>
+            <span>{t('total')}</span><span>{fmt(total)}</span>
           </div>
         </div>
 
         {order.terms && (
           <div style={{ background: '#fff', borderRadius: 10, padding: 20, marginBottom: 20, border: '1px solid #eee' }}>
-            <p style={{ fontSize: 12.5, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Términos</p>
+            <p style={{ fontSize: 12.5, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>{t('termsTitle')}</p>
             <p style={{ fontSize: 13, color: '#555', lineHeight: 1.7, whiteSpace: 'pre-line', margin: 0 }}>{order.terms}</p>
           </div>
         )}
@@ -120,15 +122,15 @@ export default function OrdenCambioPublicClient({ order, items }) {
         <div style={{ background: '#fff', borderRadius: 10, padding: 24, border: '1px solid #eee' }}>
           {order.requires_signature && (
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Firma (escribe tu nombre completo)</label>
-              <input value={signedName} onChange={e => setSignedName(e.target.value)} placeholder="Nombre completo"
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('signatureLabel')}</label>
+              <input value={signedName} onChange={e => setSignedName(e.target.value)} placeholder={t('signaturePlaceholder')}
                 style={{ width: '100%', padding: '12px 14px', border: '1px solid #ddd', borderRadius: 8, fontSize: 16, fontFamily: 'cursive', marginTop: 6 }} />
             </div>
           )}
           {error && <p style={{ color: '#b52a2a', fontSize: 13, marginBottom: 10 }}>{error}</p>}
           <button onClick={handleApprove} disabled={!canApprove || approving}
             style={{ width: '100%', padding: 15, background: canApprove ? NAVY : '#ddd', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: canApprove ? 'pointer' : 'default' }}>
-            {approving ? 'Procesando...' : 'Aprobar orden de cambio'}
+            {approving ? t('processing') : t('approveButton')}
           </button>
         </div>
       </div>

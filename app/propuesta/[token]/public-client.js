@@ -2,12 +2,15 @@
 import { useState } from 'react';
 import ProposalDocument, { financialBreakdown } from '../../propuestas/ProposalDocument';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
+import { useTranslations } from 'next-intl';
 
 const NAVY = '#16223d';
 const AMBER = '#e0972c';
-const STEP_LABELS = ['Selecciona tu opción', 'Revisa los detalles', 'Firma y aprueba'];
 
 export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl, taxRules, payments, companyInfo, primaryAddress }) {
+  const t = useTranslations('propuestas.publicClient');
+  const STEP_LABELS = [t('steps.selectOption'), t('steps.reviewDetails'), t('steps.signApprove')];
+  const GENERAL_AREA = t('generalArea');
   const [step, setStep] = useState(0);
   const [selectedId, setSelectedId] = useState(
     options.find(o => o.is_recommended)?.id ?? options[0]?.id ?? null
@@ -52,7 +55,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
     setApproving(false);
     if (!res.ok) {
       const d = await res.json();
-      setError(d.error ?? 'Error al aprobar');
+      setError(d.error ?? t('approveErrorFallback'));
       return;
     }
     setApproved(true);
@@ -63,8 +66,8 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', fontFamily: '-apple-system,sans-serif', padding: 20 }}>
         <div style={{ background: '#fff', borderRadius: 12, padding: 40, maxWidth: 420, textAlign: 'center', border: '1px solid #eee' }}>
           <div style={{ fontSize: 32, marginBottom: 12, color: '#1a7a4a' }}>✓</div>
-          <div style={{ fontSize: 19, fontWeight: 700, color: NAVY, marginBottom: 8 }}>Propuesta aprobada</div>
-          <p style={{ fontSize: 14, color: '#888' }}>Gracias — nos pondremos en contacto para coordinar los próximos pasos.</p>
+          <div style={{ fontSize: 19, fontWeight: 700, color: NAVY, marginBottom: 8 }}>{t('approvedTitle')}</div>
+          <p style={{ fontSize: 14, color: '#888' }}>{t('approvedBody')}</p>
         </div>
       </div>
     );
@@ -106,7 +109,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
             <div style={{ marginBottom: 28 }}>
               <div style={{ fontSize: 12, color: '#999', fontWeight: 600, letterSpacing: '0.03em' }}>{proposal.proposal_number}</div>
               <div style={{ fontSize: 24, fontWeight: 700, color: NAVY, marginTop: 6, letterSpacing: '-0.3px' }}>{proposal.title}</div>
-              <div style={{ fontSize: 14, color: '#999', marginTop: 4 }}>Para {proposal.clients?.name}</div>
+              <div style={{ fontSize: 14, color: '#999', marginTop: 4 }}>{t('forClient', { name: proposal.clients?.name })}</div>
             </div>
 
             {proposal.intro_note && (
@@ -127,7 +130,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                     }}>
                     {opt.is_recommended && (
                       <div style={{ fontSize: 10, fontWeight: 700, color: AMBER, letterSpacing: '0.05em', marginBottom: 6 }}>
-                        RECOMENDADA
+                        {t('recommendedBadge')}
                       </div>
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -139,7 +142,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                     <div style={{ display: 'grid', gap: 16 }}>
                       {Object.entries(
                         (opt.items ?? []).filter(it => !it.parent_item_id).reduce((groups, it) => {
-                          const area = it.area || 'General';
+                          const area = it.area || GENERAL_AREA;
                           (groups[area] = groups[area] || []).push(it);
                           return groups;
                         }, {})
@@ -148,14 +151,14 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                         const areaTotal = areaItems.reduce((s, it) => s + lineTotal(it), 0);
                         return (
                           <div key={areaName} style={{ minWidth: 0 }}>
-                            {areaName !== 'General' && (
+                            {areaName !== GENERAL_AREA && (
                               <div style={{ fontSize: 12.5, fontWeight: 700, color: NAVY, marginBottom: 8 }}>{areaName}</div>
                             )}
                             <div style={{ display: 'flex', fontSize: 10, fontWeight: 600, color: '#bbb', textTransform: 'uppercase', paddingBottom: 6, borderBottom: '1px solid #f0f0f0', marginBottom: 8 }}>
-                              <span style={{ flex: 1, minWidth: 0 }}>Items</span>
-                              <span style={{ width: 60, flexShrink: 0, textAlign: 'right' }}>Precio</span>
-                              <span style={{ width: 30, flexShrink: 0, textAlign: 'center' }}>Cant</span>
-                              <span style={{ width: 70, flexShrink: 0, textAlign: 'right' }}>Total</span>
+                              <span style={{ flex: 1, minWidth: 0 }}>{t('table.items')}</span>
+                              <span style={{ width: 60, flexShrink: 0, textAlign: 'right' }}>{t('table.price')}</span>
+                              <span style={{ width: 30, flexShrink: 0, textAlign: 'center' }}>{t('table.qty')}</span>
+                              <span style={{ width: 70, flexShrink: 0, textAlign: 'right' }}>{t('table.total')}</span>
                             </div>
                             <div style={{ display: 'grid', gap: 10 }}>
                               {areaItems.map(it => (
@@ -178,7 +181,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                               ))}
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0', fontSize: 12.5, fontWeight: 700, color: NAVY }}>
-                              {areaName} Total: {fmt(areaTotal)}
+                              {t('areaTotal', { area: areaName, total: fmt(areaTotal) })}
                             </div>
                           </div>
                         );
@@ -190,7 +193,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => selectedId && setStep(1)} disabled={!selectedId} style={nextBtnStyle(!!selectedId)}>Siguiente →</button>
+              <button onClick={() => selectedId && setStep(1)} disabled={!selectedId} style={nextBtnStyle(!!selectedId)}>{t('nextBtn')}</button>
             </div>
           </>
         )}
@@ -203,7 +206,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
                 <button onClick={handlePdf} disabled={generatingPdf}
                   style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', color: NAVY }}>
-                  {generatingPdf ? '⏳ Generando...' : '🖨️ Ver PDF'}
+                  {generatingPdf ? `⏳ ${t('generatingLabel')}` : `🖨️ ${t('viewPdfBtn')}`}
                 </button>
               </div>
               <div id="proposal-doc-public" style={{ background: '#fff', borderRadius: 10, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>
@@ -212,8 +215,8 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <button onClick={() => setStep(0)} style={backBtnStyle}>← Atrás</button>
-                <button onClick={() => setStep(2)} style={nextBtnStyle(true)}>Siguiente →</button>
+                <button onClick={() => setStep(0)} style={backBtnStyle}>{t('backBtn')}</button>
+                <button onClick={() => setStep(2)} style={nextBtnStyle(true)}>{t('nextBtn')}</button>
               </div>
             </div>
           );
@@ -224,18 +227,18 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
             <div style={{ background: '#fff', borderRadius: 10, padding: 24, border: '1px solid #eee', marginBottom: 16 }}>
               {proposal.requires_signature && (
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Firma (escribe tu nombre completo)</label>
-                  <input value={signedName} onChange={e => setSignedName(e.target.value)} placeholder="Nombre completo"
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('signatureLabel')}</label>
+                  <input value={signedName} onChange={e => setSignedName(e.target.value)} placeholder={t('namePlaceholder')}
                     style={{ width: '100%', padding: '12px 14px', border: '1px solid #ddd', borderRadius: 8, fontSize: 16, fontFamily: 'cursive', marginTop: 6 }} />
                 </div>
               )}
               {error && <p style={{ color: '#b52a2a', fontSize: 13, marginBottom: 10 }}>{error}</p>}
               <button onClick={handleApprove} disabled={!canApprove || approving}
                 style={{ width: '100%', padding: 15, background: canApprove ? NAVY : '#ddd', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: canApprove ? 'pointer' : 'default' }}>
-                {approving ? 'Procesando...' : 'Aprobar propuesta'}
+                {approving ? t('processingLabel') : t('approveBtn')}
               </button>
             </div>
-            <button onClick={() => setStep(1)} style={backBtnStyle}>← Atrás</button>
+            <button onClick={() => setStep(1)} style={backBtnStyle}>{t('backBtn')}</button>
           </div>
         )}
 

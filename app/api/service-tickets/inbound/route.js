@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
+import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -26,6 +27,8 @@ function parseSender(from) {
 }
 
 export async function POST(request) {
+  const locale = getServerLocale();
+  const t = await getEmailTranslator(locale, 'emails.serviceTicketInbound');
   const payload = await request.text();
 
   let event;
@@ -90,7 +93,7 @@ export async function POST(request) {
     .insert([{
       ticket_number: `TCK-${nextNum}`,
       client_id: clientId,
-      subject: subject?.trim() || '(sin asunto)',
+      subject: subject?.trim() || t('noSubject'),
       description,
       contact_name: contactName,
       contact_email: senderEmail,
@@ -106,7 +109,7 @@ export async function POST(request) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-  let clientLabel = senderEmail ?? 'remitente desconocido';
+  let clientLabel = senderEmail ?? t('unknownSender');
   if (clientId) {
     const { data: client } = await supabase.from('clients').select('name, company').eq('id', clientId).single();
     if (client) clientLabel = client.company ? `${client.name} (${client.company})` : client.name;
@@ -125,14 +128,14 @@ export async function POST(request) {
     await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
-      subject: `🎫 Nuevo boleto de servicio — ${clientLabel}`,
+      subject: t('subject', { clientLabel }),
       html: `
         <div style="font-family:Arial,sans-serif;padding:20px">
-          <p style="font-size:15px;color:#16223d"><strong>${clientLabel}</strong> reportó un problema por email:</p>
+          <p style="font-size:15px;color:#16223d">${t('reportedIssue', { clientLabel: `<strong>${clientLabel}</strong>` })}</p>
           <p style="font-size:15px;color:#16223d;font-weight:700">${ticket.subject}</p>
           ${description ? `<p style="font-size:14px;color:#444;white-space:pre-wrap">${description}</p>` : ''}
-          ${!clientId ? `<p style="font-size:13px;color:#b52a2a">⚠️ No se encontró ningún cliente con el correo ${senderEmail ?? '(desconocido)'} — asígnalo manualmente en el boleto.</p>` : ''}
-          <a href="https://app.otesspr.com/boletos/${ticket.id}" style="color:#e0972c;font-size:13px">Ver boleto en el dashboard →</a>
+          ${!clientId ? `<p style="font-size:13px;color:#b52a2a">${t('noClientMatch', { email: senderEmail ?? t('unknownEmail') })}</p>` : ''}
+          <a href="https://app.otesspr.com/boletos/${ticket.id}" style="color:#e0972c;font-size:13px">${t('viewInDashboard')}</a>
         </div>
       `,
     });

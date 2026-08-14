@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import SearchBox from '../../SearchBox';
 import NuevaRetencionForm from './NuevaRetencionForm';
 import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 
 export default function RetencionesClient({ retenciones: initial, clients, year }) {
+  const t = useTranslations('accounting.retencionesClient');
   const [rets, setRets] = useState(initial);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -28,13 +30,13 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
   }
 
   async function deleteRetencion(id) {
-    if (!confirm('¿Eliminar esta retención?')) return;
+    if (!confirm(t('deleteConfirm'))) return;
     // .select('id') so a policy-blocked delete (0 rows affected, no thrown error)
     // is distinguishable from a real success — otherwise the row vanishes from
     // the UI even though it's still in the database.
     const { data, error } = await supabase.from('retenciones').delete().eq('id', id).select('id');
     if (error || !data?.length) {
-      alert('No se pudo eliminar la retención. Es posible que no tengas permiso para hacerlo.');
+      alert(t('deleteError'));
       return;
     }
     setRets(prev => prev.filter(r => r.id !== id));
@@ -79,7 +81,7 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
     : rets;
 
   function exportCSV() {
-    const headers = ['Fecha', 'Cliente', 'Facturado', 'Exento', 'Base', 'Calculado (10%)', 'Aplicado', 'Diferencia', '# Comprobante', 'Estado'];
+    const headers = [t('columns.date'), t('columns.client'), t('columns.invoiced'), t('columns.exempt'), t('columns.base'), t('columns.calculated'), t('columns.applied'), t('columns.difference'), t('columns.voucherNumber'), t('columns.status')];
     const rows = visibleRets.map(r => [
       r.fecha ?? '',
       r.clients?.name ?? '—',
@@ -119,11 +121,11 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
     <div>
       {/* Add button */}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Registro de retenciones {year}</p>
+        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('title', { year })}</p>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <SearchBox value={search} onChange={setSearch} placeholder="Buscar cliente o comprobante..." />
-          <button onClick={exportCSV} disabled={visibleRets.length === 0} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>⬇ Exportar CSV</button>
-          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>{showForm ? 'Cancelar' : '+ Agregar retención'}</button>
+          <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
+          <button onClick={exportCSV} disabled={visibleRets.length === 0} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>⬇ {t('exportCsv')}</button>
+          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>{showForm ? t('cancel') : `+ ${t('addButton')}`}</button>
         </div>
       </div>
 
@@ -135,25 +137,25 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
       {/* List */}
       <div className="card">
         {rets.length === 0 ? (
-          <div className="empty"><p>No hay retenciones registradas para {year}.</p></div>
+          <div className="empty"><p>{t('empty', { year })}</p></div>
         ) : visibleRets.length === 0 ? (
-          <div className="empty"><p>Sin resultados para "{search}".</p></div>
+          <div className="empty"><p>{t('noResultsFor', { search })}</p></div>
         ) : (
           <div className="table-wrap">
             <table className="table-dense">
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Cliente</th>
-                  <th style={{ textAlign: 'right' }}>Facturado</th>
-                  <th style={{ textAlign: 'right' }}>Exento</th>
-                  <th style={{ textAlign: 'right' }}>Base</th>
-                  <th style={{ textAlign: 'right' }}>Calculado (10%)</th>
-                  <th style={{ textAlign: 'right' }}>Aplicado</th>
-                  <th style={{ textAlign: 'right' }}>Diferencia</th>
-                  <th># Comprobante</th>
-                  <th>Estado</th>
-                  <th>Factura</th>
+                  <th>{t('columns.date')}</th>
+                  <th>{t('columns.client')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.invoiced')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.exempt')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.base')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.calculated')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.applied')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.difference')}</th>
+                  <th>{t('columns.voucherNumber')}</th>
+                  <th>{t('columns.status')}</th>
+                  <th>{t('columns.invoice')}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -177,11 +179,11 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
                         <td><input value={editData.numero_comprobante} onChange={e => setEditData(d => ({ ...d, numero_comprobante: e.target.value }))} style={{ width: 100, fontSize: 12 }} /></td>
                         <td>
                           <select value={editData.estado} onChange={e => setEditData(d => ({ ...d, estado: e.target.value }))} style={{ fontSize: 12 }}>
-                            <option value="pendiente">Pendiente</option>
-                            <option value="declarado">Declarado</option>
+                            <option value="pendiente">{t('status.pending')}</option>
+                            <option value="declarado">{t('status.declared')}</option>
                           </select>
                         </td>
-                        <td style={{ color: 'var(--muted)', fontSize: 12 }}>{r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`}>Ver →</Link> : '—'}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 12 }}>{r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`}>{t('invoiceLink')}</Link> : '—'}</td>
                         <td style={{ display: 'flex', gap: 6 }}>
                           <button onClick={() => saveEdit(r.id)} disabled={saving} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: 11 }}>💾</button>
                           <button onClick={() => { setEditingId(null); setEditData(null); }} className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 11 }}>✕</button>
@@ -206,12 +208,12 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
                       <td>
                         <select value={r.estado} onChange={e => updateEstado(r.id, e.target.value)}
                           style={{ padding: '4px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontSize: 12, fontFamily: 'inherit' }}>
-                          <option value="pendiente">Pendiente</option>
-                          <option value="declarado">Declarado</option>
+                          <option value="pendiente">{t('status.pending')}</option>
+                          <option value="declarado">{t('status.declared')}</option>
                         </select>
                       </td>
                       <td style={{ fontSize: 12 }}>
-                        {r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`} style={{ color: 'var(--navy)', fontWeight: 600 }}>Ver →</Link> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                        {r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`} style={{ color: 'var(--navy)', fontWeight: 600 }}>{t('invoiceLink')}</Link> : <span style={{ color: 'var(--muted)' }}>—</span>}
                       </td>
                       <td style={{ display: 'flex', gap: 4 }}>
                         <button onClick={() => startEdit(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>✏️</button>
@@ -223,7 +225,7 @@ export default function RetencionesClient({ retenciones: initial, clients, year 
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: '2px solid var(--border)' }}>
-                  <td colSpan={2} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTAL {query ? '(visibles)' : ''}</td>
+                  <td colSpan={2} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>{query ? t('totalRowVisible') : t('totalRow')}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.facturado)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.exento)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.base)}</td>

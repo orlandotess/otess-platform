@@ -1,8 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useTranslations } from 'next-intl';
 
 export default function MantenimientoActions({ id, active, onToggled, onDeleted }) {
+  const t = useTranslations('mantenimientos.actions');
   const [busy, setBusy] = useState(false);
 
   async function toggleActive() {
@@ -13,7 +15,7 @@ export default function MantenimientoActions({ id, active, onToggled, onDeleted 
   }
 
   async function remove() {
-    if (!confirm('¿Eliminar este mantenimiento recurrente? Esta acción no se puede deshacer.')) return;
+    if (!confirm(t('confirmDelete'))) return;
     setBusy(true);
     await supabase.from('recurring_maintenances').delete().eq('id', id);
     setBusy(false);
@@ -23,10 +25,10 @@ export default function MantenimientoActions({ id, active, onToggled, onDeleted 
   return (
     <div style={{ display: 'flex', gap: 8 }}>
       <button className="btn btn-ghost" disabled={busy} onClick={toggleActive} style={{ fontSize: 12, padding: '6px 12px' }}>
-        {active ? 'Pausar' : 'Reanudar'}
+        {active ? t('pause') : t('resume')}
       </button>
       <button className="btn btn-ghost" disabled={busy} onClick={remove} style={{ fontSize: 12, padding: '6px 12px', color: 'var(--warn)' }}>
-        Eliminar
+        {t('delete')}
       </button>
     </div>
   );

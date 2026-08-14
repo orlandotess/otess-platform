@@ -1,7 +1,9 @@
 'use client';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 export default function ClientCombobox({ clients, value, onChange }) {
+  const t = useTranslations('facturas.clientCombobox');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
@@ -41,7 +43,7 @@ export default function ClientCombobox({ clients, value, onChange }) {
             value={query}
             onChange={e => { setQuery(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
-            placeholder="Buscar por nombre o empresa..."
+            placeholder={t('placeholder')}
             style={{ padding: '8px 12px 8px 32px', width: '100%' }}
           />
         </div>
@@ -52,7 +54,7 @@ export default function ClientCombobox({ clients, value, onChange }) {
           <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 280, overflowY: 'auto' }}>
             {results.length === 0 ? (
-              <p style={{ padding: '12px 14px', fontSize: 13, color: 'var(--muted)' }}>Sin resultados.</p>
+              <p style={{ padding: '12px 14px', fontSize: 13, color: 'var(--muted)' }}>{t('noResults')}</p>
             ) : results.map(c => (
               <div key={c.id} className="dropdown-item" onClick={() => select(c)}
                 style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>

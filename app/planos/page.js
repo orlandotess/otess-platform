@@ -5,8 +5,10 @@ import { supabaseServer as supabase } from '../../lib/supabase';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
 import PlanosListClient from './PlanosListClient';
+import { getTranslations } from 'next-intl/server';
 
 export default async function PlanosPage() {
+  const t = await getTranslations('planos.list');
   const { data: plans } = await supabase
     .from('floor_plans')
     .select('id, name, rendered_image_path, updated_at, clients(name), jobs(title)')
@@ -22,16 +24,16 @@ export default async function PlanosPage() {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <div className="page-title">Planos</div>
-          <Link href="/planos/nuevo" className="btn btn-primary">+ Nuevo plano</Link>
+          <div className="page-title">{t('title')}</div>
+          <Link href="/planos/nuevo" className="btn btn-primary">{t('newPlano')}</Link>
         </div>
         {!withThumbs.length ? (
           <div className="card">
             <div className="empty">
               <div className="empty-glyph">🗺️</div>
-              <h3>No hay planos aún</h3>
-              <p>Sube un plano para empezar a marcar cámaras, control de acceso, access points y rutas de cableado.</p>
-              <Link href="/planos/nuevo" className="btn btn-primary btn-sm">+ Agregar plano</Link>
+              <h3>{t('emptyTitle')}</h3>
+              <p>{t('emptyBody')}</p>
+              <Link href="/planos/nuevo" className="btn btn-primary btn-sm">{t('addPlano')}</Link>
             </div>
           </div>
         ) : (

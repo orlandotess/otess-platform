@@ -5,13 +5,14 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import FacturasTableClient from './FacturasTableClient';
+import { getTranslations, getLocale } from 'next-intl/server';
 
-const statusBadge = {
-  draft:     { cls: 'badge-gray',  label: 'Borrador' },
-  sent:      { cls: 'badge-blue',  label: 'Enviada' },
-  paid:      { cls: 'badge-green', label: 'Pagada' },
-  cancelled: { cls: 'badge-red',   label: 'Cancelada' },
-  overdue:   { cls: 'badge-red',   label: 'Vencidas' },
+const statusBadgeDefs = {
+  draft:     { cls: 'badge-gray',  key: 'draft' },
+  sent:      { cls: 'badge-blue',  key: 'sent' },
+  paid:      { cls: 'badge-green', key: 'paid' },
+  cancelled: { cls: 'badge-red',   key: 'cancelled' },
+  overdue:   { cls: 'badge-red',   key: 'overdue' },
 };
 
 // Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
@@ -36,6 +37,12 @@ function getWeekRange(offset = 0) {
 const nowPR = () => new Date(Date.now() - 4 * 60 * 60 * 1000);
 
 export default async function AccountingFacturas({ searchParams }) {
+  const t = await getTranslations('accounting.facturasReport');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const statusBadge = Object.fromEntries(
+    Object.entries(statusBadgeDefs).map(([k, v]) => [k, { cls: v.cls, label: t(`status.${v.key}`) }])
+  );
   const view = searchParams?.view ?? 'month';
   const year = parseInt(searchParams?.year ?? nowPR().getUTCFullYear());
   const month = searchParams?.month !== undefined && searchParams.month !== '' ? parseInt(searchParams.month) : null;
@@ -44,13 +51,14 @@ export default async function AccountingFacturas({ searchParams }) {
 
   let dateStart, dateEnd, periodLabel;
   const currentYear = nowPR().getUTCFullYear();
-  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const months = Array.from({ length: 12 }, (_, i) => capitalize(new Date(2000, i, 1).toLocaleDateString(dateLocale, { month: 'long' })));
 
   if (view === 'week') {
     const { weekStart, weekEnd } = getWeekRange(weekOffset);
     dateStart = weekStart.toISOString().slice(0, 10);
     dateEnd = weekEnd.toISOString().slice(0, 10);
-    const fmtDate = d => d.toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const fmtDate = d => d.toLocaleDateString(dateLocale, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
     periodLabel = `${fmtDate(weekStart)} — ${fmtDate(weekEnd)}`;
   } else if (view === 'month' && month !== null) {
     dateStart = new Date(year, month, 1).toISOString().slice(0, 10);
@@ -59,7 +67,7 @@ export default async function AccountingFacturas({ searchParams }) {
   } else {
     dateStart = `${year}-01-01`;
     dateEnd = `${year}-12-31`;
-    periodLabel = `Año ${year}`;
+    periodLabel = t('period.year', { year });
   }
 
   // PR-anchored, not the server's own timezone — a naive `new Date()` here
@@ -126,13 +134,13 @@ export default async function AccountingFacturas({ searchParams }) {
       <main className="main-content main-content-wide">
         <div className="page-header">
           <div>
-            <div className="page-title">Facturas</div>
+            <div className="page-title">{t('title')}</div>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>{periodLabel}</p>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
-            <Link href="/facturas/recurrentes" className="btn btn-ghost">Recurrentes</Link>
-            <Link href="/facturas/nueva" className="btn btn-primary">+ Nueva factura</Link>
+            <Link href="/accounting" className="btn btn-ghost">{t('backToDashboard')}</Link>
+            <Link href="/facturas/recurrentes" className="btn btn-ghost">{t('recurring')}</Link>
+            <Link href="/facturas/nueva" className="btn btn-primary">{t('newInvoice')}</Link>
           </div>
         </div>
 
@@ -141,9 +149,9 @@ export default async function AccountingFacturas({ searchParams }) {
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             {/* Vista */}
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Vista</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('filters.view')}</label>
               <div style={{ display: 'flex', gap: 6 }}>
-                {[['week','Semanal'],['month','Mensual'],['year','Anual']].map(([v, l]) => (
+                {[['week', t('filters.weekly')], ['month', t('filters.monthly')], ['year', t('filters.yearly')]].map(([v, l]) => (
                   <Link key={v} href={`/accounting/facturas?view=${v}&year=${year}&month=${month ?? ''}&status=${status}`}
                     className={`btn ${v === view ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>
                     {l}
@@ -155,11 +163,11 @@ export default async function AccountingFacturas({ searchParams }) {
             {/* Week navigation */}
             {view === 'week' && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Semana</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('filters.week')}</label>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <Link href={`/accounting/facturas?view=week&week=${weekOffset - 1}&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>← Anterior</Link>
-                  {weekOffset !== 0 && <Link href={`/accounting/facturas?view=week&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Actual</Link>}
-                  {weekOffset < 0 && <Link href={`/accounting/facturas?view=week&week=${weekOffset + 1}&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Siguiente →</Link>}
+                  <Link href={`/accounting/facturas?view=week&week=${weekOffset - 1}&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>{t('filters.previous')}</Link>
+                  {weekOffset !== 0 && <Link href={`/accounting/facturas?view=week&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>{t('filters.current')}</Link>}
+                  {weekOffset < 0 && <Link href={`/accounting/facturas?view=week&week=${weekOffset + 1}&status=${status}`} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>{t('filters.next')}</Link>}
                 </div>
               </div>
             )}
@@ -167,7 +175,7 @@ export default async function AccountingFacturas({ searchParams }) {
             {/* Year selector */}
             {view !== 'week' && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Año</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('filters.year')}</label>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {years.map(y => (
                     <Link key={y} href={`/accounting/facturas?view=${view}&year=${y}&month=${month ?? ''}&status=${status}`}
@@ -182,11 +190,11 @@ export default async function AccountingFacturas({ searchParams }) {
             {/* Month selector */}
             {view === 'month' && (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Mes</label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('filters.month')}</label>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <Link href={`/accounting/facturas?view=year&year=${year}&status=${status}`}
                     className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>
-                    Todo el año
+                    {t('filters.fullYear')}
                   </Link>
                   {months.map((m, i) => (
                     <Link key={i} href={`/accounting/facturas?view=month&year=${year}&month=${i}&status=${status}`}
@@ -200,12 +208,12 @@ export default async function AccountingFacturas({ searchParams }) {
 
             {/* Status */}
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Estado</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('filters.status')}</label>
               <div style={{ display: 'flex', gap: 6 }}>
                 {['all', 'draft', 'sent', 'overdue', 'paid', 'cancelled'].map(s => (
                   <Link key={s} href={`/accounting/facturas?view=${view}&year=${year}&month=${month ?? ''}&week=${weekOffset}&status=${s}`}
                     className={`btn ${s === status ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 12px', fontSize: 12 }}>
-                    {s === 'all' ? 'Todas' : statusBadge[s]?.label}
+                    {s === 'all' ? t('filters.all') : statusBadge[s]?.label}
                   </Link>
                 ))}
               </div>
@@ -216,27 +224,27 @@ export default async function AccountingFacturas({ searchParams }) {
         {/* Stats */}
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', marginBottom: 20 }}>
           <div className="stat-card">
-            <div className="stat-label">Facturado</div>
+            <div className="stat-label">{t('stats.billed')}</div>
             <div className="stat-value">{fmt(totalFacturado)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Cobrado</div>
+            <div className="stat-label">{t('stats.collected')}</div>
             <div className="stat-value" style={{ color: 'var(--ok)' }}>{fmt(totalCobrado)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Retenido</div>
+            <div className="stat-label">{t('stats.withheld')}</div>
             <div className="stat-value" style={{ color: 'var(--navy)' }}>{fmt(totalRetenido)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Pendiente</div>
+            <div className="stat-label">{t('stats.pending')}</div>
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{fmt(totalPendiente)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Vencido</div>
+            <div className="stat-label">{t('stats.overdue')}</div>
             <div className="stat-value" style={{ color: 'var(--warn)' }}>{fmt(totalVencido)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">IVU Total</div>
+            <div className="stat-label">{t('stats.ivuTotal')}</div>
             <div className="stat-value" style={{ color: 'var(--navy)' }}>{fmt(totalIVU)}</div>
           </div>
         </div>

@@ -1,8 +1,10 @@
 'use client';
+import { useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useRouter } from 'next/navigation';
-import { STATUS_BADGE, STATUS_TINT, assignedTechIds, techNames } from './dispatchUtils';
+import { useTranslations } from 'next-intl';
+import { STATUS_BADGE_DEFS, STATUS_TINT, assignedTechIds, techNames } from './dispatchUtils';
 import TechAssignControl from './TechAssignControl';
 
 function location(job) {
@@ -11,14 +13,19 @@ function location(job) {
 
 export default function JobCard({ job, compact, overlay, technicians = [], color = 'var(--info)' }) {
   const router = useRouter();
+  const t = useTranslations('admin.dispatchJobCard');
   const readOnly = !!job.__readOnly;
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: job.__dragId ?? job.id,
     disabled: readOnly,
   });
-  const badge = STATUS_BADGE[job.status] ?? STATUS_BADGE.estimate;
+  const statusBadge = useMemo(() => Object.fromEntries(
+    Object.entries(STATUS_BADGE_DEFS).map(([k, v]) => [k, { cls: v.cls, label: t(`status.${v.key}`) }])
+  ), [t]);
+  const badge = statusBadge[job.status] ?? statusBadge.estimate;
   const extraTechs = Math.max(assignedTechIds(job).length - 1, 0);
   const isExtraDay = job.schedule_day_id != null;
+  const clientName = job.clients?.name ?? t('noClient');
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -31,7 +38,7 @@ export default function JobCard({ job, compact, overlay, technicians = [], color
   function handleClick() {
     if (overlay) return;
     const jobId = job.job_id ?? job.id;
-    if (window.confirm(`¿Quieres abrir "${job.title}"?`)) {
+    if (window.confirm(t('confirmOpen', { title: job.title }))) {
       router.push(`/trabajos/${jobId}`);
     }
   }
@@ -51,15 +58,15 @@ export default function JobCard({ job, compact, overlay, technicians = [], color
           background: STATUS_TINT[job.status] ?? 'var(--surface-2)',
           boxShadow: overlay ? 'var(--shadow-pop)' : 'var(--shadow-card)',
         }}
-        title={`${job.clients?.name ?? 'Sin cliente'} — ${job.title}${isExtraDay ? ' (día extra)' : ''}${readOnly ? ' (también asignado acá — arrastra desde su fila principal)' : ''}`}
+        title={`${clientName} — ${job.title}${isExtraDay ? ` ${t('extraDaySuffix')}` : ''}${readOnly ? ` ${t('readOnlySuffix')}` : ''}`}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {isExtraDay && <span style={{ fontSize: 10, flexShrink: 0 }} title="Día extra de un job multi-día">📅</span>}
+          {isExtraDay && <span style={{ fontSize: 10, flexShrink: 0 }} title={t('extraDayTitle')}>📅</span>}
           <span style={{ fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {job.clients?.name ?? 'Sin cliente'}
+            {clientName}
           </span>
           {extraTechs > 0 && (
-            <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 10, fontWeight: 700, color: 'var(--muted)' }} title={`+${extraTechs} técnico(s) de apoyo`}>
+            <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 10, fontWeight: 700, color: 'var(--muted)' }} title={t('supportTechs', { count: extraTechs })}>
               +{extraTechs}
             </span>
           )}
@@ -88,7 +95,7 @@ export default function JobCard({ job, compact, overlay, technicians = [], color
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
         <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {job.clients?.name ?? 'Sin cliente'}
+          {clientName}
         </span>
         {job.job_number && <span style={{ color: 'var(--muted)', fontSize: 11, flexShrink: 0 }}>#{job.job_number}</span>}
       </div>

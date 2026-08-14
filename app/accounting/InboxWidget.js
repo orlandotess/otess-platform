@@ -1,17 +1,18 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { supabase } from '../../lib/supabase';
 import { formatDatePR } from '../../lib/datetimeLocal';
 import ClientCombobox from '../facturas/nueva/ClientCombobox';
 
-const TYPE_LABELS = {
-  llamada: 'Llamada',
-  visita: 'Visita/Reunión',
-  cobro: 'Cobro',
-  seguimiento: 'Seguimiento',
-  recordatorio: 'Recordatorio',
-  otro: 'Otro',
+const TYPE_KEYS = {
+  llamada: 'llamada',
+  visita: 'visita',
+  cobro: 'cobro',
+  seguimiento: 'seguimiento',
+  recordatorio: 'recordatorio',
+  otro: 'otro',
 };
 
 const URGENCY_STYLE = {
@@ -28,10 +29,10 @@ function formatPlainDate(dateStr) {
   return `${m}/${d}/${y}`;
 }
 
-function gestionSubtitle(g) {
-  const parts = [g.clients?.name, TYPE_LABELS[g.type] ?? g.type];
-  if (g.due_date) parts.push(`vence ${formatPlainDate(g.due_date)}`);
-  if (g.assigned_to_name) parts.push(`asignado a ${g.assigned_to_name}`);
+function gestionSubtitle(g, t) {
+  const parts = [g.clients?.name, TYPE_KEYS[g.type] ? t(`type.${TYPE_KEYS[g.type]}`) : g.type];
+  if (g.due_date) parts.push(t('dueOn', { date: formatPlainDate(g.due_date) }));
+  if (g.assigned_to_name) parts.push(t('assignedTo', { name: g.assigned_to_name }));
   return parts.filter(Boolean).join(' · ');
 }
 
@@ -58,6 +59,7 @@ const actionButtonStyle = { border: 'none', borderRadius: 6, padding: '6px 12px'
 const emptyForm = { title: '', type: 'otro', clientId: '', dueDate: '', assignedToId: '' };
 
 export default function InboxWidget({ notifications: initial, automaticItems = [], gestiones: initialGestiones = [], officeProfiles = [], currentProfile = null }) {
+  const t = useTranslations('accounting.inboxWidget');
   const [items, setItems] = useState(initial);
   const [gestiones, setGestiones] = useState(initialGestiones);
   const [open, setOpen] = useState(true);
@@ -145,7 +147,7 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
     if (editingId) {
       const { data, error } = await supabase.from('gestiones').update(payload).eq('id', editingId).select().single();
       setSaving(false);
-      if (error) { alert('No se pudo guardar los cambios.'); return; }
+      if (error) { alert(t('saveChangesError')); return; }
       setGestiones(prev => prev.map(g => g.id === editingId ? { ...data, clients: client ? { name: client.name } : null } : g));
     } else {
       const { data, error } = await supabase.from('gestiones').insert([{
@@ -154,7 +156,7 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
         created_by_name: currentProfile?.name ?? null,
       }]).select().single();
       setSaving(false);
-      if (error) { alert('No se pudo guardar la gestión.'); return; }
+      if (error) { alert(t('saveGestionError')); return; }
       setGestiones(prev => [{ ...data, clients: client ? { name: client.name } : null }, ...prev]);
     }
 
@@ -168,7 +170,7 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
     setDeleting(true);
     const { error } = await supabase.from('gestiones').delete().eq('id', deleteTarget);
     setDeleting(false);
-    if (error) { alert('No se pudo eliminar la gestión.'); return; }
+    if (error) { alert(t('deleteGestionError')); return; }
     setGestiones(prev => prev.filter(g => g.id !== deleteTarget));
     setDeleteTarget(null);
   }
@@ -177,48 +179,48 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
     <div className="card" style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
-          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Bandeja de entrada</span>
+          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('title')}</span>
           {pendingCount > 0 && (
             <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--amber)', borderRadius: 10, padding: '1px 7px' }}>{pendingCount}</span>
           )}
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>{open ? '▲' : '▼'}</span>
         </div>
-        <button className="btn btn-primary" style={{ fontSize: 12, padding: '6px 12px' }} onClick={openForm}>+ Nueva gestión</button>
+        <button className="btn btn-primary" style={{ fontSize: 12, padding: '6px 12px' }} onClick={openForm}>+ {t('newGestion')}</button>
       </div>
 
       {open && (
         <div style={{ marginTop: 14 }}>
           {showForm && (
             <form onSubmit={submitGestion} style={{ border: '1px dashed var(--border-strong)', borderRadius: 8, padding: 12, marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{editingId ? 'Editar gestión' : 'Nueva gestión manual'}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{editingId ? t('editGestion') : t('newManualGestion')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                 <input
                   required
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="Título — ej. Llamar para seguimiento"
+                  placeholder={t('titlePlaceholder')}
                   style={{ gridColumn: '1 / -1', fontSize: 13 }}
                 />
                 <div>
                   <ClientCombobox clients={clients ?? []} value={form.clientId} onChange={id => setForm(f => ({ ...f, clientId: id }))} />
                 </div>
                 <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} style={{ fontSize: 13 }}>
-                  {Object.entries(TYPE_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>Tipo: {label}</option>
+                  {Object.entries(TYPE_KEYS).map(([key, typeKey]) => (
+                    <option key={key} value={key}>{t('typePrefix', { type: t(`type.${typeKey}`) })}</option>
                   ))}
                 </select>
                 <input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} style={{ fontSize: 13 }} />
                 <select value={form.assignedToId} onChange={e => setForm(f => ({ ...f, assignedToId: e.target.value }))} style={{ fontSize: 13 }}>
-                  <option value="">Sin asignar</option>
+                  <option value="">{t('unassigned')}</option>
                   {officeProfiles.map(p => (
-                    <option key={p.id} value={p.id}>Asignar a: {p.name}</option>
+                    <option key={p.id} value={p.id}>{t('assignToPrefix', { name: p.name })}</option>
                   ))}
                 </select>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={cancelForm}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={cancelForm}>{t('cancel')}</button>
                 <button type="submit" className="btn btn-orange" style={{ fontSize: 12, padding: '6px 12px' }} disabled={saving}>
-                  {saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Guardar gestión'}
+                  {saving ? t('saving') : editingId ? t('saveChanges') : t('saveGestion')}
                 </button>
               </div>
             </form>
@@ -226,28 +228,28 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
 
           {pendingCount > 0 && (
             <>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Acción requerida</div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{t('actionRequired')}</div>
               <div style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
                 {gestiones.map(g => (
                   <ActionRow
                     key={g.id}
-                    title={<>{g.title} <span style={{ fontWeight: 500, color: 'var(--muted)', fontSize: 11 }}>· manual</span></>}
-                    subtitle={gestionSubtitle(g)}
+                    title={<>{g.title} <span style={{ fontWeight: 500, color: 'var(--muted)', fontSize: 11 }}>· {t('manual')}</span></>}
+                    subtitle={gestionSubtitle(g, t)}
                     urgency={g.due_date && g.due_date < new Date().toISOString().slice(0, 10) ? 'warn' : 'neutral'}
                     right={
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <button style={{ ...actionButtonStyle, background: 'var(--ok)', color: '#fff' }} onClick={() => completeGestion(g.id)}>Completar</button>
+                        <button style={{ ...actionButtonStyle, background: 'var(--ok)', color: '#fff' }} onClick={() => completeGestion(g.id)}>{t('complete')}</button>
                         <button
                           onClick={() => startEdit(g)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--muted)', padding: 4 }}
-                          title="Editar gestión"
+                          title={t('editGestionTitle')}
                         >
                           ✏️
                         </button>
                         <button
                           onClick={() => setDeleteTarget(g.id)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--muted)', padding: 4 }}
-                          title="Eliminar gestión"
+                          title={t('deleteGestionTitle')}
                         >
                           🗑
                         </button>
@@ -276,9 +278,9 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
           {items.length > 0 && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'var(--muted)', textTransform: 'uppercase' }}>Actividad reciente</div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'var(--muted)', textTransform: 'uppercase' }}>{t('recentActivity')}</div>
                 {unread > 0 && (
-                  <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '4px 10px' }} onClick={markAllRead}>Marcar todo leído</button>
+                  <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '4px 10px' }} onClick={markAllRead}>{t('markAllRead')}</button>
                 )}
               </div>
               <div style={{ display: 'grid' }}>
@@ -297,11 +299,11 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
                         {formatDatePR(n.created_at, { month: 'short', day: 'numeric' })}
                       </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {n.link && <Link href={n.link} onClick={e => e.stopPropagation()} style={{ fontSize: 11.5, color: 'var(--amber)', fontWeight: 600 }}>Ver →</Link>}
+                        {n.link && <Link href={n.link} onClick={e => e.stopPropagation()} style={{ fontSize: 11.5, color: 'var(--amber)', fontWeight: 600 }}>{t('view')} →</Link>}
                         <button
-                          onClick={e => { e.stopPropagation(); if (confirm('¿Eliminar esta notificación?')) deleteNotification(n.id); }}
+                          onClick={e => { e.stopPropagation(); if (confirm(t('confirmDeleteNotification'))) deleteNotification(n.id); }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--muted)', padding: 0 }}
-                          title="Eliminar notificación"
+                          title={t('deleteNotificationTitle')}
                         >
                           🗑
                         </button>
@@ -314,7 +316,7 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
           )}
 
           {pendingCount === 0 && items.length === 0 && !showForm && (
-            <p style={{ fontSize: 13, color: 'var(--muted)' }}>Todo al día — no hay pendientes.</p>
+            <p style={{ fontSize: 13, color: 'var(--muted)' }}>{t('allCaughtUp')}</p>
           )}
         </div>
       )}
@@ -322,14 +324,14 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
       {deleteTarget && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar gestión?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteGestionModal.title')}</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteGestionModal.body')}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteGestion} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : 'OK'}
+                {deleting ? t('deleting') : t('ok')}
               </button>
-              <button className="btn btn-ghost" onClick={() => setDeleteTarget(null)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setDeleteTarget(null)} style={{ flex: 1, justifyContent: 'center' }}>{t('cancel')}</button>
             </div>
           </div>
         </div>

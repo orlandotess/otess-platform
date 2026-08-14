@@ -5,15 +5,17 @@ import { Suspense } from 'react';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../Sidebar';
 import InvoiceForm from '../../InvoiceForm';
+import { getTranslations } from 'next-intl/server';
 
 export default async function EditarFacturaPage({ params }) {
+  const t = await getTranslations('facturas.editInvoice');
   const { data: invoice } = await supabase.from('invoices').select('*').eq('id', params.id).single();
 
   if (!invoice) {
     return (
       <div className="admin-shell ds-facturas">
         <Sidebar />
-        <main className="main-content"><p>Factura no encontrada.</p></main>
+        <main className="main-content"><p>{t('notFound')}</p></main>
       </div>
     );
   }
@@ -23,7 +25,7 @@ export default async function EditarFacturaPage({ params }) {
       <div className="admin-shell ds-facturas">
         <Sidebar />
         <main className="main-content">
-          <p>Esta factura ya fue {invoice.status === 'paid' ? 'pagada' : 'cancelada'} y no se puede editar.</p>
+          <p>{invoice.status === 'paid' ? t('alreadyPaid') : t('alreadyCancelled')}</p>
         </main>
       </div>
     );
@@ -39,7 +41,7 @@ export default async function EditarFacturaPage({ params }) {
   );
 
   return (
-    <Suspense fallback={<div style={{ padding: 40 }}>Cargando...</div>}>
+    <Suspense fallback={<div style={{ padding: 40 }}>{t('loading')}</div>}>
       <InvoiceForm initialData={{ invoice, items: itemsWithSignedUrls }} />
     </Suspense>
   );

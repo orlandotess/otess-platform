@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import EmpresaClient from './EmpresaClient';
+import { getTranslations } from 'next-intl/server';
 
 export default async function EmpresaPage() {
+  const t = await getTranslations('propuestas.empresa');
   const { data: settings } = await supabase.from('company_settings').select('*').limit(1).single();
 
   return (
@@ -15,8 +17,8 @@ export default async function EmpresaPage() {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <Link href="/propuestas" style={{ fontSize: 12.5, color: 'var(--muted)', textDecoration: 'none' }}>← Propuestas</Link>
-            <div className="page-title">Empresa</div>
+            <Link href="/propuestas" style={{ fontSize: 12.5, color: 'var(--muted)', textDecoration: 'none' }}>{t('backToProposals')}</Link>
+            <div className="page-title">{t('title')}</div>
           </div>
         </div>
         <EmpresaClient settings={settings ?? null} />

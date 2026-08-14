@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
 
 // Styled catalog search used in place of a native <input list>/<datalist>,
 // which renders inconsistently across browsers and can't be themed.
@@ -8,6 +9,7 @@ import { useState } from 'react';
 // parent's existing `catalogItems.find(c => \`${c.item_code} — ${c.description}\` === value)`
 // matching logic keeps working unchanged.
 export function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder, maxLength, fontSize = 13.5, fontWeight = 700, multiline = false }) {
+  const t = useTranslations('shared.lineItemRow');
   const [open, setOpen] = useState(false);
   const q = (value || '').trim().toLowerCase();
   const results = (q
@@ -38,7 +40,7 @@ export function CatalogDescriptionInput({ value, onChange, catalogOptions, place
           <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 20, maxHeight: 260, overflowY: 'auto' }}>
             {results.length === 0 ? (
-              <p style={{ padding: '10px 12px', fontSize: 12.5, color: 'var(--muted)' }}>Sin resultados de catálogo. Se usará el texto escrito.</p>
+              <p style={{ padding: '10px 12px', fontSize: 12.5, color: 'var(--muted)' }}>{t('catalogInput.noResults')}</p>
             ) : results.map(c => (
               <div key={c.id} onMouseDown={e => e.preventDefault()} onClick={() => select(c)}
                 style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
@@ -82,6 +84,9 @@ export default function LineItemRow({
   fmt,
   actions,
 }) {
+  const t = useTranslations('shared.lineItemRow');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMargin, setShowMargin] = useState(false);
   const [marginPct, setMarginPct] = useState('');
@@ -164,7 +169,7 @@ export default function LineItemRow({
             <div style={{ fontSize: 13 }}>{description}</div>
           ) : (
             <CatalogDescriptionInput value={description} onChange={onDescriptionChange} catalogOptions={catalogOptions}
-              placeholder="Accesorio..." maxLength={200} fontSize={13} fontWeight={400} />
+              placeholder={t('accessoryPlaceholder')} maxLength={200} fontSize={13} fontWeight={400} />
           )}
         </div>
         {(showPricing || alwaysShowPricing) && (
@@ -180,23 +185,23 @@ export default function LineItemRow({
             ) : (
               <>
                 {onMsrpChange && (
-                  <input type="number" value={msrp} onChange={e => onMsrpChange(e.target.value)} placeholder="MSRP" title="MSRP (referencia, solo interno)"
+                  <input type="number" value={msrp} onChange={e => onMsrpChange(e.target.value)} placeholder={t('msrpPlaceholder')} title={t('msrpTitle')}
                     style={{ fontSize: 10.5, padding: '3px 6px', color: 'var(--muted)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" />
                 )}
-                <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder="Precio" title={showPricing ? 'Precio de venta al cliente (no combinado)' : 'Precio de referencia — ya incluido en el precio del producto padre'}
+                <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder={t('pricePlaceholder')} title={showPricing ? t('priceTitleShowPricing') : t('priceTitleReference')}
                   style={{ fontSize: 12, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: onSupplierPriceChange ? 3 : 0 }} min="0" step="0.01" />
                 {onSupplierPriceChange && (
                   <>
-                    <input type="number" value={supplierPrice} onChange={e => handleSupplierPriceChange(e.target.value)} placeholder="Costo" title="Costo del suplidor (solo interno)"
+                    <input type="number" value={supplierPrice} onChange={e => handleSupplierPriceChange(e.target.value)} placeholder={t('costPlaceholder')} title={t('costTitle')}
                       style={{ fontSize: 10.5, padding: '3px 6px', color: 'var(--warn)', textAlign: 'right', width: '100%' }} min="0" step="0.01" />
                     {!showMargin ? (
                       (parseFloat(supplierPrice) > 0) ? (
-                        <button type="button" onClick={openMargin} style={{ display: 'block', marginLeft: 'auto', marginTop: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 9.5, padding: 0, textDecoration: 'underline' }} title="Calcular precio de venta por margen (solo interno, no se muestra al cliente)">
-                          + Margen %
+                        <button type="button" onClick={openMargin} style={{ display: 'block', marginLeft: 'auto', marginTop: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 9.5, padding: 0, textDecoration: 'underline' }} title={t('addMarginTitle')}>
+                          {t('addMargin')}
                         </button>
                       ) : (
-                        <div style={{ textAlign: 'right', marginTop: 3, fontSize: 9, color: 'var(--muted)' }} title="Escribe el costo para poder calcular el margen">
-                          + Margen % (ingresa costo)
+                        <div style={{ textAlign: 'right', marginTop: 3, fontSize: 9, color: 'var(--muted)' }} title={t('addMarginNeedsCostTitle')}>
+                          {t('addMarginNeedsCost')}
                         </div>
                       )
                     ) : (
@@ -208,10 +213,10 @@ export default function LineItemRow({
                           placeholder="30"
                           style={{ fontSize: 10, padding: '3px 4px', textAlign: 'right', width: '100%' }}
                           min="0" step="1"
-                          title="Margen % sobre el costo (solo interno, calcula el precio de venta)"
+                          title={t('marginPctTitle')}
                         />
                         <span style={{ fontSize: 9, color: 'var(--muted)', flexShrink: 0 }}>%</span>
-                        <button type="button" onClick={() => { setShowMargin(false); setMarginPct(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 11, padding: 0, flexShrink: 0 }} title="Cerrar calculadora de margen">
+                        <button type="button" onClick={() => { setShowMargin(false); setMarginPct(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 11, padding: 0, flexShrink: 0 }} title={t('closeMarginTitle')}>
                           ✕
                         </button>
                       </div>
@@ -259,18 +264,18 @@ export default function LineItemRow({
       <div style={{ flex: 1, minWidth: 0 }}>
         {viewMode ? (
           <>
-            <span className={`badge ${type === 'labor' ? 'badge-amber' : type === 'fee' ? 'badge-dark' : 'badge-gray'}`}>{type === 'labor' ? 'Labor' : type === 'fee' ? 'Fee' : 'Producto'}</span>
-            {exempt && <span className="badge badge-gray" style={{ marginLeft: 6 }}>Exento</span>}
+            <span className={`badge ${type === 'labor' ? 'badge-amber' : type === 'fee' ? 'badge-dark' : 'badge-gray'}`}>{type === 'labor' ? t('type.labor') : type === 'fee' ? t('type.fee') : t('type.product')}</span>
+            {exempt && <span className="badge badge-gray" style={{ marginLeft: 6 }}>{t('exempt')}</span>}
             {warrantyStatus && (
               <span
-                title={`Garantía vence ${new Date(`${warrantyExpiresAt}T00:00:00`).toLocaleDateString('es-PR')}`}
+                title={t('warrantyExpiresTooltip', { date: new Date(`${warrantyExpiresAt}T00:00:00`).toLocaleDateString(dateLocale) })}
                 style={{
                   marginLeft: 6, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
                   background: warrantyStatus === 'expired' ? 'var(--warn-tint, #fee2e2)' : warrantyStatus === 'soon' ? 'var(--amber-tint, #fef3c7)' : 'var(--surface-2)',
                   color: warrantyStatus === 'expired' ? 'var(--warn, #b91c1c)' : warrantyStatus === 'soon' ? 'var(--amber, #b45309)' : 'var(--muted)',
                 }}
               >
-                🛡️ {warrantyStatus === 'expired' ? 'Garantía vencida' : 'Garantía'} {new Date(`${warrantyExpiresAt}T00:00:00`).toLocaleDateString('es-PR')}
+                🛡️ {warrantyStatus === 'expired' ? t('warrantyExpired') : t('warranty')} {new Date(`${warrantyExpiresAt}T00:00:00`).toLocaleDateString(dateLocale)}
               </span>
             )}
             {title && <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 4 }}>{title}</div>}
@@ -280,19 +285,19 @@ export default function LineItemRow({
           <>
             <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
               <select value={type} onChange={e => onTypeChange(e.target.value)} style={{ fontSize: 11, padding: '3px 6px', width: 90 }}>
-                <option value="labor">Labor</option>
-                <option value="product">Producto</option>
-                <option value="fee">Fee</option>
+                <option value="labor">{t('type.labor')}</option>
+                <option value="product">{t('type.product')}</option>
+                <option value="fee">{t('type.fee')}</option>
               </select>
             </div>
             {onTitleChange && (
               <div style={{ marginBottom: 4 }}>
                 <CatalogDescriptionInput value={title ?? ''} onChange={onTitleChange} catalogOptions={catalogOptions}
-                  placeholder="Título (ej. Access Control System Installation)..." maxLength={150} fontSize={13.5} fontWeight={700} />
+                  placeholder={t('titlePlaceholder')} maxLength={150} fontSize={13.5} fontWeight={700} />
               </div>
             )}
             <CatalogDescriptionInput value={description} onChange={onDescriptionChange} catalogOptions={catalogOptions}
-              placeholder="Descripción o código..." maxLength={2000} fontWeight={onTitleChange ? 400 : 700}
+              placeholder={t('descriptionPlaceholder')} maxLength={2000} fontWeight={onTitleChange ? 400 : 700}
               multiline={!!onTitleChange} />
           </>
         )}
@@ -312,20 +317,20 @@ export default function LineItemRow({
         ) : (
           <>
             {hasMsrp && (
-              <input type="number" value={msrp} onChange={e => onMsrpChange(e.target.value)} placeholder="MSRP" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--muted)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="MSRP (referencia, solo interno)" />
+              <input type="number" value={msrp} onChange={e => onMsrpChange(e.target.value)} placeholder={t('msrpPlaceholder')} style={{ fontSize: 11, padding: '3px 6px', color: 'var(--muted)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title={t('msrpTitle')} />
             )}
-            <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder="Precio venta" style={{ fontSize: 13, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title="Precio de venta al cliente" />
+            <input type="number" value={unitPrice} onChange={e => onUnitPriceChange(e.target.value)} placeholder={t('pricePlaceholderVenta')} style={{ fontSize: 13, padding: '4px 6px', fontWeight: 700, border: '1.5px solid var(--amber)', textAlign: 'right', width: '100%', marginBottom: 3 }} min="0" step="0.01" title={t('priceTitleVenta')} />
             {hasSupplierPrice && (
               <>
-                <input type="number" value={supplierPrice} onChange={e => handleSupplierPriceChange(e.target.value)} placeholder="Costo" style={{ fontSize: 11, padding: '3px 6px', color: 'var(--warn)', textAlign: 'right', width: '100%' }} min="0" step="0.01" title="Costo del suplidor (solo interno)" />
+                <input type="number" value={supplierPrice} onChange={e => handleSupplierPriceChange(e.target.value)} placeholder={t('costPlaceholder')} style={{ fontSize: 11, padding: '3px 6px', color: 'var(--warn)', textAlign: 'right', width: '100%' }} min="0" step="0.01" title={t('costTitle')} />
                 {!showMargin ? (
                   (parseFloat(supplierPrice) > 0) ? (
-                    <button type="button" onClick={openMargin} style={{ display: 'block', marginLeft: 'auto', marginTop: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 10, padding: 0, textDecoration: 'underline' }} title="Calcular precio de venta por margen (solo interno, no se muestra al cliente)">
-                      + Margen %
+                    <button type="button" onClick={openMargin} style={{ display: 'block', marginLeft: 'auto', marginTop: 3, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 10, padding: 0, textDecoration: 'underline' }} title={t('addMarginTitle')}>
+                      {t('addMargin')}
                     </button>
                   ) : (
-                    <div style={{ textAlign: 'right', marginTop: 3, fontSize: 9.5, color: 'var(--muted)' }} title="Escribe el costo para poder calcular el margen">
-                      + Margen % (ingresa costo)
+                    <div style={{ textAlign: 'right', marginTop: 3, fontSize: 9.5, color: 'var(--muted)' }} title={t('addMarginNeedsCostTitle')}>
+                      {t('addMarginNeedsCost')}
                     </div>
                   )
                 ) : (
@@ -337,10 +342,10 @@ export default function LineItemRow({
                       placeholder="30"
                       style={{ fontSize: 11, padding: '3px 4px', textAlign: 'right', width: '100%' }}
                       min="0" step="1"
-                      title="Margen % sobre el costo (solo interno, calcula el precio de venta)"
+                      title={t('marginPctTitle')}
                     />
                     <span style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>%</span>
-                    <button type="button" onClick={() => { setShowMargin(false); setMarginPct(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12, padding: 0, flexShrink: 0 }} title="Cerrar calculadora de margen">
+                    <button type="button" onClick={() => { setShowMargin(false); setMarginPct(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12, padding: 0, flexShrink: 0 }} title={t('closeMarginTitle')}>
                       ✕
                     </button>
                   </div>
@@ -352,20 +357,20 @@ export default function LineItemRow({
       </div>
 
       <div style={{ textAlign: 'center', flexShrink: 0, width: 50 }}>
-        <label style={{ fontSize: 9, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Cant.</label>
+        <label style={{ fontSize: 9, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>{t('quantityLabel')}</label>
         {viewMode ? (
           <div style={{ fontSize: 13 }}>{quantity}</div>
         ) : (
           <input type="number" value={quantity} onChange={e => onQuantityChange(e.target.value)} style={{ fontSize: 13, padding: '4px 6px', textAlign: 'center', width: '100%' }} min="0" step="0.01" />
         )}
         {stockHint != null && (
-          <div style={{ fontSize: 9, color: stockHint <= 0 ? 'var(--warn)' : 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' }} title="Cantidad en inventario">Stock: {stockHint}</div>
+          <div style={{ fontSize: 9, color: stockHint <= 0 ? 'var(--warn)' : 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' }} title={t('stockHintTitle')}>{t('stockHint', { count: stockHint })}</div>
         )}
       </div>
 
       <div style={{ textAlign: 'right', flexShrink: 0, width: 90 }}>
         <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--navy)' }}>{fmt(subtotal)}</div>
-        <div style={{ fontSize: 9, color: 'var(--muted)' }}>Subtotal</div>
+        <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('subtotalLabel')}</div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
@@ -378,26 +383,26 @@ export default function LineItemRow({
                 <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 4, minWidth: 180, whiteSpace: 'nowrap' }}>
                   <button type="button" onClick={() => { onExemptChange(!exempt); setMenuOpen(false); }}
                     style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' }}>
-                    {exempt ? '☑ Exento de IVU' : '☐ Marcar exento de IVU'}
+                    {exempt ? `☑ ${t('exemptToggleLabel')}` : `☐ ${t('exemptToggleOffLabel')}`}
                   </button>
                   {onSaveToCatalogChange && !catalogItemId && (type === 'labor' || type === 'product') && (
                     <button type="button" onClick={() => { onSaveToCatalogChange(!saveToCatalog); setMenuOpen(false); }}
-                      title="Crea este ítem en el catálogo (Labor/Producto) al guardar, para reutilizarlo en futuros documentos"
+                      title={t('saveToCatalogTitle')}
                       style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' }}>
-                      {saveToCatalog ? '☑ Guardar en catálogo' : '☐ Guardar en catálogo'}
+                      {saveToCatalog ? `☑ ${t('saveToCatalogLabel')}` : `☐ ${t('saveToCatalogLabel')}`}
                     </button>
                   )}
                   {onDiscountChange && (
                     <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Descuento ($)</label>
+                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>{t('discountLabel')}</label>
                       <input type="number" value={discount} onChange={e => onDiscountChange(e.target.value)} placeholder="0.00" min="0" step="0.01"
                         style={{ fontSize: 12.5, padding: '4px 6px', width: '100%' }} onClick={e => e.stopPropagation()} />
                     </div>
                   )}
                   {onAreaChange && (
                     <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Área</label>
-                      <input list="line-item-area-options" value={area ?? ''} onChange={e => onAreaChange(e.target.value)} placeholder="Piso 1, Oficina 2..."
+                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>{t('areaLabel')}</label>
+                      <input list="line-item-area-options" value={area ?? ''} onChange={e => onAreaChange(e.target.value)} placeholder={t('areaPlaceholder')}
                         style={{ fontSize: 12.5, padding: '4px 6px', width: '100%' }} onClick={e => e.stopPropagation()} />
                       <datalist id="line-item-area-options">
                         {areaOptions.map(a => <option key={a} value={a} />)}
@@ -406,8 +411,8 @@ export default function LineItemRow({
                   )}
                   {hasVendor && (
                     <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Suplidor</label>
-                      <input list="line-item-vendor-options" value={vendor ?? ''} onChange={e => onVendorChange(e.target.value)} placeholder="Adi, Multi Electric..."
+                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>{t('vendorLabel')}</label>
+                      <input list="line-item-vendor-options" value={vendor ?? ''} onChange={e => onVendorChange(e.target.value)} placeholder={t('vendorPlaceholder')}
                         style={{ fontSize: 12.5, padding: '4px 6px', width: '100%' }} onClick={e => e.stopPropagation()} />
                       <datalist id="line-item-vendor-options">
                         {vendorOptions.map(v => <option key={v} value={v} />)}
@@ -416,12 +421,12 @@ export default function LineItemRow({
                   )}
                   {hasWarranty && (
                     <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Garantía vence</label>
+                      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>{t('warrantyExpiresLabel')}</label>
                       <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
                         {[12, 24, 36, 60].map(m => (
                           <button key={m} type="button" onClick={e => { e.stopPropagation(); setWarrantyMonths(m); }}
                             style={{ fontSize: 10.5, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 5, background: 'var(--surface)', cursor: 'pointer', color: 'var(--navy)' }}>
-                            {m}m
+                            {t('monthsAbbrev', { count: m })}
                           </button>
                         ))}
                       </div>

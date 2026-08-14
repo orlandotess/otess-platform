@@ -8,8 +8,7 @@ import LineItemPicker from '../../../LineItemPicker';
 import ClientCombobox from '../../nueva/ClientCombobox';
 import TaxBreakdown from '../../../TaxBreakdown';
 import { calcularIVU } from '../../../../lib/tax';
-
-const STATUS_BADGE = { draft: { cls: 'badge-gray', label: 'Borrador' }, sent: { cls: 'badge-blue', label: 'Enviada' }, paid: { cls: 'badge-green', label: 'Pagada' }, cancelled: { cls: 'badge-red', label: 'Cancelada' } };
+import { useTranslations, useLocale } from 'next-intl';
 
 function toInputItem(it) {
   return { key: it.id, type: it.type, tax_category: it.tax_category ?? it.type, description: it.description, quantity: it.quantity, unit_price: it.unit_price, exempt: it.exempt };
@@ -17,6 +16,15 @@ function toInputItem(it) {
 
 export default function RecurringInvoiceDetailClient({ recurring, clients, history, taxRules = [] }) {
   const router = useRouter();
+  const t = useTranslations('facturas.recurringDetailClient');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const STATUS_BADGE = {
+    draft: { cls: 'badge-gray', label: t('status.draft') },
+    sent: { cls: 'badge-blue', label: t('status.sent') },
+    paid: { cls: 'badge-green', label: t('status.paid') },
+    cancelled: { cls: 'badge-red', label: t('status.cancelled') },
+  };
   const [form, setForm] = useState({
     client_id: recurring.client_id, bill_to: recurring.bill_to, notes: recurring.notes ?? '', terms: recurring.terms ?? '',
     frequency: recurring.frequency, due_days: recurring.due_days, next_run_date: recurring.next_run_date,
@@ -45,13 +53,13 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
   const setItem = (key, k, v) => { setItems(i => i.map(it => it.key === key ? { ...it, [k]: v } : it)); setSaved(false); };
   const setItemType = (key, type) => { setItems(i => i.map(it => it.key === key ? { ...it, type, tax_category: type === 'fee' ? (it.tax_category || 'labor') : type } : it)); setSaved(false); };
 
-  const t = calcularIVU(items, clientType, taxRules);
+  const taxCalc = calcularIVU(items, clientType, taxRules);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   async function handleSave() {
-    if (!form.client_id) { setError('Selecciona un cliente'); return; }
-    if (!form.next_run_date) { setError('Selecciona la fecha del próximo envío'); return; }
-    if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
+    if (!form.client_id) { setError(t('errors.selectClient')); return; }
+    if (!form.next_run_date) { setError(t('errors.selectNextRunDate')); return; }
+    if (!items.some(i => i.description.trim())) { setError(t('errors.addLine')); return; }
     setSaving(true); setError('');
 
     const runDate = new Date(form.next_run_date + 'T00:00:00');
@@ -83,16 +91,21 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
     router.refresh();
   }
 
+  const periodKey = form.frequency === 'weekly' ? 'periodWeekly'
+    : form.frequency === 'monthly' ? 'periodMonthly'
+    : form.frequency === 'quarterly' ? 'periodQuarterly'
+    : 'periodYearly';
+
   return (
     <>
       <div className="page-header">
         <div>
-          <div className="page-title">{selectedClient?.name ?? 'Factura recurrente'}</div>
+          <div className="page-title">{selectedClient?.name ?? t('defaultTitle')}</div>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-            {recurring.active ? 'Activa' : 'Pausada'} · Próximo envío: {new Date(form.next_run_date + 'T00:00:00').toLocaleDateString('es-PR', { month: 'long', day: 'numeric', year: 'numeric' })}
+            {recurring.active ? t('active') : t('paused')} · {t('nextRun', { date: new Date(form.next_run_date + 'T00:00:00').toLocaleDateString(dateLocale, { month: 'long', day: 'numeric', year: 'numeric' }) })}
           </div>
         </div>
-        <Link href="/facturas/recurrentes" className="btn btn-ghost">← Volver</Link>
+        <Link href="/facturas/recurrentes" className="btn btn-ghost">{t('back')}</Link>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
@@ -100,14 +113,14 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
           {error && <p style={{ color: 'var(--warn)', fontSize: 14 }}>{error}</p>}
 
           <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('generalInfo')}</p>
             <div className="form-group">
-              <label>Cliente *</label>
+              <label>{t('clientLabel')}</label>
               <ClientCombobox clients={clients} value={form.client_id} onChange={v => { set('client_id', v); set('bill_to', 'person'); }} />
             </div>
             {hasCompany && (
               <div className="form-group" style={{ marginTop: 4 }}>
-                <label>Facturar a</label>
+                <label>{t('billTo')}</label>
                 <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
                     <input type="radio" name="bill_to" checked={form.bill_to === 'person'} onChange={() => set('bill_to', 'person')} />
@@ -122,48 +135,48 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
             )}
             {selectedClient && !selectedClient.email && (
               <p style={{ fontSize: 12.5, color: 'var(--warn)', marginTop: 4 }}>
-                Este cliente no tiene email registrado — la próxima ejecución se saltará hasta que le agregues uno.
+                {t('noEmailWarning')}
               </p>
             )}
             <div className="form-group">
-              <label>Notas / Términos de pago</label>
+              <label>{t('notesLabel')}</label>
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)} />
             </div>
           </div>
 
           <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Recurrencia</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('recurrence')}</p>
             <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
               <div className="form-group">
-                <label>Frecuencia</label>
+                <label>{t('freqLabel')}</label>
                 <select value={form.frequency} onChange={e => set('frequency', e.target.value)}>
-                  <option value="weekly">Semanal</option>
-                  <option value="monthly">Mensual</option>
-                  <option value="quarterly">Trimestral</option>
-                  <option value="yearly">Anual</option>
+                  <option value="weekly">{t('freq.weekly')}</option>
+                  <option value="monthly">{t('freq.monthly')}</option>
+                  <option value="quarterly">{t('freq.quarterly')}</option>
+                  <option value="yearly">{t('freq.yearly')}</option>
                 </select>
               </div>
               <div className="form-group">
-                <label>Próximo envío</label>
+                <label>{t('nextRunLabel')}</label>
                 <input type="date" value={form.next_run_date} onChange={e => set('next_run_date', e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Días para vencer</label>
+                <label>{t('dueDaysLabel')}</label>
                 <input type="number" min="0" value={form.due_days} onChange={e => set('due_days', e.target.value)} />
               </div>
             </div>
             <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)' }}>
-              Se repetirá cada {form.frequency === 'weekly' ? 'semana, el mismo día de la semana' : form.frequency === 'monthly' ? 'mes, el mismo día del mes' : form.frequency === 'quarterly' ? '3 meses, el mismo día del mes' : 'año, en la misma fecha'} elegida arriba.
+              {t('repeatsText', { period: t(periodKey) })}
             </div>
           </div>
 
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de factura</p>
-              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('lineItems')}</p>
+              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>{t('addLine')}</button>
             </div>
             <div style={{ marginBottom: 16 }}>
-              <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+              <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder={t('catalogPlaceholder')} />
             </div>
             {items.map(item => (
               <LineItemRow
@@ -187,9 +200,9 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
           </div>
 
           <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Historial de facturas generadas</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('historyTitle')}</p>
             {history.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--muted)' }}>Todavía no se ha generado ninguna factura desde esta recurrencia.</p>
+              <p style={{ fontSize: 13, color: 'var(--muted)' }}>{t('historyEmpty')}</p>
             ) : (
               <div style={{ display: 'grid', gap: 2 }}>
                 {history.map(inv => {
@@ -199,7 +212,7 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
                       style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 13.5 }}>{inv.invoice_number}</div>
-                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>{inv.issued_at} · vence {inv.due_at}</div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('historyDue', { issued: inv.issued_at, due: inv.due_at })}</div>
                       </div>
                       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                         <span className={`badge ${badge.cls}`}>{badge.label}</span>
@@ -213,7 +226,7 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
           </div>
 
           <div className="card">
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Términos del proyecto</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('projectTerms')}</p>
             <div className="form-group">
               <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={4} style={{ fontSize: 13, lineHeight: 1.6 }} />
             </div>
@@ -223,16 +236,16 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card">
             <TaxBreakdown
-              lineas={items} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+              lineas={items} clientType={clientType} taxRules={taxRules} title={t('taxSummaryTitle')}
               note={clientType === 'b2b' && (
                 <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
-                  Cliente B2B — Labor al 4%
+                  {t('b2bNote')}
                 </div>
               )}
             />
           </div>
           <button type="button" className="btn btn-primary" disabled={saving} onClick={handleSave} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
-            {saving ? 'Guardando...' : saved ? '✓ Guardado' : 'Guardar cambios'}
+            {saving ? t('saving') : saved ? t('saved') : t('saveChanges')}
           </button>
         </div>
       </div>

@@ -3,8 +3,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import SearchBox from '../../SearchBox';
 import { computeInvoiceIVU } from '../../../lib/ivu';
+import { useTranslations } from 'next-intl';
 
 export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClientColumn = false }) {
+  const t = useTranslations('accounting.ivuInvoiceTable');
   const [search, setSearch] = useState('');
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const pct = n => n === null ? '—' : `${(n * 100).toFixed(1)}%`;
@@ -17,30 +19,30 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
-        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>Detalle por factura{periodLabel ? ` — ${periodLabel}` : ''}</p>
-        <SearchBox value={search} onChange={setSearch} placeholder="Buscar # factura o cliente..." />
+        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>{t('detailTitle')}{periodLabel ? ` — ${periodLabel}` : ''}</p>
+        <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
       </div>
       {invoices.length === 0 ? (
-        <div className="empty"><p>No hay facturas para este período.</p></div>
+        <div className="empty"><p>{t('empty')}</p></div>
       ) : visible.length === 0 ? (
-        <div className="empty"><p>Sin resultados para "{search}".</p></div>
+        <div className="empty"><p>{t('noResults', { search })}</p></div>
       ) : (
         <div className="table-wrap">
           <table style={{ minWidth: 1180, whiteSpace: 'nowrap' }}>
             <thead>
               <tr>
-                <th>#</th>
-                {!hideClientColumn && <th>Cliente</th>}
-                <th>{invoices.some(i => i.paid_at) ? 'Fecha pago' : 'Fecha'}</th>
-                <th style={{ textAlign: 'right' }}>Labor</th>
-                <th style={{ textAlign: 'right' }}>Tasa labor</th>
-                <th style={{ textAlign: 'right' }}>IVU Labor</th>
-                <th style={{ textAlign: 'right' }}>Producto</th>
-                <th style={{ textAlign: 'right' }}>IVU Prod (11.5%)</th>
-                <th style={{ textAlign: 'right' }}>Estatal (10.5%)</th>
-                <th style={{ textAlign: 'right' }}>Municipal (1%)</th>
-                <th style={{ textAlign: 'right' }}>Total IVU</th>
-                <th style={{ textAlign: 'right' }}>Total factura</th>
+                <th>{t('columns.number')}</th>
+                {!hideClientColumn && <th>{t('columns.client')}</th>}
+                <th>{invoices.some(i => i.paid_at) ? t('columns.datePaid') : t('columns.date')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.labor')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.laborRate')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.ivuLabor')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.product')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.ivuProd')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.estatal')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.municipal')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.totalIVU')}</th>
+                <th style={{ textAlign: 'right' }}>{t('columns.totalInvoice')}</th>
               </tr>
             </thead>
             <tbody>
@@ -54,13 +56,13 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
                     {!hideClientColumn && (
                       <td style={{ fontWeight: 600 }}>
                         {inv.clients?.name ?? '—'}
-                        <span className={`badge ${b.isB2B ? 'badge-blue' : 'badge-gray'}`} style={{ marginLeft: 6 }}>{b.isB2B ? 'B2B' : 'Final'}</span>
+                        <span className={`badge ${b.isB2B ? 'badge-blue' : 'badge-gray'}`} style={{ marginLeft: 6 }}>{b.isB2B ? t('clientType.b2b') : t('clientType.final')}</span>
                       </td>
                     )}
                     <td style={{ color: 'var(--muted)', fontSize: 13 }}>
                       {inv.paid_at ?? inv.issued_at}
                       {inv.paid_at && inv.paid_at !== inv.issued_at && (
-                        <div style={{ fontSize: 11, opacity: 0.7 }}>Fact: {inv.issued_at}</div>
+                        <div style={{ fontSize: 11, opacity: 0.7 }}>{t('invoiceDatePrefix', { date: inv.issued_at })}</div>
                       )}
                     </td>
                     <td style={{ textAlign: 'right' }}>{fmt(b.laborSub)}</td>
@@ -92,7 +94,7 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
                 }, { laborSub: 0, laborTax: 0, prodSub: 0, prodTax: 0, estatal: 0, municipal: 0, totalIVU: 0, totalFactura: 0 });
                 return (
                   <tr style={{ borderTop: '2px solid var(--border)' }}>
-                    <td colSpan={hideClientColumn ? 2 : 3} style={{ fontWeight: 700, paddingTop: 12 }}>TOTAL</td>
+                    <td colSpan={hideClientColumn ? 2 : 3} style={{ fontWeight: 700, paddingTop: 12 }}>{t('total')}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.laborSub)}</td>
                     <td></td>
                     <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.laborTax)}</td>

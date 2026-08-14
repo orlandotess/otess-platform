@@ -3,8 +3,11 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import OrdenCambioPublicClient from './public-client';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 export default async function OrdenCambioPublicPage({ params }) {
+  const t = await getTranslations('ordenesCambio.publicPage');
+  const locale = await getLocale();
   const { data: order } = await supabase
     .from('change_orders')
     .select('*, clients(name, email, phone, company, client_type)')
@@ -14,19 +17,20 @@ export default async function OrdenCambioPublicPage({ params }) {
   if (!order) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
-        <p>Orden de cambio no encontrada.</p>
+        <p>{t('notFound')}</p>
       </div>
     );
   }
 
   const isExpired = order.valid_until && order.status !== 'aprobada' && new Date(order.valid_until + 'T23:59:59') < new Date();
   if (isExpired) {
+    const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '-apple-system,sans-serif', background: '#fafafa', padding: 20 }}>
         <div style={{ background: '#fff', borderRadius: 12, padding: 40, maxWidth: 420, textAlign: 'center', border: '1px solid #eee' }}>
           <div style={{ fontSize: 32, marginBottom: 12, color: '#999' }}>⏳</div>
-          <div style={{ fontSize: 19, fontWeight: 700, color: '#16223d', marginBottom: 8 }}>Esta orden de cambio expiró</div>
-          <p style={{ fontSize: 14, color: '#888' }}>Era válida hasta el {new Date(order.valid_until + 'T00:00:00').toLocaleDateString('es-PR', { dateStyle: 'long' })}. Contáctanos si necesitas una orden actualizada.</p>
+          <div style={{ fontSize: 19, fontWeight: 700, color: '#16223d', marginBottom: 8 }}>{t('expiredTitle')}</div>
+          <p style={{ fontSize: 14, color: '#888' }}>{t('expiredBody', { date: new Date(order.valid_until + 'T00:00:00').toLocaleDateString(dateLocale, { dateStyle: 'long' }) })}</p>
         </div>
       </div>
     );

@@ -1,10 +1,12 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 const statusBadge = { draft: 'badge-gray', sent: 'badge-blue', paid: 'badge-green', cancelled: 'badge-red' };
 
 export default function DashboardSearch({ invoices }) {
+  const t = useTranslations('accounting.dashboardSearch');
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -22,7 +24,7 @@ export default function DashboardSearch({ invoices }) {
           value={search}
           onChange={e => { setSearch(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          placeholder="Buscar factura o cliente..."
+          placeholder={t('placeholder')}
           style={{ padding: '8px 12px 8px 32px', fontSize: 13, width: '100%' }}
         />
       </div>
@@ -31,7 +33,7 @@ export default function DashboardSearch({ invoices }) {
           <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, width: 320, maxHeight: 320, overflowY: 'auto' }}>
             {results.length === 0 ? (
-              <p style={{ padding: '14px 16px', fontSize: 13, color: 'var(--muted)' }}>Sin resultados.</p>
+              <p style={{ padding: '14px 16px', fontSize: 13, color: 'var(--muted)' }}>{t('noResults')}</p>
             ) : (
               results.map(inv => (
                 <Link key={inv.id} href={`/facturas/${inv.id}`} onClick={() => setOpen(false)}
@@ -42,7 +44,7 @@ export default function DashboardSearch({ invoices }) {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>{fmt(inv.total)}</div>
-                    <span className={`badge ${statusBadge[inv.status] ?? 'badge-gray'}`} style={{ fontSize: 10 }}>{inv.status}</span>
+                    <span className={`badge ${statusBadge[inv.status] ?? 'badge-gray'}`} style={{ fontSize: 10 }}>{statusBadge[inv.status] ? t(`status.${inv.status}`) : inv.status}</span>
                   </div>
                 </Link>
               ))

@@ -1,11 +1,14 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { withParams } from './updatePeriodParams';
 
-const MONTHS_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
 export default function MonthPeriodSelector({ year, month }) {
+  const t = useTranslations('accounting.monthSelector');
+  const MONTHS = useMemo(() => MONTH_KEYS.map(k => t(`months.${k}`)), [t]);
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -26,7 +29,7 @@ export default function MonthPeriodSelector({ year, month }) {
         onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 16, fontWeight: 800, color: 'var(--navy)' }}
       >
-        🗓 {MONTHS_ES[month]} {year}
+        🗓 {MONTHS[month]} {year}
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>▾</span>
       </button>
 
@@ -40,7 +43,7 @@ export default function MonthPeriodSelector({ year, month }) {
               <button type="button" className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 13 }} onClick={() => go(year + 1, month)}>›</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 12 }}>
-              {MONTHS_ES.map((m, i) => (
+              {MONTHS.map((m, i) => (
                 <button
                   key={m}
                   type="button"
@@ -58,7 +61,7 @@ export default function MonthPeriodSelector({ year, month }) {
             </div>
             {!isCurrent && (
               <button type="button" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', fontSize: 13 }} onClick={() => go(now.getFullYear(), now.getMonth())}>
-                Volver al mes actual
+                {t('backToCurrentMonth')}
               </button>
             )}
           </div>

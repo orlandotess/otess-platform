@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { getCurrentRole } from '../../../lib/supabase-server';
 import { fallbackLineItems } from '../../../lib/ivu';
+import { getClientEmailTranslator } from '../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -17,6 +18,7 @@ export async function POST(request) {
     }
 
     const { invoiceId, toEmail, cc } = await request.json();
+    const t = await getClientEmailTranslator('emails.invoice');
     const ccList = Array.isArray(cc) ? cc.filter(Boolean) : [];
     const [{ data: inv }, { data: items }] = await Promise.all([
       supabase.from('invoices').select('*, clients(name, email, company, client_type)').eq('id', invoiceId).single(),
@@ -60,11 +62,11 @@ export async function POST(request) {
             <td style="vertical-align:top">
               ${i.title ? `<div style="font-weight:700;margin-bottom:2px">${i.title}</div>` : ''}
               <div>${i.description}</div>
-              ${i.accessoryCount > 0 ? `<div style="font-size:11px;color:#999;margin-top:2px">${i.accessoryCount} accesorio${i.accessoryCount > 1 ? 's' : ''} incluido${i.accessoryCount > 1 ? 's' : ''}</div>` : ''}
+              ${i.accessoryCount > 0 ? `<div style="font-size:11px;color:#999;margin-top:2px">${t('accessoryIncluded', { count: i.accessoryCount })}</div>` : ''}
             </td>
           </tr></table>
         </td>
-        <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${i.type === 'labor' ? 'Labor' : 'Producto'}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${i.type === 'labor' ? t('typeLabor') : t('typeProduct')}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${i.quantity}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${fmt(i.unit_price)}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;font-size:14px">${fmt(i.displayTotal)}</td>
@@ -84,25 +86,25 @@ export async function POST(request) {
       <div style="color:rgba(255,255,255,0.65);font-size:12px">(787) 513-8352 · info@otesspr.com</div>
     </div>
     <div style="text-align:right">
-      <div style="color:#fff;font-size:18px;font-weight:900">FACTURA</div>
+      <div style="color:#fff;font-size:18px;font-weight:900">${t('documentLabel')}</div>
       <div style="color:#e0972c;font-size:20px;font-weight:700;font-family:monospace">${inv.invoice_number}</div>
-      <div style="color:rgba(255,255,255,0.65);font-size:12px;margin-top:6px">Fecha: <strong style="color:#fff">${inv.issued_at}</strong></div>
-      ${inv.due_at ? `<div style="color:rgba(255,255,255,0.65);font-size:12px">Vence: <strong style="color:#fff">${inv.due_at}</strong></div>` : ''}
+      <div style="color:rgba(255,255,255,0.65);font-size:12px;margin-top:6px">${t('dateLabel')} <strong style="color:#fff">${inv.issued_at}</strong></div>
+      ${inv.due_at ? `<div style="color:rgba(255,255,255,0.65);font-size:12px">${t('dueLabel')} <strong style="color:#fff">${inv.due_at}</strong></div>` : ''}
     </div>
   </div>
 
   <div style="background:#fff;padding:28px 32px">
-    <p style="color:#555;font-size:15px;margin-top:0">Estimado/a <strong>${inv.clients?.name}</strong>,</p>
-    <p style="color:#666;font-size:14px">Adjunto encontrará su factura <strong>${inv.invoice_number}</strong>. Puede verla y descargarla en el siguiente enlace:</p>
+    <p style="color:#555;font-size:15px;margin-top:0">${t('greeting', { name: inv.clients?.name ?? '' })}</p>
+    <p style="color:#666;font-size:14px">${t('intro', { number: inv.invoice_number })}</p>
 
     <div style="text-align:center;margin:24px 0">
       <a href="${publicUrl}" style="background:#e0972c;color:#fff;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;display:inline-block">
-        📄 Ver y descargar factura
+        ${t('viewButton')}
       </a>
     </div>
 
     <div style="background:#f8f9fb;border-radius:10px;padding:16px 20px;margin-bottom:24px">
-      <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px;letter-spacing:0.1em">Facturar a</div>
+      <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px;letter-spacing:0.1em">${t('billTo')}</div>
       <div style="font-weight:700;font-size:15px">${inv.clients?.name}</div>
       ${inv.clients?.company ? `<div style="color:#888;font-size:13px">${inv.clients.company}</div>` : ''}
     </div>
@@ -110,11 +112,11 @@ export async function POST(request) {
     <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
       <thead>
         <tr style="background:#16223d">
-          <th style="color:#fff;padding:10px 12px;text-align:left;font-size:11px">Descripción</th>
-          <th style="color:#fff;padding:10px 12px;text-align:center;font-size:11px">Tipo</th>
-          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">Cant.</th>
-          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">Precio</th>
-          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">Total</th>
+          <th style="color:#fff;padding:10px 12px;text-align:left;font-size:11px">${t('tableDescription')}</th>
+          <th style="color:#fff;padding:10px 12px;text-align:center;font-size:11px">${t('tableType')}</th>
+          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">${t('tableQty')}</th>
+          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">${t('tablePrice')}</th>
+          <th style="color:#fff;padding:10px 12px;text-align:right;font-size:11px">${t('tableTotal')}</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -122,22 +124,22 @@ export async function POST(request) {
 
     <div style="display:flex;justify-content:flex-end">
       <div style="width:280px">
-        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Subtotal productos</span><span>${fmt(inv.subtotal_products)}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">IVU productos (11.5%)</span><span>${fmt(inv.tax_products)}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Subtotal labor</span><span>${fmt(inv.subtotal_labor)}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">IVU labor (${inv.clients?.client_type === 'b2b' ? '4%' : '11.5%'})</span><span>${fmt(inv.tax_labor)}</span></div>
-        ${inv.discount_value > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">Descuento${inv.discount_type === 'percent' ? ` (${Number(inv.discount_value)}%)` : ''}</span><span>-${fmt(Number(inv.subtotal_products) + Number(inv.tax_products) + Number(inv.subtotal_labor) + Number(inv.tax_labor) - Number(inv.total))}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('subtotalProducts')}</span><span>${fmt(inv.subtotal_products)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('taxProducts')}</span><span>${fmt(inv.tax_products)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('subtotalLabor')}</span><span>${fmt(inv.subtotal_labor)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('taxLabor', { rate: inv.clients?.client_type === 'b2b' ? '4%' : '11.5%' })}</span><span>${fmt(inv.tax_labor)}</span></div>
+        ${inv.discount_value > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('discount')}${inv.discount_type === 'percent' ? ` (${Number(inv.discount_value)}%)` : ''}</span><span>-${fmt(Number(inv.subtotal_products) + Number(inv.tax_products) + Number(inv.subtotal_labor) + Number(inv.tax_labor) - Number(inv.total))}</span></div>` : ''}
         ${inv.discount_value > 0 && inv.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:0 0 4px">${inv.discount_note}</p>` : ''}
-        <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>TOTAL</span><span>${fmt(inv.total)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>${t('total')}</span><span>${fmt(inv.total)}</span></div>
       </div>
     </div>
 
-    ${inv.notes ? `<div style="background:#f8f9fb;border-radius:10px;padding:14px 18px;font-size:13px;color:#888;margin-top:16px"><strong style="color:#16223d">Notas:</strong> ${inv.notes}</div>` : ''}
+    ${inv.notes ? `<div style="background:#f8f9fb;border-radius:10px;padding:14px 18px;font-size:13px;color:#888;margin-top:16px"><strong style="color:#16223d">${t('notes')}</strong> ${inv.notes}</div>` : ''}
   </div>
 
   <div style="background:#f0f2f5;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center">
-    <p style="color:#888;font-size:12px;margin:0">¿Preguntas? Contáctanos en <a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a> o al (787) 513-8352</p>
-    <p style="color:#aaa;font-size:11px;margin:8px 0 0">OT Electrical & Security Solutions · Carolina, Puerto Rico</p>
+    <p style="color:#888;font-size:12px;margin:0">${t('footerQuestions', { email: '<a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a>', phone: '(787) 513-8352' })}</p>
+    <p style="color:#aaa;font-size:11px;margin:8px 0 0">${t('footerAddress')}</p>
   </div>
 
 </div>
@@ -148,7 +150,7 @@ export async function POST(request) {
       from: 'OTESS <info@otesspr.com>',
       to: toEmail,
       ...(ccList.length ? { cc: ccList } : {}),
-      subject: `Factura ${inv.invoice_number} — OT Electrical & Security Solutions`,
+      subject: t('subject', { number: inv.invoice_number }),
       html,
     });
     if (error) return Response.json({ error: error.message }, { status: 500 });

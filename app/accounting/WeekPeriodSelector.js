@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import { withParams } from './updatePeriodParams';
 
 function mondayOf(dateStr) {
@@ -14,15 +15,18 @@ function toDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function fmtRange(start) {
+function fmtRange(start, dateLocale) {
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   const opts = { day: 'numeric', month: 'short' };
-  return `${start.toLocaleDateString('es-PR', opts)} – ${end.toLocaleDateString('es-PR', opts)}`;
+  return `${start.toLocaleDateString(dateLocale, opts)} – ${end.toLocaleDateString(dateLocale, opts)}`;
 }
 
 export default function WeekPeriodSelector({ weekStart }) {
   // weekStart: 'YYYY-MM-DD' string for the Monday of the selected week
+  const t = useTranslations('accounting.weekSelector');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -55,7 +59,7 @@ export default function WeekPeriodSelector({ weekStart }) {
         onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 16, fontWeight: 800, color: 'var(--navy)' }}
       >
-        📅 Semana del {fmtRange(startDate)}
+        📅 {t('weekOf', { range: fmtRange(startDate, dateLocale) })}
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>▾</span>
       </button>
 
@@ -64,14 +68,14 @@ export default function WeekPeriodSelector({ weekStart }) {
           <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.15)', padding: 14, zIndex: 21, width: 260 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
-              <button type="button" className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 13 }} onClick={() => shift(-7)}>‹ Anterior</button>
-              <button type="button" className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 13 }} onClick={() => shift(7)}>Siguiente ›</button>
+              <button type="button" className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 13 }} onClick={() => shift(-7)}>‹ {t('previous')}</button>
+              <button type="button" className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 13 }} onClick={() => shift(7)}>{t('next')} ›</button>
             </div>
-            <label style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>O elige cualquier día de esa semana:</label>
+            <label style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>{t('pickAnyDay')}</label>
             <input type="date" defaultValue={weekStart} onChange={onPickDate} style={{ width: '100%', marginBottom: 12, boxSizing: 'border-box' }} />
             {!isCurrent && (
               <button type="button" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', fontSize: 13 }} onClick={() => go(currentMonday)}>
-                Volver a esta semana
+                {t('backToThisWeek')}
               </button>
             )}
           </div>

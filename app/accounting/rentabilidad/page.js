@@ -5,10 +5,12 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import { effectiveEntryHours } from '../../../lib/payrollOverrides';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 
 const MARGIN_ALERT_THRESHOLD = 20;
 
 export default async function RentabilidadPage() {
+  const t = await getTranslations('accounting.rentabilidad');
   const [{ data: jobs }, { data: invoices }, { data: lineItems }, { data: timeEntries }, { data: technicians }, { data: expenses }, { data: dayOverrides }] = await Promise.all([
     supabase.from('jobs').select('id, title, job_number, status, clients(name)'),
     supabase.from('invoices').select('id, job_id, total'),
@@ -40,7 +42,7 @@ export default async function RentabilidadPage() {
 
   const techRateById = {};
   const techNameById = {};
-  (technicians ?? []).forEach(t => { techRateById[t.id] = Number(t.hourly_rate ?? 0); techNameById[t.id] = t.name; });
+  (technicians ?? []).forEach(tech => { techRateById[tech.id] = Number(tech.hourly_rate ?? 0); techNameById[tech.id] = tech.name; });
 
   const invoicesByJob = {};
   (invoices ?? []).forEach(i => { (invoicesByJob[i.job_id] ??= []).push(i); });
@@ -95,9 +97,9 @@ export default async function RentabilidadPage() {
       if (s.margenPct != null) { techStats[techId].marginSum += s.margenPct; techStats[techId].marginCount += 1; }
     });
   });
-  const techRows = Object.entries(techStats).map(([techId, t]) => ({
-    techId, name: techNameById[techId] ?? 'Técnico', hours: t.hours, pay: t.pay, jobCount: t.jobs.size,
-    avgMargin: t.marginCount > 0 ? t.marginSum / t.marginCount : null,
+  const techRows = Object.entries(techStats).map(([techId, ts]) => ({
+    techId, name: techNameById[techId] ?? t('defaultTechnicianName'), hours: ts.hours, pay: ts.pay, jobCount: ts.jobs.size,
+    avgMargin: ts.marginCount > 0 ? ts.marginSum / ts.marginCount : null,
   })).sort((a, b) => b.hours - a.hours);
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -116,27 +118,27 @@ export default async function RentabilidadPage() {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Rentabilidad por trabajo</div>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>Ganancia neta por proyecto: facturación, materiales, mano de obra y gastos</p>
+            <div className="page-title">{t('title')}</div>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>{t('subtitle')}</p>
           </div>
-          <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+          <Link href="/accounting" className="btn btn-ghost">{t('backToDashboard')}</Link>
         </div>
 
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
           <div className="stat-card">
-            <div className="stat-label">Facturado</div>
+            <div className="stat-label">{t('stats.billed')}</div>
             <div className="stat-value">{fmt(totals.facturado)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Cobrado</div>
+            <div className="stat-label">{t('stats.collected')}</div>
             <div className="stat-value" style={{ color: 'var(--ok)' }}>{fmt(totals.cobrado)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Costos totales</div>
+            <div className="stat-label">{t('stats.totalCosts')}</div>
             <div className="stat-value" style={{ color: 'var(--warn)' }}>{fmt(totals.costos)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Ganancia neta</div>
+            <div className="stat-label">{t('stats.netProfit')}</div>
             <div className="stat-value" style={{ color: totals.ganancia >= 0 ? 'var(--ok)' : 'var(--warn)' }}>
               {fmt(totals.ganancia)} {totalMargenPct != null ? `(${totalMargenPct.toFixed(0)}%)` : ''}
             </div>
@@ -146,7 +148,7 @@ export default async function RentabilidadPage() {
         {lowMarginJobs.length > 0 && (
           <div className="card" style={{ marginBottom: 20, background: 'var(--danger-tint)', border: '1px solid var(--warn)' }}>
             <div style={{ fontWeight: 700, color: 'var(--warn)', fontSize: 14, marginBottom: 4 }}>
-              ⚠ {lowMarginJobs.length} trabajo{lowMarginJobs.length > 1 ? 's' : ''} con margen por debajo de {MARGIN_ALERT_THRESHOLD}%
+              {t('lowMarginAlert', { count: lowMarginJobs.length, threshold: MARGIN_ALERT_THRESHOLD })}
             </div>
             <div style={{ fontSize: 13, color: 'var(--warn)' }}>
               {lowMarginJobs.slice(0, 5).map(s => s.job.title).join(', ')}{lowMarginJobs.length > 5 ? '…' : ''}
@@ -155,20 +157,20 @@ export default async function RentabilidadPage() {
         )}
 
         <div className="card" style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)', marginBottom: 14 }}>Trabajos facturados</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)', marginBottom: 14 }}>{t('billedJobsTitle')}</div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
-                  <th style={{ paddingBottom: 8 }}>Trabajo</th>
-                  <th style={{ paddingBottom: 8 }}>Cliente</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Facturado</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Cobrado</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Materiales</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Mano de obra</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Gastos</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Ganancia</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Margen</th>
+                  <th style={{ paddingBottom: 8 }}>{t('billedJobsTable.job')}</th>
+                  <th style={{ paddingBottom: 8 }}>{t('billedJobsTable.client')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('billedJobsTable.billed')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('billedJobsTable.collected')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('billedJobsTable.materials')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('billedJobsTable.labor')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('billedJobsTable.expenses')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('billedJobsTable.profit')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('billedJobsTable.margin')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,7 +182,7 @@ export default async function RentabilidadPage() {
                         <Link href={`/trabajos/${s.job.id}`} style={{ color: 'var(--navy)', fontWeight: 700, textDecoration: 'none' }}>{s.job.title}</Link>
                         {s.job.job_number && <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 6 }}>{s.job.job_number}</span>}
                       </td>
-                      <td style={{ padding: '8px 0', color: 'var(--muted)' }}>{s.job.clients?.name ?? '—'}</td>
+                      <td style={{ padding: '8px 0', color: 'var(--muted)' }}>{s.job.clients?.name ?? t('notAvailable')}</td>
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.facturado)}</td>
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.cobrado)}</td>
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.materialesCosto)}</td>
@@ -188,13 +190,13 @@ export default async function RentabilidadPage() {
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.gastos)}</td>
                       <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: s.gananciaNeta >= 0 ? 'var(--ok)' : 'var(--warn)' }}>{fmt(s.gananciaNeta)}</td>
                       <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: low ? 'var(--warn)' : 'var(--navy)' }}>
-                        {s.margenPct != null ? `${s.margenPct.toFixed(0)}%` : '—'}
+                        {s.margenPct != null ? `${s.margenPct.toFixed(0)}%` : t('notAvailable')}
                       </td>
                     </tr>
                   );
                 })}
                 {billedJobs.length === 0 && (
-                  <tr><td colSpan={9} style={{ padding: '16px 0', color: 'var(--muted)' }}>No hay trabajos facturados todavía.</td></tr>
+                  <tr><td colSpan={9} style={{ padding: '16px 0', color: 'var(--muted)' }}>{t('billedJobsEmpty')}</td></tr>
                 )}
               </tbody>
             </table>
@@ -202,32 +204,32 @@ export default async function RentabilidadPage() {
         </div>
 
         <div className="card" style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)', marginBottom: 4 }}>Rentabilidad por técnico</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>Solo considera horas en trabajos ya facturados</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)', marginBottom: 4 }}>{t('techProfitTitle')}</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>{t('techProfitSubtitle')}</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
-                <th style={{ paddingBottom: 8 }}>Técnico</th>
-                <th style={{ paddingBottom: 8, textAlign: 'right' }}>Horas</th>
-                <th style={{ paddingBottom: 8, textAlign: 'right' }}>Nómina</th>
-                <th style={{ paddingBottom: 8, textAlign: 'right' }}>Trabajos</th>
-                <th style={{ paddingBottom: 8, textAlign: 'right' }}>Margen prom. de sus trabajos</th>
+                <th style={{ paddingBottom: 8 }}>{t('techTable.technician')}</th>
+                <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('techTable.hours')}</th>
+                <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('techTable.payroll')}</th>
+                <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('techTable.jobs')}</th>
+                <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('techTable.avgMargin')}</th>
               </tr>
             </thead>
             <tbody>
-              {techRows.map(t => (
-                <tr key={t.techId} style={{ borderTop: '1px solid var(--border)' }}>
-                  <td style={{ padding: '8px 0' }}>{t.name}</td>
-                  <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmtH(t.hours)}</td>
-                  <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(t.pay)}</td>
-                  <td style={{ padding: '8px 0', textAlign: 'right' }}>{t.jobCount}</td>
-                  <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: t.avgMargin != null && t.avgMargin < MARGIN_ALERT_THRESHOLD ? 'var(--warn)' : 'var(--navy)' }}>
-                    {t.avgMargin != null ? `${t.avgMargin.toFixed(0)}%` : '—'}
+              {techRows.map(row => (
+                <tr key={row.techId} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ padding: '8px 0' }}>{row.name}</td>
+                  <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmtH(row.hours)}</td>
+                  <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(row.pay)}</td>
+                  <td style={{ padding: '8px 0', textAlign: 'right' }}>{row.jobCount}</td>
+                  <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700, color: row.avgMargin != null && row.avgMargin < MARGIN_ALERT_THRESHOLD ? 'var(--warn)' : 'var(--navy)' }}>
+                    {row.avgMargin != null ? `${row.avgMargin.toFixed(0)}%` : t('notAvailable')}
                   </td>
                 </tr>
               ))}
               {techRows.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: '16px 0', color: 'var(--muted)' }}>Sin datos de horas todavía.</td></tr>
+                <tr><td colSpan={5} style={{ padding: '16px 0', color: 'var(--muted)' }}>{t('techTableEmpty')}</td></tr>
               )}
             </tbody>
           </table>
@@ -235,16 +237,16 @@ export default async function RentabilidadPage() {
 
         {wipJobs.length > 0 && (
           <div className="card">
-            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)', marginBottom: 4 }}>En progreso (sin facturar aún)</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>Costo acumulado en trabajos que todavía no tienen factura</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)', marginBottom: 4 }}>{t('wipTitle')}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>{t('wipSubtitle')}</div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ textAlign: 'left', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
-                  <th style={{ paddingBottom: 8 }}>Trabajo</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Materiales</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Mano de obra</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Gastos</th>
-                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>Costo total</th>
+                  <th style={{ paddingBottom: 8 }}>{t('wipTable.job')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('wipTable.materials')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('wipTable.labor')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('wipTable.expenses')}</th>
+                  <th style={{ paddingBottom: 8, textAlign: 'right' }}>{t('wipTable.totalCost')}</th>
                 </tr>
               </thead>
               <tbody>

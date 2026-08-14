@@ -5,21 +5,22 @@ import SearchBox from '../SearchBox';
 import { formatDatePR } from '../../lib/datetimeLocal';
 import OpportunityModal, { emptyOpportunity } from './OpportunityModal';
 import StagesModal from './StagesModal';
+import { useTranslations, useLocale } from 'next-intl';
 
 const money = v => `$${Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-function followUpBadge(opp) {
+function followUpBadge(opp, dateLocale, t) {
   if (!opp.next_follow_up || opp.status !== 'open') return null;
   const today = new Date(new Date().toDateString());
   const due = new Date(opp.next_follow_up + 'T00:00:00');
   const days = (due - today) / 86400000;
-  if (days < 0) return { cls: 'badge-red', label: 'Seguimiento atrasado' };
-  if (days === 0) return { cls: 'badge-amber', label: 'Seguimiento hoy' };
-  return { cls: 'badge-blue', label: formatDatePR(opp.next_follow_up) };
+  if (days < 0) return { cls: 'badge-red', label: t('followUpOverdue') };
+  if (days === 0) return { cls: 'badge-amber', label: t('followUpToday') };
+  return { cls: 'badge-blue', label: formatDatePR(opp.next_follow_up, {}, dateLocale) };
 }
 
-function OppCard({ opp, dragId, setDragId, onOpen }) {
-  const fu = followUpBadge(opp);
+function OppCard({ opp, dragId, setDragId, onOpen, dateLocale, t }) {
+  const fu = followUpBadge(opp, dateLocale, t);
   const subtitle = opp.clients?.name || opp.company_name || opp.contact_name;
   return (
     <div
@@ -37,8 +38,8 @@ function OppCard({ opp, dragId, setDragId, onOpen }) {
       </div>
       {(opp.status !== 'open' || fu) && (
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-          {opp.status === 'won' && <span className="badge badge-green">Ganado</span>}
-          {opp.status === 'lost' && <span className="badge badge-gray">Perdido</span>}
+          {opp.status === 'won' && <span className="badge badge-green">{t('statusWon')}</span>}
+          {opp.status === 'lost' && <span className="badge badge-gray">{t('statusLost')}</span>}
           {fu && <span className={`badge ${fu.cls}`}>{fu.label}</span>}
         </div>
       )}
@@ -47,6 +48,9 @@ function OppCard({ opp, dragId, setDragId, onOpen }) {
 }
 
 export default function OportunidadesBoard({ initialStages, initialOpportunities, technicians, clients }) {
+  const t = useTranslations('oportunidades.board');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
   const [stages, setStages] = useState(initialStages);
   const [opportunities, setOpportunities] = useState(initialOpportunities);
   const [clientList, setClientList] = useState(clients);
@@ -89,7 +93,7 @@ export default function OportunidadesBoard({ initialStages, initialOpportunities
     const { error } = await supabase.from('opportunities').update({ stage_key: stageKey, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) {
       setOpportunities(prev => prev.map(o => o.id === id ? { ...o, stage_key: current.stage_key } : o));
-      alert('No se pudo mover la oportunidad: ' + error.message);
+      alert(t('moveError', { error: error.message }));
     }
   }
 
@@ -117,26 +121,26 @@ export default function OportunidadesBoard({ initialStages, initialOpportunities
   return (
     <>
       <div className="page-header">
-        <div className="page-title">Oportunidades</div>
+        <div className="page-title">{t('title')}</div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-ghost" onClick={() => setShowStages(true)}>⚙ Configurar Etapas</button>
+          <button className="btn btn-ghost" onClick={() => setShowStages(true)}>⚙ {t('configureStages')}</button>
           <button className="btn btn-primary" onClick={() => setEditing(emptyOpportunity(stages[0]?.key))} disabled={!stages.length}>
-            + Crear Oportunidad
+            + {t('createOpportunity')}
           </button>
         </div>
       </div>
 
       <div style={{ marginBottom: 18, maxWidth: 340 }}>
-        <SearchBox value={search} onChange={setSearch} placeholder="Buscar oportunidad, cliente o contacto..." />
+        <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
       </div>
 
       {!stages.length ? (
         <div className="card">
           <div className="empty">
             <div className="empty-glyph">🎯</div>
-            <h3>No hay etapas configuradas</h3>
-            <p>Crea al menos una etapa para empezar a registrar oportunidades.</p>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowStages(true)}>Configurar Etapas</button>
+            <h3>{t('noStagesTitle')}</h3>
+            <p>{t('noStagesText')}</p>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowStages(true)}>{t('configureStages')}</button>
           </div>
         </div>
       ) : (
@@ -161,10 +165,10 @@ export default function OportunidadesBoard({ initialStages, initialOpportunities
                 </div>
                 <div className="opp-column-cards">
                   {cards.length === 0 ? (
-                    <div style={{ fontSize: 12.5, color: 'var(--muted)', textAlign: 'center', padding: '24px 8px' }}>Sin oportunidades</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--muted)', textAlign: 'center', padding: '24px 8px' }}>{t('noOpportunities')}</div>
                   ) : (
                     cards.map(opp => (
-                      <OppCard key={opp.id} opp={opp} dragId={dragId} setDragId={setDragId} onOpen={setEditing} />
+                      <OppCard key={opp.id} opp={opp} dragId={dragId} setDragId={setDragId} onOpen={setEditing} dateLocale={dateLocale} t={t} />
                     ))
                   )}
                 </div>

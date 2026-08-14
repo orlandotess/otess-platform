@@ -2,6 +2,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations, useLocale } from 'next-intl';
 import { supabase } from '../../lib/supabase';
 import { isoToLocalInput, localInputToIso, formatDateTimePR, formatTimePR } from '../../lib/datetimeLocal';
 import { pickMapsLink } from '../../lib/mapsLinks';
@@ -18,22 +19,30 @@ const STATUS_COLORS = {
   completed: 'var(--ok)', cancelled: 'var(--ink-faint)',
 };
 
-const STATUS_LABELS = {
-  estimate: 'Estimado', scheduled: 'Programado', in_progress: 'En progreso',
-  completed: 'Completado', cancelled: 'Cancelado',
+const STATUS_LABEL_KEYS = {
+  estimate: 'estimate', scheduled: 'scheduled', in_progress: 'inProgress',
+  completed: 'completed', cancelled: 'cancelled',
 };
 
-const VISIT_STATUS_LABELS = {
-  agendada: 'Agendada', en_progreso: 'En progreso', completada: 'Completada', cancelada: 'Cancelada',
+const VISIT_STATUS_LABEL_KEYS = {
+  agendada: 'scheduled', en_progreso: 'inProgress', completada: 'completed', cancelada: 'cancelled',
 };
 
-const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const DAYS_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const MONTH_KEYS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+const DAY_SHORT_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
 
 const ENTRY_TYPE_ICONS = { event: '📌', reminder: '🔔', checklist: '☑' };
 
 export default function CalendarioClient({ jobs, technicians, visits, calendarEvents, tasks, absences, clients, clientProperties, pendingRequests, unscheduledJobs, currentRole, currentUserName, initialView, initialYear, initialMonth, initialWeek }) {
   const router = useRouter();
+  const t = useTranslations('calendario.client');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const MONTHS = useMemo(() => MONTH_KEYS.map(k => t(`months.${k}`)), [t]);
+  const DAYS_SHORT = useMemo(() => DAY_SHORT_KEYS.map(k => t(`daysShort.${k}`)), [t]);
+  const DAYS_VERY_SHORT = useMemo(() => DAY_SHORT_KEYS.map(k => t(`daysVeryShort.${k}`)), [t]);
+  const STATUS_LABELS = useMemo(() => Object.fromEntries(Object.entries(STATUS_LABEL_KEYS).map(([k, v]) => [k, t(`jobStatus.${v}`)])), [t]);
+  const VISIT_STATUS_LABELS = useMemo(() => Object.fromEntries(Object.entries(VISIT_STATUS_LABEL_KEYS).map(([k, v]) => [k, t(`visitStatus.${v}`)])), [t]);
   const canQuickReschedule = currentRole === 'admin';
   const canScheduleVisit = currentRole === 'admin' || currentRole === 'secretaria';
   const [view, setView] = useState(initialView);
@@ -148,8 +157,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     const id = kind === 'event' ? selectedEvent?.id : selectedTask?.id;
     return (
       <div style={{ marginTop: 4, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600, marginBottom: 8 }}>📝 Notas</div>
-        {notes.length === 0 && <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>Sin notas todavía.</div>}
+        <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600, marginBottom: 8 }}>📝 {t('notes.title')}</div>
+        {notes.length === 0 && <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>{t('notes.empty')}</div>}
         <div style={{ display: 'grid', gap: 8, marginBottom: 10, maxHeight: 220, overflowY: 'auto' }}>
           {notes.map(n => (
             <div key={n.id} style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -159,16 +168,16 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: n.note ? 6 : 0 }}>
                     {n.photo_signed_urls.filter(Boolean).map((url, i) => (
                       <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                        <img src={url} alt="foto de la nota" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                        <img src={url} alt={t('notes.photoAlt')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
                       </a>
                     ))}
                   </div>
                 )}
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                  {n.author_name ?? 'Alguien'} · {formatDateTimePR(n.created_at, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {n.author_name ?? t('notes.someone')} · {formatDateTimePR(n.created_at, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale)}
                 </div>
               </div>
-              <button onClick={() => deleteEntryNote(kind, n)} title="Eliminar nota"
+              <button onClick={() => deleteEntryNote(kind, n)} title={t('notes.deleteNote')}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, flexShrink: 0 }}>🗑</button>
             </div>
           ))}
@@ -177,7 +186,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
             {newNotePhotos.map((p, i) => (
               <div key={i} style={{ position: 'relative', width: 44, height: 44 }}>
-                <img src={p.previewUrl} alt="foto pendiente" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                <img src={p.previewUrl} alt={t('notes.pendingPhotoAlt')} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
                 <button type="button" onClick={() => setNewNotePhotos(prev => prev.filter((_, idx) => idx !== i))}
                   style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', background: 'var(--warn)', color: '#fff', border: 'none', fontSize: 10, lineHeight: 1, cursor: 'pointer' }}>×</button>
               </div>
@@ -185,7 +194,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           </div>
         )}
         <div style={{ display: 'flex', gap: 6 }}>
-          <input value={newNoteText} onChange={e => setNewNoteText(e.target.value)} placeholder="Agregar nota..."
+          <input value={newNoteText} onChange={e => setNewNoteText(e.target.value)} placeholder={t('notes.addPlaceholder')}
             style={{ flex: 1, borderRadius: 8, border: '1px solid var(--border)', padding: '8px 10px', fontSize: 13 }}
             onKeyDown={e => { if (e.key === 'Enter') addEntryNote(kind, id); }} />
           <input ref={notePhotoInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
@@ -194,9 +203,9 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               setNewNotePhotos(prev => [...prev, ...files.map(file => ({ file, previewUrl: URL.createObjectURL(file) }))]);
               e.target.value = '';
             }} />
-          <button type="button" className="btn btn-ghost" title="Adjuntar foto" onClick={() => notePhotoInputRef.current?.click()}>📷</button>
+          <button type="button" className="btn btn-ghost" title={t('notes.attachPhoto')} onClick={() => notePhotoInputRef.current?.click()}>📷</button>
           <button className="btn btn-ghost" disabled={savingNote || (!newNoteText.trim() && newNotePhotos.length === 0)} onClick={() => addEntryNote(kind, id)}>
-            {savingNote ? '...' : 'Agregar'}
+            {savingNote ? '...' : t('notes.add')}
           </button>
         </div>
       </div>
@@ -218,7 +227,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       scheduled_end: localInputToIso(rescheduleForm.end),
     }).eq('id', targetId);
     setSavingReschedule(false);
-    if (error) { alert('Error al reagendar: ' + error.message); return; }
+    if (error) { alert(t('alerts.rescheduleError', { error: error.message })); return; }
     setReschedulingJob(false);
     setSelectedJob(null);
     router.refresh();
@@ -243,7 +252,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       }).eq('id', targetId));
     }
     setSavingQuick(false);
-    if (error) { alert('Error al mover la fecha: ' + error.message); return; }
+    if (error) { alert(t('alerts.moveDateError', { error: error.message })); return; }
     setQuickReschedule(null);
     router.refresh();
   }
@@ -266,12 +275,12 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   }
 
   function quickPreviewInfo(type, item) {
-    const fmt = (iso) => iso ? formatDateTimePR(iso, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+    const fmt = (iso) => iso ? formatDateTimePR(iso, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale) : null;
     if (type === 'job') return { title: item.title, sub: item.clients?.name, time: fmt(item.scheduled_start), tech: item.technicians?.name };
     if (type === 'event') return { icon: ENTRY_TYPE_ICONS.event, title: item.title, sub: item.clients?.name, time: fmt(item.start_at), tech: item.technicians?.name };
     if (type === 'task') return { icon: ENTRY_TYPE_ICONS[item.task_type], title: item.title, sub: item.clients?.name, time: fmt(item.due_at), tech: item.technicians?.name };
-    if (type === 'visit') return { icon: '👁', title: item.requests?.title ?? 'Visita', sub: item.requests?.clients?.name, time: fmt(item.scheduled_at), tech: item.technicians?.name };
-    if (type === 'absence') return { icon: '🚫', title: `${item.technicians?.name ?? 'Técnico'} ausente`, sub: item.reason, time: item.date ? new Date(`${item.date}T00:00:00`).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' }) : null };
+    if (type === 'visit') return { icon: '👁', title: item.requests?.title ?? t('labels.visit'), sub: item.requests?.clients?.name, time: fmt(item.scheduled_at), tech: item.technicians?.name };
+    if (type === 'absence') return { icon: '🚫', title: t('labels.technicianAbsent', { name: item.technicians?.name ?? t('labels.technician') }), sub: item.reason, time: item.date ? new Date(`${item.date}T00:00:00`).toLocaleDateString(dateLocale, { weekday: 'long', month: 'long', day: 'numeric' }) : null };
     return { title: item.title };
   }
 
@@ -333,7 +342,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
         scheduled_end: item.scheduled_end ? shiftIsoByDays(item.scheduled_end, deltaDays) : null,
       }).eq('id', targetId));
     }
-    if (error) { alert('Error al mover la fecha: ' + error.message); return; }
+    if (error) { alert(t('alerts.moveDateError', { error: error.message })); return; }
     router.refresh();
   }
 
@@ -341,11 +350,11 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     const map = {};
     // Hashed by ID rather than array index so a technician keeps the same color
     // even after others are added/removed/reordered in the technicians table.
-    technicians.forEach((t) => {
+    technicians.forEach((tech) => {
       let hash = 0;
-      const id = String(t.id);
+      const id = String(tech.id);
       for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-      map[t.id] = TECH_COLORS[hash % TECH_COLORS.length];
+      map[tech.id] = TECH_COLORS[hash % TECH_COLORS.length];
     });
     return map;
   }, [technicians]);
@@ -378,7 +387,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   );
 
   const filteredTasks = useMemo(() =>
-    !visibleTypes.task ? [] : tasks.filter(t => (selectedTech === 'all' || t.technician_id === selectedTech) && matchesSearch(t.title, t.clients?.name)),
+    !visibleTypes.task ? [] : tasks.filter(tk => (selectedTech === 'all' || tk.technician_id === selectedTech) && matchesSearch(tk.title, tk.clients?.name)),
     [tasks, selectedTech, visibleTypes.task, searchLower]
   );
 
@@ -387,7 +396,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     [absences, selectedTech, visibleTypes.absence, searchLower]
   );
 
-  function toggleType(t) { setVisibleTypes(v => ({ ...v, [t]: !v[t] })); }
+  function toggleType(type) { setVisibleTypes(v => ({ ...v, [type]: !v[type] })); }
 
   function jumpToSearchMatch() {
     if (!searchLower) return;
@@ -395,7 +404,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       ...filteredJobs.map(j => j.scheduled_start?.slice(0, 10)),
       ...filteredVisits.map(v => v.scheduled_at?.slice(0, 10)),
       ...filteredEvents.map(e => e.start_at?.slice(0, 10)),
-      ...filteredTasks.map(t => t.due_at?.slice(0, 10)),
+      ...filteredTasks.map(tk => tk.due_at?.slice(0, 10)),
     ].filter(Boolean).sort();
     if (!allDates.length) return;
     const target = allDates.find(d => d >= today) ?? allDates[0];
@@ -423,7 +432,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     });
 
   const getTasksForDate = (dateStr) =>
-    filteredTasks.filter(t => t.due_at?.slice(0, 10) === dateStr);
+    filteredTasks.filter(tk => tk.due_at?.slice(0, 10) === dateStr);
 
   const getAbsencesForDate = (dateStr) =>
     filteredAbsences.filter(a => a.date === dateStr);
@@ -447,7 +456,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
 
   const today = new Date().toISOString().slice(0, 10);
   const fmtDate = d => d.toISOString().slice(0, 10);
-  const fmtTime = iso => formatTimePR(iso, { hour: '2-digit', minute: '2-digit' });
+  const fmtTime = iso => formatTimePR(iso, { hour: '2-digit', minute: '2-digit' }, dateLocale);
 
   function shiftDateStr(dateStr, deltaDays) {
     const d = new Date(`${dateStr}T00:00:00`);
@@ -457,8 +466,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
 
   const navLabel = view === 'year' ? String(year) :
     view === 'month' ? `${MONTHS[month]} ${year}` :
-    view === 'day' ? new Date(`${dayDate}T00:00:00`).toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) :
-    `${weekDays[0].toLocaleDateString('es-PR', { month: 'short', day: 'numeric' })} — ${weekDays[6].toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    view === 'day' ? new Date(`${dayDate}T00:00:00`).toLocaleDateString(dateLocale, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) :
+    `${weekDays[0].toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })} — ${weekDays[6].toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
   function navPrev() {
     if (view === 'year') setYear(y => y - 1);
@@ -496,7 +505,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       });
       if (!res.ok) {
         const err = await res.json();
-        alert(err.error ?? 'Error al agendar visita');
+        alert(err.error ?? t('alerts.scheduleVisitError'));
         return;
       }
       setScheduleModal(null);
@@ -659,9 +668,9 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
 
   async function toggleTaskItem(item) {
     await supabase.from('task_items').update({ done: !item.done }).eq('id', item.id);
-    setSelectedTask(t => t && ({
-      ...t,
-      task_items: t.task_items.map(i => i.id === item.id ? { ...i, done: !i.done } : i),
+    setSelectedTask(prevTask => prevTask && ({
+      ...prevTask,
+      task_items: prevTask.task_items.map(i => i.id === item.id ? { ...i, done: !i.done } : i),
     }));
     router.refresh();
   }
@@ -677,9 +686,9 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     if (!uploaded.length) return;
     const newAttachments = [...(item.attachments ?? []), ...uploaded.map(u => u.path)];
     await supabase.from('task_items').update({ attachments: newAttachments }).eq('id', item.id);
-    setSelectedTask(t => t && ({
-      ...t,
-      task_items: t.task_items.map(i => i.id === item.id ? {
+    setSelectedTask(prevTask => prevTask && ({
+      ...prevTask,
+      task_items: prevTask.task_items.map(i => i.id === item.id ? {
         ...i,
         attachments: newAttachments,
         attachment_urls: [...(i.attachment_urls ?? []), ...uploaded.map(u => u.previewUrl)],
@@ -694,9 +703,9 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     const newAttachments = item.attachments.filter((_, i) => i !== index);
     const newUrls = (item.attachment_urls ?? []).filter((_, i) => i !== index);
     await supabase.from('task_items').update({ attachments: newAttachments }).eq('id', item.id);
-    setSelectedTask(t => t && ({
-      ...t,
-      task_items: t.task_items.map(i => i.id === item.id ? { ...i, attachments: newAttachments, attachment_urls: newUrls } : i),
+    setSelectedTask(prevTask => prevTask && ({
+      ...prevTask,
+      task_items: prevTask.task_items.map(i => i.id === item.id ? { ...i, attachments: newAttachments, attachment_urls: newUrls } : i),
     }));
     router.refresh();
   }
@@ -705,16 +714,16 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     // .select() lets us tell a real failure apart from RLS silently matching zero rows,
     // which supabase-js reports as success with no error otherwise.
     const { data, error } = await supabase.from('calendar_events').delete().eq('id', id).select();
-    if (error) { alert('Error al eliminar el evento: ' + error.message); return; }
-    if (!data?.length) { alert('No se pudo eliminar el evento (sin permiso o ya fue eliminado). Refrescando...'); router.refresh(); return; }
+    if (error) { alert(t('alerts.deleteEventError', { error: error.message })); return; }
+    if (!data?.length) { alert(t('alerts.deleteEventFailed')); router.refresh(); return; }
     setSelectedEvent(null);
     router.refresh();
   }
 
   async function deleteTask(id) {
     const { data, error } = await supabase.from('tasks').delete().eq('id', id).select();
-    if (error) { alert('Error al eliminar la tarea: ' + error.message); return; }
-    if (!data?.length) { alert('No se pudo eliminar la tarea (sin permiso o ya fue eliminada). Refrescando...'); router.refresh(); return; }
+    if (error) { alert(t('alerts.deleteTaskError', { error: error.message })); return; }
+    if (!data?.length) { alert(t('alerts.deleteTaskFailed')); router.refresh(); return; }
     setSelectedTask(null);
     router.refresh();
   }
@@ -740,8 +749,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
 
   async function deleteAbsence(id) {
     const { data, error } = await supabase.from('technician_absences').delete().eq('id', id).select();
-    if (error) { alert('Error al eliminar la ausencia: ' + error.message); return; }
-    if (!data?.length) { alert('No se pudo eliminar la ausencia (sin permiso o ya fue eliminada). Refrescando...'); router.refresh(); return; }
+    if (error) { alert(t('alerts.deleteAbsenceError', { error: error.message })); return; }
+    if (!data?.length) { alert(t('alerts.deleteAbsenceFailed')); router.refresh(); return; }
     setSelectedAbsence(null);
     window.dispatchEvent(new Event('otess:absences-changed'));
     router.refresh();
@@ -774,7 +783,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     // column (mirrors task_notes) rather than baked into the text, so it
     // can be shown next to the note in Notas & Fotos while staying out of
     // the auto-generated Status Report, which never reads that column.
-    const noteRows = [{ job_id: jobId, note: task.notes ? `[Tarea] ${task.title}\n${task.notes}` : `[Tarea] ${task.title}` }];
+    const noteRows = [{ job_id: jobId, note: task.notes ? `${t('addToJobModal.taskTag', { title: task.title })}\n${task.notes}` : t('addToJobModal.taskTag', { title: task.title }) }];
     [...taskNotes].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).forEach(n => {
       if (!n.note) return;
       noteRows.push({
@@ -789,7 +798,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     if (checklistPhotoPaths.length) {
       noteRows.push({
         job_id: jobId,
-        note: `Fotos del checklist: ${task.title}`,
+        note: t('addToJobModal.checklistPhotosNote', { title: task.title }),
         photo_url: checklistPhotoPaths[0],
         photo_urls: checklistPhotoPaths,
       });
@@ -837,15 +846,15 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     <div>
         {/* Header */}
         <div className="page-header" style={{ marginBottom: 20 }}>
-          <div className="page-title">Calendario</div>
+          <div className="page-title">{t('title')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {[['year','Anual'],['month','Mensual'],['week','Semanal'],['day','Día']].map(([v, l]) => (
+            {[['year', t('views.year')],['month', t('views.month')],['week', t('views.week')],['day', t('views.day')]].map(([v, l]) => (
               <button key={v} onClick={() => setView(v)} className={`btn ${v === view ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>
             ))}
             <div className="toolbar-divider" />
             <div style={{ position: 'relative' }}>
               <button onClick={() => setShowRequests(s => !s)} className={`btn ${showRequests ? 'btn-primary' : 'btn-ghost'}`}>
-                Solicitudes {pendingRequests.length > 0 && `(${pendingRequests.length})`}
+                {t('requests.button')} {pendingRequests.length > 0 && `(${pendingRequests.length})`}
               </button>
               {showRequests && (
                 <>
@@ -854,10 +863,10 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                     zIndex: 1041, padding: 16, maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.18)' }}
                     onClick={e => e.stopPropagation()}>
                     <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--navy)', marginBottom: 12 }}>
-                      Solicitudes pendientes {pendingRequests.length > 0 && `(${pendingRequests.length})`}
+                      {t('requests.pending')} {pendingRequests.length > 0 && `(${pendingRequests.length})`}
                     </div>
                     {pendingRequests.length === 0 && (
-                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>No hay solicitudes nuevas.</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('requests.empty')}</div>
                     )}
                     <div style={{ display: 'grid', gap: 8 }}>
                       {pendingRequests.map(r => (
@@ -867,7 +876,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           {canScheduleVisit && (
                             <button className="btn btn-primary" style={{ width: '100%', fontSize: 11.5, padding: '5px 0' }}
                               onClick={() => { setScheduleModal({ requestId: r.id }); setShowRequests(false); }}>
-                              Agendar visita
+                              {t('scheduleModal.title')}
                             </button>
                           )}
                         </div>
@@ -877,11 +886,11 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 </>
               )}
             </div>
-            <button onClick={() => setBookingModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ Reserva</button>
-            <button onClick={() => setEventModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ Evento</button>
-            <button onClick={() => setTaskModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ Tarea</button>
-            <button onClick={() => setAbsenceModal(true)} className="btn btn-ghost">🚫 Ausencia</button>
-            <button onClick={() => setSyncModal(true)} className="btn btn-ghost">🔄 Sincronizar</button>
+            <button onClick={() => setBookingModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ {t('actions.booking')}</button>
+            <button onClick={() => setEventModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ {t('actions.event')}</button>
+            <button onClick={() => setTaskModal({ dateStr: today, time: '09:00' })} className="btn btn-ghost">+ {t('actions.task')}</button>
+            <button onClick={() => setAbsenceModal(true)} className="btn btn-ghost">🚫 {t('actions.absence')}</button>
+            <button onClick={() => setSyncModal(true)} className="btn btn-ghost">🔄 {t('actions.sync')}</button>
           </div>
         </div>
 
@@ -891,24 +900,24 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             <button className="btn btn-ghost" style={{ padding: '6px 12px' }} onClick={navPrev}>←</button>
             <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', minWidth: 200, textAlign: 'center' }}>{navLabel}</span>
             <button className="btn btn-ghost" style={{ padding: '6px 12px' }} onClick={navNext}>→</button>
-            <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }} onClick={navToday}>Hoy</button>
+            <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }} onClick={navToday}>{t('controls.today')}</button>
           </div>
           <div className="toolbar-divider" />
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button onClick={() => setSelectedTech('all')} className={`btn ${selectedTech === 'all' ? 'btn-primary' : 'btn-ghost'}`} style={{ fontSize: 12, padding: '5px 12px' }}>Todos</button>
-            {technicians.map(t => (
-              <button key={t.id} onClick={() => setSelectedTech(selectedTech === t.id ? 'all' : t.id)}
+            <button onClick={() => setSelectedTech('all')} className={`btn ${selectedTech === 'all' ? 'btn-primary' : 'btn-ghost'}`} style={{ fontSize: 12, padding: '5px 12px' }}>{t('controls.all')}</button>
+            {technicians.map(tech => (
+              <button key={tech.id} onClick={() => setSelectedTech(selectedTech === tech.id ? 'all' : tech.id)}
                 style={{ fontSize: 12, padding: '5px 12px', borderRadius: 8, border: '2px solid', cursor: 'pointer', fontWeight: 600,
-                  borderColor: techColors[t.id], background: selectedTech === t.id ? techColors[t.id] : 'transparent',
-                  color: selectedTech === t.id ? '#fff' : techColors[t.id] }}>
-                {t.name}
+                  borderColor: techColors[tech.id], background: selectedTech === tech.id ? techColors[tech.id] : 'transparent',
+                  color: selectedTech === tech.id ? '#fff' : techColors[tech.id] }}>
+                {tech.name}
               </button>
             ))}
           </div>
 
           <div className="toolbar-divider" />
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {[['job', 'Trabajos'], ['visit', 'Visitas'], ['event', 'Eventos'], ['task', 'Tareas'], ['absence', 'Ausencias']].map(([k, l]) => (
+            {[['job', t('entryTypes.jobs')], ['visit', t('entryTypes.visits')], ['event', t('entryTypes.events')], ['task', t('entryTypes.tasks')], ['absence', t('entryTypes.absences')]].map(([k, l]) => (
               <button key={k} onClick={() => toggleType(k)}
                 className={`btn ${visibleTypes[k] ? 'btn-primary' : 'btn-ghost'}`}
                 style={{ fontSize: 12, padding: '5px 12px', opacity: visibleTypes[k] ? 1 : 0.55 }}>
@@ -922,13 +931,13 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') jumpToSearchMatch(); }}
-            placeholder="Buscar título o cliente... (Enter para ir)"
+            placeholder={t('controls.searchPlaceholder')}
             className="input"
             style={{ fontSize: 12, padding: '6px 10px', minWidth: 220, flex: '1 1 220px' }}
           />
 
           <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => setShowLegend(v => !v)}>
-            {showLegend ? 'Ocultar' : ''} leyenda {showLegend ? '▲' : '▼'}
+            {showLegend ? t('controls.hide') : ''} {t('controls.legend')} {showLegend ? '▲' : '▼'}
           </button>
 
           {/* Legend: entry-type shapes + technician colors, so the styling used across
@@ -937,23 +946,23 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           {showLegend && (
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', width: '100%', fontSize: 11, color: 'var(--muted)', paddingTop: 10, marginTop: 2, borderTop: '1px solid var(--border)' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--ink-faint)' }} /> Trabajo
+                <span style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--ink-faint)' }} /> {t('labels.job')}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px solid var(--navy)' }} /> {ENTRY_TYPE_ICONS.event} Evento
+                <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px solid var(--navy)' }} /> {ENTRY_TYPE_ICONS.event} {t('labels.event')}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px dashed var(--muted)' }} /> ☑ Tarea
+                <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px dashed var(--muted)' }} /> ☑ {t('labels.task')}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px solid var(--ink-faint)' }} /> 👁 Visita
+                <span style={{ width: 14, height: 10, borderRadius: 3, border: '2px solid var(--ink-faint)' }} /> 👁 {t('labels.visit')}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--danger-tint)' }} /> 🚫 Ausencia
+                <span style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--danger-tint)' }} /> 🚫 {t('labels.absence')}
               </span>
-              {technicians.map(t => (
-                <span key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: techColors[t.id] }} /> {t.name}
+              {technicians.map(tech => (
+                <span key={tech.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: techColors[tech.id] }} /> {tech.name}
                 </span>
               ))}
             </div>
@@ -970,7 +979,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               const monthCount = filteredJobs.filter(j => j.scheduled_start?.slice(0, 7) === mStr).length
                 + filteredVisits.filter(v => v.scheduled_at?.slice(0, 7) === mStr).length
                 + filteredEvents.filter(e => e.start_at?.slice(0, 7) === mStr).length
-                + filteredTasks.filter(t => t.due_at?.slice(0, 7) === mStr).length;
+                + filteredTasks.filter(tk => tk.due_at?.slice(0, 7) === mStr).length;
               return (
                 <div key={mIdx} className="card" style={{ cursor: 'pointer', padding: '14px 16px' }}
                   onClick={() => { setMonth(mIdx); setView('month'); }}>
@@ -981,8 +990,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                     )}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
-                    {['D','L','M','X','J','V','S'].map(d => (
-                      <div key={d} style={{ fontSize: 9, color: 'var(--muted)', textAlign: 'center', fontWeight: 600 }}>{d}</div>
+                    {DAYS_VERY_SHORT.map((d, di) => (
+                      <div key={di} style={{ fontSize: 9, color: 'var(--muted)', textAlign: 'center', fontWeight: 600 }}>{d}</div>
                     ))}
                     {Array.from({ length: firstDay }, (_, i) => <div key={`e${i}`} />)}
                     {Array.from({ length: daysInMonth }, (_, i) => {
@@ -1061,7 +1070,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--danger-tint)', color: 'var(--warn)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                          <span style={{ fontSize: 9 }}>🚫</span> {a.technicians?.name ?? 'Técnico'} ausente
+                          <span style={{ fontSize: 9 }}>🚫</span> {t('labels.technicianAbsent', { name: a.technicians?.name ?? t('labels.technician') })}
                         </div>
                       ))}
                       {dayVisits.slice(0, Math.max(5 - dayAbsences.length, 0)).map(v => (
@@ -1069,7 +1078,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                          <span style={{ fontSize: 9 }}>👁</span> {v.requests?.title ?? 'Visita'}
+                          <span style={{ fontSize: 9 }}>👁</span> {v.requests?.title ?? t('labels.visit')}
                         </div>
                       ))}
                       {dayJobs.slice(0, Math.max(5 - dayAbsences.length - dayVisits.length, 0)).map(j => (
@@ -1094,21 +1103,21 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS.event}</span> {e.title}
                         </div>
                       ))}
-                      {dayTasks.slice(0, Math.max(5 - dayAbsences.length - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(t => (
-                        <div key={`t${t.id}`} className="cal-entry" onClick={(ev) => { ev.stopPropagation(); openEntry('task', t, ev); }}
+                      {dayTasks.slice(0, Math.max(5 - dayAbsences.length - dayVisits.length - dayJobs.length - dayEvents.length, 0)).map(tk => (
+                        <div key={`t${tk.id}`} className="cal-entry" onClick={(ev) => { ev.stopPropagation(); openEntry('task', tk, ev); }}
                           draggable={canQuickReschedule}
-                          onDragStart={(ev) => { ev.stopPropagation(); ev.dataTransfer.setData('text/plain', t.id); ev.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'task', item: t }); }}
+                          onDragStart={(ev) => { ev.stopPropagation(); ev.dataTransfer.setData('text/plain', tk.id); ev.dataTransfer.effectAllowed = 'move'; setDraggingEntry({ type: 'task', item: tk }); }}
                           onDragEnd={() => { setDraggingEntry(null); setDragOverDate(null); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: canQuickReschedule ? 'grab' : 'pointer',
-                            overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', textDecoration: t.completed ? 'line-through' : 'none',
-                            background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                          <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS[t.task_type]}</span> {t.title}
+                            overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', textDecoration: tk.completed ? 'line-through' : 'none',
+                            background: 'var(--surface)', border: `2px dashed ${techColors[tk.technician_id] ?? 'var(--muted)'}`, color: techColors[tk.technician_id] ?? 'var(--muted)', userSelect: 'none', WebkitUserSelect: 'none' }}>
+                          <span style={{ fontSize: 9 }}>{ENTRY_TYPE_ICONS[tk.task_type]}</span> {tk.title}
                         </div>
                       ))}
                       {dayTotal > 5 && (
                         <div onClick={(e) => { e.stopPropagation(); setDayDetail(cell.date); }}
                           style={{ fontSize: 10, color: 'var(--navy)', fontWeight: 700, cursor: 'pointer', width: 'fit-content' }}>
-                          +{dayTotal - 5} más
+                          {t('labels.more', { count: dayTotal - 5 })}
                         </div>
                       )}
                     </div>
@@ -1148,7 +1157,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               const start = new Date(v.scheduled_at);
               const startMin = start.getHours() * 60 + start.getMinutes();
               list.push({ key: `v${v.id}`, type: 'visit', techId: v.technician_id, startMin, endMin: startMin + 30,
-                icon: '👁', label: v.requests?.title ?? 'Visita', time: fmtTime(v.scheduled_at),
+                icon: '👁', label: v.requests?.title ?? t('labels.visit'), time: fmtTime(v.scheduled_at),
                 onClick: (e) => showQuickPreview('visit', v, e) });
             });
             filteredJobs.forEach(j => {
@@ -1171,13 +1180,13 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 icon: ENTRY_TYPE_ICONS.event, label: e.title, time: fmtTime(e.start_at),
                 onClick: (ev) => { ev.stopPropagation(); openEntry('event', e, ev); } });
             });
-            filteredTasks.forEach(t => {
-              if (!t.due_at || new Date(t.due_at).toISOString().slice(0, 10) !== dateStr) return;
-              const start = new Date(t.due_at);
+            filteredTasks.forEach(tk => {
+              if (!tk.due_at || new Date(tk.due_at).toISOString().slice(0, 10) !== dateStr) return;
+              const start = new Date(tk.due_at);
               const startMin = start.getHours() * 60 + start.getMinutes();
-              list.push({ key: `t${t.id}`, type: 'task', techId: t.technician_id, startMin, endMin: startMin + 30,
-                icon: ENTRY_TYPE_ICONS[t.task_type], label: t.title, time: fmtTime(t.due_at), completed: t.completed,
-                onClick: (ev) => { ev.stopPropagation(); openEntry('task', t, ev); } });
+              list.push({ key: `t${tk.id}`, type: 'task', techId: tk.technician_id, startMin, endMin: startMin + 30,
+                icon: ENTRY_TYPE_ICONS[tk.task_type], label: tk.title, time: fmtTime(tk.due_at), completed: tk.completed,
+                onClick: (ev) => { ev.stopPropagation(); openEntry('task', tk, ev); } });
             });
             return list
               .filter(en => en.endMin > dayStartMin && en.startMin < dayEndMin)
@@ -1240,7 +1249,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                             style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
                               overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                               background: 'var(--danger-tint)', color: 'var(--warn)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                            <span style={{ fontSize: 9 }}>🚫</span> {a.technicians?.name ?? 'Técnico'}
+                            <span style={{ fontSize: 9 }}>🚫</span> {a.technicians?.name ?? t('labels.technician')}
                           </div>
                         ))}
                       </div>
@@ -1316,7 +1325,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           return (
             <div>
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', textTransform: 'capitalize', marginBottom: 10 }}>
-                {new Date(`${dayDate}T00:00:00`).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric' })}
+                {new Date(`${dayDate}T00:00:00`).toLocaleDateString(dateLocale, { weekday: 'long', month: 'long', day: 'numeric' })}
               </div>
               {dayAbsencesList.length > 0 && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -1324,7 +1333,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                     <div key={a.id} className="cal-entry" onClick={(e) => showQuickPreview('absence', a, e)}
                       style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
                         background: 'var(--danger-tint)', color: 'var(--warn)' }}>
-                      🚫 {a.technicians?.name ?? 'Técnico'} ausente
+                      🚫 {t('labels.technicianAbsent', { name: a.technicians?.name ?? t('labels.technician') })}
                     </div>
                   ))}
                 </div>
@@ -1334,7 +1343,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   const hourJobs = filteredJobs.filter(j => inHour(j.scheduled_start, hour));
                   const hourVisits = filteredVisits.filter(v => inHour(v.scheduled_at, hour));
                   const hourEvents = filteredEvents.filter(e => inHour(e.start_at, hour));
-                  const hourTasks = filteredTasks.filter(t => inHour(t.due_at, hour));
+                  const hourTasks = filteredTasks.filter(tk => inHour(tk.due_at, hour));
                   return [
                     <div key={`h${hour}`} style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right', paddingRight: 10, paddingTop: 6, borderTop: '1px solid var(--border)', height: 56 }}>
                       {String(hour).padStart(2, '0')}:00
@@ -1345,7 +1354,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={`v${v.id}`} className="cal-entry" onClick={(e) => showQuickPreview('visit', v, e)}
                           style={{ background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)',
                             borderRadius: 4, padding: '3px 8px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>
-                          <span style={{ fontSize: 10 }}>👁</span> {v.requests?.title ?? 'Visita'} · {fmtTime(v.scheduled_at)}
+                          <span style={{ fontSize: 10 }}>👁</span> {v.requests?.title ?? t('labels.visit')} · {fmtTime(v.scheduled_at)}
                         </div>
                       ))}
                       {hourJobs.map(j => (
@@ -1362,12 +1371,12 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           <span style={{ fontSize: 10 }}>{ENTRY_TYPE_ICONS.event}</span> {e.title} · {fmtTime(e.start_at)}
                         </div>
                       ))}
-                      {hourTasks.map(t => (
-                        <div key={`t${t.id}`} className="cal-entry" onClick={(ev) => { ev.stopPropagation(); openEntry('task', t, ev); }}
-                          style={{ background: 'var(--surface)', border: `2px dashed ${techColors[t.technician_id] ?? 'var(--muted)'}`, color: techColors[t.technician_id] ?? 'var(--muted)',
-                            textDecoration: t.completed ? 'line-through' : 'none',
+                      {hourTasks.map(tk => (
+                        <div key={`t${tk.id}`} className="cal-entry" onClick={(ev) => { ev.stopPropagation(); openEntry('task', tk, ev); }}
+                          style={{ background: 'var(--surface)', border: `2px dashed ${techColors[tk.technician_id] ?? 'var(--muted)'}`, color: techColors[tk.technician_id] ?? 'var(--muted)',
+                            textDecoration: tk.completed ? 'line-through' : 'none',
                             borderRadius: 4, padding: '3px 8px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>
-                          <span style={{ fontSize: 10 }}>{ENTRY_TYPE_ICONS[t.task_type]}</span> {t.title} · {fmtTime(t.due_at)}
+                          <span style={{ fontSize: 10 }}>{ENTRY_TYPE_ICONS[tk.task_type]}</span> {tk.title} · {fmtTime(tk.due_at)}
                         </div>
                       ))}
                     </div>
@@ -1428,9 +1437,9 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                 <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '6px 0' }}
                   onClick={() => openFullDetail(quickPreview.type, quickPreview.item)}>
-                  Ver detalle completo →
+                  {t('actions.viewFullDetail')} →
                 </button>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px' }} onClick={() => setQuickPreview(null)}>Cerrar</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px' }} onClick={() => setQuickPreview(null)}>{t('actions.close')}</button>
               </div>
             </div>
           </>
@@ -1440,11 +1449,11 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       {/* Day detail modal */}
       {dayDetail && (() => {
         const dItems = [
-          ...getAbsencesForDate(dayDetail).map(a => ({ type: 'absence', item: a, time: null, label: `🚫 ${a.technicians?.name ?? 'Técnico'} ausente`, color: 'var(--warn)' })),
-          ...getVisitsForDate(dayDetail).map(v => ({ type: 'visit', item: v, time: v.scheduled_at, label: `👁 ${v.requests?.title ?? 'Visita'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)' })),
+          ...getAbsencesForDate(dayDetail).map(a => ({ type: 'absence', item: a, time: null, label: `🚫 ${t('labels.technicianAbsent', { name: a.technicians?.name ?? t('labels.technician') })}`, color: 'var(--warn)' })),
+          ...getVisitsForDate(dayDetail).map(v => ({ type: 'visit', item: v, time: v.scheduled_at, label: `👁 ${v.requests?.title ?? t('labels.visit')}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)' })),
           ...getJobsForDate(dayDetail).map(j => ({ type: 'job', item: j, time: j.scheduled_start, label: j.title, color: techColors[j.technician_id] ?? 'var(--ink-faint)' })),
           ...getEventsForDate(dayDetail).map(e => ({ type: 'event', item: e, time: e.start_at, label: `${ENTRY_TYPE_ICONS.event} ${e.title}`, color: techColors[e.technician_id] ?? 'var(--navy)' })),
-          ...getTasksForDate(dayDetail).map(t => ({ type: 'task', item: t, time: t.due_at, label: `${ENTRY_TYPE_ICONS[t.task_type]} ${t.title}`, color: techColors[t.technician_id] ?? 'var(--muted)' })),
+          ...getTasksForDate(dayDetail).map(tk => ({ type: 'task', item: tk, time: tk.due_at, label: `${ENTRY_TYPE_ICONS[tk.task_type]} ${tk.title}`, color: techColors[tk.technician_id] ?? 'var(--muted)' })),
         ].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''));
 
         // The day-detail list is already a quick-glance view of the day, so clicking an
@@ -1463,12 +1472,12 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                 <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)', textTransform: 'capitalize' }}>
-                  {new Date(`${dayDetail}T00:00:00`).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                  {new Date(`${dayDetail}T00:00:00`).toLocaleDateString(dateLocale, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                 </div>
                 <button onClick={() => setDayDetail(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
               </div>
               <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {dItems.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 13 }}>No hay nada programado.</div>}
+                {dItems.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 13 }}>{t('dayDetail.empty')}</div>}
                 {dItems.map((di, i) => (
                   <div key={`${di.type}-${di.item.id}-${i}`} onClick={() => handleItemClick(di)}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
@@ -1481,7 +1490,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               {canScheduleVisit && (
                 <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}
                   onClick={() => { const d = dayDetail; setDayDetail(null); setScheduleModal({ dateStr: d, time: '09:00' }); }}>
-                  + Agendar visita
+                  + {t('scheduleModal.title')}
                 </button>
               )}
             </div>
@@ -1499,17 +1508,17 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{selectedJob.title}</div>
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
                   {selectedJob.clients?.name}
-                  {selectedJob.schedule_day_id && ' · día adicional'}
+                  {selectedJob.schedule_day_id && ` · ${t('jobDetail.extraDay')}`}
                 </div>
               </div>
               <button onClick={() => { setSelectedJob(null); setReschedulingJob(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
             </div>
             <div style={{ display: 'grid', gap: 0, marginBottom: 20 }}>
               {[
-                ['Estado', <span style={{ fontWeight: 600, color: STATUS_COLORS[selectedJob.status] }}>{STATUS_LABELS[selectedJob.status]}</span>],
-                ['Técnico', selectedJob.technicians?.name ?? '— Sin asignar —'],
-                ['Inicio', selectedJob.scheduled_start ? formatDateTimePR(selectedJob.scheduled_start, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'],
-                ['Fin', selectedJob.scheduled_end ? formatDateTimePR(selectedJob.scheduled_end, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'],
+                [t('jobDetail.status'), <span style={{ fontWeight: 600, color: STATUS_COLORS[selectedJob.status] }}>{STATUS_LABELS[selectedJob.status]}</span>],
+                [t('jobDetail.technician'), selectedJob.technicians?.name ?? t('labels.unassigned')],
+                [t('jobDetail.start'), selectedJob.scheduled_start ? formatDateTimePR(selectedJob.scheduled_start, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale) : '—'],
+                [t('jobDetail.end'), selectedJob.scheduled_end ? formatDateTimePR(selectedJob.scheduled_end, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale) : '—'],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                   <span style={{ color: 'var(--muted)', fontSize: 13 }}>{label}</span>
@@ -1522,28 +1531,28 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                   <div className="form-group">
-                    <label>Inicio</label>
+                    <label>{t('jobDetail.start')}</label>
                     <input type="datetime-local" value={rescheduleForm.start} onChange={e => setRescheduleForm(f => ({ ...f, start: e.target.value }))} />
                   </div>
                   <div className="form-group">
-                    <label>Fin</label>
+                    <label>{t('jobDetail.end')}</label>
                     <input type="datetime-local" value={rescheduleForm.end} onChange={e => setRescheduleForm(f => ({ ...f, end: e.target.value }))} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button className="btn btn-primary" onClick={saveJobReschedule} disabled={savingReschedule} style={{ flex: 1, justifyContent: 'center' }}>
-                    {savingReschedule ? 'Guardando...' : '💾 Guardar'}
+                    {savingReschedule ? t('actions.saving') : `💾 ${t('actions.save')}`}
                   </button>
-                  <button className="btn btn-ghost" onClick={() => setReschedulingJob(false)}>Cancelar</button>
+                  <button className="btn btn-ghost" onClick={() => setReschedulingJob(false)}>{t('actions.cancel')}</button>
                 </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <button className="btn btn-amber" style={{ width: '100%', justifyContent: 'center' }} onClick={() => openJobReschedule(selectedJob)}>
-                  🗓️ Reagendar
+                  🗓️ {t('actions.reschedule')}
                 </button>
                 <Link href={`/trabajos/${selectedJob.job_id ?? selectedJob.id}`} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                  Ver trabajo completo →
+                  {t('jobDetail.viewFullJob')} →
                 </Link>
               </div>
             )}
@@ -1558,17 +1567,17 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
-                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{selectedVisit.requests?.title ?? 'Visita'}</div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{selectedVisit.requests?.title ?? t('labels.visit')}</div>
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{selectedVisit.requests?.clients?.name}</div>
               </div>
               <button onClick={() => setSelectedVisit(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
             </div>
             <div style={{ display: 'grid', gap: 0, marginBottom: 20 }}>
               {[
-                ['Estado', VISIT_STATUS_LABELS[selectedVisit.status] ?? selectedVisit.status],
-                ['Técnico', selectedVisit.technicians?.name ?? '— Sin asignar —'],
-                ['Fecha/Hora', selectedVisit.scheduled_at ? formatDateTimePR(selectedVisit.scheduled_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'],
-                ['Duración', `${selectedVisit.duration_minutes ?? 60} min`],
+                [t('jobDetail.status'), VISIT_STATUS_LABELS[selectedVisit.status] ?? selectedVisit.status],
+                [t('jobDetail.technician'), selectedVisit.technicians?.name ?? t('labels.unassigned')],
+                [t('visitDetail.dateTime'), selectedVisit.scheduled_at ? formatDateTimePR(selectedVisit.scheduled_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale) : '—'],
+                [t('visitDetail.duration'), t('visitDetail.durationMinutes', { count: selectedVisit.duration_minutes ?? 60 })],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                   <span style={{ color: 'var(--muted)', fontSize: 13 }}>{label}</span>
@@ -1577,7 +1586,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               ))}
             </div>
             <Link href={`/solicitudes/${selectedVisit.request_id}`} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-              Ver solicitud completa →
+              {t('visitDetail.viewFullRequest')} →
             </Link>
           </div>
         </div>
@@ -1597,16 +1606,16 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             </div>
             <div style={{ display: 'grid', gap: 0, marginBottom: 20 }}>
               {[
-                ['Técnicos', [selectedEvent.technicians?.name, ...(selectedEvent.calendar_event_technicians ?? []).map(et => et.technicians?.name)]
-                  .filter(Boolean).join(', ') || '— Sin asignar —'],
-                ['Inicio', formatDateTimePR(selectedEvent.start_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
-                ['Fin', formatDateTimePR(selectedEvent.end_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
-                ...(selectedEvent.address ? [['Dirección', (
+                [t('eventDetail.technicians'), [selectedEvent.technicians?.name, ...(selectedEvent.calendar_event_technicians ?? []).map(et => et.technicians?.name)]
+                  .filter(Boolean).join(', ') || t('labels.unassigned')],
+                [t('jobDetail.start'), formatDateTimePR(selectedEvent.start_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale)],
+                [t('jobDetail.end'), formatDateTimePR(selectedEvent.end_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale)],
+                ...(selectedEvent.address ? [[t('eventDetail.address'), (
                   <a href={pickMapsLink(selectedEvent.address)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--amber)', fontWeight: 600 }}>
                     📍 {selectedEvent.property_name || selectedEvent.address}
                   </a>
                 )]] : []),
-                ['Notas', selectedEvent.notes || '—'],
+                [t('eventDetail.notes'), selectedEvent.notes || '—'],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 12 }}>
                   <span style={{ color: 'var(--muted)', fontSize: 13 }}>{label}</span>
@@ -1618,11 +1627,11 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}
                 onClick={() => { setEventModal({ editing: selectedEvent }); setSelectedEvent(null); }}>
-                ✏️ Editar
+                ✏️ {t('actions.edit')}
               </button>
               <button className="btn btn-ghost" style={{ color: 'var(--warn)' }}
                 onClick={() => deleteEvent(selectedEvent.id)}>
-                Eliminar
+                {t('actions.delete')}
               </button>
             </div>
           </div>
@@ -1645,16 +1654,16 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             </div>
             <div style={{ display: 'grid', gap: 0, marginBottom: 16 }}>
               {[
-                ['Tipo', selectedTask.task_type === 'checklist' ? 'Checklist' : 'Recordatorio'],
-                ['Técnicos', [selectedTask.technicians?.name, ...(selectedTask.task_technicians ?? []).map(tt => tt.technicians?.name)]
-                  .filter(Boolean).join(', ') || '— Sin asignar —'],
-                ['Vence', formatDateTimePR(selectedTask.due_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })],
-                ...(selectedTask.address ? [['Dirección', (
+                [t('taskDetail.type'), selectedTask.task_type === 'checklist' ? t('taskDetail.checklist') : t('taskDetail.reminder')],
+                [t('eventDetail.technicians'), [selectedTask.technicians?.name, ...(selectedTask.task_technicians ?? []).map(tt => tt.technicians?.name)]
+                  .filter(Boolean).join(', ') || t('labels.unassigned')],
+                [t('taskDetail.due'), formatDateTimePR(selectedTask.due_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale)],
+                ...(selectedTask.address ? [[t('eventDetail.address'), (
                   <a href={pickMapsLink(selectedTask.address)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--amber)', fontWeight: 600 }}>
                     📍 {selectedTask.address}
                   </a>
                 )]] : []),
-                ['Notas', selectedTask.notes || '—'],
+                [t('eventDetail.notes'), selectedTask.notes || '—'],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 12 }}>
                   <span style={{ color: 'var(--muted)', fontSize: 13 }}>{label}</span>
@@ -1680,26 +1689,26 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             {selectedTask.task_type === 'checklist' && (
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
                 onClick={() => openReportForTask(selectedTask)}>
-                📄 Generar reporte
+                📄 {t('taskDetail.generateReport')}
               </button>
             )}
             {selectedTask.client_id && (
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
                 onClick={() => setAddToJobModal(true)}>
-                {addedToJob ? '✓ Añadido al trabajo' : '📎 Añadir a trabajo'}
+                {addedToJob ? `✓ ${t('taskDetail.addedToJob')}` : `📎 ${t('taskDetail.addToJob')}`}
               </button>
             )}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => toggleTaskCompleted(selectedTask)}>
-                {selectedTask.completed ? 'Marcar pendiente' : 'Marcar completada'}
+                {selectedTask.completed ? t('taskDetail.markPending') : t('taskDetail.markCompleted')}
               </button>
               <button className="btn btn-ghost" style={{ color: 'var(--warn)' }} onClick={() => deleteTask(selectedTask.id)}>
-                Eliminar
+                {t('actions.delete')}
               </button>
             </div>
             <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}
               onClick={() => { setTaskModal({ editing: selectedTask }); setSelectedTask(null); }}>
-              ✏️ Editar tarea
+              ✏️ {t('taskDetail.editTask')}
             </button>
           </div>
         </div>
@@ -1711,14 +1720,14 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           onClick={() => setSelectedAbsence(null)}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-              <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>🚫 Ausencia</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>🚫 {t('labels.absence')}</div>
               <button onClick={() => setSelectedAbsence(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
             </div>
             <div style={{ display: 'grid', gap: 0, marginBottom: 20 }}>
               {[
-                ['Técnico', selectedAbsence.technicians?.name ?? '—'],
-                ['Fecha', new Date(`${selectedAbsence.date}T00:00:00`).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })],
-                ['Razón', selectedAbsence.reason || '—'],
+                [t('jobDetail.technician'), selectedAbsence.technicians?.name ?? '—'],
+                [t('absenceDetail.date'), new Date(`${selectedAbsence.date}T00:00:00`).toLocaleDateString(dateLocale, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })],
+                [t('absenceDetail.reason'), selectedAbsence.reason || '—'],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', gap: 12 }}>
                   <span style={{ color: 'var(--muted)', fontSize: 13 }}>{label}</span>
@@ -1728,7 +1737,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             </div>
             <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: 'var(--warn)' }}
               onClick={() => deleteAbsence(selectedAbsence.id)}>
-              Eliminar ausencia
+              {t('absenceDetail.deleteAbsence')}
             </button>
           </div>
         </div>
@@ -1805,6 +1814,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
 }
 
 function ScheduleModal({ data, pendingRequests, technicians, saving, onClose, onSubmit }) {
+  const t = useTranslations('calendario.client');
   const [requestId, setRequestId] = useState(data.requestId ?? '');
   const [technicianId, setTechnicianId] = useState('');
   const [dateStr, setDateStr] = useState(data.dateStr ?? new Date().toISOString().slice(0, 10));
@@ -1818,41 +1828,41 @@ function ScheduleModal({ data, pendingRequests, technicians, saving, onClose, on
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>Agendar visita</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{t('scheduleModal.title')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
 
         <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Solicitud</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('scheduleModal.request')}</label>
             <select value={requestId} onChange={e => setRequestId(e.target.value)} className="input" style={{ width: '100%' }}>
-              <option value="">— Selecciona —</option>
+              <option value="">{t('common.select')}</option>
               {pendingRequests.map(r => (
                 <option key={r.id} value={r.id}>{r.title} — {r.clients?.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Técnico</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('jobDetail.technician')}</label>
             <select value={technicianId} onChange={e => setTechnicianId(e.target.value)} className="input" style={{ width: '100%' }}>
-              <option value="">— Selecciona —</option>
-              {technicians.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
+              <option value="">{t('common.select')}</option>
+              {technicians.map(tech => (
+                <option key={tech.id} value={tech.id}>{tech.name}</option>
               ))}
             </select>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Fecha</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.date')}</label>
               <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Hora</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.time')}</label>
               <input type="time" value={time} onChange={e => setTime(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Duración (min)</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('scheduleModal.durationMin')}</label>
             <input type="number" step="15" value={duration} onChange={e => setDuration(parseInt(e.target.value) || 60)} className="input" style={{ width: '100%' }} />
           </div>
         </div>
@@ -1860,19 +1870,20 @@ function ScheduleModal({ data, pendingRequests, technicians, saving, onClose, on
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!canSubmit || saving}
           onClick={() => onSubmit({ requestId, technicianId, dateStr, time, duration })}>
-          {saving ? 'Agendando...' : 'Agendar visita'}
+          {saving ? t('scheduleModal.scheduling') : t('scheduleModal.title')}
         </button>
       </div>
     </div>
   );
 }
 
-const BOOKING_DURATIONS = [
-  [15, '15 min'], [30, '30 min'], [45, '45 min'], [60, '1 hr'], [90, '1.5 hr'],
-  [120, '2 hr'], [180, '3 hr'], [240, '4 hr'], [480, 'Todo el día'],
-];
+const BOOKING_DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240, 480];
 
 function BookingModal({ data, jobs, technicians, saving, onClose, onSubmit }) {
+  const t = useTranslations('calendario.client');
+  const durationLabel = (mins) => mins === 480 ? t('bookingModal.durations.fullDay')
+    : mins < 60 ? t('bookingModal.durations.minutes', { count: mins })
+    : t('bookingModal.durations.hours', { count: mins / 60 });
   const [jobId, setJobId] = useState(data.jobId ?? '');
   const [dateStr, setDateStr] = useState(data.dateStr ?? new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState(data.time ?? '09:00');
@@ -1896,52 +1907,52 @@ function BookingModal({ data, jobs, technicians, saving, onClose, onSubmit }) {
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📅 Nueva reserva</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📅 {t('bookingModal.title')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
 
         <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Trabajo</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('labels.job')}</label>
             <select value={jobId} onChange={e => selectJob(e.target.value)} className="input" style={{ width: '100%' }}>
-              <option value="">— Selecciona un trabajo sin fecha —</option>
+              <option value="">{t('bookingModal.selectUnscheduledJob')}</option>
               {jobs.map(j => (
                 <option key={j.id} value={j.id}>{j.title}{j.clients?.name ? ` — ${j.clients.name}` : ''}</option>
               ))}
             </select>
-            {jobs.length === 0 && <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4 }}>No hay trabajos sin fecha por asignar.</p>}
+            {jobs.length === 0 && <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4 }}>{t('bookingModal.noUnscheduledJobs')}</p>}
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Duración</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('scheduleModal.duration')}</label>
             <select value={duration} onChange={e => setDuration(parseInt(e.target.value))} className="input" style={{ width: '100%' }}>
-              {BOOKING_DURATIONS.map(([mins, label]) => (
-                <option key={mins} value={mins}>{label}</option>
+              {BOOKING_DURATIONS.map(mins => (
+                <option key={mins} value={mins}>{durationLabel(mins)}</option>
               ))}
             </select>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Reserva — Fecha</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('bookingModal.bookingDate')}</label>
               <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Hora</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.time')}</label>
               <input type="time" value={time} onChange={e => setTime(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Técnicos (opcional, puedes escoger más de uno)</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.techniciansOptionalMulti')}</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-              {technicians.map(t => {
-                const checked = technicianIds.includes(t.id);
+              {technicians.map(tech => {
+                const checked = technicianIds.includes(tech.id);
                 return (
-                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleTechnician(t.id)} style={{ margin: 0 }} />
-                    {t.name}
+                  <label key={tech.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleTechnician(tech.id)} style={{ margin: 0 }} />
+                    {tech.name}
                   </label>
                 );
               })}
-              {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
+              {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>{t('common.noTechniciansRegistered')}</p>}
             </div>
           </div>
         </div>
@@ -1949,7 +1960,7 @@ function BookingModal({ data, jobs, technicians, saving, onClose, onSubmit }) {
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!canSubmit || saving}
           onClick={() => onSubmit({ jobId, dateStr, time, duration, technicianIds })}>
-          {saving ? 'Guardando...' : 'Crear reserva'}
+          {saving ? t('actions.saving') : t('bookingModal.createBooking')}
         </button>
       </div>
     </div>
@@ -1957,6 +1968,7 @@ function BookingModal({ data, jobs, technicians, saving, onClose, onSubmit }) {
 }
 
 function EventModal({ data, technicians, clients, clientProperties, saving, onClose, onSubmit }) {
+  const t = useTranslations('calendario.client');
   const editing = data.editing;
   const localStart = editing ? isoToLocalInput(editing.start_at) : null;
   const localEnd = editing ? isoToLocalInput(editing.end_at) : null;
@@ -1993,64 +2005,64 @@ function EventModal({ data, technicians, clients, clientProperties, saving, onCl
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📌 {editing ? 'Editar evento' : 'Nuevo evento'}</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📌 {editing ? t('eventModal.editTitle') : t('eventModal.newTitle')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
 
         <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Título</label>
-            <input value={title} onChange={e => setTitle(e.target.value)} className="input" style={{ width: '100%' }} placeholder="Ej. Reunión con cliente" />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.titleLabel')}</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} className="input" style={{ width: '100%' }} placeholder={t('eventModal.titlePlaceholder')} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Fecha</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.date')}</label>
               <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Inicio</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('jobDetail.start')}</label>
               <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Fin</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('jobDetail.end')}</label>
               <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Técnicos (opcional, puedes escoger más de uno)</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.techniciansOptionalMulti')}</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-              {technicians.map(t => {
-                const checked = technicianIds.includes(t.id);
+              {technicians.map(tech => {
+                const checked = technicianIds.includes(tech.id);
                 return (
-                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleTechnician(t.id)} style={{ margin: 0 }} />
-                    {t.name}
+                  <label key={tech.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleTechnician(tech.id)} style={{ margin: 0 }} />
+                    {tech.name}
                   </label>
                 );
               })}
-              {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
+              {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>{t('common.noTechniciansRegistered')}</p>}
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Cliente (opcional)</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.clientOptional')}</label>
             <ClientCombobox clients={clients} value={clientId} onChange={id => { setClientId(id); setPropertyId(''); }} />
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Dirección (opcional)</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.addressOptional')}</label>
             {clientProps.length > 0 && (
               <select value={propertyId} onChange={e => selectProperty(e.target.value)} className="input" style={{ width: '100%', marginBottom: 6 }}>
-                <option value="">— Escoger propiedad del cliente —</option>
+                <option value="">{t('common.chooseClientProperty')}</option>
                 {clientProps.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.name ? `${p.name} — ` : ''}{[p.street, p.city].filter(Boolean).join(', ')}{p.is_primary ? ' (Principal)' : ''}
+                    {p.name ? `${p.name} — ` : ''}{[p.street, p.city].filter(Boolean).join(', ')}{p.is_primary ? ` (${t('common.primary')})` : ''}
                   </option>
                 ))}
               </select>
             )}
-            <input value={address} onChange={e => { setAddress(e.target.value); setPropertyName(''); }} className="input" style={{ width: '100%' }} placeholder="Ej. 123 Calle Sol, San Juan, PR" />
+            <input value={address} onChange={e => { setAddress(e.target.value); setPropertyName(''); }} className="input" style={{ width: '100%' }} placeholder={t('common.addressPlaceholder')} />
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Notas</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('eventDetail.notes')}</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} className="input" style={{ width: '100%', minHeight: 60 }} />
           </div>
         </div>
@@ -2058,7 +2070,7 @@ function EventModal({ data, technicians, clients, clientProperties, saving, onCl
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!canSubmit || saving}
           onClick={() => onSubmit({ id: editing?.id, title: title.trim(), dateStr, startTime, endTime, technicianIds, clientId, notes, address: address.trim(), propertyName: propertyName || null })}>
-          {saving ? 'Guardando...' : (editing ? 'Guardar cambios' : 'Crear evento')}
+          {saving ? t('actions.saving') : (editing ? t('actions.saveChanges') : t('eventModal.createEvent'))}
         </button>
       </div>
     </div>
@@ -2066,6 +2078,7 @@ function EventModal({ data, technicians, clients, clientProperties, saving, onCl
 }
 
 function AbsenceModal({ technicians, saving, onClose, onSubmit }) {
+  const t = useTranslations('calendario.client');
   const todayStr = new Date().toISOString().slice(0, 10);
   const [technicianId, setTechnicianId] = useState(technicians[0]?.id ?? '');
   const [startDate, setStartDate] = useState(todayStr);
@@ -2079,38 +2092,38 @@ function AbsenceModal({ technicians, saving, onClose, onSubmit }) {
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>🚫 Marcar ausencia</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>🚫 {t('absenceModal.title')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
 
         <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Técnico</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('jobDetail.technician')}</label>
             <select value={technicianId} onChange={e => setTechnicianId(e.target.value)} className="input" style={{ width: '100%' }}>
-              {technicians.length === 0 && <option value="">No hay técnicos registrados</option>}
-              {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {technicians.length === 0 && <option value="">{t('common.noTechniciansRegisteredShort')}</option>}
+              {technicians.map(tech => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
             </select>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Desde</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('absenceModal.from')}</label>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Hasta</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('absenceModal.to')}</label>
               <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Razón</label>
-            <textarea value={reason} onChange={e => setReason(e.target.value)} className="input" style={{ width: '100%', minHeight: 60 }} placeholder="Ej. Enfermedad, cita médica, asunto personal..." />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('absenceDetail.reason')}</label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)} className="input" style={{ width: '100%', minHeight: 60 }} placeholder={t('absenceModal.reasonPlaceholder')} />
           </div>
         </div>
 
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!canSubmit || saving}
           onClick={() => onSubmit({ technicianId, startDate, endDate, reason: reason.trim() })}>
-          {saving ? 'Guardando...' : 'Bloquear día(s)'}
+          {saving ? t('actions.saving') : t('absenceModal.blockDays')}
         </button>
       </div>
     </div>
@@ -2118,6 +2131,7 @@ function AbsenceModal({ technicians, saving, onClose, onSubmit }) {
 }
 
 function TaskModal({ data, technicians, clients, clientProperties, saving, onClose, onSubmit }) {
+  const t = useTranslations('calendario.client');
   const editing = data.editing;
   const localDue = editing ? isoToLocalInput(editing.due_at) : null;
   const [taskType, setTaskType] = useState(editing?.task_type ?? 'reminder');
@@ -2157,13 +2171,13 @@ function TaskModal({ data, technicians, clients, clientProperties, saving, onClo
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{editing ? 'Editar tarea' : 'Nueva tarea'}</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{editing ? t('taskModal.editTitle') : t('taskModal.newTitle')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
 
         <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
           <div style={{ display: 'flex', gap: 8 }}>
-            {[['reminder', '🔔 Recordatorio'], ['checklist', '☑ Checklist']].map(([v, l]) => (
+            {[['reminder', `🔔 ${t('taskDetail.reminder')}`], ['checklist', `☑ ${t('taskDetail.checklist')}`]].map(([v, l]) => (
               <button key={v} type="button" onClick={() => setTaskType(v)}
                 className={`btn ${taskType === v ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, justifyContent: 'center', fontSize: 13 }}>
                 {l}
@@ -2171,69 +2185,69 @@ function TaskModal({ data, technicians, clients, clientProperties, saving, onClo
             ))}
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Título</label>
-            <input value={title} onChange={e => setTitle(e.target.value)} className="input" style={{ width: '100%' }} placeholder="Ej. Llamar al proveedor" />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.titleLabel')}</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} className="input" style={{ width: '100%' }} placeholder={t('taskModal.titlePlaceholder')} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Fecha</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.date')}</label>
               <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Hora</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.time')}</label>
               <input type="time" value={time} onChange={e => setTime(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Técnico (opcional)</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.technicianOptional')}</label>
             <select value={technicianId} onChange={e => setTechnicianId(e.target.value)} className="input" style={{ width: '100%' }}>
-              <option value="">— Sin asignar —</option>
-              {technicians.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
+              <option value="">{t('labels.unassigned')}</option>
+              {technicians.map(tech => (
+                <option key={tech.id} value={tech.id}>{tech.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Cliente (opcional)</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.clientOptional')}</label>
             <ClientCombobox clients={clients} value={clientId} onChange={id => { setClientId(id); setPropertyId(''); }} />
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Dirección (opcional)</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.addressOptional')}</label>
             {clientProps.length > 0 && (
               <select value={propertyId} onChange={e => selectProperty(e.target.value)} className="input" style={{ width: '100%', marginBottom: 6 }}>
-                <option value="">— Escoger propiedad del cliente —</option>
+                <option value="">{t('common.chooseClientProperty')}</option>
                 {clientProps.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.name ? `${p.name} — ` : ''}{[p.street, p.city].filter(Boolean).join(', ')}{p.is_primary ? ' (Principal)' : ''}
+                    {p.name ? `${p.name} — ` : ''}{[p.street, p.city].filter(Boolean).join(', ')}{p.is_primary ? ` (${t('common.primary')})` : ''}
                   </option>
                 ))}
               </select>
             )}
-            <input value={address} onChange={e => setAddress(e.target.value)} className="input" style={{ width: '100%' }} placeholder="Ej. 123 Calle Sol, San Juan, PR" />
+            <input value={address} onChange={e => setAddress(e.target.value)} className="input" style={{ width: '100%' }} placeholder={t('common.addressPlaceholder')} />
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Notas</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('eventDetail.notes')}</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} className="input" style={{ width: '100%', minHeight: 50 }} />
           </div>
 
           {taskType === 'checklist' && !editing && (
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Ítems del checklist</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('taskModal.checklistItems')}</label>
               <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
                 {checklistItems.map((item, i) => (
                   <div key={i} style={{ display: 'flex', gap: 6 }}>
-                    <input value={item} onChange={e => updateItem(i, e.target.value)} className="input" style={{ flex: 1 }} placeholder={`Ítem ${i + 1}`} />
+                    <input value={item} onChange={e => updateItem(i, e.target.value)} className="input" style={{ flex: 1 }} placeholder={t('taskModal.itemPlaceholder', { number: i + 1 })} />
                     {checklistItems.length > 1 && (
                       <button type="button" onClick={() => removeItem(i)} className="btn btn-ghost" style={{ padding: '4px 10px' }}>×</button>
                     )}
                   </div>
                 ))}
-                <button type="button" onClick={addItem} className="btn btn-ghost" style={{ fontSize: 12, alignSelf: 'flex-start' }}>+ Agregar ítem</button>
+                <button type="button" onClick={addItem} className="btn btn-ghost" style={{ fontSize: 12, alignSelf: 'flex-start' }}>+ {t('taskModal.addItem')}</button>
               </div>
             </div>
           )}
           {taskType === 'checklist' && editing && (
-            <p style={{ fontSize: 11.5, color: 'var(--muted)' }}>Los ítems del checklist se administran desde el detalle de la tarea.</p>
+            <p style={{ fontSize: 11.5, color: 'var(--muted)' }}>{t('taskModal.checklistManagedFromDetail')}</p>
           )}
         </div>
 
@@ -2244,7 +2258,7 @@ function TaskModal({ data, technicians, clients, clientProperties, saving, onClo
             taskType, title: title.trim(), dateStr, time, technicianId, clientId, notes, address: address.trim(),
             checklistItems: editing ? [] : checklistItems.map(i => i.trim()).filter(Boolean),
           })}>
-          {saving ? 'Guardando...' : (editing ? 'Guardar cambios' : 'Crear tarea')}
+          {saving ? t('actions.saving') : (editing ? t('actions.saveChanges') : t('taskModal.createTask'))}
         </button>
       </div>
     </div>
@@ -2252,10 +2266,11 @@ function TaskModal({ data, technicians, clients, clientProperties, saving, onClo
 }
 
 function SyncModal({ technicians, onClose }) {
+  const t = useTranslations('calendario.client');
   const [copied, setCopied] = useState('');
   const [tokens, setTokens] = useState(() => {
     const map = {};
-    technicians.forEach(t => { map[t.id] = t.ics_token; });
+    technicians.forEach(tech => { map[tech.id] = tech.ics_token; });
     return map;
   });
 
@@ -2274,7 +2289,7 @@ function SyncModal({ technicians, onClose }) {
   async function regenerate(techId) {
     const newToken = crypto.randomUUID();
     await supabase.from('technicians').update({ ics_token: newToken }).eq('id', techId);
-    setTokens(t => ({ ...t, [techId]: newToken }));
+    setTokens(prev => ({ ...prev, [techId]: newToken }));
   }
 
   return (
@@ -2282,24 +2297,24 @@ function SyncModal({ technicians, onClose }) {
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 480, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>🔄 Sincronizar con Apple Calendar</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>🔄 {t('syncModal.title')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 16 }}>
-          En Apple Calendar: <strong>Archivo → Nueva suscripción de calendario</strong>, pega el enlace del técnico y guarda.
-          Apple actualiza el feed automáticamente cada pocas horas. Solo funciona en una dirección: lo que se cree en Apple Calendar no se refleja aquí.
+          {t('syncModal.instructionsBefore')} <strong>{t('syncModal.instructionsBold')}</strong>{t('syncModal.instructionsAfter')}
+          {' '}{t('syncModal.instructionsNote')}
         </p>
         <div style={{ display: 'grid', gap: 10 }}>
-          {technicians.map(t => (
-            <div key={t.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 6 }}>{t.name}</div>
+          {technicians.map(tech => (
+            <div key={tech.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 6 }}>{tech.name}</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <input readOnly value={feedUrl(tokens[t.id])} className="input" style={{ flex: 1, fontSize: 11 }} onFocus={e => e.target.select()} />
-                <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => copy(t.id, feedUrl(tokens[t.id]))}>
-                  {copied === t.id ? '✓' : 'Copiar'}
+                <input readOnly value={feedUrl(tokens[tech.id])} className="input" style={{ flex: 1, fontSize: 11 }} onFocus={e => e.target.select()} />
+                <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => copy(tech.id, feedUrl(tokens[tech.id]))}>
+                  {copied === tech.id ? '✓' : t('syncModal.copy')}
                 </button>
-                <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => regenerate(t.id)}>
-                  Regenerar
+                <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => regenerate(tech.id)}>
+                  {t('syncModal.regenerate')}
                 </button>
               </div>
             </div>
@@ -2314,6 +2329,7 @@ function isVideoFile(url) { return /\.(mp4|mov|webm|avi)(\?|$)/i.test(url); }
 function isPdfFile(url) { return /\.pdf(\?|$)/i.test(url); }
 
 function ChecklistItemRow({ item, onToggle, onUploadFiles, onRemoveAttachment, onOpenLightbox }) {
+  const t = useTranslations('calendario.client');
   const fileRef = useRef(null);
   const urls = item.attachment_urls ?? [];
 
@@ -2324,7 +2340,7 @@ function ChecklistItemRow({ item, onToggle, onUploadFiles, onRemoveAttachment, o
           <input type="checkbox" checked={item.done} onChange={onToggle} />
           <span style={{ textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--muted)' : 'var(--text)' }}>{item.text}</span>
         </label>
-        <button type="button" className="btn btn-ghost" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => fileRef.current?.click()}>+ Adjuntar</button>
+        <button type="button" className="btn btn-ghost" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => fileRef.current?.click()}>+ {t('checklistItem.attach')}</button>
         <input ref={fileRef} type="file" accept="image/*,video/*,application/pdf" multiple style={{ display: 'none' }}
           onChange={e => { const files = Array.from(e.target.files || []); if (files.length) onUploadFiles(files); e.target.value = ''; }} />
       </div>
@@ -2344,7 +2360,7 @@ function ChecklistItemRow({ item, onToggle, onUploadFiles, onRemoveAttachment, o
                 ) : isVideoFile(path) ? (
                   <video src={url} onClick={() => onOpenLightbox(i)} controls style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
                 ) : (
-                  <img src={url} alt="adjunto" onClick={() => onOpenLightbox(i)}
+                  <img src={url} alt={t('checklistItem.attachmentAlt')} onClick={() => onOpenLightbox(i)}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
                 )}
                 <button type="button" onClick={() => onRemoveAttachment(i)}
@@ -2361,6 +2377,7 @@ function ChecklistItemRow({ item, onToggle, onUploadFiles, onRemoveAttachment, o
 }
 
 function AttachmentLightbox({ item, startIndex, onClose }) {
+  const t = useTranslations('calendario.client');
   const entries = (item.attachment_urls ?? [])
     .map((url, i) => ({ url, path: (item.attachments ?? [])[i] ?? url, i }))
     .filter(e => !isPdfFile(e.path));
@@ -2397,7 +2414,7 @@ function AttachmentLightbox({ item, startIndex, onClose }) {
         {isVideoFile(current.path) ? (
           <video key={current.url} src={current.url} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 8 }} />
         ) : (
-          <img key={current.url} src={current.url} alt="adjunto" style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 8, objectFit: 'contain' }} />
+          <img key={current.url} src={current.url} alt={t('checklistItem.attachmentAlt')} style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 8, objectFit: 'contain' }} />
         )}
         {entries.length > 1 && (
           <div style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{pos + 1} / {entries.length}</div>
@@ -2415,6 +2432,7 @@ function AttachmentLightbox({ item, startIndex, onClose }) {
 }
 
 function MaintenanceReportModal({ task, currentUserName, saving, onClose, onSubmit }) {
+  const t = useTranslations('calendario.client');
   const technicianNames = [task.technicians?.name, ...(task.task_technicians ?? []).map(tt => tt.technicians?.name)].filter(Boolean).join(', ');
   const [title, setTitle] = useState(task.title);
   const [visitDate, setVisitDate] = useState((task.due_at || '').slice(0, 10));
@@ -2429,48 +2447,48 @@ function MaintenanceReportModal({ task, currentUserName, saving, onClose, onSubm
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 460, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📄 Generar reporte de visita</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>📄 {t('maintenanceReportModal.title')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 16 }}>
-          El checklist y las notas/fotos de esta visita se incluyen automáticamente. Estos campos son opcionales.
+          {t('maintenanceReportModal.autoIncludeNote')}
         </p>
         <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Título</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('common.titleLabel')}</label>
             <input value={title} onChange={e => setTitle(e.target.value)} className="input" style={{ width: '100%' }} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Fecha de visita</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('maintenanceReportModal.visitDate')}</label>
               <input type="date" value={visitDate} onChange={e => setVisitDate(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Preparado por</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('maintenanceReportModal.preparedBy')}</label>
               <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Personal presente</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('maintenanceReportModal.personnelPresent')}</label>
             <input value={personnel} onChange={e => setPersonnel(e.target.value)} className="input" style={{ width: '100%' }} />
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Resumen (opcional)</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('maintenanceReportModal.summaryOptional')}</label>
             <textarea value={summary} onChange={e => setSummary(e.target.value)} className="input" style={{ width: '100%', minHeight: 60 }} />
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Observaciones (opcional)</label>
-            <textarea value={observations} onChange={e => setObservations(e.target.value)} className="input" style={{ width: '100%', minHeight: 50 }} placeholder="Una por línea" />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('maintenanceReportModal.observationsOptional')}</label>
+            <textarea value={observations} onChange={e => setObservations(e.target.value)} className="input" style={{ width: '100%', minHeight: 50 }} placeholder={t('maintenanceReportModal.onePerLine')} />
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Recomendaciones (opcional)</label>
-            <textarea value={recommendations} onChange={e => setRecommendations(e.target.value)} className="input" style={{ width: '100%', minHeight: 50 }} placeholder="Una por línea" />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('maintenanceReportModal.recommendationsOptional')}</label>
+            <textarea value={recommendations} onChange={e => setRecommendations(e.target.value)} className="input" style={{ width: '100%', minHeight: 50 }} placeholder={t('maintenanceReportModal.onePerLine')} />
           </div>
         </div>
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!title.trim() || saving}
           onClick={() => onSubmit({ task, title, visitDate, personnel, preparedBy, summary, observations, recommendations })}>
-          {saving ? 'Generando...' : 'Generar reporte'}
+          {saving ? t('maintenanceReportModal.generating') : t('maintenanceReportModal.generateReport')}
         </button>
       </div>
     </div>
@@ -2478,6 +2496,7 @@ function MaintenanceReportModal({ task, currentUserName, saving, onClose, onSubm
 }
 
 function AddToJobModal({ clientId, clientName, onClose, onConfirm }) {
+  const t = useTranslations('calendario.client');
   const [jobs, setJobs] = useState(null); // null = loading
   const [jobId, setJobId] = useState('');
   const [saving, setSaving] = useState(false);
@@ -2502,21 +2521,21 @@ function AddToJobModal({ clientId, clientName, onClose, onConfirm }) {
       onClick={onClose}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>Añadir a trabajo</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{t('addToJobModal.title')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 16 }}>
-          Se añadirá como nota (con las fotos/videos/PDF adjuntos) al trabajo de <strong>{clientName}</strong> que escojas.
+          {t('addToJobModal.descriptionBefore')} <strong>{clientName}</strong> {t('addToJobModal.descriptionAfter')}
         </p>
         {jobs === null ? (
-          <p style={{ fontSize: 13, color: 'var(--muted)' }}>Cargando trabajos...</p>
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>{t('addToJobModal.loadingJobs')}</p>
         ) : jobs.length === 0 ? (
-          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Este cliente no tiene trabajos todavía.</p>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>{t('addToJobModal.noJobsYet')}</p>
         ) : (
           <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>Trabajo</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('labels.job')}</label>
             <select value={jobId} onChange={e => setJobId(e.target.value)} className="input" style={{ width: '100%' }}>
-              <option value="">— Selecciona —</option>
+              <option value="">{t('common.select')}</option>
               {jobs.map(j => (
                 <option key={j.id} value={j.id}>{j.job_number ? `#${j.job_number} — ` : ''}{j.title}</option>
               ))}
@@ -2526,7 +2545,7 @@ function AddToJobModal({ clientId, clientName, onClose, onConfirm }) {
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!jobId || saving}
           onClick={handleConfirm}>
-          {saving ? 'Añadiendo...' : 'Añadir nota'}
+          {saving ? t('addToJobModal.adding') : t('addToJobModal.addNote')}
         </button>
       </div>
     </div>

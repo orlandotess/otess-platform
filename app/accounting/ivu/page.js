@@ -9,8 +9,12 @@ import ExportIVUButton from './ExportIVUButton';
 import IVUInvoiceTableClient from './IVUInvoiceTableClient';
 import IVUPaymentTracker from './IVUPaymentTracker';
 import { computeInvoiceIVU } from '../../../lib/ivu';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 export default async function AccountingIVU({ searchParams }) {
+  const t = await getTranslations('accounting.ivu');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
   const month = searchParams?.month !== undefined ? parseInt(searchParams.month) : null;
 
@@ -58,7 +62,8 @@ export default async function AccountingIVU({ searchParams }) {
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const pct = n => `${(Number(n ?? 0) * 100).toFixed(1)}%`;
 
-  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const months = Array.from({ length: 12 }, (_, i) => capitalize(new Date(2000, i, 1).toLocaleDateString(dateLocale, { month: 'long' })));
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
 
@@ -109,19 +114,19 @@ export default async function AccountingIVU({ searchParams }) {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Reporte IVU</div>
+            <div className="page-title">{t('title')}</div>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>
-              {month !== null ? `${months[month]} ${year}` : `Año ${year}`}
+              {month !== null ? `${months[month]} ${year}` : t('periodYear', { year })}
             </p>
           </div>
-          <Link href="/accounting" className="btn btn-ghost">← Dashboard</Link>
+          <Link href="/accounting" className="btn btn-ghost">{t('backToDashboard')}</Link>
         </div>
 
         {/* Filters */}
         <div className="card" style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Año</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('filters.year')}</label>
               <div style={{ display: 'flex', gap: 6 }}>
                 {years.map(y => (
                   <Link key={y} href={`/accounting/ivu?year=${y}${month !== null ? `&month=${month}` : ''}`}
@@ -132,11 +137,11 @@ export default async function AccountingIVU({ searchParams }) {
               </div>
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Mes</label>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{t('filters.month')}</label>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <Link href={`/accounting/ivu?year=${year}`}
                   className={`btn ${month === null ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>
-                  Todo el año
+                  {t('filters.fullYear')}
                 </Link>
                 {months.map((m, i) => (
                   <Link key={i} href={`/accounting/ivu?year=${year}&month=${i}`}
@@ -152,27 +157,27 @@ export default async function AccountingIVU({ searchParams }) {
         {/* Summary cards */}
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', marginBottom: 20 }}>
           <div className="stat-card">
-            <div className="stat-label">IVU Total</div>
+            <div className="stat-label">{t('stats.ivuTotal')}</div>
             <div className="stat-value" style={{ color: 'var(--navy)' }}>{fmt(totIVU)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Estatal (10.5%)</div>
+            <div className="stat-label">{t('stats.estatal')}</div>
             <div className="stat-value" style={{ fontSize: 20 }}>{fmt(totEstatal)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Municipal (1%)</div>
+            <div className="stat-label">{t('stats.municipal')}</div>
             <div className="stat-value" style={{ fontSize: 20 }}>{fmt(totMunicipal)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Productos (11.5%)</div>
+            <div className="stat-label">{t('stats.products')}</div>
             <div className="stat-value" style={{ fontSize: 20 }}>{fmt(totProducts)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Labor Final (11.5%)</div>
+            <div className="stat-label">{t('stats.laborFinal')}</div>
             <div className="stat-value" style={{ fontSize: 20 }}>{fmt(totLaborFinal)}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">B2B Labor (4%)</div>
+            <div className="stat-label">{t('stats.laborB2B')}</div>
             <div className="stat-value" style={{ fontSize: 20 }}>{fmt(totB2B)}</div>
           </div>
         </div>
@@ -181,7 +186,7 @@ export default async function AccountingIVU({ searchParams }) {
         {month === null && (
           <div className="card" style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>Desglose mensual {year}</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>{t('monthlyBreakdown.title', { year })}</p>
               <ExportIVUButton
                 monthlyData={monthlyData}
                 year={year}
@@ -192,13 +197,13 @@ export default async function AccountingIVU({ searchParams }) {
               <table>
                 <thead>
                   <tr>
-                    <th>Mes</th>
-                    <th style={{ textAlign: 'right' }}>IVU Productos</th>
-                    <th style={{ textAlign: 'right' }}>IVU Labor Final</th>
-                    <th style={{ textAlign: 'right' }}>IVU Labor B2B</th>
-                    <th style={{ textAlign: 'right' }}>Estatal (10.5%)</th>
-                    <th style={{ textAlign: 'right' }}>Municipal (1%)</th>
-                    <th style={{ textAlign: 'right' }}>Total IVU</th>
+                    <th>{t('monthlyBreakdown.columns.month')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('monthlyBreakdown.columns.ivuProducts')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('monthlyBreakdown.columns.ivuLaborFinal')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('monthlyBreakdown.columns.ivuLaborB2B')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('monthlyBreakdown.columns.estatal')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('monthlyBreakdown.columns.municipal')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('monthlyBreakdown.columns.totalIVU')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -220,7 +225,7 @@ export default async function AccountingIVU({ searchParams }) {
                 </tbody>
                 <tfoot>
                   <tr style={{ borderTop: '2px solid var(--border)' }}>
-                    <td style={{ fontWeight: 700, paddingTop: 12 }}>TOTAL</td>
+                    <td style={{ fontWeight: 700, paddingTop: 12 }}>{t('monthlyBreakdown.total')}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totProducts)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totLaborFinal)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totB2B)}</td>

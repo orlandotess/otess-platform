@@ -4,10 +4,15 @@ import { supabase } from '../../../lib/supabase';
 import { computeHours, prDayKey, prTimeParts, buildPRTimestamp } from '../../../lib/hours';
 import { formatTimePR } from '../../../lib/datetimeLocal';
 import SearchBox from '../../SearchBox';
+import { useTranslations, useLocale } from 'next-intl';
 
-const DAYS = ['Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Lun', 'Mar'];
+const DAY_KEYS = ['wed', 'thu', 'fri', 'sat', 'sun', 'mon', 'tue'];
 
 export default function TimesheetClient({ techStats, weekDays, techFilter }) {
+  const tr = useTranslations('admin.timesheetClient');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const DAYS = DAY_KEYS.map(k => tr(`days.${k}`));
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedTech, setSelectedTech] = useState(null);
   const [editingTech, setEditingTech] = useState(null);
@@ -140,7 +145,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   }
 
   async function resetOverride(tech, weekStart, weekEnd) {
-    if (!confirm(`¿Borrar el ajuste manual de ${tech.name} para esta semana? Las horas volverán al cálculo automático.`)) return;
+    if (!confirm(tr('resetOverrideConfirm', { name: tech.name }))) return;
     setSaving(true);
 
     await supabase.from('payroll_adjustments').delete()
@@ -182,7 +187,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
     const newOut = editOutTime ? (() => { const [h, m] = editOutTime.split(':').map(Number); return buildPRTimestamp(baseDate, h, m); })() : null;
 
     if (newOut && computeHours(newIn.toISOString(), newOut.toISOString(), entry.lunch_minutes).invalid) {
-      setEditEntryError('Clock Out debe ser después de Clock In.');
+      setEditEntryError(tr('clockOutAfterClockIn'));
       return;
     }
     setEditEntryError('');
@@ -257,7 +262,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
 
   async function resetDayOverride(tech, dayIso) {
     const dayKey = dayIso.slice(0, 10);
-    if (!confirm(`¿Borrar el ajuste manual de ${tech.name} para este día? Las horas volverán al cálculo automático.`)) return;
+    if (!confirm(tr('resetDayOverrideConfirm', { name: tech.name }))) return;
     setSaving(true);
 
     await supabase.from('daily_hour_overrides').delete()
@@ -286,7 +291,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <SearchBox value={search} onChange={setSearch} placeholder="Buscar técnico..." />
+        <SearchBox value={search} onChange={setSearch} placeholder={tr('searchPlaceholder')} />
       </div>
       {filteredTechs.map(tech => (
         <div key={tech.id} className="card" style={{ marginBottom: 16 }}>
@@ -299,12 +304,12 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               {editingTech === tech.id ? (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Regular</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>{tr('regular')}</div>
                     <input type="number" value={editRegular} onChange={e => setEditRegular(e.target.value)} step="0.1" min="0"
                       style={{ width: 70, padding: '4px 8px', border: '2px solid var(--navy)', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'center' }} />
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>OT</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>{tr('overtimeAbbrev')}</div>
                     <input type="number" value={editOvertime} onChange={e => setEditOvertime(e.target.value)} step="0.1" min="0"
                       style={{ width: 70, padding: '4px 8px', border: '2px solid var(--warn)', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'center' }} />
                   </div>
@@ -315,7 +320,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                     </button>
                     {tech.hasOverride && (
                       <button onClick={() => resetOverride(tech, weekStart, weekEnd)} disabled={saving}
-                        className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12, color: 'var(--warn)' }} title="Borrar ajuste manual">
+                        className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12, color: 'var(--warn)' }} title={tr('deleteManualAdjustmentTitle')}>
                         🗑
                       </button>
                     )}
@@ -325,30 +330,30 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               ) : (
                 <>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Regular</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>{tr('regular')}</div>
                     <div style={{ fontWeight: 700, color: 'var(--ok)' }}>{tech.regularHours.toFixed(1)}h</div>
                   </div>
                   {tech.overtimeHours > 0 && (
                     <div style={{ textAlign: 'center' }}>
-                      <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>OT</div>
+                      <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>{tr('overtimeAbbrev')}</div>
                       <div style={{ fontWeight: 700, color: 'var(--warn)' }}>{tech.overtimeHours.toFixed(1)}h ⚡</div>
                     </div>
                   )}
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Total</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>{tr('total')}</div>
                     <div style={{ fontWeight: 700, color: 'var(--navy)' }}>{tech.totalHours.toFixed(1)}h</div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>Gross</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700 }}>{tr('gross')}</div>
                     <div style={{ fontWeight: 700, color: 'var(--ok)' }}>${tech.grossPay.toFixed(2)}</div>
                   </div>
                   {tech.hasOverride && (
-                    <div style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 700 }} title="Horas ajustadas manualmente">✏️ ajuste manual</div>
+                    <div style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 700 }} title={tr('manualAdjustmentTitle')}>✏️ {tr('manualAdjustment')}</div>
                   )}
-                  <button onClick={() => startEdit(tech)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>✏️ Editar</button>
+                  <button onClick={() => startEdit(tech)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>✏️ {tr('edit')}</button>
                   {tech.hasOverride && (
                     <button onClick={() => resetOverride(tech, weekStart, weekEnd)} disabled={saving}
-                      className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12, color: 'var(--warn)' }} title="Borrar ajuste manual">
+                      className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12, color: 'var(--warn)' }} title={tr('deleteManualAdjustmentTitle')}>
                       🗑
                     </button>
                   )}
@@ -359,7 +364,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
 
           {tech.hasOverride && (tech.regularHoursRaw + tech.overtimeHoursRaw) === 0 && (
             <div style={{ background: 'var(--info-tint)', border: '1px solid var(--navy)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: 'var(--navy)' }}>
-              ✏️ El total de esta semana es un ajuste manual y no tiene fichajes (clock in/out) registrados por día — por eso los días abajo aparecen sin horas. Usa el ✏️ de un día para asignarle horas específicas si lo necesitas.
+              {tr('noManualEntriesInfo')}
             </div>
           )}
 
@@ -383,8 +388,8 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                   </div>
                   <div style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--muted)' }}>{new Date(y, m-1, d).getDate()}</div>
                   {dayOverridden ? (
-                    <div style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#ffd700' : 'var(--amber)' }} title="Ajuste manual">✏️</div>
-                  ) : isOvertime && <div style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#ffd700' : 'var(--warn)' }}>OT</div>}
+                    <div style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#ffd700' : 'var(--amber)' }} title={tr('manualAdjustmentTitle')}>✏️</div>
+                  ) : isOvertime && <div style={{ fontSize: 9, fontWeight: 700, color: isSelected ? '#ffd700' : 'var(--warn)' }}>{tr('overtimeAbbrev')}</div>}
                 </div>
               );
             })}
@@ -393,7 +398,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
           {selectedDay && selectedTech === tech.id && (
             <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '14px 18px', marginBottom: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)', marginBottom: 12 }}>
-                {(() => { const [y,m,d] = selectedDay.slice(0,10).split('-'); return new Date(y, m-1, d).toLocaleDateString('es-PR', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); })()}
+                {(() => { const [y,m,d] = selectedDay.slice(0,10).split('-'); return new Date(y, m-1, d).toLocaleDateString(dateLocale, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); })()}
               </div>
               {getDayEntries(tech, selectedDay).map((e, i, arr) => {
                 const inTime = new Date(e.clocked_in_at);
@@ -406,20 +411,20 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                     {isEditingThis ? (
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                         <div>
-                          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Clock In</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{tr('clockIn')}</div>
                           <input type="time" value={editInTime} onChange={e => setEditInTime(e.target.value)}
                             style={{ padding: '6px 10px', border: '2px solid var(--navy)', borderRadius: 8, fontSize: 14 }} />
                         </div>
                         <div>
-                          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Clock Out</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{tr('clockOut')}</div>
                           <input type="time" value={editOutTime} onChange={e => setEditOutTime(e.target.value)}
                             style={{ padding: '6px 10px', border: '2px solid var(--navy)', borderRadius: 8, fontSize: 14 }} />
                         </div>
                         <div style={{ display: 'flex', gap: 6, marginTop: 16, alignItems: 'center' }}>
                           <button onClick={() => saveEntry(e)} disabled={saving} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 12 }}>
-                            {saving ? '...' : '💾 Guardar'}
+                            {saving ? '...' : `💾 ${tr('save')}`}
                           </button>
-                          <button onClick={() => { setEditingEntry(null); setEditEntryError(''); }} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>Cancelar</button>
+                          <button onClick={() => { setEditingEntry(null); setEditEntryError(''); }} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>{tr('cancel')}</button>
                           {editEntryError && <span style={{ color: 'var(--warn)', fontSize: 12 }}>⚠️ {editEntryError}</span>}
                         </div>
                       </div>
@@ -428,14 +433,14 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                         <div>
                           <div style={{ fontSize: 14, fontWeight: 600 }}>
                             {formatTimePR(inTime, { hour: '2-digit', minute: '2-digit' })}
-                            {outTime ? ' → ' + formatTimePR(outTime, { hour: '2-digit', minute: '2-digit' }) : ' → En progreso ⏱'}
+                            {outTime ? ' → ' + formatTimePR(outTime, { hour: '2-digit', minute: '2-digit' }) : ' → ' + tr('inProgress')}
                           </div>
-                          {e.job_id && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Trabajo asociado</div>}
-                          {(e.lunch_minutes ?? 0) > 0 && <div style={{ fontSize: 11, color: 'var(--warn)', marginTop: 2 }}>🍽️ Lunch -{(e.lunch_minutes / 60).toFixed(1)}h</div>}
+                          {e.job_id && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{tr('associatedJob')}</div>}
+                          {(e.lunch_minutes ?? 0) > 0 && <div style={{ fontSize: 11, color: 'var(--warn)', marginTop: 2 }}>{tr('lunchDeduction', { hours: (e.lunch_minutes / 60).toFixed(1) })}</div>}
                           {e.notes && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, fontStyle: 'italic' }}>"{e.notes}"</div>}
                         </div>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                          {durInvalid && <span className="badge badge-red" title="Salida antes de la entrada o almuerzo mayor al turno">⚠️ Revisar</span>}
+                          {durInvalid && <span className="badge badge-red" title={tr('reviewBadgeTitle')}>⚠️ {tr('reviewBadge')}</span>}
                           <div style={{ fontWeight: 700, color: dur ? 'var(--navy)' : 'var(--amber)', fontSize: 15 }}>{dur ? dur + 'h' : '—'}</div>
                           <button onClick={() => startEditEntry(e)} className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }}>✏️</button>
                         </div>
@@ -445,17 +450,17 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                 );
               })}
               {getDayEntries(tech, selectedDay).length === 0 && (
-                <div style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', padding: '4px 0' }}>Sin entradas de reloj registradas para este día.</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', padding: '4px 0' }}>{tr('noClockEntries')}</div>
               )}
               {editingDayKey === `${tech.id}_${selectedDay}` ? (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '2px solid var(--border)' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Regular</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>{tr('regular')}</div>
                     <input type="number" value={editDayRegular} onChange={e => setEditDayRegular(e.target.value)} step="0.1" min="0"
                       style={{ width: 70, padding: '4px 8px', border: '2px solid var(--navy)', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'center' }} />
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>OT</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>{tr('overtimeAbbrev')}</div>
                     <input type="number" value={editDayOvertime} onChange={e => setEditDayOvertime(e.target.value)} step="0.1" min="0"
                       style={{ width: 70, padding: '4px 8px', border: '2px solid var(--warn)', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'center' }} />
                   </div>
@@ -467,9 +472,9 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '2px solid var(--border)' }}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800, fontSize: 15, color: 'var(--navy)' }}>
-                    <span>Total del día</span>
+                    <span>{tr('dayTotal')}</span>
                     {hasDayOverride(tech, selectedDay) && (
-                      <span style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 700 }} title="Horas ajustadas manualmente">✏️ ajuste manual</span>
+                      <span style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 700 }} title={tr('manualAdjustmentTitle')}>✏️ {tr('manualAdjustment')}</span>
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -477,7 +482,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
                     <button onClick={() => startEditDay(tech, selectedDay)} className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }}>✏️</button>
                     {hasDayOverride(tech, selectedDay) && (
                       <button onClick={() => resetDayOverride(tech, selectedDay)} disabled={saving}
-                        className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12, color: 'var(--warn)' }} title="Borrar ajuste del día">
+                        className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 12, color: 'var(--warn)' }} title={tr('deleteDayAdjustmentTitle')}>
                         🗑
                       </button>
                     )}
@@ -491,7 +496,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
 
       {filteredTechs.length === 0 && (
         <div className="card" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--muted)' }}>
-          {query ? `Sin resultados para "${search}".` : 'No hay técnicos registrados.'}
+          {query ? tr('noResultsFor', { query: search }) : tr('noTechniciansRegistered')}
         </div>
       )}
     </div>

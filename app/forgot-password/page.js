@@ -1,7 +1,9 @@
 'use client';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 export default function ForgotPasswordPage() {
+  const t = useTranslations('auth.forgotPassword');
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -19,7 +21,7 @@ export default function ForgotPasswordPage() {
       });
       setSent(true);
     } catch {
-      setError('Error de conexión. Intenta de nuevo.');
+      setError(t('errorConnection'));
     }
     setLoading(false);
   }
@@ -30,26 +32,26 @@ export default function ForgotPasswordPage() {
         <div style={{ textAlign:'center', marginBottom:32 }}>
           <img src="/otess-logo.png" alt="OTESS" className="brand-logo-light" style={{ width:'100%', maxWidth:220, height:'auto', margin:'0 auto', display:'block' }} />
           <img src="/otess-logo-blanco.png" alt="OTESS" className="brand-logo-dark" style={{ width:'100%', maxWidth:220, height:'auto', margin:'0 auto', display:'block' }} />
-          <div style={{ fontSize:14, color:'var(--ink-soft)', marginTop:16 }}>Recuperar contraseña</div>
+          <div style={{ fontSize:14, color:'var(--ink-soft)', marginTop:16 }}>{t('title')}</div>
         </div>
 
         {sent ? (
           <div style={{ textAlign:'center' }}>
-            <p style={{ fontSize:14, color:'var(--ink-soft)' }}>Si el correo está registrado, recibirás un enlace para restablecer tu contraseña en unos minutos.</p>
-            <a href="/login" style={{ fontSize:13, color:'var(--amber)' }}>Volver a iniciar sesión</a>
+            <p style={{ fontSize:14, color:'var(--ink-soft)' }}>{t('sentBody')}</p>
+            <a href="/login" style={{ fontSize:13, color:'var(--amber)' }}>{t('backToLogin')}</a>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
             {error && <div style={{ background:'var(--danger-tint)', color:'var(--warn)', padding:'10px 14px', borderRadius:8, fontSize:13, marginBottom:16 }}>{error}</div>}
             <div style={{ marginBottom:24 }}>
-              <label style={{ fontSize:12, fontWeight:700, color:'var(--ink-faint)', display:'block', marginBottom:6 }}>EMAIL</label>
+              <label style={{ fontSize:12, fontWeight:700, color:'var(--ink-faint)', display:'block', marginBottom:6 }}>{t('emailLabel')}</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required style={{ padding:'10px 14px', border:'1.5px solid var(--border)', borderRadius:8, fontSize:14, width:'100%', outline:'none' }} />
             </div>
             <button type="submit" disabled={loading} style={{ width:'100%', padding:13, background:'var(--navy)', color:'#fff', border:'none', borderRadius:10, fontSize:15, fontWeight:700, cursor:'pointer' }}>
-              {loading ? 'Enviando...' : 'Enviar enlace'}
+              {loading ? t('sending') : t('sendButton')}
             </button>
             <div style={{ textAlign:'center', marginTop:16 }}>
-              <a href="/login" style={{ fontSize:13, color:'var(--ink-faint)' }}>Volver a iniciar sesión</a>
+              <a href="/login" style={{ fontSize:13, color:'var(--ink-faint)' }}>{t('backToLogin')}</a>
             </div>
           </form>
         )}

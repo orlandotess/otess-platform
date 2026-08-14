@@ -3,36 +3,37 @@ import { useState, useRef, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations, useLocale } from 'next-intl';
 import { buildMapsLinks, pickMapsLink } from '../../../lib/mapsLinks';
 import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 import { sumBillableLineItems } from '../../../lib/proposalLineItemTotal';
 import SearchBox from '../../SearchBox';
 
-const statusJob = {
-  estimate: { cls: 'badge-gray', label: 'Estimado' },
-  scheduled: { cls: 'badge-blue', label: 'Programado' },
-  in_progress: { cls: 'badge-amber', label: 'En progreso' },
-  completed: { cls: 'badge-green', label: 'Completado' },
-  cancelled: { cls: 'badge-red', label: 'Cancelado' }
+const statusJobDefs = {
+  estimate: { cls: 'badge-gray', key: 'estimate' },
+  scheduled: { cls: 'badge-blue', key: 'scheduled' },
+  in_progress: { cls: 'badge-amber', key: 'in_progress' },
+  completed: { cls: 'badge-green', key: 'completed' },
+  cancelled: { cls: 'badge-red', key: 'cancelled' }
 };
-const statusInv = {
-  draft: { cls: 'badge-gray', label: 'Borrador' },
-  sent: { cls: 'badge-blue', label: 'Enviada' },
-  paid: { cls: 'badge-green', label: 'Pagada' },
-  overdue: { cls: 'badge-red', label: 'Vencida' }
+const statusInvDefs = {
+  draft: { cls: 'badge-gray', key: 'draft' },
+  sent: { cls: 'badge-blue', key: 'sent' },
+  paid: { cls: 'badge-green', key: 'paid' },
+  overdue: { cls: 'badge-red', key: 'overdue' }
 };
-const statusProp = {
-  borrador: { cls: 'badge-gray', label: 'Borrador' },
-  enviada: { cls: 'badge-blue', label: 'Enviada' },
-  vista: { cls: 'badge-amber', label: 'Vista' },
-  aprobada: { cls: 'badge-green', label: 'Aprobada' },
-  rechazada: { cls: 'badge-red', label: 'Rechazada' }
+const statusPropDefs = {
+  borrador: { cls: 'badge-gray', key: 'borrador' },
+  enviada: { cls: 'badge-blue', key: 'enviada' },
+  vista: { cls: 'badge-amber', key: 'vista' },
+  aprobada: { cls: 'badge-green', key: 'aprobada' },
+  rechazada: { cls: 'badge-red', key: 'rechazada' }
 };
-const statusTicket = {
-  abierto: { cls: 'badge-red', label: 'Abierto' },
-  en_progreso: { cls: 'badge-blue', label: 'En progreso' },
-  cerrado: { cls: 'badge-gray', label: 'Cerrado' },
+const statusTicketDefs = {
+  abierto: { cls: 'badge-red', key: 'abierto' },
+  en_progreso: { cls: 'badge-blue', key: 'en_progreso' },
+  cerrado: { cls: 'badge-gray', key: 'cerrado' },
 };
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 function jobLocation(j) {
@@ -44,23 +45,24 @@ function cleanPhones(list) {
 }
 
 function PhoneListEditor({ phones, onChange }) {
+  const t = useTranslations('clientes.detail');
   const list = phones ?? [];
   return (
     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-      <label>Teléfonos adicionales</label>
+      <label>{t('phones.additionalLabel')}</label>
       {list.map((p, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           <input value={p.label} onChange={e => onChange(list.map((row, j) => j === i ? { ...row, label: e.target.value } : row))}
-            placeholder="Ej: Oficina, Móvil" style={{ flex: '0 0 140px' }} />
+            placeholder={t('phones.labelPlaceholder')} style={{ flex: '0 0 140px' }} />
           <input value={p.number} onChange={e => onChange(list.map((row, j) => j === i ? { ...row, number: e.target.value } : row))}
-            placeholder="787-000-0000" style={{ flex: 1 }} />
+            placeholder={t('phones.numberPlaceholder')} style={{ flex: 1 }} />
           <button type="button" onClick={() => onChange(list.filter((_, j) => j !== i))}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
         </div>
       ))}
       <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}
         onClick={() => onChange([...list, { label: '', number: '' }])}>
-        + Agregar teléfono
+        {t('phones.addPhone')}
       </button>
     </div>
   );
@@ -126,6 +128,21 @@ async function resolveShortLink(url) {
 export default function ClientesDetail({ client, jobs, invoices, payments = [], retenciones = [], scheduleDays = [], calendarEvents = [], tasks = [], properties: initProps, contacts: initContacts, propertyContacts: initPropertyContacts = [], proposals, internalNotes: initInternalNotes, serviceTickets = [], currentRole, invoiceReconciliation }) {
   const canDeleteClient = currentRole === 'admin' || currentRole === 'secretaria';
   const router = useRouter();
+  const t = useTranslations('clientes.detail');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const statusJob = useMemo(() => Object.fromEntries(
+    Object.entries(statusJobDefs).map(([k, v]) => [k, { ...v, label: t(`jobStatus.${v.key}`) }])
+  ), [t]);
+  const statusInv = useMemo(() => Object.fromEntries(
+    Object.entries(statusInvDefs).map(([k, v]) => [k, { ...v, label: t(`invoiceStatus.${v.key}`) }])
+  ), [t]);
+  const statusProp = useMemo(() => Object.fromEntries(
+    Object.entries(statusPropDefs).map(([k, v]) => [k, { ...v, label: t(`proposalStatus.${v.key}`) }])
+  ), [t]);
+  const statusTicket = useMemo(() => Object.fromEntries(
+    Object.entries(statusTicketDefs).map(([k, v]) => [k, { ...v, label: t(`ticketStatus.${v.key}`) }])
+  ), [t]);
   const [tab, setTab] = useState('info');
   const [properties, setProperties] = useState(initProps);
   const [contacts, setContacts] = useState(initContacts);
@@ -150,7 +167,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           (statusJob[j.status]?.label ?? '').toLowerCase().includes(query)
         )
       : jobs;
-  }, [jobs, jobSearch]);
+  }, [jobs, jobSearch, statusJob]);
   const sortedProperties = useMemo(() => [...properties].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es')), [properties]);
   const sortedContacts = useMemo(() => [...contacts].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es')), [contacts]);
   const visibleProperties = useMemo(() => {
@@ -447,35 +464,35 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
     <div>
       {/* Tab bar */}
       <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 4, borderBottom: '1.5px solid var(--border)', marginBottom: 20, background: 'var(--surface)', borderRadius: 12, padding: '4px 8px' }}>
-        <button style={tabStyle('info')} onClick={() => setTab('info')}>👤 Info</button>
+        <button style={tabStyle('info')} onClick={() => setTab('info')}>{t('tabs.info')}</button>
         <button style={tabStyle('properties')} onClick={() => setTab('properties')}>
-          📍 Propiedades
+          {t('tabs.properties')}
           {properties.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{properties.length}</span>}
         </button>
         <button style={tabStyle('contacts')} onClick={() => setTab('contacts')}>
-          👥 Contactos
+          {t('tabs.contacts')}
           {contacts.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{contacts.length}</span>}
         </button>
-        <button style={tabStyle('schedule')} onClick={() => setTab('schedule')}>🗓️ Agenda del cliente</button>
+        <button style={tabStyle('schedule')} onClick={() => setTab('schedule')}>{t('tabs.schedule')}</button>
         <button style={tabStyle('jobs')} onClick={() => setTab('jobs')}>
-          🔧 Trabajos
+          {t('tabs.jobs')}
           {jobs.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{jobs.length}</span>}
         </button>
         <button style={tabStyle('invoices')} onClick={() => setTab('invoices')}>
-          🧾 Facturas
+          {t('tabs.invoices')}
           {invoices.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{invoices.length}</span>}
         </button>
-        <button style={tabStyle('billing')} onClick={() => setTab('billing')}>💰 Facturación</button>
+        <button style={tabStyle('billing')} onClick={() => setTab('billing')}>{t('tabs.billing')}</button>
         <button style={tabStyle('proposals')} onClick={() => setTab('proposals')}>
-          📄 Propuestas
+          {t('tabs.proposals')}
           {proposals.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{proposals.length}</span>}
         </button>
         <button style={tabStyle('tickets')} onClick={() => setTab('tickets')}>
-          🎫 Boletos
+          {t('tabs.tickets')}
           {serviceTickets.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{serviceTickets.length}</span>}
         </button>
         <button style={tabStyle('internalNotes')} onClick={() => setTab('internalNotes')}>
-          📝 Notas internas
+          {t('tabs.internalNotes')}
           {internalNotes.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{internalNotes.length}</span>}
         </button>
       </div>
@@ -486,73 +503,73 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>Información de contacto</p>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>{t('info.contactInfoTitle')}</p>
                 {!editingInfo && (
-                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={startEditInfo}>✏️ Editar</button>
+                  <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={startEditInfo}>{t('info.edit')}</button>
                 )}
               </div>
 
               {editingInfo ? (
                 <form onSubmit={saveInfo}>
                   <div className="form-group" style={{ marginBottom: 12 }}>
-                    <label>Este cliente es</label>
+                    <label>{t('info.clientIsLabel')}</label>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="button" onClick={() => setEditKind('individual')}
                         style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editKind === 'individual' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editKind === 'individual' ? 'var(--navy)' : 'transparent', color: editKind === 'individual' ? '#fff' : 'var(--text)' }}>
-                        Individual
+                        {t('info.individual')}
                       </button>
                       <button type="button" onClick={() => setEditKind('empresa')}
                         style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editKind === 'empresa' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editKind === 'empresa' ? 'var(--navy)' : 'transparent', color: editKind === 'empresa' ? '#fff' : 'var(--text)' }}>
-                        Empresa
+                        {t('info.company')}
                       </button>
                     </div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                     {editKind === 'empresa' ? (
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                        <label>Nombre de la empresa *</label>
+                        <label>{t('info.companyNameLabel')}</label>
                         <input value={editInfoData.company} onChange={e => setEditInfoData(d => ({ ...d, company: e.target.value }))} required />
                       </div>
                     ) : (
                       <>
                         <div className="form-group">
-                          <label>Nombre *</label>
+                          <label>{t('info.nameLabel')}</label>
                           <input value={editInfoData.name} onChange={e => setEditInfoData(d => ({ ...d, name: e.target.value }))} required />
                         </div>
                         <div className="form-group">
-                          <label>Empresa</label>
+                          <label>{t('info.company')}</label>
                           <input value={editInfoData.company} onChange={e => setEditInfoData(d => ({ ...d, company: e.target.value }))} />
                         </div>
                       </>
                     )}
                     <div className="form-group">
-                      <label>Email</label>
+                      <label>{t('info.emailLabel')}</label>
                       <input type="email" value={editInfoData.email} onChange={e => setEditInfoData(d => ({ ...d, email: e.target.value }))} />
                     </div>
                     <div className="form-group">
-                      <label>Teléfono</label>
+                      <label>{t('info.phoneLabel')}</label>
                       <input value={editInfoData.phone} onChange={e => setEditInfoData(d => ({ ...d, phone: e.target.value }))} />
                     </div>
                     <PhoneListEditor phones={editInfoData.extra_phones} onChange={list => setEditInfoData(d => ({ ...d, extra_phones: list }))} />
                     <div className="form-group">
-                      <label>Tipo de cliente</label>
+                      <label>{t('info.clientTypeLabel')}</label>
                       <select value={editInfoData.client_type} onChange={e => setEditInfoData(d => ({ ...d, client_type: e.target.value }))}>
-                        <option value="final">Consumidor final</option>
-                        <option value="b2b">Comerciante Registrado (B2B)</option>
+                        <option value="final">{t('info.clientTypeFinal')}</option>
+                        <option value="b2b">{t('info.clientTypeB2b')}</option>
                       </select>
                     </div>
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label>Notas</label>
+                      <label>{t('info.notesLabel')}</label>
                       <textarea value={editInfoData.notes} onChange={e => setEditInfoData(d => ({ ...d, notes: e.target.value }))} />
                     </div>
                   </div>
                   {editKind === 'individual' && editInfoData.company.trim() && (
                     <div className="form-group" style={{ marginBottom: 12 }}>
-                      <label>Nombre en reportes</label>
+                      <label>{t('info.reportNameLabel')}</label>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button type="button" onClick={() => setEditInfoData(d => ({ ...d, report_name_source: 'client' }))}
                           style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editInfoData.report_name_source === 'client' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editInfoData.report_name_source === 'client' ? 'var(--navy)' : 'transparent', color: editInfoData.report_name_source === 'client' ? '#fff' : 'var(--text)' }}>
-                          {editInfoData.name || 'Nombre del cliente'}
+                          {editInfoData.name || t('info.clientNamePlaceholder')}
                         </button>
                         <button type="button" onClick={() => setEditInfoData(d => ({ ...d, report_name_source: 'company' }))}
                           style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editInfoData.report_name_source === 'company' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editInfoData.report_name_source === 'company' ? 'var(--navy)' : 'transparent', color: editInfoData.report_name_source === 'company' ? '#fff' : 'var(--text)' }}>
@@ -562,18 +579,18 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button type="submit" className="btn btn-primary" disabled={savingInfo}>{savingInfo ? 'Guardando...' : '💾 Guardar'}</button>
-                    <button type="button" className="btn btn-ghost" onClick={() => setEditingInfo(false)}>Cancelar</button>
+                    <button type="submit" className="btn btn-primary" disabled={savingInfo}>{savingInfo ? t('info.saving') : t('info.save')}</button>
+                    <button type="button" className="btn btn-ghost" onClick={() => setEditingInfo(false)}>{t('info.cancel')}</button>
                   </div>
                 </form>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   {[
-                    { label: 'Nombre', value: client.name },
-                    { label: 'Empresa', value: client.company },
-                    { label: 'Email', value: client.email },
-                    { label: 'Tipo', value: client.client_type === 'b2b' ? 'Comerciante Registrado (B2B)' : 'Consumidor final' },
-                    { label: 'Nombre en reportes', value: client.company ? (client.report_name_source === 'company' ? client.company : client.name) : null },
+                    { label: t('info.fieldName'), value: client.name },
+                    { label: t('info.fieldCompany'), value: client.company },
+                    { label: t('info.fieldEmail'), value: client.email },
+                    { label: t('info.fieldType'), value: client.client_type === 'b2b' ? t('info.clientTypeB2b') : t('info.clientTypeFinal') },
+                    { label: t('info.fieldReportName'), value: client.company ? (client.report_name_source === 'company' ? client.company : client.name) : null },
                   ].map(f => f.value ? (
                     <div key={f.label}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{f.label}</div>
@@ -582,7 +599,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                   ) : null)}
                   {(client.phone || client.extra_phones?.length > 0) && (
                     <div style={{ gridColumn: '1 / -1' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Teléfono</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('info.fieldPhone')}</div>
                       <PhonePills phone={client.phone} extraPhones={client.extra_phones} />
                     </div>
                   )}
@@ -591,31 +608,31 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             </div>
             {!editingInfo && client.notes && (
               <div className="card">
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 10 }}>Notas</p>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 10 }}>{t('info.notesTitle')}</p>
                 <p style={{ fontSize: 14, color: 'var(--muted)' }}>{client.notes}</p>
               </div>
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>Resumen</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 14 }}>{t('summary.title')}</p>
               {(() => {
                 const totalFacturado = invoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
                 const totalRetenido = invoiceReconciliation?.totalRetenido ?? 0;
                 const balanceDeCuenta = invoiceReconciliation?.balanceDeCuenta ?? 0;
                 return [
-                  { label: 'Propiedades', value: properties.length },
-                  { label: 'Contactos', value: contacts.length },
-                  { label: 'Trabajos', value: jobs.length },
-                  { label: 'Facturas', value: invoices.length },
-                  { label: 'Total facturado', value: fmt(totalFacturado) },
+                  { label: t('summary.properties'), value: properties.length },
+                  { label: t('summary.contacts'), value: contacts.length },
+                  { label: t('summary.jobs'), value: jobs.length },
+                  { label: t('summary.invoices'), value: invoices.length },
+                  { label: t('summary.totalInvoiced'), value: fmt(totalFacturado) },
                   ...(totalRetenido > 0 ? [
-                    { label: 'Retenido', value: fmt(totalRetenido), color: 'var(--amber)' },
-                    { label: 'Total neto', value: fmt(totalFacturado - totalRetenido), color: 'var(--navy)' },
+                    { label: t('summary.retained'), value: fmt(totalRetenido), color: 'var(--amber)' },
+                    { label: t('summary.netTotal'), value: fmt(totalFacturado - totalRetenido), color: 'var(--navy)' },
                   ] : []),
-                  { label: 'Balance de cuenta', value: fmt(balanceDeCuenta), color: balanceDeCuenta > 0 ? 'var(--warn)' : 'var(--ok)' },
-                  { label: 'Propuestas', value: proposals.length },
-                  { label: 'Notas internas', value: internalNotes.length },
+                  { label: t('summary.accountBalance'), value: fmt(balanceDeCuenta), color: balanceDeCuenta > 0 ? 'var(--warn)' : 'var(--ok)' },
+                  { label: t('summary.proposals'), value: proposals.length },
+                  { label: t('summary.internalNotes'), value: internalNotes.length },
                 ];
               })().map(s => (
                 <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
@@ -626,7 +643,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             </div>
             {canDeleteClient && (
               <button className="btn btn-ghost" style={{ color: 'var(--warn)', borderColor: 'var(--warn)', justifyContent: 'center' }} onClick={handleDeleteClick}>
-                🗑 Eliminar cliente
+                {t('deleteClientButton')}
               </button>
             )}
           </div>
@@ -638,13 +655,13 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: showPropForm ? 20 : 0 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Propiedades ({properties.length})</h2>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{t('properties.title', { count: properties.length })}</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {properties.length > 0 && (
-                  <SearchBox value={propertySearch} onChange={setPropertySearch} placeholder="Buscar propiedad..." />
+                  <SearchBox value={propertySearch} onChange={setPropertySearch} placeholder={t('properties.searchPlaceholder')} />
                 )}
                 <button className="btn btn-primary" onClick={() => setShowPropForm(!showPropForm)}>
-                  {showPropForm ? 'Cancelar' : '+ Agregar propiedad'}
+                  {showPropForm ? t('properties.cancel') : t('properties.add')}
                 </button>
               </div>
             </div>
@@ -652,59 +669,59 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               <form onSubmit={saveProperty}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label>Nombre de la propiedad *</label>
-                    <input value={prop.name} onChange={e => setProp(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Oficina Principal, Almacén Caguas" required />
+                    <label>{t('properties.nameLabel')}</label>
+                    <input value={prop.name} onChange={e => setProp(p => ({ ...p, name: e.target.value }))} placeholder={t('properties.namePlaceholder')} required />
                   </div>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
+                    <label>{t('properties.streetLabel')}</label>
                     <input value={prop.street} onChange={e => {
                       const val = e.target.value;
                       const isShortLink = /(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(val);
                       setProp(p => ({ ...p, street: isShortLink ? val : extractCoordsFromInput(val) }));
-                    }} placeholder="Pega el link o dirección aquí..." />
+                    }} placeholder={t('properties.streetPlaceholder')} />
                   </div>
                   <div className="form-group">
-                    <label>Ciudad</label>
-                    <input value={prop.city} onChange={e => setProp(p => ({ ...p, city: e.target.value }))} placeholder="San Juan" />
+                    <label>{t('properties.cityLabel')}</label>
+                    <input value={prop.city} onChange={e => setProp(p => ({ ...p, city: e.target.value }))} placeholder={t('properties.cityPlaceholder')} />
                   </div>
                   <div className="form-group">
-                    <label>Estado</label>
-                    <input value={prop.state} onChange={e => setProp(p => ({ ...p, state: e.target.value }))} placeholder="PR" />
+                    <label>{t('properties.stateLabel')}</label>
+                    <input value={prop.state} onChange={e => setProp(p => ({ ...p, state: e.target.value }))} placeholder={t('properties.statePlaceholder')} />
                   </div>
                   <div className="form-group">
-                    <label>Zip</label>
-                    <input value={prop.zip} onChange={e => setProp(p => ({ ...p, zip: e.target.value }))} placeholder="00901" />
+                    <label>{t('properties.zipLabel')}</label>
+                    <input value={prop.zip} onChange={e => setProp(p => ({ ...p, zip: e.target.value }))} placeholder={t('properties.zipPlaceholder')} />
                   </div>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label>Nota (opcional)</label>
-                    <input value={prop.note} onChange={e => setProp(p => ({ ...p, note: e.target.value }))} placeholder="Ej: S4311 numero de propiedad" />
+                    <label>{t('properties.noteLabel')}</label>
+                    <input value={prop.note} onChange={e => setProp(p => ({ ...p, note: e.target.value }))} placeholder={t('properties.notePlaceholder')} />
                   </div>
                 </div>
                 <button type="submit" className="btn btn-primary" disabled={savingProp}>
-                  {savingProp ? 'Guardando...' : '💾 Guardar propiedad'}
+                  {savingProp ? t('properties.saving') : t('properties.save')}
                 </button>
               </form>
             )}
           </div>
 
           {properties.length === 0 ? (
-            <div className="card empty"><p>No hay propiedades. Agrega la primera arriba.</p></div>
+            <div className="card empty"><p>{t('properties.emptyNone')}</p></div>
           ) : visibleProperties.length === 0 ? (
-            <div className="card empty"><p>Sin resultados para "{propertySearch}".</p></div>
+            <div className="card empty"><p>{t('properties.noResults', { search: propertySearch })}</p></div>
           ) : visibleProperties.map(p => (
             <div key={p.id} className="card" style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{p.name}</div>
-                    {p.is_primary && <span className="badge badge-green">Principal</span>}
+                    {p.is_primary && <span className="badge badge-green">{t('properties.primaryBadge')}</span>}
                   </div>
                   {p.street && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{p.street}{p.city ? `, ${p.city}` : ''}{p.state ? `, ${p.state}` : ''}</div>}
                   {p.note && <div style={{ fontSize: 13, color: 'var(--amber)', marginTop: 2 }}>📝 {p.note}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   {!p.is_primary && (
-                    <button onClick={() => setPrimary(p.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}>Principal</button>
+                    <button onClick={() => setPrimary(p.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}>{t('properties.setPrimary')}</button>
                   )}
                   <button
                     onClick={() => {
@@ -714,10 +731,10 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     }}
                     className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }}
                   >
-                    ✏️ Editar
+                    {t('properties.edit')}
                   </button>
                   <button onClick={() => setExpandedProp(expandedProp === p.id ? null : p.id)} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>
-                    {expandedProp === p.id ? 'Cerrar ↑' : 'Ver →'}
+                    {expandedProp === p.id ? t('properties.viewClose') : t('properties.viewOpen')}
                   </button>
                   <button onClick={() => deleteProperty(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
                 </div>
@@ -729,59 +746,59 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     <div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                          <label>Nombre</label>
+                          <label>{t('properties.fieldNameLabel')}</label>
                           <input value={editPropData.name ?? ''} onChange={e => setEditPropData(d => ({ ...d, name: e.target.value }))} />
                         </div>
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                          <label>Calle (puedes pegar un link de Google Maps, Apple Maps o Waze aquí)</label>
+                          <label>{t('properties.streetLabel')}</label>
                           <input value={editPropData.street ?? ''} onChange={e => {
                             const val = e.target.value;
                             const isShortLink = /(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(val);
                             setEditPropData(d => ({ ...d, street: isShortLink ? val : extractCoordsFromInput(val) }));
-                          }} placeholder="Pega el link o dirección aquí..." />
+                          }} placeholder={t('properties.streetPlaceholder')} />
                         </div>
                         <div className="form-group">
-                          <label>Ciudad</label>
-                          <input value={editPropData.city ?? ''} onChange={e => setEditPropData(d => ({ ...d, city: e.target.value }))} placeholder="San Juan" />
+                          <label>{t('properties.cityLabel')}</label>
+                          <input value={editPropData.city ?? ''} onChange={e => setEditPropData(d => ({ ...d, city: e.target.value }))} placeholder={t('properties.cityPlaceholder')} />
                         </div>
                         <div className="form-group">
-                          <label>Estado</label>
-                          <input value={editPropData.state ?? ''} onChange={e => setEditPropData(d => ({ ...d, state: e.target.value }))} placeholder="PR" />
+                          <label>{t('properties.stateLabel')}</label>
+                          <input value={editPropData.state ?? ''} onChange={e => setEditPropData(d => ({ ...d, state: e.target.value }))} placeholder={t('properties.statePlaceholder')} />
                         </div>
                         <div className="form-group">
-                          <label>Zip</label>
-                          <input value={editPropData.zip ?? ''} onChange={e => setEditPropData(d => ({ ...d, zip: e.target.value }))} placeholder="00901" />
+                          <label>{t('properties.zipLabel')}</label>
+                          <input value={editPropData.zip ?? ''} onChange={e => setEditPropData(d => ({ ...d, zip: e.target.value }))} placeholder={t('properties.zipPlaceholder')} />
                         </div>
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                          <label>Nota (opcional)</label>
-                          <input value={editPropData.note ?? ''} onChange={e => setEditPropData(d => ({ ...d, note: e.target.value }))} placeholder="Ej: S4311 numero de propiedad" />
+                          <label>{t('properties.noteLabel')}</label>
+                          <input value={editPropData.note ?? ''} onChange={e => setEditPropData(d => ({ ...d, note: e.target.value }))} placeholder={t('properties.notePlaceholder')} />
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 10 }}>
                         <button className="btn btn-primary" onClick={() => saveEditProperty(p.id)} disabled={savingEditProp}>
-                          {savingEditProp ? 'Guardando...' : '💾 Guardar'}
+                          {savingEditProp ? t('properties.saving') : t('properties.saveEdit')}
                         </button>
-                        <button className="btn btn-ghost" onClick={() => setEditingProp(null)}>Cancelar</button>
+                        <button className="btn btn-ghost" onClick={() => setEditingProp(null)}>{t('properties.cancel')}</button>
                       </div>
                     </div>
                   ) : (
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                         <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => { setEditingProp(p.id); setEditPropData({ name: p.name, street: p.street ?? '', city: p.city ?? '', state: p.state ?? 'PR', zip: p.zip ?? '' }); }}>
-                          ✏️ Editar
+                          {t('properties.edit')}
                         </button>
                       </div>
                       {/* Nota */}
                       {p.note && (
                         <div style={{ marginBottom: 16 }}>
-                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Nota</p>
+                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{t('properties.noteTitle')}</p>
                           <div style={{ fontSize: 14 }}>{p.note}</div>
                         </div>
                       )}
                       {/* Dirección y mapas */}
                       {(p.street || p.city) && (
                         <div style={{ marginBottom: 16 }}>
-                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Dirección</p>
+                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{t('properties.addressTitle')}</p>
                           {p.street && <div style={{ fontSize: 14 }}>{p.street}</div>}
                           {p.city && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{p.city}{p.state ? `, ${p.state}` : ''}{p.zip ? ` ${p.zip}` : ''}</div>}
                           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
@@ -791,7 +808,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                                 return (
                                   <a href={links.direct} target="_blank" rel="noopener noreferrer"
                                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                                    🗺️ Abrir ubicación
+                                    {t('properties.openLocation')}
                                   </a>
                                 );
                               }
@@ -799,15 +816,15 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                                 <>
                                   <a href={links.google} target="_blank" rel="noopener noreferrer"
                                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                                    🗺️ Google Maps
+                                    {t('properties.googleMaps')}
                                   </a>
                                   <a href={links.apple} target="_blank" rel="noopener noreferrer"
                                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                                    🍎 Apple Maps
+                                    {t('properties.appleMaps')}
                                   </a>
                                   <a href={links.waze} target="_blank" rel="noopener noreferrer"
                                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                                    🚗 Waze
+                                    {t('properties.waze')}
                                   </a>
                                 </>
                               );
@@ -818,10 +835,10 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       {/* Contactos asociados */}
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', margin: 0 }}>Contactos asociados</p>
+                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', margin: 0 }}>{t('properties.associatedContactsTitle')}</p>
                           <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 8px' }}
                             onClick={() => { setAddingContactToProp(addingContactToProp === p.id ? null : p.id); setPickedExistingContactId(''); }}>
-                            {addingContactToProp === p.id ? 'Cancelar' : '+ Agregar contacto existente'}
+                            {addingContactToProp === p.id ? t('properties.cancel') : t('properties.addExistingContact')}
                           </button>
                         </div>
                         {addingContactToProp === p.id && (() => {
@@ -830,17 +847,17 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           return (
                             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                               <select value={pickedExistingContactId} onChange={e => setPickedExistingContactId(e.target.value)} style={{ flex: 1 }}>
-                                <option value="">— Elige un contacto —</option>
+                                <option value="">{t('properties.chooseContactPlaceholder')}</option>
                                 {availableContacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                               </select>
                               <button className="btn btn-primary" disabled={!pickedExistingContactId || linkingContact} onClick={() => linkExistingContact(p.id)}>
-                                {linkingContact ? 'Agregando...' : 'Agregar'}
+                                {linkingContact ? t('properties.adding') : t('properties.addButton')}
                               </button>
                             </div>
                           );
                         })()}
                         {contactsForProperty(p.id).length === 0
-                          ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin contactos asociados.</p>
+                          ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>{t('properties.noAssociatedContacts')}</p>
                           : contactsForProperty(p.id).map(c => {
                             const link = propertyContacts.find(pc => pc.property_id === p.id && pc.contact_id === c.id);
                             return (
@@ -851,7 +868,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                                 <PhonePills phone={c.phone} extraPhones={c.extra_phones} />
                                 {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'var(--navy)', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
                                 {link && (
-                                  <button onClick={() => unlinkContact(link.id)} title="Quitar de esta propiedad"
+                                  <button onClick={() => unlinkContact(link.id)} title={t('properties.unlinkTitle')}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
                                 )}
                               </div>
@@ -873,13 +890,13 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: showContactForm ? 20 : 0 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Contactos ({contacts.length})</h2>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{t('contacts.title', { count: contacts.length })}</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {contacts.length > 0 && (
-                  <SearchBox value={contactSearch} onChange={setContactSearch} placeholder="Buscar contacto..." />
+                  <SearchBox value={contactSearch} onChange={setContactSearch} placeholder={t('contacts.searchPlaceholder')} />
                 )}
                 <button className="btn btn-primary" onClick={() => setShowContactForm(!showContactForm)}>
-                  {showContactForm ? 'Cancelar' : '+ Agregar contacto'}
+                  {showContactForm ? t('contacts.cancel') : t('contacts.add')}
                 </button>
               </div>
             </div>
@@ -887,46 +904,46 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               <form onSubmit={saveContact}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label>Nombre *</label>
-                    <input value={contact.name} onChange={e => setContact(c => ({ ...c, name: e.target.value }))} placeholder="Nombre completo" required />
+                    <label>{t('contacts.nameLabel')}</label>
+                    <input value={contact.name} onChange={e => setContact(c => ({ ...c, name: e.target.value }))} placeholder={t('contacts.namePlaceholder')} required />
                   </div>
                   <div className="form-group">
-                    <label>Teléfono</label>
-                    <input value={contact.phone} onChange={e => setContact(c => ({ ...c, phone: e.target.value }))} placeholder="787-000-0000" />
+                    <label>{t('contacts.phoneLabel')}</label>
+                    <input value={contact.phone} onChange={e => setContact(c => ({ ...c, phone: e.target.value }))} placeholder={t('contacts.phonePlaceholder')} />
                   </div>
                   <div className="form-group">
-                    <label>Email</label>
-                    <input type="email" value={contact.email} onChange={e => setContact(c => ({ ...c, email: e.target.value }))} placeholder="contacto@email.com" />
+                    <label>{t('contacts.emailLabel')}</label>
+                    <input type="email" value={contact.email} onChange={e => setContact(c => ({ ...c, email: e.target.value }))} placeholder={t('contacts.emailPlaceholder')} />
                   </div>
                   <PhoneListEditor phones={contact.extra_phones} onChange={list => setContact(c => ({ ...c, extra_phones: list }))} />
                   {properties.length > 0 && (
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label>Propiedad asociada</label>
+                      <label>{t('contacts.propertyLabel')}</label>
                       <select value={contact.property_id} onChange={e => setContact(c => ({ ...c, property_id: e.target.value }))}>
-                        <option value="">— Sin propiedad —</option>
+                        <option value="">{t('contacts.noPropertyOption')}</option>
                         {sortedProperties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
                   )}
                 </div>
                 <button type="submit" className="btn btn-primary" disabled={savingContact}>
-                  {savingContact ? 'Guardando...' : '💾 Guardar contacto'}
+                  {savingContact ? t('contacts.saving') : t('contacts.save')}
                 </button>
               </form>
             )}
           </div>
 
           {contacts.length === 0 ? (
-            <div className="card empty"><p>No hay contactos. Agrega el primero arriba.</p></div>
+            <div className="card empty"><p>{t('contacts.emptyNone')}</p></div>
           ) : visibleContacts.length === 0 ? (
-            <div className="card empty"><p>Sin resultados para "{contactSearch}".</p></div>
+            <div className="card empty"><p>{t('contacts.noResults', { search: contactSearch })}</p></div>
           ) : visibleContacts.map(c => (
             <div key={c.id} className="card" style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{c.name}</div>
-                    {c.is_primary && <span className="badge badge-green">Principal</span>}
+                    {c.is_primary && <span className="badge badge-green">{t('contacts.primaryBadge')}</span>}
                   </div>
                   {(c.phone || c.extra_phones?.length > 0) && (
                     <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
@@ -936,7 +953,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button onClick={() => setExpandedContact(expandedContact === c.id ? null : c.id)} style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>
-                    {expandedContact === c.id ? 'Cerrar ↑' : 'Ver →'}
+                    {expandedContact === c.id ? t('contacts.viewClose') : t('contacts.viewOpen')}
                   </button>
                   <button onClick={() => deleteContact(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
                 </div>
@@ -948,23 +965,23 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     <div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                          <label>Nombre</label>
+                          <label>{t('contacts.fieldNameLabel')}</label>
                           <input value={editContactData.name ?? ''} onChange={e => setEditContactData(d => ({ ...d, name: e.target.value }))} />
                         </div>
                         <div className="form-group">
-                          <label>Teléfono</label>
-                          <input value={editContactData.phone ?? ''} onChange={e => setEditContactData(d => ({ ...d, phone: e.target.value }))} placeholder="787-000-0000" />
+                          <label>{t('contacts.phoneLabel')}</label>
+                          <input value={editContactData.phone ?? ''} onChange={e => setEditContactData(d => ({ ...d, phone: e.target.value }))} placeholder={t('contacts.phonePlaceholder')} />
                         </div>
                         <div className="form-group">
-                          <label>Email</label>
-                          <input type="email" value={editContactData.email ?? ''} onChange={e => setEditContactData(d => ({ ...d, email: e.target.value }))} placeholder="contacto@email.com" />
+                          <label>{t('contacts.emailLabel')}</label>
+                          <input type="email" value={editContactData.email ?? ''} onChange={e => setEditContactData(d => ({ ...d, email: e.target.value }))} placeholder={t('contacts.emailPlaceholder')} />
                         </div>
                         <PhoneListEditor phones={editContactData.extra_phones} onChange={list => setEditContactData(d => ({ ...d, extra_phones: list }))} />
                         {properties.length > 0 && (
                           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                            <label>Propiedad asociada</label>
+                            <label>{t('contacts.propertyLabel')}</label>
                             <select value={editContactData.property_id ?? ''} onChange={e => setEditContactData(d => ({ ...d, property_id: e.target.value || null }))}>
-                              <option value="">— Sin propiedad —</option>
+                              <option value="">{t('contacts.noPropertyOption')}</option>
                               {sortedProperties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                           </div>
@@ -972,28 +989,28 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       </div>
                       <div style={{ display: 'flex', gap: 10 }}>
                         <button className="btn btn-primary" onClick={() => saveEditContact(c.id)} disabled={savingEditContact}>
-                          {savingEditContact ? 'Guardando...' : '💾 Guardar'}
+                          {savingEditContact ? t('contacts.saving') : t('contacts.saveEdit')}
                         </button>
-                        <button className="btn btn-ghost" onClick={() => setEditingContact(null)}>Cancelar</button>
+                        <button className="btn btn-ghost" onClick={() => setEditingContact(null)}>{t('contacts.cancel')}</button>
                       </div>
                     </div>
                   ) : (
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                         <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => { setEditingContact(c.id); setEditContactData({ name: c.name, phone: c.phone ?? '', extra_phones: c.extra_phones ?? [], email: c.email ?? '', property_id: c.property_id ?? '' }); }}>
-                          ✏️ Editar
+                          {t('contacts.edit')}
                         </button>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                         {(c.phone || c.extra_phones?.length > 0) && (
                           <div>
-                            <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Teléfono</p>
+                            <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('contacts.phoneTitle')}</p>
                             <PhonePills phone={c.phone} extraPhones={c.extra_phones} />
                           </div>
                         )}
                         {c.email && (
                           <div>
-                            <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Email</p>
+                            <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('contacts.emailTitle')}</p>
                             <a href={`mailto:${c.email}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
                               ✉️ {c.email}
                             </a>
@@ -1002,7 +1019,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       </div>
                       {c.property_id && (
                         <div>
-                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Propiedad asociada</p>
+                          <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('contacts.associatedPropertyTitle')}</p>
                           <div style={{ fontSize: 14, color: 'var(--amber)', fontWeight: 600 }}>📍 {properties.find(p => p.id === c.property_id)?.name ?? '—'}</div>
                         </div>
                       )}
@@ -1030,7 +1047,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             return {
               key: `job-${j.id}`,
               icon: '🚚',
-              label: `Visita para ${j.title}`,
+              label: t('schedule.visitFor', { title: j.title }),
               date: j.scheduled_start,
               techs: names.size ? [...names].join(', ') : '—',
               href: `/trabajos/${j.id}`,
@@ -1045,7 +1062,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             return {
               key: `day-${d.id}`,
               icon: '🚚',
-              label: job ? `Visita para ${job.title}` : 'Visita',
+              label: job ? t('schedule.visitFor', { title: job.title }) : t('schedule.visit'),
               date: d.scheduled_start,
               techs: names.size ? [...names].join(', ') : '—',
               href: job ? `/trabajos/${job.id}` : undefined,
@@ -1054,7 +1071,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
             };
           }),
           ...calendarEvents.map(e => {
-            const names = techNames([e.technicians, ...(e.calendar_event_technicians ?? []).map(t => t.technicians)]);
+            const names = techNames([e.technicians, ...(e.calendar_event_technicians ?? []).map(cet => cet.technicians)]);
             return {
               key: `event-${e.id}`,
               icon: '🗓️',
@@ -1066,12 +1083,12 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               mapHref: e.address ? pickMapsLink(e.address) : null,
             };
           }),
-          ...tasks.map(t => ({
-            key: `task-${t.id}`,
-            icon: t.completed ? '✅' : '🔔',
-            label: t.title,
-            date: t.due_at,
-            techs: t.technicians?.name ?? '—',
+          ...tasks.map(task => ({
+            key: `task-${task.id}`,
+            icon: task.completed ? '✅' : '🔔',
+            label: task.title,
+            date: task.due_at,
+            techs: task.technicians?.name ?? '—',
             href: undefined,
             loc: '',
             mapHref: null,
@@ -1080,14 +1097,14 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
 
         return (
           <div className="card">
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Agenda del cliente</h2>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>{t('schedule.title')}</h2>
             {items.length === 0 ? (
-              <div className="empty"><p>No hay visitas, eventos o recordatorios para este cliente.</p></div>
+              <div className="empty"><p>{t('schedule.empty')}</p></div>
             ) : (
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Título</th><th>Ubicación</th><th>Fecha</th><th>Asignado</th></tr>
+                    <tr><th>{t('schedule.columnTitle')}</th><th>{t('schedule.columnLocation')}</th><th>{t('schedule.columnDate')}</th><th>{t('schedule.columnAssigned')}</th></tr>
                   </thead>
                   <tbody>
                     {items.map(it => (
@@ -1108,7 +1125,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           ) : <span style={{ color: 'var(--muted)' }}>—</span>}
                         </td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                          {it.date ? formatDateTimePR(it.date, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          {it.date ? formatDateTimePR(it.date, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale) : '—'}
                         </td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{it.techs}</td>
                       </tr>
@@ -1125,23 +1142,23 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       {tab === 'jobs' && (
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Trabajos</h2>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{t('jobs.title')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {jobs.length > 0 && (
-                <SearchBox value={jobSearch} onChange={setJobSearch} placeholder="Buscar # trabajo, título o estado..." />
+                <SearchBox value={jobSearch} onChange={setJobSearch} placeholder={t('jobs.searchPlaceholder')} />
               )}
-              <Link href={`/trabajos/nuevo?client=${client.id}`} className="btn btn-primary">+ Nuevo trabajo</Link>
+              <Link href={`/trabajos/nuevo?client=${client.id}`} className="btn btn-primary">{t('jobs.newJob')}</Link>
             </div>
           </div>
           {jobs.length === 0 ? (
-            <div className="empty"><p>No hay trabajos para este cliente.</p></div>
+            <div className="empty"><p>{t('jobs.empty')}</p></div>
           ) : visibleJobs.length === 0 ? (
-            <div className="empty"><p>Sin resultados para "{jobSearch}".</p></div>
+            <div className="empty"><p>{t('jobs.noResults', { search: jobSearch })}</p></div>
           ) : (
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Título</th><th>Propiedad</th><th>Estado</th><th>Fecha</th></tr>
+                  <tr><th>{t('jobs.columnTitle')}</th><th>{t('jobs.columnProperty')}</th><th>{t('jobs.columnStatus')}</th><th>{t('jobs.columnDate')}</th></tr>
                 </thead>
                 <tbody>
                   {visibleJobs.map(j => {
@@ -1168,7 +1185,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           ) : <span style={{ color: 'var(--muted)' }}>—</span>}
                         </td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{j.scheduled_start ? formatDatePR(j.scheduled_start, {}, dateLocale) : '—'}</td>
                       </tr>
                     );
                   })}
@@ -1183,24 +1200,24 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       {tab === 'invoices' && (
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Facturas</h2>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{t('invoices.title')}</h2>
             {invoices.length > 0 && (
-              <SearchBox value={invoiceSearch} onChange={setInvoiceSearch} placeholder="Buscar # factura, trabajo o estado..." />
+              <SearchBox value={invoiceSearch} onChange={setInvoiceSearch} placeholder={t('invoices.searchPlaceholder')} />
             )}
           </div>
           {invoiceReconciliation?.hasVarianza && (
             <div style={{ borderLeft: '4px solid var(--warn)', background: 'var(--danger-tint)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)', marginBottom: 6 }}>⚠️ El cobrado no cuadra con el neto esperado</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)', marginBottom: 6 }}>{t('invoices.varianceTitle')}</p>
               <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-                Neto esperado (total − retención de cada factura, tope por lo cobrado): <strong>{fmt(invoiceReconciliation.netoEsperado)}</strong>
-                {' · '}Cobrado: <strong>{fmt(invoiceReconciliation.cobrado)}</strong>
-                {' · '}Diferencia: <strong style={{ color: 'var(--warn)' }}>{fmt(Math.abs(invoiceReconciliation.varianza))}</strong>
+                {t('invoices.varianceNetoEsperadoLabel')} <strong>{fmt(invoiceReconciliation.netoEsperado)}</strong>
+                {' · '}{t('invoices.varianceCobradoLabel')} <strong>{fmt(invoiceReconciliation.cobrado)}</strong>
+                {' · '}{t('invoices.varianceDiferenciaLabel')} <strong style={{ color: 'var(--warn)' }}>{fmt(Math.abs(invoiceReconciliation.varianza))}</strong>
               </p>
-              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>Pide el comprobante 480.6B al cliente para confirmar la retención real antes de dar el pago por bueno.</p>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{t('invoices.varianceHint')}</p>
             </div>
           )}
           {invoices.length === 0 ? (
-            <div className="empty"><p>No hay facturas para este cliente.</p></div>
+            <div className="empty"><p>{t('invoices.empty')}</p></div>
           ) : (() => {
             const jobsById = Object.fromEntries(jobs.map(j => [j.id, j]));
             const propertiesById = Object.fromEntries(properties.map(p => [p.id, p]));
@@ -1214,12 +1231,12 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               : invoices;
             const invoicesTotal = visibleInvoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
             return visibleInvoices.length === 0 ? (
-              <div className="empty"><p>Sin resultados para "{invoiceSearch}".</p></div>
+              <div className="empty"><p>{t('invoices.noResults', { search: invoiceSearch })}</p></div>
             ) : (
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Número</th><th>Trabajo</th><th>Propiedad</th><th>Estado</th><th>Total</th><th>Fecha</th></tr>
+                    <tr><th>{t('invoices.columnNumber')}</th><th>{t('invoices.columnJob')}</th><th>{t('invoices.columnProperty')}</th><th>{t('invoices.columnStatus')}</th><th>{t('invoices.columnTotal')}</th><th>{t('invoices.columnDate')}</th></tr>
                   </thead>
                   <tbody>
                     {visibleInvoices.map(inv => {
@@ -1253,14 +1270,14 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           </td>
                           <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                           <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
-                          <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(inv.created_at)}</td>
+                          <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(inv.created_at, {}, dateLocale)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                   <tfoot>
                     <tr style={{ borderTop: '2px solid var(--border)' }}>
-                      <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTAL {query ? '(visibles)' : ''}</td>
+                      <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>{t('invoices.totalRow')} {query ? t('invoices.totalRowVisible') : ''}</td>
                       <td></td>
                       <td></td>
                       <td></td>
@@ -1295,7 +1312,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           ...invoices.map(i => ({
             key: `inv-${i.id}`,
             date: i.created_at,
-            item: `Factura ${i.invoice_number ?? '—'}`,
+            item: t('billing.invoiceItem', { number: i.invoice_number ?? '—' }),
             appliedTo: '—',
             amount: Number(i.total ?? 0),
             href: `/facturas/${i.id}`,
@@ -1303,15 +1320,15 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           ...Object.values(paymentGroups).map((g, idx) => ({
             key: `pay-${idx}-${g.date}`,
             date: g.date,
-            item: 'Pago',
-            appliedTo: g.invoiceNumbers.length ? `Factura ${g.invoiceNumbers.join(', ')}` : '—',
+            item: t('billing.paymentItem'),
+            appliedTo: g.invoiceNumbers.length ? t('billing.appliedToInvoice', { numbers: g.invoiceNumbers.join(', ') }) : '—',
             amount: -g.amount,
           })),
           ...retenciones.filter(r => Number(r.retencion_aplicada ?? 0) !== 0).map(r => ({
             key: `ret-${r.id}`,
             date: r.fecha,
-            item: 'Retención aplicada',
-            appliedTo: invoiceById[r.invoice_id]?.invoice_number ? `Factura ${invoiceById[r.invoice_id].invoice_number}` : '—',
+            item: t('billing.retentionItem'),
+            appliedTo: invoiceById[r.invoice_id]?.invoice_number ? t('billing.appliedToInvoice', { numbers: invoiceById[r.invoice_id].invoice_number }) : '—',
             amount: -Number(r.retencion_aplicada ?? 0),
           })),
         ].sort((a, b) => new Date(b.date ?? 0) - new Date(a.date ?? 0));
@@ -1328,20 +1345,20 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
         return (
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Facturación</h2>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{t('billing.title')}</h2>
               {ledger.length > 0 && (
-                <SearchBox value={billingSearch} onChange={setBillingSearch} placeholder="Buscar # factura o movimiento..." />
+                <SearchBox value={billingSearch} onChange={setBillingSearch} placeholder={t('billing.searchPlaceholder')} />
               )}
             </div>
             {ledger.length === 0 ? (
-              <div className="empty"><p>No hay movimientos de facturación para este cliente.</p></div>
+              <div className="empty"><p>{t('billing.empty')}</p></div>
             ) : visibleLedger.length === 0 ? (
-              <div className="empty"><p>Sin resultados para "{billingSearch}".</p></div>
+              <div className="empty"><p>{t('billing.noResults', { search: billingSearch })}</p></div>
             ) : (
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Item</th><th>Aplicado a</th><th>Fecha</th><th style={{ textAlign: 'right' }}>Monto</th></tr>
+                    <tr><th>{t('billing.columnItem')}</th><th>{t('billing.columnAppliedTo')}</th><th>{t('billing.columnDate')}</th><th style={{ textAlign: 'right' }}>{t('billing.columnAmount')}</th></tr>
                   </thead>
                   <tbody>
                     {visibleLedger.map(row => (
@@ -1350,7 +1367,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           {row.href ? <Link href={row.href} style={{ color: 'inherit', textDecoration: 'none' }}>{row.item}</Link> : row.item}
                         </td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{row.appliedTo}</td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{row.date ? formatDatePR(row.date) : '—'}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{row.date ? formatDatePR(row.date, {}, dateLocale) : '—'}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700, color: row.amount < 0 ? 'var(--ok)' : 'inherit' }}>
                           {row.amount < 0 ? `-${fmt(Math.abs(row.amount))}` : fmt(row.amount)}
                         </td>
@@ -1359,7 +1376,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                   </tbody>
                   <tfoot>
                     <tr style={{ borderTop: '2px solid var(--border)' }}>
-                      <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>Balance actual</td>
+                      <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>{t('billing.currentBalance')}</td>
                       <td></td>
                       <td></td>
                       <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: balanceDeCuenta > 0 ? 'var(--warn)' : 'var(--ok)', paddingTop: 12 }}>{fmt(balanceDeCuenta)}</td>
@@ -1385,23 +1402,23 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
         return (
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Propuestas</h2>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{t('proposals.title')}</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {proposals.length > 0 && (
-                  <SearchBox value={proposalSearch} onChange={setProposalSearch} placeholder="Buscar # propuesta, título o estado..." />
+                  <SearchBox value={proposalSearch} onChange={setProposalSearch} placeholder={t('proposals.searchPlaceholder')} />
                 )}
-                <Link href={`/propuestas/nuevo?client=${client.id}`} className="btn btn-primary">+ Nueva propuesta</Link>
+                <Link href={`/propuestas/nuevo?client=${client.id}`} className="btn btn-primary">{t('proposals.newProposal')}</Link>
               </div>
             </div>
             {proposals.length === 0 ? (
-              <div className="empty"><p>No hay propuestas para este cliente.</p></div>
+              <div className="empty"><p>{t('proposals.empty')}</p></div>
             ) : visibleProposals.length === 0 ? (
-              <div className="empty"><p>Sin resultados para "{proposalSearch}".</p></div>
+              <div className="empty"><p>{t('proposals.noResults', { search: proposalSearch })}</p></div>
             ) : (
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>#</th><th>Título</th><th>Estado</th><th>Total</th><th>Fecha</th></tr>
+                    <tr><th>{t('proposals.columnNumber')}</th><th>{t('proposals.columnTitle')}</th><th>{t('proposals.columnStatus')}</th><th>{t('proposals.columnTotal')}</th><th>{t('proposals.columnDate')}</th></tr>
                   </thead>
                   <tbody>
                     {visibleProposals.map(p => {
@@ -1414,7 +1431,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           <td style={{ fontWeight: 600 }}>{p.title}</td>
                           <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                           <td style={{ fontWeight: 700 }}>{fmt(total)}</td>
-                          <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(p.created_at)}</td>
+                          <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(p.created_at, {}, dateLocale)}</td>
                         </tr>
                       );
                     })}
@@ -1430,29 +1447,29 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       {tab === 'tickets' && (
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Boletos de servicio</h2>
-            <Link href={`/boletos/nuevo?client=${client.id}`} className="btn btn-primary">+ Abrir boleto</Link>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{t('tickets.title')}</h2>
+            <Link href={`/boletos/nuevo?client=${client.id}`} className="btn btn-primary">{t('tickets.newTicket')}</Link>
           </div>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 16 }}>
-            Si el cliente escribe un correo describiendo un problema a <strong>support@tickets.otesspr.com</strong>, se crea un boleto automáticamente y el equipo recibe una notificación.
+            {t('tickets.emailInfoPre')} <strong>support@tickets.otesspr.com</strong>{t('tickets.emailInfoPost')}
           </p>
           {serviceTickets.length === 0 ? (
-            <div className="empty"><p>No hay boletos para este cliente.</p></div>
+            <div className="empty"><p>{t('tickets.empty')}</p></div>
           ) : (
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Problema</th><th>Origen</th><th>Estado</th><th>Fecha</th></tr>
+                  <tr><th>{t('tickets.columnProblem')}</th><th>{t('tickets.columnSource')}</th><th>{t('tickets.columnStatus')}</th><th>{t('tickets.columnDate')}</th></tr>
                 </thead>
                 <tbody>
-                  {serviceTickets.map(t => {
-                    const b = statusTicket[t.status] ?? statusTicket.abierto;
+                  {serviceTickets.map(ticket => {
+                    const b = statusTicket[ticket.status] ?? statusTicket.abierto;
                     return (
-                      <tr key={t.id}>
-                        <td style={{ fontWeight: 600 }}><Link href={`/boletos/${t.id}`} style={{ color: 'inherit' }}>{t.subject}</Link></td>
-                        <td style={{ fontSize: 12, color: 'var(--muted)' }}>{t.source === 'email' ? '📧 Email' : '👤 Manual'}</td>
+                      <tr key={ticket.id}>
+                        <td style={{ fontWeight: 600 }}><Link href={`/boletos/${ticket.id}`} style={{ color: 'inherit' }}>{ticket.subject}</Link></td>
+                        <td style={{ fontSize: 12, color: 'var(--muted)' }}>{ticket.source === 'email' ? t('tickets.sourceEmail') : t('tickets.sourceManual')}</td>
                         <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(t.created_at)}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(ticket.created_at, {}, dateLocale)}</td>
                       </tr>
                     );
                   })}
@@ -1467,12 +1484,12 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       {tab === 'internalNotes' && (
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
-            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 12 }}>Nueva nota interna</p>
+            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 12 }}>{t('internalNotes.newNoteTitle')}</p>
             <form onSubmit={addInternalNote}>
               <textarea
                 value={newInternalNote}
                 onChange={e => setNewInternalNote(e.target.value)}
-                placeholder="Escribe una nota interna sobre este cliente..."
+                placeholder={t('internalNotes.notePlaceholder')}
                 rows={3}
                 style={{ width: '100%', padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 10 }}
               />
@@ -1480,7 +1497,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
                   {pendingNotePhotoPreviews.map((preview, idx) => (
                     <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
-                      <img src={preview} alt="preview" style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8 }} />
+                      <img src={preview} alt={t('internalNotes.previewAlt')} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8 }} />
                       {uploadingNotePhoto ? (
                         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', borderRadius: '0 0 8px 8px', padding: '3px 5px' }}>
                           <div style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 20, height: 4, overflow: 'hidden' }}>
@@ -1500,25 +1517,27 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
               )}
               <input ref={noteFileRef} type="file" accept="image/*,application/pdf" multiple onChange={handleNotePhotoSelect} style={{ display: 'none' }} />
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" className="btn btn-ghost" onClick={() => noteFileRef.current?.click()}>📷 Foto{pendingNotePhotos.length > 0 ? ` (${pendingNotePhotos.length})` : ''}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => noteFileRef.current?.click()}>
+                  {pendingNotePhotos.length > 0 ? t('internalNotes.photoButtonCount', { count: pendingNotePhotos.length }) : t('internalNotes.photoButton')}
+                </button>
                 <button type="submit" className="btn btn-primary" disabled={savingInternalNote || uploadingNotePhoto || (!newInternalNote.trim() && pendingNotePhotos.length === 0)}>
-                  {uploadingNotePhoto ? 'Subiendo...' : savingInternalNote ? 'Guardando...' : '💾 Guardar nota'}
+                  {uploadingNotePhoto ? t('internalNotes.uploading') : savingInternalNote ? t('internalNotes.saving') : t('internalNotes.save')}
                 </button>
               </div>
             </form>
           </div>
 
           {sortedInternalNotes.length === 0 ? (
-            <div className="card empty"><p>No hay notas internas para este cliente.</p></div>
+            <div className="card empty"><p>{t('internalNotes.empty')}</p></div>
           ) : sortedInternalNotes.map(n => (
             <div key={n.id} className="card" style={{ marginBottom: 12, ...(n.is_pinned ? { border: '1.5px solid var(--amber)', background: 'var(--amber-tint)' } : {}) }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }} suppressHydrationWarning>
-                  {n.is_pinned && <span title="Pineada">📌</span>}
-                  {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {n.is_pinned && <span title={t('internalNotes.pinnedTitle')}>📌</span>}
+                  {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale)}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => toggleInternalNotePin(n.id, n.is_pinned)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: n.is_pinned ? 'var(--amber)' : 'var(--muted)', fontSize: 15 }} title={n.is_pinned ? 'Despinear' : 'Pinear'}>
+                  <button onClick={() => toggleInternalNotePin(n.id, n.is_pinned)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: n.is_pinned ? 'var(--amber)' : 'var(--muted)', fontSize: 15 }} title={n.is_pinned ? t('internalNotes.unpin') : t('internalNotes.pin')}>
                     📌
                   </button>
                   {editingInternalNoteId !== n.id && (
@@ -1535,13 +1554,13 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     if (isPdf) return (
                       <a key={idx} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 130, background: 'var(--surface-2)', borderRadius: 8, textDecoration: 'none', border: '1.5px solid var(--border)' }}>
                         <span style={{ fontSize: 32 }}>📄</span>
-                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Ver PDF</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>{t('internalNotes.viewPdf')}</span>
                       </a>
                     );
                     return isVideo ? (
                       <video key={idx} src={url} controls style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                     ) : (
-                      <img key={idx} src={url} alt="foto nota" onClick={() => setNoteLightbox({ urls: n.photo_urls, index: idx })}
+                      <img key={idx} src={url} alt={t('internalNotes.notePhotoAlt')} onClick={() => setNoteLightbox({ urls: n.photo_urls, index: idx })}
                         style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                     );
                   })}
@@ -1552,13 +1571,13 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                 if (isPdf) return (
                   <a href={n.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', background: 'var(--surface-2)', borderRadius: 10, textDecoration: 'none', border: '1.5px solid var(--border)', marginBottom: n.note ? 10 : 0 }}>
                     <span style={{ fontSize: 28 }}>📄</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)' }}>Ver documento PDF</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)' }}>{t('internalNotes.viewPdfDocument')}</span>
                   </a>
                 );
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 10, marginBottom: n.note ? 10 : 0, background: '#000' }} />
                 ) : (
-                  <img src={n.photo_url} alt="foto nota" onClick={() => setNoteLightbox({ urls: [n.photo_url], index: 0 })}
+                  <img src={n.photo_url} alt={t('internalNotes.notePhotoAlt')} onClick={() => setNoteLightbox({ urls: [n.photo_url], index: 0 })}
                     style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0, cursor: 'zoom-in' }} />
                 );
               })()}
@@ -1567,8 +1586,8 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                   <textarea autoFocus value={editingInternalNoteText} onChange={e => setEditingInternalNoteText(e.target.value)} rows={3}
                     style={{ width: '100%', padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', marginBottom: 8 }} />
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-primary" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => saveInternalNoteEdit(n.id)}>Guardar</button>
-                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => { setEditingInternalNoteId(null); setEditingInternalNoteText(''); }}>Cancelar</button>
+                    <button className="btn btn-primary" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => saveInternalNoteEdit(n.id)}>{t('internalNotes.saveEdit')}</button>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, padding: '5px 12px' }} onClick={() => { setEditingInternalNoteId(null); setEditingInternalNoteText(''); }}>{t('internalNotes.cancelEdit')}</button>
                   </div>
                 </div>
               ) : n.note && <p style={{ fontSize: 14, color: 'var(--text)', margin: 0, whiteSpace: 'pre-wrap' }}>{n.note}</p>}
@@ -1587,7 +1606,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                 <button onClick={e => { e.stopPropagation(); setNoteLightbox(l => ({ ...l, index: l.index - 1 })); }}
                   style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 26, borderRadius: '50%', width: 48, height: 48, cursor: 'pointer', zIndex: 2 }}>‹</button>
               )}
-              <img src={noteLightbox.urls[noteLightbox.index]} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} />
+              <img src={noteLightbox.urls[noteLightbox.index]} alt={t('internalNotes.lightboxImageAlt')} onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} />
               {noteLightbox.urls.length > 1 && noteLightbox.index < noteLightbox.urls.length - 1 && (
                 <button onClick={e => { e.stopPropagation(); setNoteLightbox(l => ({ ...l, index: l.index + 1 })); }}
                   style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 26, borderRadius: '50%', width: 48, height: 48, cursor: 'pointer', zIndex: 2 }}>›</button>
@@ -1601,21 +1620,21 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar cliente?</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteModal.title')}</h2>
             {jobCount > 0 ? (
               <div style={{ background: 'var(--amber-tint)', border: '1.5px solid var(--amber)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--amber)', marginBottom: 4 }}>⚠️ Este cliente tiene {jobCount} trabajo{jobCount > 1 ? 's' : ''} existente{jobCount > 1 ? 's' : ''}.</p>
-                <p style={{ fontSize: 13, color: 'var(--amber)' }}>Al eliminar el cliente se borrarán también todos sus trabajos, notas, fotos y checklists.</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--amber)', marginBottom: 4 }}>{t('deleteModal.jobWarning', { count: jobCount })}</p>
+                <p style={{ fontSize: 13, color: 'var(--amber)' }}>{t('deleteModal.jobWarningDetail')}</p>
               </div>
             ) : (
-              <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción es permanente.</p>
+              <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteModal.permanentText')}</p>
             )}
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn" onClick={deleteClient} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar todo'}
+                {deleting ? t('deleteModal.deleting') : t('deleteModal.confirmDelete')}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>{t('deleteModal.cancel')}</button>
             </div>
           </div>
         </div>

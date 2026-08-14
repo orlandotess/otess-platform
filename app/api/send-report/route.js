@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { getCurrentRole } from '../../../lib/supabase-server';
+import { getClientEmailTranslator } from '../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -12,6 +13,7 @@ export async function POST(request) {
     }
 
     const { reportId, toEmail, cc } = await request.json();
+    const t = await getClientEmailTranslator('emails.report');
     const ccList = Array.isArray(cc) ? cc.filter(Boolean) : [];
     const { data: report } = await supabase
       .from('job_reports')
@@ -22,7 +24,7 @@ export async function POST(request) {
 
     const publicUrl = `https://app.otesspr.com/reporte/${reportId}`;
     const asCompany = report.jobs?.clients?.report_name_source === 'company' && report.jobs?.clients?.company;
-    const clientName = (asCompany ? report.jobs?.clients?.company : report.jobs?.clients?.name) ?? 'Cliente';
+    const clientName = (asCompany ? report.jobs?.clients?.company : report.jobs?.clients?.name) ?? t('defaultClientName');
     const jobTitle = report.jobs?.title ?? '';
 
     const html = `<!DOCTYPE html>
@@ -36,24 +38,24 @@ export async function POST(request) {
     <div style="color:rgba(255,255,255,0.65);font-size:12px;margin-top:4px">OT Electrical & Security Solutions</div>
     <div style="color:rgba(255,255,255,0.65);font-size:12px">Calle 56, #2D8 Lomas de Carolina, PR 00987</div>
     <div style="color:rgba(255,255,255,0.65);font-size:12px">(787) 513-8352 · info@otesspr.com</div>
-    <div style="color:#fff;font-size:18px;font-weight:900;margin-top:16px">REPORTE DE TRABAJO</div>
+    <div style="color:#fff;font-size:18px;font-weight:900;margin-top:16px">${t('documentLabel')}</div>
     <div style="color:#e0972c;font-size:16px;font-weight:700">${report.title}</div>
   </div>
 
   <div style="background:#fff;padding:28px 32px">
-    <p style="color:#555;font-size:15px;margin-top:0">Estimado/a <strong>${clientName}</strong>,</p>
-    <p style="color:#666;font-size:14px">Le compartimos el reporte de avance${jobTitle ? ` del trabajo <strong>${jobTitle}</strong>` : ''}, con notas y fotos por fase. Puede verlo y descargarlo en el siguiente enlace:</p>
+    <p style="color:#555;font-size:15px;margin-top:0">${t('greeting', { name: clientName })}</p>
+    <p style="color:#666;font-size:14px">${t('intro', { hasJob: jobTitle ? 'yes' : 'no', jobTitle })}</p>
 
     <div style="text-align:center;margin:24px 0">
       <a href="${publicUrl}" style="background:#e0972c;color:#fff;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;display:inline-block">
-        📄 Ver reporte
+        ${t('viewButton')}
       </a>
     </div>
   </div>
 
   <div style="background:#f0f2f5;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center">
-    <p style="color:#888;font-size:12px;margin:0">¿Preguntas? Contáctanos en <a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a> o al (787) 513-8352</p>
-    <p style="color:#aaa;font-size:11px;margin:8px 0 0">OT Electrical & Security Solutions · Carolina, Puerto Rico</p>
+    <p style="color:#888;font-size:12px;margin:0">${t('footerQuestions', { email: '<a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a>', phone: '(787) 513-8352' })}</p>
+    <p style="color:#aaa;font-size:11px;margin:8px 0 0">${t('footerAddress')}</p>
   </div>
 
 </div>
@@ -64,7 +66,7 @@ export async function POST(request) {
       from: 'OTESS <info@otesspr.com>',
       to: toEmail,
       ...(ccList.length ? { cc: ccList } : {}),
-      subject: `Reporte de trabajo — ${report.title}`,
+      subject: t('subject', { title: report.title }),
       html,
     });
     if (error) return Response.json({ error: error.message }, { status: 500 });

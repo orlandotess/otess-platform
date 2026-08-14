@@ -7,17 +7,22 @@ import JobTabs from './JobTabs';
 import JobTitleEditor from './JobTitleEditor';
 import { normalizeName } from '../../../lib/normalizeName';
 import { calcularIVU } from '../../../lib/tax';
+import { getTranslations } from 'next-intl/server';
 
-const statusBadge = {
-  estimate:    { cls: 'badge-gray',  label: 'Estimado' },
-  scheduled:   { cls: 'badge-blue',  label: 'Programado' },
-  in_progress: { cls: 'badge-amber', label: 'En progreso' },
-  completed:   { cls: 'badge-green', label: 'Completado' },
-  cancelled:   { cls: 'badge-red',   label: 'Cancelado' },
+const statusBadgeDefs = {
+  estimate:    { cls: 'badge-gray',  key: 'estimate' },
+  scheduled:   { cls: 'badge-blue',  key: 'scheduled' },
+  in_progress: { cls: 'badge-amber', key: 'in_progress' },
+  completed:   { cls: 'badge-green', key: 'completed' },
+  cancelled:   { cls: 'badge-red',   key: 'cancelled' },
 };
 
 export default async function TrabajoDetail({ params }) {
   const { id } = params;
+  const t = await getTranslations('trabajos.detail');
+  const statusBadge = Object.fromEntries(
+    Object.entries(statusBadgeDefs).map(([k, v]) => [k, { cls: v.cls, label: t(`status.${v.key}`) }])
+  );
 
   const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: checklistAreas }, { data: templates }, { data: jobTechnicians }, { data: jobContacts }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }, { data: planos }, { data: taxRules }] = await Promise.all([
     supabase.from('jobs').select('*, clients(name, email, phone, client_type, company), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
@@ -48,8 +53,8 @@ export default async function TrabajoDetail({ params }) {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <div className="page-title">Trabajo no encontrado</div>
-          <Link href="/trabajos" className="btn btn-ghost">← Volver</Link>
+          <div className="page-title">{t('notFound')}</div>
+          <Link href="/trabajos" className="btn btn-ghost">{t('back')}</Link>
         </div>
       </main>
     </div>
@@ -101,7 +106,13 @@ export default async function TrabajoDetail({ params }) {
   );
 
   const checklistWithSignedUrls = await Promise.all(
-    (checklist ?? []).map(async (item) => ({ ...item, photo_signed_url: await signPath(item.photo_url) }))
+    (checklist ?? []).map(async (item) => {
+      if (item.photo_urls && item.photo_urls.length > 0) {
+        const signedUrls = (await Promise.all(item.photo_urls.map(p => signPath(p)))).filter(Boolean);
+        return { ...item, photo_signed_urls: signedUrls, photo_signed_url: signedUrls[0] ?? null };
+      }
+      return { ...item, photo_signed_url: await signPath(item.photo_url) };
+    })
   );
 
   const checklistAreasWithSignedUrls = await Promise.all(
@@ -159,9 +170,9 @@ export default async function TrabajoDetail({ params }) {
             <span className={`badge ${b.cls}`} style={{ marginTop: 6, display: 'inline-block' }}>{b.label}</span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Link href={`/estimados/nueva?job=${job.id}`} className="btn btn-ghost">🧮 Crear estimado</Link>
-            <Link href={`/ordenes-cambio/nuevo?job=${job.id}`} className="btn btn-ghost">📝 Orden de cambio</Link>
-            <Link href={`/facturas/nueva?job=${job.id}`} className="btn btn-amber">🧾 Crear factura</Link>
+            <Link href={`/estimados/nueva?job=${job.id}`} className="btn btn-ghost">{t('createEstimate')}</Link>
+            <Link href={`/ordenes-cambio/nuevo?job=${job.id}`} className="btn btn-ghost">{t('changeOrder')}</Link>
+            <Link href={`/facturas/nueva?job=${job.id}`} className="btn btn-amber">{t('createInvoice')}</Link>
           </div>
         </div>
 

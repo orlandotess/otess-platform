@@ -7,14 +7,14 @@ import LineItemRow from '../LineItemRow';
 import LineItemPicker from '../LineItemPicker';
 import TaxBreakdown from '../TaxBreakdown';
 import { calcularIVU, tasaParaLinea } from '../../lib/tax';
-
-const DEFAULT_TERMS = `Esta orden de cambio representa trabajo adicional o modificado fuera del alcance original acordado. Al aprobarla, el cliente autoriza a OTESS a proceder con el trabajo descrito y acepta el cargo adicional indicado.`;
+import { useTranslations } from 'next-intl';
 
 function emptyItem() {
   return { type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, saveToCatalog: true, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
 }
 
 export default function ChangeOrderForm({ initialData = null }) {
+  const t = useTranslations('ordenesCambio.form');
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobIdParam = searchParams.get('job');
@@ -102,38 +102,38 @@ export default function ChangeOrderForm({ initialData = null }) {
   }
 
   const clientType = job?.client_type === 'b2b' ? 'b2b' : 'final';
-  const t = calcularIVU(items, clientType, taxRules);
+  const taxCalc = calcularIVU(items, clientType, taxRules);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!job) { setError('Falta el trabajo asociado'); return; }
-    if (!title.trim()) { setError('El título es requerido'); return; }
-    if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
-    if (items.some(i => !i.description.trim())) { setError('Todas las líneas necesitan una descripción antes de guardar.'); return; }
+    if (!job) { setError(t('errors.missingJob')); return; }
+    if (!title.trim()) { setError(t('errors.titleRequired')); return; }
+    if (!items.some(i => i.description.trim())) { setError(t('errors.addLine')); return; }
+    if (items.some(i => !i.description.trim())) { setError(t('errors.allLinesNeedDescription')); return; }
     setSaving(true); setError('');
 
     // change_orders no tiene columna propia para "reembolso" — se pliega en
     // subtotal_products (tasa 0%, no afecta tax_products). Misma nota que en
     // app/facturas/InvoiceForm.js.
-    const productCat = t.categorias.find(c => c.codigo === 'product');
-    const laborCat = t.categorias.find(c => c.codigo === 'labor');
-    const reembolsoCat = t.categorias.find(c => c.codigo === 'reembolso');
+    const productCat = taxCalc.categorias.find(c => c.codigo === 'product');
+    const laborCat = taxCalc.categorias.find(c => c.codigo === 'labor');
+    const reembolsoCat = taxCalc.categorias.find(c => c.codigo === 'reembolso');
     const aggTotals = {
       subtotal_products: productCat.base + reembolsoCat.base,
       tax_products: productCat.impuesto + reembolsoCat.impuesto,
       subtotal_labor: laborCat.base,
       tax_labor: laborCat.impuesto,
-      total: t.total,
+      total: taxCalc.total,
     };
 
     let order;
     if (isEdit) {
       const { data: current } = await supabase.from('change_orders').select('status').eq('id', initialData.order.id).single();
       if (!current || !['borrador', 'enviada', 'vista'].includes(current.status)) {
-        setError('Esta orden de cambio ya no se puede editar (fue aprobada o rechazada).');
+        setError(t('errors.notEditable'));
         setSaving(false);
         return;
       }
@@ -235,50 +235,50 @@ export default function ChangeOrderForm({ initialData = null }) {
     <div className="admin-shell">
       <Sidebar />
       <main className="main-content">
-        <div className="page-header"><div className="page-title">{isEdit ? 'Editar orden de cambio' : 'Nueva orden de cambio'}</div></div>
+        <div className="page-header"><div className="page-title">{isEdit ? t('editTitle') : t('newTitle')}</div></div>
         <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {error && <p style={{ color: 'var(--warn)', fontSize: 14 }}>{error}</p>}
 
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('generalInfo')}</p>
               {job ? (
                 <div style={{ padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)', marginBottom: 16 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>Trabajo</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>{t('jobLabel')}</div>
                   <div style={{ fontWeight: 600 }}>{job.title}</div>
                   <div style={{ fontSize: 13, color: 'var(--muted)' }}>{job.client_name}</div>
                 </div>
               ) : (
-                <p style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 16 }}>Esta orden de cambio debe crearse desde la página de un trabajo.</p>
+                <p style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 16 }}>{t('jobRequiredNotice')}</p>
               )}
 
               <div className="form-group">
-                <label>Título *</label>
-                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Cableado adicional segundo piso" />
+                <label>{t('titleLabel')}</label>
+                <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t('titlePlaceholder')} />
               </div>
               <div className="form-group">
-                <label>Preparado por</label>
-                <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Nombre de quien prepara" style={{ maxWidth: 300 }} />
+                <label>{t('preparedByLabel')}</label>
+                <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder={t('preparedByPlaceholder')} style={{ maxWidth: 300 }} />
               </div>
               <div className="form-group">
-                <label>Nota para el cliente</label>
-                <textarea value={introNote} onChange={e => setIntroNote(e.target.value)} placeholder="Explica el motivo del cambio..." />
+                <label>{t('introNoteLabel')}</label>
+                <textarea value={introNote} onChange={e => setIntroNote(e.target.value)} placeholder={t('introNotePlaceholder')} />
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Válida hasta</label>
+                  <label>{t('validUntilLabel')}</label>
                   <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} />
                 </div>
               </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, marginTop: 8 }}>
                 <input type="checkbox" checked={requiresSignature} onChange={e => setRequiresSignature(e.target.checked)} />
-                Requiere firma del cliente
+                {t('requiresSignature')}
               </label>
               <div className="form-group" style={{ marginTop: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label>Términos</label>
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setTerms(DEFAULT_TERMS)}>
-                    Usar plantilla predeterminada
+                  <label>{t('termsLabel')}</label>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setTerms(t('defaultTerms'))}>
+                    {t('useDefaultTemplate')}
                   </button>
                 </div>
                 <textarea value={terms} onChange={e => setTerms(e.target.value)} rows={5} style={{ fontSize: 13, lineHeight: 1.6 }} />
@@ -287,11 +287,11 @@ export default function ChangeOrderForm({ initialData = null }) {
 
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de la orden de cambio</p>
-                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('lineItemsTitle')}</p>
+                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>{t('addLineBtn')}</button>
               </div>
               <div style={{ marginBottom: 16 }}>
-                <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+                <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder={t('searchCatalogPlaceholder')} />
               </div>
               {items.map((item, idx) => (
                 <LineItemRow
@@ -334,12 +334,12 @@ export default function ChangeOrderForm({ initialData = null }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
-              <TaxBreakdown lineas={items} clientType={clientType} taxRules={taxRules} title="Resumen IVU" />
+              <TaxBreakdown lineas={items} clientType={clientType} taxRules={taxRules} title={t('taxSummaryTitle')} />
             </div>
             <button type="submit" className="btn btn-primary" disabled={saving || !job} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
-              {saving ? 'Guardando...' : isEdit ? '💾 Guardar cambios' : '💾 Guardar orden de cambio'}
+              {saving ? t('saving') : isEdit ? t('saveChanges') : t('saveOrder')}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>Cancelar</button>
+            <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>{t('cancel')}</button>
           </div>
         </form>
       </main>

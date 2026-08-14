@@ -4,11 +4,13 @@ export const revalidate = 0;
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../lib/supabase';
 import Sidebar from '../Sidebar';
+import { getTranslations } from 'next-intl/server';
 
 const STATUS_BADGE = { pendiente: 'badge-gray', ordenado: 'badge-blue', recibido: 'badge-green', cancelado: 'badge-red' };
-const STATUS_LABELS = { pendiente: 'Pendiente', ordenado: 'Ordenado', recibido: 'Recibido', cancelado: 'Cancelado' };
 
 export default async function ComprasPage() {
+  const t = await getTranslations('compras.list');
+  const STATUS_LABELS = { pendiente: t('status.pendiente'), ordenado: t('status.ordenado'), recibido: t('status.recibido'), cancelado: t('status.cancelado') };
   const { data: orders } = await supabase
     .from('purchase_orders')
     .select('id, order_number, status, source_label, created_at, vendors(name), purchase_order_items(quantity, unit_price)')
@@ -24,13 +26,13 @@ export default async function ComprasPage() {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <div className="page-title">Compras</div>
-          <Link href="/compras/proveedores" className="btn btn-ghost">Proveedores</Link>
+          <div className="page-title">{t('title')}</div>
+          <Link href="/compras/proveedores" className="btn btn-ghost">{t('proveedoresLink')}</Link>
         </div>
 
         {rows.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--muted)' }}>
-            No hay órdenes de compra todavía. Se generan desde una Propuesta aprobada o un Trabajo.
+            {t('empty')}
           </div>
         ) : (
           <div className="card" style={{ padding: 0 }}>
@@ -38,7 +40,7 @@ export default async function ComprasPage() {
               <Link key={o.id} href={`/compras/${o.id}`}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : 'none', textDecoration: 'none', color: 'inherit' }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>{o.vendors?.name ?? 'Proveedor sin nombre'}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>{o.vendors?.name ?? t('noVendorName')}</div>
                   <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>
                     {o.order_number} · {o.source_label}
                   </div>

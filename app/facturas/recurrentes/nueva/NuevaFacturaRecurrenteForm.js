@@ -8,6 +8,7 @@ import LineItemPicker from '../../../LineItemPicker';
 import ClientCombobox from '../../nueva/ClientCombobox';
 import TaxBreakdown from '../../../TaxBreakdown';
 import { calcularIVU } from '../../../../lib/tax';
+import { useTranslations } from 'next-intl';
 
 function todayISO() {
   return new Date().toISOString().split('T')[0];
@@ -15,6 +16,7 @@ function todayISO() {
 
 export default function NuevaFacturaRecurrenteForm() {
   const router = useRouter();
+  const t = useTranslations('facturas.newRecurringForm');
   const [clients, setClients] = useState([]);
   const [taxRules, setTaxRules] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
@@ -46,14 +48,14 @@ export default function NuevaFacturaRecurrenteForm() {
   const setItem = (idx, k, v) => setItems(i => i.map((it, n) => n === idx ? { ...it, [k]: v } : it));
   const setItemType = (idx, type) => setItems(i => i.map((it, n) => n === idx ? { ...it, type, tax_category: type === 'fee' ? (it.tax_category || 'labor') : type } : it));
 
-  const t = calcularIVU(items, clientType, taxRules);
+  const taxCalc = calcularIVU(items, clientType, taxRules);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.client_id) { setError('Selecciona un cliente'); return; }
-    if (!form.next_run_date) { setError('Selecciona la fecha del próximo envío'); return; }
-    if (!items.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
+    if (!form.client_id) { setError(t('errors.selectClient')); return; }
+    if (!form.next_run_date) { setError(t('errors.selectNextRunDate')); return; }
+    if (!items.some(i => i.description.trim())) { setError(t('errors.addLine')); return; }
     setSaving(true); setError('');
 
     const runDate = new Date(form.next_run_date + 'T00:00:00');
@@ -83,25 +85,27 @@ export default function NuevaFacturaRecurrenteForm() {
     router.push('/facturas/recurrentes');
   }
 
+  const periodKey = form.frequency === 'weekly' ? 'periodWeek' : 'periodMonth';
+
   return (
     <div className="admin-shell ds-facturas">
       <Sidebar />
       <main className="main-content">
-        <div className="page-header"><div className="page-title">Nueva factura recurrente</div></div>
+        <div className="page-header"><div className="page-title">{t('title')}</div></div>
         <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {error && <p style={{ color: 'var(--warn)', fontSize: 14 }}>{error}</p>}
 
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('generalInfo')}</p>
               <div className="form-group">
-                <label>Cliente *</label>
+                <label>{t('clientLabel')}</label>
                 <ClientCombobox clients={clients} value={form.client_id} onChange={v => { const c = clients.find(cl => cl.id === v); set('client_id', v); set('bill_to', c?.report_name_source === 'company' ? 'company' : 'person'); }} />
               </div>
 
               {hasCompany && (
                 <div className="form-group" style={{ marginTop: 4 }}>
-                  <label>Facturar a</label>
+                  <label>{t('billTo')}</label>
                   <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
                       <input type="radio" name="bill_to" value="person" checked={form.bill_to === 'person'} onChange={() => set('bill_to', 'person')} />
@@ -117,49 +121,49 @@ export default function NuevaFacturaRecurrenteForm() {
 
               {selectedClient && !selectedClient.email && (
                 <p style={{ fontSize: 12.5, color: 'var(--warn)', marginTop: 4 }}>
-                  Este cliente no tiene email registrado — la factura no podrá enviarse automáticamente hasta que le agregues uno.
+                  {t('noEmailWarning')}
                 </p>
               )}
 
               <div className="form-group">
-                <label>Notas / Términos de pago</label>
-                <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Términos de pago, notas para el cliente..." />
+                <label>{t('notesLabel')}</label>
+                <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder={t('notesPlaceholder')} />
               </div>
             </div>
 
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Recurrencia</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('recurrence')}</p>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Frecuencia</label>
+                  <label>{t('freqLabel')}</label>
                   <select value={form.frequency} onChange={e => set('frequency', e.target.value)}>
-                    <option value="weekly">Semanal</option>
-                    <option value="monthly">Mensual</option>
-                    <option value="quarterly">Trimestral</option>
-                    <option value="yearly">Anual</option>
+                    <option value="weekly">{t('freq.weekly')}</option>
+                    <option value="monthly">{t('freq.monthly')}</option>
+                    <option value="quarterly">{t('freq.quarterly')}</option>
+                    <option value="yearly">{t('freq.yearly')}</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Próximo envío</label>
+                  <label>{t('nextRunLabel')}</label>
                   <input type="date" value={form.next_run_date} onChange={e => set('next_run_date', e.target.value)} />
                 </div>
               </div>
               <div className="form-group" style={{ maxWidth: 200 }}>
-                <label>Días para vencer</label>
+                <label>{t('dueDaysLabel')}</label>
                 <input type="number" min="0" value={form.due_days} onChange={e => set('due_days', e.target.value)} />
               </div>
               <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)' }}>
-                Se generará y enviará automáticamente al cliente cada vez que llegue esta fecha, y luego se repetirá según la frecuencia elegida (mismo día {form.frequency === 'weekly' ? 'de la semana' : 'del mes'}).
+                {t('autoSendText', { period: t(periodKey) })}
               </div>
             </div>
 
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Líneas de factura</p>
-                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('lineItems')}</p>
+                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>{t('addLine')}</button>
               </div>
               <div style={{ marginBottom: 16 }}>
-                <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+                <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder={t('catalogPlaceholder')} />
               </div>
 
               {items.map((item, idx) => (
@@ -184,7 +188,7 @@ export default function NuevaFacturaRecurrenteForm() {
             </div>
 
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Términos del proyecto</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('projectTerms')}</p>
               <div className="form-group">
                 <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={4} style={{ fontSize: 13, lineHeight: 1.6 }} />
               </div>
@@ -194,18 +198,18 @@ export default function NuevaFacturaRecurrenteForm() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
               <TaxBreakdown
-                lineas={items} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                lineas={items} clientType={clientType} taxRules={taxRules} title={t('taxSummaryTitle')}
                 note={clientType === 'b2b' && (
                   <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
-                    Cliente B2B — Labor al 4%
+                    {t('b2bNote')}
                   </div>
                 )}
               />
             </div>
             <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
-              {saving ? 'Guardando...' : 'Guardar recurrencia'}
+              {saving ? t('saving') : t('saveRecurring')}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>Cancelar</button>
+            <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>{t('cancel')}</button>
           </div>
         </form>
       </main>

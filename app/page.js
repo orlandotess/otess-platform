@@ -9,6 +9,7 @@ import Sidebar from './Sidebar';
 import Link from 'next/link';
 import DashboardCalendarWidget from './DashboardCalendarWidget';
 import InboxWidget from './accounting/InboxWidget';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 async function getStats() {
   const [clients, jobs, activeJobs, tickets, activeTickets, { data: invoices }, { data: payments }, { data: expenses }] = await Promise.all([
@@ -74,6 +75,7 @@ async function getInboxNotifications() {
 }
 
 async function getAccionRequerida() {
+  const t = await getTranslations('home.dashboard.accionRequerida');
   const today = new Date().toISOString().slice(0, 10);
 
   const [{ data: solicitudes }, { data: jobsSinAsignar }, { data: invoicesDraft }, { data: invoicesOverdue }, { data: gestiones }] = await Promise.all([
@@ -108,34 +110,34 @@ async function getAccionRequerida() {
   const automaticItems = [
     ...(solicitudes ?? []).map(s => ({
       id: `solicitud-${s.id}`,
-      title: 'Solicitud nueva sin cotizar',
-      subtitle: `${s.clients?.name ?? 'Cliente'} · ${s.solicitud_number ?? s.title}`,
+      title: t('newSolicitudUnquoted'),
+      subtitle: `${s.clients?.name ?? t('clientFallback')} · ${s.solicitud_number ?? s.title}`,
       href: `/solicitudes/${s.id}`,
-      ctaLabel: 'Cotizar',
+      ctaLabel: t('quote'),
       urgency: 'amber',
     })),
     ...(jobsSinAsignar ?? []).filter(j => (j.job_technicians ?? []).length === 0).slice(0, 8).map(j => ({
       id: `job-${j.id}`,
-      title: 'Trabajo sin asignar',
+      title: t('unassignedJob'),
       subtitle: [j.job_number, j.title, j.property_name || j.city].filter(Boolean).join(' · '),
       href: `/trabajos/${j.id}`,
-      ctaLabel: 'Asignar',
+      ctaLabel: t('assign'),
       urgency: 'amber',
     })),
     ...(invoicesDraft ?? []).map(i => ({
       id: `invoice-draft-${i.id}`,
-      title: 'Factura sin enviar',
-      subtitle: `${i.clients?.name ?? 'Cliente'} · ${i.invoice_number} · ${fmt(i.total)}`,
+      title: t('unsentInvoice'),
+      subtitle: `${i.clients?.name ?? t('clientFallback')} · ${i.invoice_number} · ${fmt(i.total)}`,
       href: `/facturas/${i.id}`,
-      ctaLabel: 'Enviar',
+      ctaLabel: t('send'),
       urgency: 'warn',
     })),
     ...(invoicesOverdue ?? []).map(i => ({
       id: `invoice-overdue-${i.id}`,
-      title: 'Factura vencida',
-      subtitle: `${i.clients?.name ?? 'Cliente'} · ${i.invoice_number} · ${fmt(i.total)}`,
+      title: t('overdueInvoice'),
+      subtitle: `${i.clients?.name ?? t('clientFallback')} · ${i.invoice_number} · ${fmt(i.total)}`,
       href: `/facturas/${i.id}`,
-      ctaLabel: 'Ver',
+      ctaLabel: t('view'),
       urgency: 'warn',
     })),
   ];
@@ -171,12 +173,12 @@ async function getIntegrationStats() {
   };
 }
 
-const statusBadge = {
-  estimate:    { cls: 'badge-gray',  label: 'Estimado' },
-  scheduled:   { cls: 'badge-blue',  label: 'Programado' },
-  in_progress: { cls: 'badge-amber', label: 'En progreso' },
-  completed:   { cls: 'badge-green', label: 'Completado' },
-  cancelled:   { cls: 'badge-red',   label: 'Cancelado' },
+const statusBadgeCls = {
+  estimate:    'badge-gray',
+  scheduled:   'badge-blue',
+  in_progress: 'badge-amber',
+  completed:   'badge-green',
+  cancelled:   'badge-red',
 };
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -189,6 +191,9 @@ export default async function Home() {
   const [stats, recentJobs, inboxNotifications, accionRequerida, officeProfiles, currentProfile, integrations] = await Promise.all([
     getStats(), getRecentJobs(), getInboxNotifications(), getAccionRequerida(), getOfficeProfiles(), getCurrentProfile(), getIntegrationStats(),
   ]);
+  const t = await getTranslations('home.dashboard');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
 
   return (
     <div className="admin-shell">
@@ -196,12 +201,12 @@ export default async function Home() {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Dashboard</div>
+            <div className="page-title">{t('title')}</div>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>
-              Bienvenido a OTESS Platform
+              {t('welcome')}
             </p>
           </div>
-          <Link href="/crew" className="btn btn-orange">📱 Abrir Crew App</Link>
+          <Link href="/crew" className="btn btn-orange">📱 {t('openCrewApp')}</Link>
         </div>
 
         <InboxWidget
@@ -216,31 +221,33 @@ export default async function Home() {
 
         <div className="card" style={{ marginTop: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>🔧 Trabajos recientes</h2>
-            <Link href="/trabajos/nuevo" className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }}>+ Nuevo trabajo</Link>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)' }}>🔧 {t('recentJobs')}</h2>
+            <Link href="/trabajos/nuevo" className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }}>+ {t('newJob')}</Link>
           </div>
           {recentJobs.length === 0 ? (
             <div className="empty">
               <div className="empty-glyph">🔧</div>
-              <h3>No hay trabajos aún</h3>
-              <p>Cuando crees un trabajo para un cliente, aparecerá aquí.</p>
-              <Link href="/trabajos/nuevo" className="btn btn-primary btn-sm">+ Crear trabajo</Link>
+              <h3>{t('noJobsYet')}</h3>
+              <p>{t('noJobsYetHint')}</p>
+              <Link href="/trabajos/nuevo" className="btn btn-primary btn-sm">+ {t('createJob')}</Link>
             </div>
           ) : (
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Trabajo</th>
-                    <th>Cliente</th>
-                    <th>Ubicación</th>
-                    <th>Estado</th>
-                    <th>Fecha</th>
+                    <th>{t('table.job')}</th>
+                    <th>{t('table.client')}</th>
+                    <th>{t('table.location')}</th>
+                    <th>{t('table.status')}</th>
+                    <th>{t('table.date')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recentJobs.map(j => {
-                    const b = statusBadge[j.status] ?? statusBadge.estimate;
+                    const statusKey = statusBadgeCls[j.status] ? j.status : 'estimate';
+                    const cls = statusBadgeCls[statusKey];
+                    const label = t(`statusBadge.${statusKey}`);
                     const loc = jobLocation(j);
                     return (
                       <tr key={j.id}>
@@ -258,9 +265,9 @@ export default async function Home() {
                             )
                           ) : <span style={{ color: 'var(--muted)' }}>—</span>}
                         </td>
-                        <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                        <td><span className={`badge ${cls}`}>{label}</span></td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>
-                          {j.scheduled_start ? formatDatePR(j.scheduled_start) : '—'}
+                          {j.scheduled_start ? formatDatePR(j.scheduled_start, {}, dateLocale) : '—'}
                         </td>
                       </tr>
                     );
@@ -273,66 +280,66 @@ export default async function Home() {
 
         <div className="stats-grid" style={{ marginTop: 20 }}>
           <div className="stat-card" data-accent={stats.caja >= 0 ? 'ok' : 'warn'}>
-            <div className="stat-label">Caja</div>
+            <div className="stat-label">{t('stats.caja')}</div>
             <div className="stat-value" style={{ color: stats.caja >= 0 ? 'var(--ok)' : 'var(--warn)' }}>{fmt(stats.caja)}</div>
-            <div className="stat-sub">Cobrado − gastos</div>
+            <div className="stat-sub">{t('stats.cajaSub')}</div>
           </div>
           <div className="stat-card" data-accent={stats.overdueCount > 0 ? 'warn' : 'amber'}>
-            <div className="stat-label">Facturas pendientes</div>
+            <div className="stat-label">{t('stats.pendingInvoices')}</div>
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{fmt(stats.pendingTotal)}</div>
-            <div className="stat-sub"><Link href="/accounting/facturas?status=sent" style={{ color: 'var(--amber)' }}>{stats.pendingCount} por cobrar →</Link></div>
+            <div className="stat-sub"><Link href="/accounting/facturas?status=sent" style={{ color: 'var(--amber)' }}>{t('stats.pendingCollect', { count: stats.pendingCount })}</Link></div>
             {stats.overdueCount > 0 && (
               <div className="stat-sub" style={{ color: 'var(--warn)' }}>
                 <Link href="/accounting/facturas?status=overdue" style={{ color: 'var(--warn)' }}>
-                  {stats.overdueCount} vencida{stats.overdueCount === 1 ? '' : 's'} ({fmt(stats.overdueTotal)}) →
+                  {t('stats.overdue', { count: stats.overdueCount, total: fmt(stats.overdueTotal) })}
                 </Link>
               </div>
             )}
           </div>
           <div className="stat-card">
-            <div className="stat-label">Clientes</div>
+            <div className="stat-label">{t('stats.clients')}</div>
             <div className="stat-value">{stats.clients}</div>
-            <div className="stat-sub"><Link href="/clientes" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
+            <div className="stat-sub"><Link href="/clientes" style={{ color: 'var(--amber)' }}>{t('viewAll')}</Link></div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Trabajos totales</div>
+            <div className="stat-label">{t('stats.totalJobs')}</div>
             <div className="stat-value">{stats.jobs}</div>
-            <div className="stat-sub"><Link href="/trabajos" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
+            <div className="stat-sub"><Link href="/trabajos" style={{ color: 'var(--amber)' }}>{t('viewAll')}</Link></div>
           </div>
           <div className="stat-card" data-accent="amber">
-            <div className="stat-label">En progreso</div>
+            <div className="stat-label">{t('stats.inProgress')}</div>
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{stats.activeJobs}</div>
-            <div className="stat-sub">Trabajos activos hoy</div>
+            <div className="stat-sub">{t('stats.activeJobsToday')}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Boletos totales</div>
+            <div className="stat-label">{t('stats.totalTickets')}</div>
             <div className="stat-value">{stats.tickets}</div>
-            <div className="stat-sub"><Link href="/boletos" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
+            <div className="stat-sub"><Link href="/boletos" style={{ color: 'var(--amber)' }}>{t('viewAll')}</Link></div>
           </div>
           <div className="stat-card" data-accent="amber">
-            <div className="stat-label">Boletos en progreso</div>
+            <div className="stat-label">{t('stats.ticketsInProgress')}</div>
             <div className="stat-value" style={{ color: 'var(--amber)' }}>{stats.activeTickets}</div>
-            <div className="stat-sub"><Link href="/boletos" style={{ color: 'var(--amber)' }}>Ver todos →</Link></div>
+            <div className="stat-sub"><Link href="/boletos" style={{ color: 'var(--amber)' }}>{t('viewAll')}</Link></div>
           </div>
         </div>
 
         <div className="card">
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>🔌 Integraciones</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>🔌 {t('integrations.title')}</h2>
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-label">Pagos PayPal (30 días)</div>
+              <div className="stat-label">{t('integrations.paypalPayments')}</div>
               <div className="stat-value" style={{ color: 'var(--ok)' }}>{fmt(integrations.paypalTotal)}</div>
-              <div className="stat-sub">{integrations.paypalCount} pago{integrations.paypalCount === 1 ? '' : 's'}</div>
+              <div className="stat-sub">{t('integrations.paymentCount', { count: integrations.paypalCount })}</div>
               {integrations.paypalRecent.map((p, i) => (
                 <div key={i} style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                  {p.invoices?.invoice_number ?? '—'} · {fmt(p.amount)} · {formatDatePR(p.paid_at)}
+                  {p.invoices?.invoice_number ?? '—'} · {fmt(p.amount)} · {formatDatePR(p.paid_at, {}, dateLocale)}
                 </div>
               ))}
             </div>
             <div className="stat-card">
-              <div className="stat-label">Estimados aceptados</div>
+              <div className="stat-label">{t('integrations.acceptedEstimates')}</div>
               <div className="stat-value" style={{ color: 'var(--amber)' }}>{integrations.acceptedEstimates.length}</div>
-              <div className="stat-sub">Pendientes de convertir a trabajo</div>
+              <div className="stat-sub">{t('integrations.pendingConversion')}</div>
               {integrations.acceptedEstimates.slice(0, 3).map(e => (
                 <div key={e.id} style={{ fontSize: 12, marginTop: 4 }}>
                   <Link href={`/estimados/${e.id}`} style={{ color: 'var(--amber)', fontWeight: 600 }}>
@@ -342,14 +349,14 @@ export default async function Home() {
               ))}
             </div>
             <div className="stat-card">
-              <div className="stat-label">Cuentas bloqueadas</div>
+              <div className="stat-label">{t('integrations.lockedAccounts')}</div>
               <div className="stat-value" style={{ color: integrations.lockedProfiles.length > 0 ? 'var(--warn)' : undefined }}>
                 {integrations.lockedProfiles.length}
               </div>
-              <div className="stat-sub">Por intentos de acceso fallidos</div>
+              <div className="stat-sub">{t('integrations.lockedAccountsSub')}</div>
               {integrations.lockedProfiles.slice(0, 3).map(p => (
                 <div key={p.id} style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                  {p.name ?? p.email} · hasta {formatDateTimePR(p.locked_until, { hour: 'numeric', minute: '2-digit' })}
+                  {p.name ?? p.email} · {t('integrations.lockedUntil', { time: formatDateTimePR(p.locked_until, { hour: 'numeric', minute: '2-digit' }, dateLocale) })}
                 </div>
               ))}
             </div>

@@ -1,23 +1,26 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import Link from 'next/link';
 import SearchBox from '../../SearchBox';
 import NuevoGastoForm from './NuevoGastoForm';
+import { useTranslations } from 'next-intl';
 
-const expenseCategories = [
-  { value: 'materiales', label: 'Materiales' },
-  { value: 'gasolina', label: 'Gasolina' },
-  { value: 'herramientas', label: 'Herramientas' },
-  { value: 'subcontratista', label: 'Subcontratista' },
-  { value: 'oficina', label: 'Oficina' },
-  { value: 'parking', label: 'Parking' },
-  { value: 'equipos', label: 'Equipos' },
-  { value: 'meals', label: 'Meals' },
-  { value: 'otro', label: 'Otro' },
+const expenseCategoryDefs = [
+  { value: 'materiales', key: 'materiales' },
+  { value: 'gasolina', key: 'gasolina' },
+  { value: 'herramientas', key: 'herramientas' },
+  { value: 'subcontratista', key: 'subcontratista' },
+  { value: 'oficina', key: 'oficina' },
+  { value: 'parking', key: 'parking' },
+  { value: 'equipos', key: 'equipos' },
+  { value: 'meals', key: 'meals' },
+  { value: 'otro', key: 'otro' },
 ];
 
 export default function GastosClient({ expenses: initial, jobs, periodLabel, categoryLabels }) {
+  const t = useTranslations('accounting.gastosClient');
+  const expenseCategories = useMemo(() => expenseCategoryDefs.map(c => ({ value: c.value, label: t(`expenseCategories.${c.key}`) })), [t]);
   const [rows, setRows] = useState(initial);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -33,7 +36,7 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
   }
 
   async function deleteExpense(id) {
-    if (!confirm('¿Eliminar este gasto?')) return;
+    if (!confirm(t('confirmDelete'))) return;
     await supabase.from('expenses').delete().eq('id', id);
     setRows(prev => prev.filter(r => r.id !== id));
   }
@@ -78,10 +81,10 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Registro de gastos — {periodLabel}</p>
+        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('header', { period: periodLabel })}</p>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <SearchBox value={search} onChange={setSearch} placeholder="Buscar descripción, suplidor o trabajo..." />
-          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>{showForm ? 'Cancelar' : '+ Agregar gasto'}</button>
+          <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
+          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>{showForm ? t('cancelButton') : t('addButton')}</button>
         </div>
       </div>
 
@@ -91,20 +94,20 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
 
       <div className="card">
         {rows.length === 0 ? (
-          <div className="empty"><p>No hay gastos registrados para {periodLabel}.</p></div>
+          <div className="empty"><p>{t('emptyForPeriod', { period: periodLabel })}</p></div>
         ) : visibleRows.length === 0 ? (
-          <div className="empty"><p>Sin resultados para "{search}".</p></div>
+          <div className="empty"><p>{t('noResults', { search })}</p></div>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Categoría</th>
-                  <th>Descripción</th>
-                  <th>Suplidor</th>
-                  <th>Trabajo</th>
-                  <th style={{ textAlign: 'right' }}>Monto</th>
+                  <th>{t('columns.date')}</th>
+                  <th>{t('columns.category')}</th>
+                  <th>{t('columns.description')}</th>
+                  <th>{t('columns.vendor')}</th>
+                  <th>{t('columns.job')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.amount')}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -121,7 +124,7 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
                         </td>
                         <td><input value={editData.description} onChange={e => setEditData(d => ({ ...d, description: e.target.value }))} style={{ fontSize: 12, width: '100%' }} /></td>
                         <td><input value={editData.vendor} onChange={e => setEditData(d => ({ ...d, vendor: e.target.value }))} style={{ fontSize: 12, width: 100 }} /></td>
-                        <td style={{ color: 'var(--muted)', fontSize: 12 }}>{r.jobs ? (r.jobs.job_number ?? r.jobs.title) : '— General —'}</td>
+                        <td style={{ color: 'var(--muted)', fontSize: 12 }}>{r.jobs ? (r.jobs.job_number ?? r.jobs.title) : t('generalLabel')}</td>
                         <td><input type="number" step="0.01" value={editData.amount} onChange={e => setEditData(d => ({ ...d, amount: e.target.value }))} style={{ width: 90, fontSize: 12, textAlign: 'right' }} /></td>
                         <td style={{ display: 'flex', gap: 6 }}>
                           <button onClick={() => saveEdit(r.id)} disabled={saving} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: 11 }}>💾</button>
@@ -139,7 +142,7 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
                       <td style={{ fontWeight: 600 }}>{r.description}</td>
                       <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.vendor ?? '—'}</td>
                       <td style={{ fontSize: 13 }}>
-                        {r.job_id ? <Link href={`/trabajos/${r.job_id}`} style={{ color: 'var(--navy)', fontWeight: 600 }}>{r.jobs?.job_number ?? r.jobs?.title ?? 'Ver →'}</Link> : <span style={{ color: 'var(--muted)' }}>— General —</span>}
+                        {r.job_id ? <Link href={`/trabajos/${r.job_id}`} style={{ color: 'var(--navy)', fontWeight: 600 }}>{r.jobs?.job_number ?? r.jobs?.title ?? t('viewJob')}</Link> : <span style={{ color: 'var(--muted)' }}>{t('generalLabel')}</span>}
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(r.amount)}</td>
                       <td style={{ display: 'flex', gap: 4 }}>
@@ -153,7 +156,7 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
               <tfoot>
                 <tr>
                   <td colSpan={5} style={{ textAlign: 'right', fontWeight: 700, color: 'var(--muted)' }}>
-                    {query ? `Total (${visibleRows.length} coincidencia${visibleRows.length === 1 ? '' : 's'}):` : 'Total:'}
+                    {query ? t('totalMatches', { count: visibleRows.length }) : t('total')}
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(visibleTotal)}</td>
                   <td></td>

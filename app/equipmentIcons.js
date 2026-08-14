@@ -2,10 +2,12 @@
 // set of SVG child elements in a 24x24 viewBox, matching the line-icon style
 // used in Sidebar.js's ICON_PATHS, so it can be dropped into an SVG <g> at
 // any marker position/scale.
+// Labels are resolved via next-intl at display time (namespace
+// `shared.equipmentTypes`, keyed by `key` below) — not stored here, since
+// this module has no access to the translator.
 export const EQUIPMENT_TYPES = [
   {
     key: 'camera',
-    label: 'Cámara',
     color: '#2a4cb5',
     icon: <>
       <path d="M3 8 h11 a2 2 0 0 1 2 2 v6 a2 2 0 0 1 -2 2 H3 a2 2 0 0 1 -2 -2 v-6 a2 2 0 0 1 2 -2 z" />
@@ -15,7 +17,6 @@ export const EQUIPMENT_TYPES = [
   },
   {
     key: 'access_control',
-    label: 'Control de Acceso',
     color: '#1a7a4a',
     icon: <>
       <rect x="5" y="3" width="14" height="18" rx="2" />
@@ -25,7 +26,6 @@ export const EQUIPMENT_TYPES = [
   },
   {
     key: 'access_point',
-    label: 'Punto de Acceso (AP)',
     color: '#e0972c',
     icon: <>
       <circle cx="12" cy="18" r="1.4" fill="currentColor" stroke="none" />
@@ -36,7 +36,6 @@ export const EQUIPMENT_TYPES = [
   },
   {
     key: 'door_contact',
-    label: 'Contacto de Puerta',
     color: '#8e44ad',
     icon: <>
       <rect x="5" y="3" width="12" height="18" rx="1" />
@@ -46,7 +45,6 @@ export const EQUIPMENT_TYPES = [
   },
   {
     key: 'keypad',
-    label: 'Teclado',
     color: '#c0392b',
     icon: <>
       <rect x="6" y="2.5" width="12" height="19" rx="2" />
@@ -64,7 +62,6 @@ export const EQUIPMENT_TYPES = [
   },
   {
     key: 'nvr_dvr',
-    label: 'NVR / DVR',
     color: '#16223d',
     icon: <>
       <rect x="2.5" y="7" width="19" height="10" rx="1.5" />
@@ -74,7 +71,6 @@ export const EQUIPMENT_TYPES = [
   },
   {
     key: 'motion_sensor',
-    label: 'Sensor de Movimiento',
     color: '#e05c2a',
     icon: <>
       <path d="M12 3 a7 7 0 0 1 7 7 c0 4.5 -7 11 -7 11 s-7 -6.5 -7 -11 a7 7 0 0 1 7 -7 z" />
@@ -83,7 +79,6 @@ export const EQUIPMENT_TYPES = [
   },
   {
     key: 'speaker',
-    label: 'Bocina',
     color: '#0891b2',
     icon: <>
       <path d="M11 5 L6 9 H2 v6 h4 l5 4 z" />
@@ -93,7 +88,6 @@ export const EQUIPMENT_TYPES = [
   },
   {
     key: 'rack',
-    label: 'Rack',
     color: '#4b5563',
     icon: <>
       <rect x="4" y="2" width="16" height="20" rx="1.5" />

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import ReporteActions from './ReporteActions';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 function lines(text) {
   return (text ?? '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -18,6 +19,9 @@ function Section({ title, children }) {
 
 export default async function ReporteBoletoPublico({ params }) {
   const { id } = params;
+  const t = await getTranslations('reportes.boleto');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
 
   const { data: report } = await supabase
     .from('ticket_reports')
@@ -29,15 +33,15 @@ export default async function ReporteBoletoPublico({ params }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 48 }}>🔍</div>
-        <h2 style={{ color: '#16223d' }}>Reporte no encontrado</h2>
-        <p style={{ color: '#888' }}>El enlace puede haber expirado o ser incorrecto.</p>
+        <h2 style={{ color: '#16223d' }}>{t('notFoundTitle')}</h2>
+        <p style={{ color: '#888' }}>{t('notFoundBody')}</p>
       </div>
     </div>
   );
 
   const ticket = report.service_tickets;
   const client = ticket?.clients;
-  const fmtDate = d => d ? new Date(`${d}T00:00:00`).toLocaleDateString('es-PR', { year: 'numeric', month: 'long', day: 'numeric' }) : null;
+  const fmtDate = d => d ? new Date(`${d}T00:00:00`).toLocaleDateString(dateLocale, { year: 'numeric', month: 'long', day: 'numeric' }) : null;
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
@@ -58,34 +62,34 @@ export default async function ReporteBoletoPublico({ params }) {
                 <div style={{ color: '#999', fontSize: 12 }}>(787) 513-8352 · info@otesspr.com</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ color: '#16223d', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em' }}>REPORTE DE BOLETO</div>
+                <div style={{ color: '#16223d', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em' }}>{t('title')}</div>
               </div>
             </div>
 
             <div style={{ padding: '28px 32px' }}>
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.08em' }}>Reporte</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.08em' }}>{t('reportLabel')}</div>
                 <div style={{ fontWeight: 700, fontSize: 20, color: '#16223d' }}>{report.title}</div>
                 {ticket?.subject && <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>{ticket.subject}</div>}
               </div>
 
               {(report.resolution_date || report.personnel) && (
                 <div style={{ fontSize: 13, color: '#555', marginBottom: 20, lineHeight: 1.8 }}>
-                  {report.resolution_date && <div>Fecha de resolución: <strong style={{ color: '#16223d' }}>{fmtDate(report.resolution_date)}</strong></div>}
-                  {report.personnel && <div>Personal presente: <strong style={{ color: '#16223d' }}>{report.personnel}</strong></div>}
+                  {report.resolution_date && <div>{t('resolutionDateLabel')} <strong style={{ color: '#16223d' }}>{fmtDate(report.resolution_date)}</strong></div>}
+                  {report.personnel && <div>{t('personnelLabel')} <strong style={{ color: '#16223d' }}>{report.personnel}</strong></div>}
                 </div>
               )}
 
               {client && (
                 <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 20, border: '1px solid #f0f0f0' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Cliente</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>{t('clientLabel')}</div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{client.name}</div>
                   {client.company && <div style={{ color: '#999', fontSize: 13 }}>{client.company}</div>}
                 </div>
               )}
 
               {report.summary && (
-                <Section title="Resumen de la Resolución">
+                <Section title={t('summaryTitle')}>
                   {lines(report.summary).map((p, i) => (
                     <p key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, margin: '0 0 10px' }}>{p}</p>
                   ))}
@@ -93,7 +97,7 @@ export default async function ReporteBoletoPublico({ params }) {
               )}
 
               {report.observations && (
-                <Section title="Observaciones">
+                <Section title={t('observationsTitle')}>
                   <ul style={{ margin: 0, paddingLeft: 20 }}>
                     {lines(report.observations).map((o, i) => (
                       <li key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, marginBottom: 6 }}>{o}</li>
@@ -103,7 +107,7 @@ export default async function ReporteBoletoPublico({ params }) {
               )}
 
               {report.recommendations && (
-                <Section title="Recomendaciones">
+                <Section title={t('recommendationsTitle')}>
                   <ol style={{ margin: 0, paddingLeft: 20 }}>
                     {lines(report.recommendations).map((r, i) => (
                       <li key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, marginBottom: 6 }}>{r}</li>
@@ -121,7 +125,7 @@ export default async function ReporteBoletoPublico({ params }) {
         </div>
 
         <div style={{ textAlign: 'center', color: '#bbb', fontSize: 12, padding: '16px 0' }}>
-          <p>¿Preguntas? Contáctanos en <a href="mailto:info@otesspr.com" style={{ color: '#e0972c' }}>info@otesspr.com</a> o al (787) 513-8352</p>
+          <p>{t('footer.questions')} <a href="mailto:info@otesspr.com" style={{ color: '#e0972c' }}>info@otesspr.com</a> {t('footer.orCall', { phone: '(787) 513-8352' })}</p>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
+import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -21,6 +22,8 @@ export async function GET(request) {
   }
 
   const today = todayPR();
+  const locale = getServerLocale();
+  const t = await getEmailTranslator(locale, 'emails.warrantyReminder');
   const threshold = new Date(today);
   threshold.setDate(threshold.getDate() + LEAD_DAYS);
   const thresholdStr = threshold.toISOString().slice(0, 10);
@@ -47,11 +50,22 @@ export async function GET(request) {
       const body = `Job ${job?.job_number ?? ''} (${job?.clients?.name ?? 'cliente desconocido'}) — ${status}, el ${item.warranty_expires_at}.`;
       const link = job?.id ? `/trabajos/${job.id}` : undefined;
 
+      const emailStatus = daysLeft < 0
+        ? t('statusOverdue', { days: Math.abs(daysLeft) })
+        : t('statusUpcoming', { days: daysLeft });
+      const emailTitle = t('title', { item: label });
+      const emailBody = t('body', {
+        jobNumber: job?.job_number ?? '',
+        clientName: job?.clients?.name ?? t('unknownClient'),
+        status: emailStatus,
+        date: item.warranty_expires_at,
+      });
+
       await resend.emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: 'services@otesspr.com',
-        subject: title,
-        html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${title}</p><p style="font-size:13px;color:#666">${body}</p>${link ? `<a href="${APP_URL}${link}" style="color:#e0972c;font-size:13px">Ver trabajo →</a>` : ''}</div>`,
+        subject: emailTitle,
+        html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${emailTitle}</p><p style="font-size:13px;color:#666">${emailBody}</p>${link ? `<a href="${APP_URL}${link}" style="color:#e0972c;font-size:13px">${t('viewJobLink')}</a>` : ''}</div>`,
       }).catch(err => console.error('Error enviando recordatorio de garantía:', err));
 
       await supabase.from('inbox_notifications').insert([{ type: 'warranty_reminder', title, body, link }]);

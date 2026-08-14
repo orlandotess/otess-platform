@@ -1,17 +1,18 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from '../../../../lib/supabase';
+import { useTranslations } from 'next-intl';
 
-const expenseCategories = [
-  { value: 'materiales', label: 'Materiales' },
-  { value: 'gasolina', label: 'Gasolina' },
-  { value: 'herramientas', label: 'Herramientas' },
-  { value: 'subcontratista', label: 'Subcontratista' },
-  { value: 'oficina', label: 'Oficina' },
-  { value: 'parking', label: 'Parking' },
-  { value: 'equipos', label: 'Equipos' },
-  { value: 'meals', label: 'Meals' },
-  { value: 'otro', label: 'Otro' },
+const expenseCategoryDefs = [
+  { value: 'materiales', key: 'materiales' },
+  { value: 'gasolina', key: 'gasolina' },
+  { value: 'herramientas', key: 'herramientas' },
+  { value: 'subcontratista', key: 'subcontratista' },
+  { value: 'oficina', key: 'oficina' },
+  { value: 'parking', key: 'parking' },
+  { value: 'equipos', key: 'equipos' },
+  { value: 'meals', key: 'meals' },
+  { value: 'otro', key: 'otro' },
 ];
 
 function todayISO() {
@@ -19,6 +20,8 @@ function todayISO() {
 }
 
 export default function NuevoGastoRecurrenteForm({ onSaved, onCancel }) {
+  const t = useTranslations('accounting.newRecurringGastoForm');
+  const expenseCategories = useMemo(() => expenseCategoryDefs.map(c => ({ value: c.value, label: t(`expenseCategories.${c.key}`) })), [t]);
   const [form, setForm] = useState({
     category: 'oficina',
     description: '',
@@ -34,7 +37,7 @@ export default function NuevoGastoRecurrenteForm({ onSaved, onCancel }) {
 
   async function save() {
     if (!form.description.trim() || !form.amount || !form.next_run_date) {
-      setError('Completa descripción, monto y próximo envío');
+      setError(t('errorRequired'));
       return;
     }
     setSaving(true);
@@ -58,52 +61,52 @@ export default function NuevoGastoRecurrenteForm({ onSaved, onCancel }) {
 
   return (
     <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--amber)' }}>
-      <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Nuevo gasto recurrente</p>
+      <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('title')}</p>
       {error && <p style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 12 }}>{error}</p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
         <div className="form-group">
-          <label>Categoría</label>
+          <label>{t('categoryLabel')}</label>
           <select value={form.category} onChange={e => set('category', e.target.value)}>
             {expenseCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </div>
         <div className="form-group">
-          <label>Frecuencia</label>
+          <label>{t('frequencyLabel')}</label>
           <select value={form.frequency} onChange={e => set('frequency', e.target.value)}>
-            <option value="weekly">Semanal</option>
-            <option value="monthly">Mensual</option>
-            <option value="quarterly">Trimestral</option>
-            <option value="yearly">Anual</option>
+            <option value="weekly">{t('freq.weekly')}</option>
+            <option value="monthly">{t('freq.monthly')}</option>
+            <option value="quarterly">{t('freq.quarterly')}</option>
+            <option value="yearly">{t('freq.yearly')}</option>
           </select>
         </div>
         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-          <label>Descripción</label>
-          <input value={form.description} onChange={e => set('description', e.target.value)} placeholder="Ej: Póliza de seguros, celular..." />
+          <label>{t('descriptionLabel')}</label>
+          <input value={form.description} onChange={e => set('description', e.target.value)} placeholder={t('descriptionPlaceholder')} />
         </div>
         <div className="form-group">
-          <label>Suplidor (opcional)</label>
-          <input value={form.vendor} onChange={e => set('vendor', e.target.value)} placeholder="Ej: AT&T" />
+          <label>{t('vendorLabel')}</label>
+          <input value={form.vendor} onChange={e => set('vendor', e.target.value)} placeholder={t('vendorPlaceholder')} />
         </div>
         <div className="form-group">
-          <label>Monto</label>
+          <label>{t('amountLabel')}</label>
           <input type="number" step="0.01" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="0.00" />
         </div>
         <div className="form-group">
-          <label>Próximo envío</label>
+          <label>{t('nextRunLabel')}</label>
           <input type="date" value={form.next_run_date} onChange={e => set('next_run_date', e.target.value)} />
         </div>
       </div>
 
       <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-        Se registrará automáticamente como gasto general cada vez que llegue esta fecha, y luego se repetirá según la frecuencia elegida.
+        {t('infoNote')}
       </div>
 
       <div style={{ display: 'flex', gap: 10 }}>
         <button className="btn btn-primary" onClick={save} disabled={saving || !form.description.trim() || !form.amount}>
-          {saving ? 'Guardando...' : '💾 Guardar'}
+          {saving ? t('saving') : t('save')}
         </button>
-        <button className="btn btn-ghost" onClick={onCancel}>Cancelar</button>
+        <button className="btn btn-ghost" onClick={onCancel}>{t('cancel')}</button>
       </div>
     </div>
   );

@@ -3,12 +3,14 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import SearchBox from '../../SearchBox';
 import NuevaRetencionForm from './NuevaRetencionForm';
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function RetencionesByClientClient({ clientTotals, exemptionYear }) {
+  const t = useTranslations('accounting.retencionesByClient');
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null); // { id, name }
@@ -48,20 +50,20 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
   }
 
   function exportSummaryCSV() {
-    const headers = ['Cliente', 'Transacciones', 'Total facturado', 'Total calculado', 'Total retenido', `Exención ${exemptionYear}`];
+    const headers = [t('columns.client'), t('columns.transactions'), t('columns.totalInvoiced'), t('columns.totalCalculated'), t('columns.totalWithheld'), t('columns.exemptionYear', { year: exemptionYear })];
     const rows = visible.map(c => [
       c.name,
       c.count,
       Number(c.totalFacturado ?? 0).toFixed(2),
       Number(c.totalCalculado ?? 0).toFixed(2),
       Number(c.totalRetenido ?? 0).toFixed(2),
-      c.exemption?.exhausted ? 'Agotada' : `${fmt(c.exemption?.remainingExemption ?? 500)} disponible`,
+      c.exemption?.exhausted ? t('badge.exhausted') : t('badge.available', { amount: fmt(c.exemption?.remainingExemption ?? 500) }),
     ]);
     downloadCSV(`Retenciones_por_cliente_${exemptionYear}.csv`, headers, rows);
   }
 
   function exportHistoryCSV() {
-    const headers = ['Fecha', 'Facturado', 'Exento', 'Base', 'Calculado', 'Aplicado', '# Comprobante', 'Estado'];
+    const headers = [t('detail.columns.date'), t('detail.columns.invoiced'), t('detail.columns.exempt'), t('detail.columns.base'), t('detail.columns.calculated'), t('detail.columns.applied'), t('detail.columns.voucherNumber'), t('detail.columns.status')];
     const rows = history.map(r => [
       r.fecha ?? '',
       Number(r.monto_facturado ?? 0).toFixed(2),
@@ -109,13 +111,13 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
   }
 
   async function deleteRetencion(id) {
-    if (!confirm('¿Eliminar esta retención?')) return;
+    if (!confirm(t('detail.deleteConfirm'))) return;
     // .select('id') so a policy-blocked delete (0 rows affected, no thrown error)
     // is distinguishable from a real success — otherwise the row vanishes from
     // the UI even though it's still in the database.
     const { data, error } = await supabase.from('retenciones').delete().eq('id', id).select('id');
     if (error || !data?.length) {
-      alert('No se pudo eliminar la retención. Es posible que no tengas permiso para hacerlo.');
+      alert(t('detail.deleteError'));
       return;
     }
     setHistory(prev => prev.filter(r => r.id !== id));
@@ -158,27 +160,27 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
     <div>
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Retenciones por cliente</p>
+          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('title')}</p>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <SearchBox value={search} onChange={setSearch} placeholder="Buscar cliente..." />
-            <button onClick={exportSummaryCSV} disabled={visible.length === 0} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>⬇ Exportar CSV</button>
+            <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
+            <button onClick={exportSummaryCSV} disabled={visible.length === 0} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>⬇ {t('exportCsv')}</button>
           </div>
         </div>
         {clientTotals.length === 0 ? (
-          <div className="empty"><p>No hay retenciones registradas todavía.</p></div>
+          <div className="empty"><p>{t('empty')}</p></div>
         ) : visible.length === 0 ? (
-          <div className="empty"><p>Sin resultados para "{search}".</p></div>
+          <div className="empty"><p>{t('noResultsFor', { search })}</p></div>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Cliente</th>
-                  <th style={{ textAlign: 'right' }}>Transacciones</th>
-                  <th style={{ textAlign: 'right' }}>Total facturado</th>
-                  <th style={{ textAlign: 'right' }}>Total calculado</th>
-                  <th style={{ textAlign: 'right' }}>Total retenido</th>
-                  <th>Exención {exemptionYear}</th>
+                  <th>{t('columns.client')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.transactions')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.totalInvoiced')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.totalCalculated')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.totalWithheld')}</th>
+                  <th>{t('columns.exemptionYear', { year: exemptionYear })}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -193,20 +195,20 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
                     <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--amber)' }}>{fmt(c.totalRetenido)}</td>
                     <td>
                       {c.exemption?.exhausted ? (
-                        <span className="badge badge-red">Agotada</span>
+                        <span className="badge badge-red">{t('badge.exhausted')}</span>
                       ) : c.exemption?.usedExemption > 0 ? (
-                        <span className="badge badge-amber">{fmt(c.exemption.remainingExemption)} disponible</span>
+                        <span className="badge badge-amber">{t('badge.available', { amount: fmt(c.exemption.remainingExemption) })}</span>
                       ) : (
-                        <span className="badge badge-green">$500.00 disponible</span>
+                        <span className="badge badge-green">{t('badge.available', { amount: '$500.00' })}</span>
                       )}
                     </td>
-                    <td style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>{selected?.id === c.id ? 'Cerrar ↑' : 'Ver →'}</td>
+                    <td style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>{selected?.id === c.id ? t('rowToggleClose') : t('rowToggleOpen')}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: '2px solid var(--border)' }}>
-                  <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTAL {query ? '(visibles)' : ''}</td>
+                  <td style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>{query ? t('totalRowVisible') : t('totalRow')}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12, color: 'var(--muted)' }}>{totals.count}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.facturado)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.calculado)}</td>
@@ -226,10 +228,10 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
             <p style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>{selected.name}</p>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               {history.length > 0 && (
-                <button onClick={exportHistoryCSV} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>⬇ Exportar CSV</button>
+                <button onClick={exportHistoryCSV} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>⬇ {t('exportCsv')}</button>
               )}
               <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-                {showForm ? 'Cancelar' : '+ Registrar retención'}
+                {showForm ? t('detail.cancel') : `+ ${t('detail.registerButton')}`}
               </button>
             </div>
           </div>
@@ -241,18 +243,19 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
               borderRadius: 10, padding: '14px 18px', marginBottom: 16, fontSize: 13,
             }}>
               <div style={{ fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>
-                Exención {exemptionYear}: {fmt(selected.exemption.usedExemption)} de $500.00 usados
+                {t('detail.exemptionHeader', { year: exemptionYear, used: fmt(selected.exemption.usedExemption) })}
               </div>
               {selected.exemption.exhausted ? (
                 <div style={{ color: 'var(--muted)' }}>
-                  Exención agotada
-                  {selected.exemption.exhaustedInvoice ? <> en <strong>{selected.exemption.exhaustedInvoice}</strong></> : null}
+                  {selected.exemption.exhaustedInvoice
+                    ? <>{t('detail.exemptionExhaustedWithInvoice')} <strong>{selected.exemption.exhaustedInvoice}</strong></>
+                    : t('detail.exemptionExhaustedNoInvoice')}
                   {selected.exemption.exhaustedDate ? ` (${selected.exemption.exhaustedDate})` : ''}
-                  . A partir de ahora se retiene 10% sobre toda la labor facturada.
+                  {' '}{t('detail.exemptionExhaustedNote')}
                 </div>
               ) : (
                 <div style={{ color: 'var(--muted)' }}>
-                  Quedan <strong>{fmt(selected.exemption.remainingExemption)}</strong> exentos — la próxima factura no tendrá retención hasta superar ese monto en labor; lo que exceda se retiene al 10%.
+                  {t('detail.exemptionRemainingPrefix')} <strong>{fmt(selected.exemption.remainingExemption)}</strong> {t('detail.exemptionRemainingSuffix')}
                 </div>
               )}
             </div>
@@ -268,23 +271,23 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
           )}
 
           {loadingHistory ? (
-            <p style={{ color: 'var(--muted)', padding: '20px 0', textAlign: 'center' }}>Cargando...</p>
+            <p style={{ color: 'var(--muted)', padding: '20px 0', textAlign: 'center' }}>{t('detail.loading')}</p>
           ) : history.length === 0 ? (
-            <div className="empty"><p>Sin retenciones registradas para este cliente.</p></div>
+            <div className="empty"><p>{t('detail.emptyHistory')}</p></div>
           ) : (
             <div className="table-wrap">
               <table className="table-dense">
                 <thead>
                   <tr>
-                    <th>Fecha</th>
-                    <th style={{ textAlign: 'right' }}>Facturado</th>
-                    <th style={{ textAlign: 'right' }}>Exento</th>
-                    <th style={{ textAlign: 'right' }}>Base</th>
-                    <th style={{ textAlign: 'right' }}>Calculado</th>
-                    <th style={{ textAlign: 'right' }}>Aplicado</th>
-                    <th># Comprobante</th>
-                    <th>Estado</th>
-                    <th>Factura</th>
+                    <th>{t('detail.columns.date')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('detail.columns.invoiced')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('detail.columns.exempt')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('detail.columns.base')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('detail.columns.calculated')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('detail.columns.applied')}</th>
+                    <th>{t('detail.columns.voucherNumber')}</th>
+                    <th>{t('detail.columns.status')}</th>
+                    <th>{t('detail.columns.invoice')}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -302,11 +305,11 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
                           <td><input value={editData.numero_comprobante} onChange={e => setEditData(d => ({ ...d, numero_comprobante: e.target.value }))} style={{ width: 100, fontSize: 12 }} /></td>
                           <td>
                             <select value={editData.estado} onChange={e => setEditData(d => ({ ...d, estado: e.target.value }))} style={{ fontSize: 12 }}>
-                              <option value="pendiente">Pendiente</option>
-                              <option value="declarado">Declarado</option>
+                              <option value="pendiente">{t('detail.status.pending')}</option>
+                              <option value="declarado">{t('detail.status.declared')}</option>
                             </select>
                           </td>
-                          <td style={{ fontSize: 12 }}>{r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`}>Ver →</Link> : '—'}</td>
+                          <td style={{ fontSize: 12 }}>{r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`}>{t('detail.invoiceLink')}</Link> : '—'}</td>
                           <td style={{ display: 'flex', gap: 6 }}>
                             <button onClick={() => saveEdit(r.id)} disabled={saving} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: 11 }}>💾</button>
                             <button onClick={() => { setEditingId(null); setEditData(null); }} className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 11 }}>✕</button>
@@ -323,9 +326,9 @@ export default function RetencionesByClientClient({ clientTotals, exemptionYear 
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(r.retencion_calculada)}</td>
                         <td style={{ textAlign: 'right', color: 'var(--amber)', fontWeight: 600 }}>{fmt(r.retencion_aplicada)}</td>
                         <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.numero_comprobante ?? '—'}</td>
-                        <td><span className={`badge ${r.estado === 'declarado' ? 'badge-green' : 'badge-gray'}`}>{r.estado}</span></td>
+                        <td><span className={`badge ${r.estado === 'declarado' ? 'badge-green' : 'badge-gray'}`}>{r.estado === 'declarado' ? t('detail.status.declared') : t('detail.status.pending')}</span></td>
                         <td style={{ fontSize: 12 }}>
-                          {r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`} style={{ color: 'var(--navy)', fontWeight: 600 }}>Ver →</Link> : <span style={{ color: 'var(--muted)' }}>—</span>}
+                          {r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`} style={{ color: 'var(--navy)', fontWeight: 600 }}>{t('detail.invoiceLink')}</Link> : <span style={{ color: 'var(--muted)' }}>—</span>}
                         </td>
                         <td style={{ display: 'flex', gap: 4 }}>
                           <button onClick={() => startEdit(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>✏️</button>

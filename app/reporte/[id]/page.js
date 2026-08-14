@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import ReporteActions from './ReporteActions';
 import FaseDetalle from './FaseDetalle';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 function lines(text) {
   return (text ?? '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -19,6 +20,9 @@ function Section({ title, children }) {
 
 export default async function ReportePublico({ params }) {
   const { id } = params;
+  const t = await getTranslations('reportes.trabajo');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
 
   const { data: report } = await supabase
     .from('job_reports')
@@ -30,8 +34,8 @@ export default async function ReportePublico({ params }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 48 }}>🔍</div>
-        <h2 style={{ color: '#16223d' }}>Reporte no encontrado</h2>
-        <p style={{ color: '#888' }}>El enlace puede haber expirado o ser incorrecto.</p>
+        <h2 style={{ color: '#16223d' }}>{t('notFoundTitle')}</h2>
+        <p style={{ color: '#888' }}>{t('notFoundBody')}</p>
       </div>
     </div>
   );
@@ -53,7 +57,7 @@ export default async function ReportePublico({ params }) {
 
   const phaseGroups = {};
   sortedNotes.filter(n => n.title || n.note).forEach(n => {
-    const key = n.phase_number != null ? `Fase ${n.phase_number}` : 'General';
+    const key = n.phase_number != null ? t('phaseLabel', { number: n.phase_number }) : t('generalLabel');
     if (!phaseGroups[key]) phaseGroups[key] = [];
     phaseGroups[key].push(n);
   });
@@ -66,7 +70,7 @@ export default async function ReportePublico({ params }) {
   const client = report.jobs?.clients;
   const property = report.jobs;
   const hasProperty = property && (property.property_name || property.street || property.city);
-  const fmtDate = d => d ? new Date(`${d}T00:00:00`).toLocaleDateString('es-PR', { year: 'numeric', month: 'long', day: 'numeric' }) : null;
+  const fmtDate = d => d ? new Date(`${d}T00:00:00`).toLocaleDateString(dateLocale, { year: 'numeric', month: 'long', day: 'numeric' }) : null;
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
@@ -87,22 +91,22 @@ export default async function ReportePublico({ params }) {
                 <div style={{ color: '#999', fontSize: 12 }}>(787) 513-8352 · info@otesspr.com</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ color: '#16223d', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em' }}>REPORTE DE STATUS</div>
+                <div style={{ color: '#16223d', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em' }}>{t('title')}</div>
                 {report.jobs?.job_number && <div style={{ color: '#999', fontSize: 15, fontWeight: 600, fontFamily: 'monospace', marginTop: 2 }}>{report.jobs.job_number}</div>}
               </div>
             </div>
 
             <div style={{ padding: '28px 32px' }}>
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.08em' }}>Reporte</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.08em' }}>{t('reportLabel')}</div>
                 <div style={{ fontWeight: 700, fontSize: 20, color: '#16223d' }}>{report.title}</div>
                 {report.jobs?.title && <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>{report.jobs.title}</div>}
               </div>
 
               {(report.visit_date || report.personnel) && (
                 <div style={{ fontSize: 13, color: '#555', marginBottom: 20, lineHeight: 1.8 }}>
-                  {report.visit_date && <div>Fecha de visita: <strong style={{ color: '#16223d' }}>{fmtDate(report.visit_date)}</strong></div>}
-                  {report.personnel && <div>Personal presente: <strong style={{ color: '#16223d' }}>{report.personnel}</strong></div>}
+                  {report.visit_date && <div>{t('visitDateLabel')} <strong style={{ color: '#16223d' }}>{fmtDate(report.visit_date)}</strong></div>}
+                  {report.personnel && <div>{t('personnelLabel')} <strong style={{ color: '#16223d' }}>{report.personnel}</strong></div>}
                 </div>
               )}
 
@@ -112,7 +116,7 @@ export default async function ReportePublico({ params }) {
                 const secondary = asCompany ? null : client.company;
                 return (
                   <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 20, border: '1px solid #f0f0f0' }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Cliente</div>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>{t('clientLabel')}</div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{primary}</div>
                     {secondary && <div style={{ color: '#999', fontSize: 13 }}>{secondary}</div>}
                   </div>
@@ -121,7 +125,7 @@ export default async function ReportePublico({ params }) {
 
               {hasProperty && (
                 <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 20, border: '1px solid #f0f0f0' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Propiedad</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>{t('propertyLabel')}</div>
                   {property.property_name && <div style={{ fontWeight: 700, fontSize: 15 }}>{property.property_name}</div>}
                   {property.street && <div style={{ color: '#999', fontSize: 13 }}>{property.street}</div>}
                   {(property.city || property.state || property.zip) && (
@@ -133,7 +137,7 @@ export default async function ReportePublico({ params }) {
               )}
 
               {report.summary && (
-                <Section title="Resumen de Actividades">
+                <Section title={t('summaryTitle')}>
                   {lines(report.summary).map((p, i) => (
                     <p key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, margin: '0 0 10px' }}>{p}</p>
                   ))}
@@ -141,7 +145,7 @@ export default async function ReportePublico({ params }) {
               )}
 
               {Object.keys(phaseGroups).length > 0 && (
-                <Section title="Detalle por Fase">
+                <Section title={t('phaseDetailTitle')}>
                   <FaseDetalle
                     phaseGroups={Object.fromEntries(Object.entries(phaseGroups).map(([label, notesInGroup]) => [
                       label,
@@ -152,7 +156,7 @@ export default async function ReportePublico({ params }) {
               )}
 
               {report.observations && (
-                <Section title="Observaciones">
+                <Section title={t('observationsTitle')}>
                   <ul style={{ margin: 0, paddingLeft: 20 }}>
                     {lines(report.observations).map((o, i) => (
                       <li key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, marginBottom: 6 }}>{o}</li>
@@ -162,7 +166,7 @@ export default async function ReportePublico({ params }) {
               )}
 
               {report.recommendations && (
-                <Section title="Recomendaciones">
+                <Section title={t('recommendationsTitle')}>
                   <ol style={{ margin: 0, paddingLeft: 20 }}>
                     {lines(report.recommendations).map((r, i) => (
                       <li key={i} style={{ fontSize: 14, color: '#444', lineHeight: 1.7, marginBottom: 6 }}>{r}</li>
@@ -172,7 +176,7 @@ export default async function ReportePublico({ params }) {
               )}
 
               {photos.length > 0 && (
-                <Section title="Evidencia Fotográfica">
+                <Section title={t('photoEvidenceTitle')}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                     {photos.map((p, idx) => {
                       const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(p.url);
@@ -182,13 +186,13 @@ export default async function ReportePublico({ params }) {
                           {isPdf ? (
                             <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 180, background: '#fafafa', borderRadius: 8, textDecoration: 'none', border: '1px solid #eee' }}>
                               <span style={{ fontSize: 32 }}>📄</span>
-                              <span style={{ fontSize: 12, color: '#999', fontWeight: 600, marginTop: 6 }}>Ver PDF</span>
+                              <span style={{ fontSize: 12, color: '#999', fontWeight: 600, marginTop: 6 }}>{t('viewPdf')}</span>
                             </a>
                           ) : isVideo ? (
                             <video src={p.url} controls style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                           ) : (
                             <a href={p.url} target="_blank" rel="noopener noreferrer">
-                              <img src={p.url} alt={p.caption || 'Foto del trabajo'} style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' }} />
+                              <img src={p.url} alt={p.caption || t('workPhotoAlt')} style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' }} />
                             </a>
                           )}
                           {p.caption && <div style={{ fontSize: 12.5, color: '#888', marginTop: 6, textAlign: 'center' }}>{p.caption}</div>}
@@ -208,7 +212,7 @@ export default async function ReportePublico({ params }) {
         </div>
 
         <div style={{ textAlign: 'center', color: '#bbb', fontSize: 12, padding: '16px 0' }}>
-          <p>¿Preguntas? Contáctanos en <a href="mailto:info@otesspr.com" style={{ color: '#e0972c' }}>info@otesspr.com</a> o al (787) 513-8352</p>
+          <p>{t('footer.questions')} <a href="mailto:info@otesspr.com" style={{ color: '#e0972c' }}>info@otesspr.com</a> {t('footer.orCall', { phone: '(787) 513-8352' })}</p>
         </div>
       </div>
     </div>

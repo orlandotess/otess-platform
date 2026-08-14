@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { withRetry } from '../../../../lib/withRetry';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
+import { getServerLocale, getEmailTranslator, getClientEmailTranslator } from '../../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -21,7 +22,7 @@ const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 
 // Bundled into this same cron (rather than a separate vercel.json entry) to stay
 // within Vercel's cron-job limit — unrelated to invoice reminders otherwise.
-async function checkIvuReminders(today) {
+async function checkIvuReminders(today, t) {
   const { data: pending } = await supabase
     .from('ivu_payments')
     .select('*')
@@ -41,12 +42,14 @@ async function checkIvuReminders(today) {
       const monthLabel = `${MONTHS[row.month]} ${row.year}`;
       const title = `IVU de ${monthLabel} pendiente`;
       const body = `Vence el ${row.due_date} y aún no está marcado como pagado.`;
+      const emailSubject = t('ivuSubject', { month: monthLabel });
+      const emailBody = t('ivuBody', { dueDate: row.due_date });
 
       await resend.emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: 'services@otesspr.com',
-        subject: title,
-        html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${title}</p><p style="font-size:13px;color:#666">${body}</p><a href="${APP_URL}/accounting/ivu?year=${row.year}&month=${row.month}" style="color:#e0972c;font-size:13px">Ver en Accounting →</a></div>`,
+        subject: emailSubject,
+        html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${emailSubject}</p><p style="font-size:13px;color:#666">${emailBody}</p><a href="${APP_URL}/accounting/ivu?year=${row.year}&month=${row.month}" style="color:#e0972c;font-size:13px">${t('ivuLinkText')}</a></div>`,
       }).catch(err => console.error('Error enviando recordatorio IVU:', err));
 
       await supabase.from('inbox_notifications').insert([{
@@ -60,7 +63,7 @@ async function checkIvuReminders(today) {
   }
 }
 
-function reminderEmail(inv, balance) {
+function reminderEmail(inv, balance, t) {
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const publicUrl = `${APP_URL}/factura/${inv.id}`;
   return `<!DOCTYPE html>
@@ -68,15 +71,15 @@ function reminderEmail(inv, balance) {
 <body style="margin:0;padding:0;background:#f4f5f7;font-family:Arial,sans-serif">
 <div style="max-width:560px;margin:0 auto;padding:32px 16px">
   <div style="background:#fff;border-radius:16px;padding:32px;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
-    <p style="color:#555;font-size:15px;margin-top:0">Estimado/a <strong>${inv.clients?.name ?? ''}</strong>,</p>
-    <p style="color:#666;font-size:14px">Este es un recordatorio de que la factura <strong>${inv.invoice_number}</strong> venció el <strong>${inv.due_at}</strong> y tiene un balance pendiente de <strong>${fmt(balance)}</strong>.</p>
+    <p style="color:#555;font-size:15px;margin-top:0">${t('greeting', { name: inv.clients?.name ?? '' })}</p>
+    <p style="color:#666;font-size:14px">${t('body', { number: inv.invoice_number, dueDate: inv.due_at, balance: fmt(balance) })}</p>
     <div style="text-align:center;margin:24px 0">
-      <a href="${publicUrl}" style="background:#e0972c;color:#fff;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;display:inline-block">Ver factura</a>
+      <a href="${publicUrl}" style="background:#e0972c;color:#fff;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;display:inline-block">${t('viewButton')}</a>
     </div>
-    <p style="color:#999;font-size:12.5px">Si ya realizaste el pago, puedes ignorar este mensaje.</p>
+    <p style="color:#999;font-size:12.5px">${t('ignoreNote')}</p>
   </div>
   <div style="text-align:center;padding:16px 0">
-    <p style="color:#aaa;font-size:12px">¿Preguntas? Contáctanos en <a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a> o al (787) 513-8352</p>
+    <p style="color:#aaa;font-size:12px">${t('footerQuestions', { email: '<a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a>', phone: '(787) 513-8352' })}</p>
   </div>
 </div>
 </body></html>`;
@@ -89,8 +92,11 @@ export async function GET(request) {
   }
 
   const today = todayPR();
+  const locale = getServerLocale();
+  const t = await getEmailTranslator(locale, 'emails.invoiceReminder');
+  const tClient = await getClientEmailTranslator('emails.invoiceReminder');
 
-  await checkIvuReminders(today);
+  await checkIvuReminders(today, t);
 
   const { data: overdue, error: qErr } = await supabase
     .from('invoices')
@@ -125,8 +131,8 @@ export async function GET(request) {
       await withRetry(() => resend.emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: inv.clients.email,
-        subject: `Recordatorio: factura ${inv.invoice_number} vencida`,
-        html: reminderEmail(inv, balance),
+        subject: tClient('reminderSubject', { number: inv.invoice_number }),
+        html: reminderEmail(inv, balance, tClient),
       }).then(({ error }) => { if (error) throw new Error(error.message); }));
 
       await supabase.from('invoices').update({
@@ -149,8 +155,8 @@ export async function GET(request) {
     await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
-      subject: `Recordatorios de facturas vencidas — ${reminded.length} enviados, ${failures.length} con error`,
-      html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">Resumen de recordatorios de facturas vencidas (${today}):</p><ul style="font-size:13px">${rows}</ul></div>`,
+      subject: t('summarySubject', { reminded: reminded.length, failures: failures.length }),
+      html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${t('summaryIntro', { date: today })}</p><ul style="font-size:13px">${rows}</ul></div>`,
     }).catch(err => console.error('Error notificando resumen de recordatorios:', err));
   }
 

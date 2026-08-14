@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
@@ -9,13 +9,10 @@ import LineItemPicker from '../LineItemPicker';
 import CableCalculator from '../CableCalculator';
 import TaxBreakdown from '../TaxBreakdown';
 import { calcularIVU, tasaParaLinea, aplicarDescuento } from '../../lib/tax';
+import { useTranslations } from 'next-intl';
 
-const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
-
-Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
-
-const TERMS_TEMPLATES = [
-  { key: 'standard', label: 'Garantía estándar', text: DEFAULT_TERMS },
+const TERMS_TEMPLATE_DEFS = [
+  { key: 'standard' },
 ];
 
 function emptyItem(overrides = {}) {
@@ -28,7 +25,7 @@ function emptyItem(overrides = {}) {
     ...overrides,
   };
 }
-function emptyArea(name = 'Área 1') {
+function emptyArea(name) {
   return { key: Math.random().toString(36).slice(2), name, items: [emptyItem()] };
 }
 // Rebuilds the local {areas: [{name, items}]} builder shape from a flat list
@@ -37,12 +34,12 @@ function emptyArea(name = 'Área 1') {
 // sections use, so edit mode reconstructs what will render. Accessories
 // (parent_item_id children) are re-linked to their parent's freshly-minted
 // local key right after it, same two-pass shape PropuestaForm.js uses.
-function itemsToAreas(items) {
+function itemsToAreas(items, t) {
   const rows = items ?? [];
   const topLevel = rows.filter(li => !li.parent_item_id).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   const areas = [];
   topLevel.forEach(li => {
-    const name = li.area || 'General';
+    const name = li.area || t('generalArea');
     let area = areas.find(a => a.name === name);
     if (!area) { area = { key: Math.random().toString(36).slice(2), name, items: [] }; areas.push(area); }
     const parent = emptyItem({
@@ -65,7 +62,7 @@ function itemsToAreas(items) {
       }));
     });
   });
-  return areas.length ? areas : [emptyArea()];
+  return areas.length ? areas : [emptyArea(t('area', { n: 1 }))];
 }
 
 export default function EstimateForm({ initialData = null }) {
@@ -73,6 +70,12 @@ export default function EstimateForm({ initialData = null }) {
   const searchParams = useSearchParams();
   const jobIdParam = searchParams.get('job');
   const isEdit = !!initialData;
+  const t = useTranslations('estimados.form');
+  const termsTemplates = useMemo(() => TERMS_TEMPLATE_DEFS.map(d => ({
+    key: d.key,
+    label: t(`termsTemplates.${d.key}.label`),
+    text: t(`termsTemplates.${d.key}.text`),
+  })), [t]);
 
   const [clients, setClients] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -97,7 +100,7 @@ export default function EstimateForm({ initialData = null }) {
     valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
     discount_type: 'amount', discount_value: '', discount_note: '',
   });
-  const [areas, setAreas] = useState(initialData?.items?.length ? itemsToAreas(initialData.items) : [emptyArea()]);
+  const [areas, setAreas] = useState(initialData?.items?.length ? itemsToAreas(initialData.items, t) : [emptyArea(t('area', { n: 1 }))]);
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [collapsedAccessories, setCollapsedAccessories] = useState({}); // { [parentItemKey]: boolean } — view-only, not persisted
   const calculatorBatchParentKey = useRef(null); // tracks the parent item key for the current cable/tubo calculator "Agregar línea" batch
@@ -148,7 +151,7 @@ export default function EstimateForm({ initialData = null }) {
               photoPreview = data?.signedUrl ?? null;
             }
             return { ...li, photo_signed_url: photoPreview };
-          })).then(loaded => setAreas(itemsToAreas(loaded)));
+          })).then(loaded => setAreas(itemsToAreas(loaded, t)));
         }
       }
     }
@@ -160,7 +163,7 @@ export default function EstimateForm({ initialData = null }) {
   const hasCompany = !!selectedClient?.company;
 
   function addArea() {
-    setAreas(prev => [...prev, emptyArea(`Área ${prev.length + 1}`)]);
+    setAreas(prev => [...prev, emptyArea(t('area', { n: prev.length + 1 }))]);
   }
   function removeArea(areaKey) {
     setAreas(prev => prev.filter(a => a.key !== areaKey));
@@ -363,14 +366,14 @@ export default function EstimateForm({ initialData = null }) {
   function areaTotal(area) {
     return area.items.reduce((s, it) => s + itemLineTotal(it), 0);
   }
-  const t = calcularIVU(flatItems, clientType, taxRules);
+  const ivuTotals = calcularIVU(flatItems, clientType, taxRules);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.client_id) { setError('Selecciona un cliente'); return; }
-    if (!flatItems.some(i => i.description.trim())) { setError('Agrega al menos una línea'); return; }
-    if (flatItems.some(i => !i.description.trim())) { setError('Todas las líneas necesitan una descripción antes de guardar.'); return; }
-    if (propertyMode === 'new' && !newProperty.name.trim()) { setError('Ponle un nombre a la propiedad nueva'); return; }
+    if (!form.client_id) { setError(t('errors.selectClient')); return; }
+    if (!flatItems.some(i => i.description.trim())) { setError(t('errors.addLine')); return; }
+    if (flatItems.some(i => !i.description.trim())) { setError(t('errors.allLinesNeedDescription')); return; }
+    if (propertyMode === 'new' && !newProperty.name.trim()) { setError(t('errors.propertyNameRequired')); return; }
     setSaving(true); setError('');
 
     let propertyId = null;
@@ -393,10 +396,10 @@ export default function EstimateForm({ initialData = null }) {
     // estimates no tiene columna propia para "reembolso" — se pliega en
     // subtotal_products (tasa 0%, no afecta tax_products). Ver la misma nota
     // en app/facturas/InvoiceForm.js.
-    const productCat = t.categorias.find(c => c.codigo === 'product');
-    const laborCat = t.categorias.find(c => c.codigo === 'labor');
-    const reembolsoCat = t.categorias.find(c => c.codigo === 'reembolso');
-    const { discountAmount, finalTotal } = aplicarDescuento(t.total, form.discount_type, form.discount_value);
+    const productCat = ivuTotals.categorias.find(c => c.codigo === 'product');
+    const laborCat = ivuTotals.categorias.find(c => c.codigo === 'labor');
+    const reembolsoCat = ivuTotals.categorias.find(c => c.codigo === 'reembolso');
+    const { discountAmount, finalTotal } = aplicarDescuento(ivuTotals.total, form.discount_type, form.discount_value);
     const aggTotals = {
       subtotal_products: productCat.base + reembolsoCat.base,
       tax_products: productCat.impuesto + reembolsoCat.impuesto,
@@ -412,7 +415,7 @@ export default function EstimateForm({ initialData = null }) {
     if (isEdit) {
       const { data: current } = await supabase.from('estimates').select('status').eq('id', initialData.estimate.id).single();
       if (!current || !['draft', 'sent'].includes(current.status)) {
-        setError('Este estimado ya no se puede editar (fue aceptado, convertido o cancelado).');
+        setError(t('errors.notEditable'));
         setSaving(false);
         return;
       }
@@ -550,7 +553,7 @@ export default function EstimateForm({ initialData = null }) {
       }
     }
     if (liErr) {
-      setError(`El estimado ${estimate.estimate_number} se guardó pero no se pudieron guardar sus líneas: ${liErr.message}. Ábrelo y agrégalas manualmente.`);
+      setError(t('errors.lineItemsFailed', { number: estimate.estimate_number, message: liErr.message }));
       setSaving(false);
       return;
     }
@@ -562,29 +565,29 @@ export default function EstimateForm({ initialData = null }) {
     <div className="admin-shell ds-estimados">
       <Sidebar />
       <main className="main-content">
-        <div className="page-header"><div className="page-title">{isEdit ? `Editar estimado ${initialData.estimate.estimate_number}` : 'Nuevo estimado'}</div></div>
+        <div className="page-header"><div className="page-title">{isEdit ? t('editTitle', { number: initialData.estimate.estimate_number }) : t('newTitle')}</div></div>
         <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {error && <p style={{ color: 'var(--warn)', fontSize: 14 }}>{error}</p>}
 
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('generalInfo')}</p>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Cliente *</label>
+                  <label>{t('client')}</label>
                   <ClientCombobox clients={clients} value={form.client_id} onChange={id => {
                     set('client_id', id); set('bill_to', 'person'); set('property_id', '');
                     setPropertyMode('none'); setNewProperty({ name: '', street: '', city: '', state: 'PR', zip: '' });
                   }} />
                 </div>
                 <div className="form-group">
-                  <label>Trabajo (opcional)</label>
+                  <label>{t('job')}</label>
                   <select value={form.job_id} onChange={e => {
                     const jid = e.target.value;
                     const job = jobs.find(j => j.id === jid);
                     setForm(f => ({ ...f, job_id: jid, title: job?.title ?? '' }));
                   }}>
-                    <option value="">— Sin trabajo asociado —</option>
+                    <option value="">{t('noJobOption')}</option>
                     {jobs.filter(j => !form.client_id || j.client_id === form.client_id).map(j => (
                       <option key={j.id} value={j.id}>{j.title}</option>
                     ))}
@@ -593,13 +596,13 @@ export default function EstimateForm({ initialData = null }) {
               </div>
 
               <div className="form-group" style={{ marginTop: 12 }}>
-                <label>Título del estimado</label>
-                <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="Ej: Sistema de cámaras - Oficina Principal" />
+                <label>{t('titleLabel')}</label>
+                <input value={form.title} onChange={e => set('title', e.target.value)} placeholder={t('titlePlaceholder')} />
               </div>
 
               {hasCompany && (
                 <div className="form-group" style={{ marginTop: 4 }}>
-                  <label>A nombre de</label>
+                  <label>{t('billTo')}</label>
                   <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
                       <input type="radio" name="bill_to" value="person" checked={form.bill_to === 'person'} onChange={() => set('bill_to', 'person')} />
@@ -615,25 +618,25 @@ export default function EstimateForm({ initialData = null }) {
 
               <div className="form-row" style={{ marginTop: 12 }}>
                 <div className="form-group">
-                  <label>Fecha</label>
+                  <label>{t('issuedDate')}</label>
                   <input type="date" value={form.issued_at} onChange={e => set('issued_at', e.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label>Válida hasta</label>
+                  <label>{t('validUntil')}</label>
                   <input type="date" value={form.valid_until} onChange={e => set('valid_until', e.target.value)} />
                 </div>
               </div>
               <div className="form-group">
-                <label>Notas para el cliente</label>
-                <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Notas, condiciones de pago, etc..." />
+                <label>{t('notes')}</label>
+                <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder={t('notesPlaceholder')} />
               </div>
             </div>
 
             {form.client_id && (
               <div className="card">
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>📍 Propiedad (opcional)</p>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('propertyCardTitle')}</p>
                 <div className="form-group">
-                  <label>Dirección del trabajo</label>
+                  <label>{t('propertyAddressLabel')}</label>
                   <select
                     value={propertyMode === 'existing' ? form.property_id : (propertyMode === 'new' ? '__new__' : '')}
                     onChange={e => {
@@ -642,43 +645,43 @@ export default function EstimateForm({ initialData = null }) {
                       else if (v === '') { setPropertyMode('none'); set('property_id', ''); }
                       else { setPropertyMode('existing'); set('property_id', v); }
                     }}>
-                    <option value="">— Sin propiedad —</option>
+                    <option value="">{t('noPropertyOption')}</option>
                     {properties.map(p => <option key={p.id} value={p.id}>{p.name}{p.is_primary ? ' ★' : ''}</option>)}
-                    <option value="__new__">+ Dirección nueva</option>
+                    <option value="__new__">{t('newPropertyOption')}</option>
                   </select>
                 </div>
                 {propertyMode === 'new' && (
                   <>
                     <div className="form-group">
-                      <label>Nombre de la propiedad</label>
-                      <input value={newProperty.name} onChange={e => setNewProperty(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Oficina Principal, Almacén Caguas" />
+                      <label>{t('propertyNameLabel')}</label>
+                      <input value={newProperty.name} onChange={e => setNewProperty(p => ({ ...p, name: e.target.value }))} placeholder={t('propertyNamePlaceholder')} />
                     </div>
                     <div className="form-group">
-                      <label>Dirección</label>
-                      <input value={newProperty.street} onChange={e => setNewProperty(p => ({ ...p, street: e.target.value }))} placeholder="Calle y número" />
+                      <label>{t('propertyStreetLabel')}</label>
+                      <input value={newProperty.street} onChange={e => setNewProperty(p => ({ ...p, street: e.target.value }))} placeholder={t('propertyStreetPlaceholder')} />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
                       <div className="form-group">
-                        <label>Ciudad</label>
-                        <input value={newProperty.city} onChange={e => setNewProperty(p => ({ ...p, city: e.target.value }))} placeholder="San Juan" />
+                        <label>{t('propertyCityLabel')}</label>
+                        <input value={newProperty.city} onChange={e => setNewProperty(p => ({ ...p, city: e.target.value }))} placeholder={t('propertyCityPlaceholder')} />
                       </div>
                       <div className="form-group">
-                        <label>Estado</label>
-                        <input value={newProperty.state} onChange={e => setNewProperty(p => ({ ...p, state: e.target.value }))} placeholder="PR" />
+                        <label>{t('propertyStateLabel')}</label>
+                        <input value={newProperty.state} onChange={e => setNewProperty(p => ({ ...p, state: e.target.value }))} placeholder={t('propertyStatePlaceholder')} />
                       </div>
                       <div className="form-group">
-                        <label>Zip</label>
-                        <input value={newProperty.zip} onChange={e => setNewProperty(p => ({ ...p, zip: e.target.value }))} placeholder="00901" />
+                        <label>{t('propertyZipLabel')}</label>
+                        <input value={newProperty.zip} onChange={e => setNewProperty(p => ({ ...p, zip: e.target.value }))} placeholder={t('propertyZipPlaceholder')} />
                       </div>
                     </div>
-                    <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>Se guardará como propiedad del cliente para futuros estimados, facturas y trabajos.</p>
+                    <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>{t('propertySaveNote')}</p>
                   </>
                 )}
               </div>
             )}
 
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Áreas del estimado</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('estimateAreas')}</p>
 
               {areas.map((area, areaIndex) => (
                 <div key={area.key}
@@ -689,7 +692,7 @@ export default function EstimateForm({ initialData = null }) {
                     <input value={area.name} onChange={e => updateAreaName(area.key, e.target.value)}
                       style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0 }} />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{area.name} Total: {fmt(areaTotal(area))}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{t('areaTotal', { name: area.name, amount: fmt(areaTotal(area)) })}</span>
                       <div style={{ position: 'relative' }}>
                         <button type="button" onClick={() => setAreaMenuOpen(o => o === area.key ? null : area.key)}
                           style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, padding: '2px 6px' }}>⋮</button>
@@ -700,7 +703,7 @@ export default function EstimateForm({ initialData = null }) {
                               <button type="button" disabled={areas.length <= 1}
                                 onClick={() => { removeArea(area.key); setAreaMenuOpen(null); }}
                                 style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: areas.length <= 1 ? 'default' : 'pointer', borderRadius: 6, color: areas.length <= 1 ? 'var(--muted)' : 'var(--warn)' }}>
-                                🗑 Eliminar área
+                                {t('deleteArea')}
                               </button>
                             </div>
                           </>
@@ -710,7 +713,7 @@ export default function EstimateForm({ initialData = null }) {
                   </div>
 
                   <div style={{ marginBottom: 10 }}>
-                    <LineItemPicker catalogOptions={catalogItems.filter(c => !c.internal_only)} onSelect={item => addFromCatalog(area.key, item)} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+                    <LineItemPicker catalogOptions={catalogItems.filter(c => !c.internal_only)} onSelect={item => addFromCatalog(area.key, item)} placeholder={t('searchCatalogPlaceholder')} />
                   </div>
 
                   {area.items.map((item, itemIndex) => {
@@ -724,11 +727,11 @@ export default function EstimateForm({ initialData = null }) {
                     <Fragment key={item.key}>
                       {isGroupHead && (
                         <div className="form-group" style={{ marginBottom: 8, marginLeft: 4 }}>
-                          <label style={{ fontSize: 11 }}>Descripción para el estimado (opcional — reemplaza el listado automático de "{item.title}" en el documento del cliente)</label>
+                          <label style={{ fontSize: 11 }}>{t('groupDescriptionLabel', { title: item.title })}</label>
                           <textarea
                             value={item.group_description || ''}
                             onChange={e => setItem(area.key, item.key, 'group_description', e.target.value)}
-                            placeholder="Ej: Materiales de instalación de tubería y accesorios"
+                            placeholder={t('groupDescriptionPlaceholder')}
                             rows={2}
                             style={{ fontSize: 13, width: '100%' }}
                           />
@@ -802,12 +805,12 @@ export default function EstimateForm({ initialData = null }) {
                         fmt={fmt}
                         actions={
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <button type="button" onClick={() => duplicateItem(area.key, item.key)} title="Duplicar línea" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>⧉</button>
+                            <button type="button" onClick={() => duplicateItem(area.key, item.key)} title={t('duplicateLineTitle')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>⧉</button>
                             <span
                               draggable
                               onDragStart={() => setDragItem({ areaKey: area.key, itemKey: item.key })}
                               onDragEnd={() => setDragItem(null)}
-                              title="Arrastrar para mover a otra área"
+                              title={t('dragToMoveTitle')}
                               style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 15, padding: '0 4px', userSelect: 'none' }}
                             >⠿</span>
                             <button type="button" onClick={() => removeItem(area.key, item.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
@@ -824,30 +827,30 @@ export default function EstimateForm({ initialData = null }) {
                               <button type="button" onClick={() => toggleAccessoriesCollapsed(item.key)}
                                 style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 11.5, padding: 0 }}>
                                 <span>{collapsed ? '▸' : '▾'}</span>
-                                <span>{children.length} Accesorio{children.length > 1 ? 's' : ''}</span>
+                                <span>{t('accessoriesCount', { count: children.length })}</span>
                                 <span style={{ fontWeight: 700, color: 'var(--navy)' }}>{fmt(childrenSubtotal)}</span>
                               </button>
                             ) : (
                               <button type="button" onClick={() => addAccessory(area.key, item.key)}
                                 style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
-                                + Accesorio
+                                {t('addAccessory')}
                               </button>
                             )}
                             {children.length > 0 && (
                               <>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}
-                                  title="Si está activo, el precio de los accesorios se combina en el total de este producto. Si lo desactivas, cada accesorio se cotiza por separado.">
+                                  title={t('combineAccessoryPricesTooltip')}>
                                   <span
                                     onClick={() => setItem(area.key, item.key, 'combinePrice', item.combinePrice === false)}
                                     style={{ display: 'inline-flex', alignItems: 'center', width: 30, height: 16, borderRadius: 10, position: 'relative', flexShrink: 0, background: item.combinePrice !== false ? 'var(--navy)' : 'var(--border)', transition: 'background 0.15s' }}
                                   >
                                     <span style={{ position: 'absolute', top: 2, left: item.combinePrice !== false ? 16 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
                                   </span>
-                                  Combinar precios
+                                  {t('combineAccessoryPrices')}
                                 </label>
                                 <button type="button" onClick={() => addAccessory(area.key, item.key)}
                                   style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}>
-                                  + Accesorio
+                                  {t('addAccessory')}
                                 </button>
                               </>
                             )}
@@ -860,28 +863,28 @@ export default function EstimateForm({ initialData = null }) {
                     );
                   })}
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key, { type: 'product', tax_category: 'product' })}>+ Añadir producto</button>
-                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key)}>+ Añadir labor</button>
-                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ areaKey: area.key })}>🧮 Calcular cable/tubo</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key, { type: 'product', tax_category: 'product' })}>{t('addProduct')}</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key)}>{t('addLabor')}</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ areaKey: area.key })}>{t('calculateCable')}</button>
                   </div>
                 </div>
               ))}
-              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addArea}>+ Agregar área</button>
+              <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addArea}>{t('addArea')}</button>
             </div>
 
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Términos del proyecto</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('projectTerms')}</p>
               <div className="form-group">
                 <select
                   value=""
                   onChange={e => {
-                    const tpl = TERMS_TEMPLATES.find(t => t.key === e.target.value);
+                    const tpl = termsTemplates.find(tpl => tpl.key === e.target.value);
                     if (tpl) set('terms', tpl.text);
                   }}
                   style={{ marginBottom: 8 }}
                 >
-                  <option value="">— Elegir plantilla —</option>
-                  {TERMS_TEMPLATES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                  <option value="">{t('chooseTemplate')}</option>
+                  {termsTemplates.map(tpl => <option key={tpl.key} value={tpl.key}>{tpl.label}</option>)}
                 </select>
                 <textarea value={form.terms} onChange={e => set('terms', e.target.value)} rows={6} style={{ fontSize: 13, lineHeight: 1.6 }} />
               </div>
@@ -890,42 +893,42 @@ export default function EstimateForm({ initialData = null }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Descuento (opcional)</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('discountCardTitle')}</p>
               <div className="form-row">
                 <div className="form-group" style={{ maxWidth: 110 }}>
-                  <label>Tipo</label>
+                  <label>{t('discountTypeLabel')}</label>
                   <select value={form.discount_type} onChange={e => set('discount_type', e.target.value)}>
                     <option value="amount">$</option>
                     <option value="percent">%</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>{form.discount_type === 'percent' ? 'Porcentaje' : 'Monto'}</label>
+                  <label>{form.discount_type === 'percent' ? t('percentageLabel') : t('amountLabel')}</label>
                   <input type="number" min="0" step="0.01" value={form.discount_value}
                     onChange={e => set('discount_value', e.target.value)} placeholder="0.00" />
                 </div>
               </div>
               <div className="form-group">
-                <label>Nota del descuento</label>
+                <label>{t('discountNoteLabel')}</label>
                 <input value={form.discount_note} onChange={e => set('discount_note', e.target.value)}
-                  placeholder="Ej: Descuento por referido, promoción de verano..." />
+                  placeholder={t('discountNotePlaceholder')} />
               </div>
             </div>
             <div className="card">
               <TaxBreakdown
-                lineas={flatItems} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                lineas={flatItems} clientType={clientType} taxRules={taxRules} title={t('ivuSummaryTitle')}
                 discountType={form.discount_type} discountValue={form.discount_value} discountNote={form.discount_note}
                 note={clientType === 'b2b' && (
                   <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
-                    Cliente B2B — Labor al 4%
+                    {t('b2bLaborNote')}
                   </div>
                 )}
               />
             </div>
             <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
-              {saving ? 'Guardando...' : isEdit ? '💾 Guardar cambios' : '💾 Guardar estimado'}
+              {saving ? t('saving') : isEdit ? t('saveChanges') : t('saveEstimate')}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>Cancelar</button>
+            <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>{t('cancel')}</button>
           </div>
         </form>
         {cableCalcTarget && (

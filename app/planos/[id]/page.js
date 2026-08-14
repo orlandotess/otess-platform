@@ -5,9 +5,11 @@ import { getCurrentRole } from '../../../lib/supabase-server';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import PlanoEditor from './PlanoEditor';
+import { getTranslations } from 'next-intl/server';
 
 export default async function PlanoDetail({ params }) {
   const { id } = params;
+  const t = await getTranslations('planos.detail');
 
   const [{ data: plan }, { data: markers }, { data: cables }, { data: layers }, { data: cableTypes }, { data: elementTypes }, { data: customIcons }, { data: allClients }, currentRole] = await Promise.all([
     supabase.from('floor_plans').select('*, clients(name), jobs(title)').eq('id', id).single(),
@@ -28,8 +30,8 @@ export default async function PlanoDetail({ params }) {
       {!isTech && <Sidebar />}
       <main className="main-content" style={isTech ? { marginLeft: 0 } : undefined}>
         <div className="page-header">
-          <div className="page-title">Plano no encontrado</div>
-          <Link href={isTech ? '/crew' : '/planos'} className="btn btn-ghost">← Volver</Link>
+          <div className="page-title">{t('notFound')}</div>
+          <Link href={isTech ? '/crew' : '/planos'} className="btn btn-ghost">{t('back')}</Link>
         </div>
       </main>
     </div>

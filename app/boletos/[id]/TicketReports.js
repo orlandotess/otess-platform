@@ -2,8 +2,12 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import Link from 'next/link';
+import { useTranslations, useLocale } from 'next-intl';
 
 export default function TicketReports({ ticketId, clientContacts = [], reports: initialReports = [] }) {
+  const t = useTranslations('boletos.reports');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
   const [reportsList, setReportsList] = useState(initialReports);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -66,7 +70,7 @@ export default function TicketReports({ ticketId, clientContacts = [], reports: 
       : await supabase.from('ticket_reports').insert([{ ticket_id: ticketId, ...payload }]).select().single();
     setSaving(false);
     if (error) {
-      alert('No se pudo guardar el reporte: ' + error.message);
+      alert(t('saveError', { error: error.message }));
       return;
     }
     if (editingId) {
@@ -112,22 +116,22 @@ export default function TicketReports({ ticketId, clientContacts = [], reports: 
       setReportsList(prev => prev.map(r => r.id === emailingId ? { ...r, sent_at: new Date().toISOString(), sent_to: emailTo, sent_cc: cc.length ? cc : null } : r));
       setEmailingId(null);
     } else {
-      alert('Error: ' + data.error);
+      alert(t('sendError', { error: data.error }));
     }
   }
 
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Reportes</h2>
-        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={openNew}>+ Nuevo reporte</button>
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{t('title')}</h2>
+        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={openNew}>{t('newReport')}</button>
       </div>
       <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 16 }}>
-        Documenta lo que se hizo para resolver este boleto y compártelo con el cliente por email.
+        {t('subtitle')}
       </p>
 
       {reportsList.length === 0 ? (
-        <div className="empty"><p>No hay reportes aún.</p></div>
+        <div className="empty"><p>{t('emptyText')}</p></div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {reportsList.map(r => (
@@ -136,15 +140,15 @@ export default function TicketReports({ ticketId, clientContacts = [], reports: 
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{r.title}</div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                    {r.resolution_date ? new Date(`${r.resolution_date}T00:00:00`).toLocaleDateString('es-PR') : '—'}
-                    {r.sent_at && <span> · ✅ Enviado a {r.sent_to}</span>}
+                    {r.resolution_date ? new Date(`${r.resolution_date}T00:00:00`).toLocaleDateString(dateLocale) : '—'}
+                    {r.sent_at && <span> · {t('sentTo', { email: r.sent_to })}</span>}
                   </div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <a className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} href={`/reporte-boleto/${r.id}`} target="_blank" rel="noopener noreferrer">👁 Ver</a>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => openEdit(r)}>✏️ Editar</button>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => openEmail(r)}>📧 Enviar</button>
+                <a className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} href={`/reporte-boleto/${r.id}`} target="_blank" rel="noopener noreferrer">👁 {t('view')}</a>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => openEdit(r)}>✏️ {t('edit')}</button>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => openEmail(r)}>📧 {t('send')}</button>
                 <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px', color: 'var(--warn)' }} onClick={() => setShowDelete(r.id)}>🗑</button>
               </div>
             </div>
@@ -155,42 +159,42 @@ export default function TicketReports({ ticketId, clientContacts = [], reports: 
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 480, maxHeight: '85vh', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>{editingId ? 'Editar reporte' : 'Nuevo reporte'}</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>{editingId ? t('editReport') : t('newReport')}</h2>
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Título</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Resolución — cuadro telefónico" autoFocus />
+              <label>{t('form.title')}</label>
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t('form.titlePlaceholder')} autoFocus />
             </div>
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
               <div className="form-group" style={{ flex: 1 }}>
-                <label>Fecha de resolución</label>
+                <label>{t('form.resolutionDate')}</label>
                 <input type="date" value={resolutionDate} onChange={e => setResolutionDate(e.target.value)} />
               </div>
               <div className="form-group" style={{ flex: 1 }}>
-                <label>Personal presente</label>
-                <input value={personnel} onChange={e => setPersonnel(e.target.value)} placeholder="Nombres separados por coma" />
+                <label>{t('form.personnel')}</label>
+                <input value={personnel} onChange={e => setPersonnel(e.target.value)} placeholder={t('form.personnelPlaceholder')} />
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Resumen de la resolución</label>
-              <textarea value={summary} onChange={e => setSummary(e.target.value)} rows={4} placeholder="Describe lo que se hizo para resolver el problema..." />
+              <label>{t('form.summary')}</label>
+              <textarea value={summary} onChange={e => setSummary(e.target.value)} rows={4} placeholder={t('form.summaryPlaceholder')} />
             </div>
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Observaciones</label>
-              <textarea value={observations} onChange={e => setObservations(e.target.value)} rows={3} placeholder="Una observación por línea..." />
+              <label>{t('form.observations')}</label>
+              <textarea value={observations} onChange={e => setObservations(e.target.value)} rows={3} placeholder={t('form.observationsPlaceholder')} />
             </div>
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Recomendaciones</label>
-              <textarea value={recommendations} onChange={e => setRecommendations(e.target.value)} rows={3} placeholder="Una recomendación por línea..." />
+              <label>{t('form.recommendations')}</label>
+              <textarea value={recommendations} onChange={e => setRecommendations(e.target.value)} rows={3} placeholder={t('form.recommendationsPlaceholder')} />
             </div>
             <div className="form-group" style={{ marginBottom: 20 }}>
-              <label>Preparado por</label>
-              <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Nombre para la firma" />
+              <label>{t('form.preparedBy')}</label>
+              <input value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder={t('form.preparedByPlaceholder')} />
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-primary" disabled={saving || !title.trim()} onClick={saveReport} style={{ flex: 1, justifyContent: 'center' }}>
-                {saving ? 'Guardando...' : 'Guardar'}
+                {saving ? t('saving') : t('save')}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>{t('cancel')}</button>
             </div>
           </div>
         </div>
@@ -199,16 +203,16 @@ export default function TicketReports({ ticketId, clientContacts = [], reports: 
       {emailingId && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, maxHeight: '85vh', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>Enviar reporte por email</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>{t('emailModalTitle')}</h2>
             <form onSubmit={sendEmail}>
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label>Email del cliente</label>
+                <label>{t('form.clientEmail')}</label>
                 <input type="email" required value={emailTo} onChange={e => setEmailTo(e.target.value)} autoFocus />
               </div>
 
               {clientContacts.filter(c => c.email).length > 0 && (
                 <div className="form-group" style={{ marginBottom: 16 }}>
-                  <label>Copiar a (CC)</label>
+                  <label>{t('form.cc')}</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1.5px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
                     {clientContacts.filter(c => c.email).map(c => (
                       <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
@@ -222,15 +226,15 @@ export default function TicketReports({ ticketId, clientContacts = [], reports: 
               )}
 
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Otros correos en copia (opcional)</label>
-                <input value={emailCcExtra} onChange={e => setEmailCcExtra(e.target.value)} placeholder="correo1@ejemplo.com, correo2@ejemplo.com" />
+                <label>{t('form.ccExtra')}</label>
+                <input value={emailCcExtra} onChange={e => setEmailCcExtra(e.target.value)} placeholder={t('form.ccExtraPlaceholder')} />
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sending} style={{ flex: 1, justifyContent: 'center' }}>
-                  {sending ? 'Enviando...' : '📤 Enviar'}
+                  {sending ? t('sending') : `📤 ${t('send')}`}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setEmailingId(null)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setEmailingId(null)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -240,14 +244,14 @@ export default function TicketReports({ ticketId, clientContacts = [], reports: 
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar reporte?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Esta acción no se puede deshacer.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteConfirmTitle')}</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteConfirmText')}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={() => deleteReport(showDelete)} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                {deleting ? t('deleting') : t('confirmDelete')}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowDelete(null)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowDelete(null)} style={{ flex: 1, justifyContent: 'center' }}>{t('cancel')}</button>
             </div>
           </div>
         </div>

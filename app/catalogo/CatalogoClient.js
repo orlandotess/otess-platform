@@ -1,29 +1,21 @@
 "use client";
 import { useState, useRef, useEffect, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { supabase } from "../../lib/supabase";
 import ViewToggle, { useCatalogView } from "../ViewToggle";
 import CatalogoView from "../CatalogoView";
 
-const TYPE_META = {
-  labor: { label: "Labor", icon: "🔧", color: "#e0972c" },
-  product: { label: "Productos", icon: "📦", color: "#2a4cb5" },
-  fee: { label: "Fees", icon: "🧾", color: "#16223d" },
-  catalog_view: { label: "Catálogo", icon: "🗂️", color: "#0e8f7a" },
+const TYPE_META_BASE = {
+  labor: { icon: "🔧", color: "#e0972c" },
+  product: { icon: "📦", color: "#2a4cb5" },
+  fee: { icon: "🧾", color: "#16223d" },
+  catalog_view: { icon: "🗂️", color: "#0e8f7a" },
 };
-
-// Fees es una agrupación de presentación (`type`), no una categoría fiscal —
-// tax_category (cómo se grava: labor/product/reembolso) es un eje aparte.
-// Ver migrations/2026-08-02-fees-tax-category.sql y lib/tax.js.
-const TAX_CATEGORY_META = {
-  labor: { label: "Labor (4% B2B / 11.5%)" },
-  product: { label: "Producto (11.5%)" },
-  reembolso: { label: "Reembolso (0%)" },
-};
-const RECURRENCIA_LABELS = { unica: "Única", mensual: "Mensual", anual: "Anual" };
 
 const LOCATION_ICONS = { warehouse: "🏢", site: "📍", van: "🚐", zone: "🗂️", shelf: "📚", bin: "🗃️" };
 
 export default function CatalogoClient({ items: initial, locations = [], locationStock = [], locationReels = [] }) {
+  const t = useTranslations("catalogo.client");
   const [items, setItems] = useState(initial);
   const [reels, setReels] = useState(locationReels);
   const [reelsModalItem, setReelsModalItem] = useState(null);
@@ -51,6 +43,28 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
 
   const dataType = tab === "catalog_view" ? "product" : tab;
   const isCardView = tab === "catalog_view";
+
+  // Fees es una agrupación de presentación (`type`), no una categoría fiscal —
+  // tax_category (cómo se grava: labor/product/reembolso) es un eje aparte.
+  // Ver migrations/2026-08-02-fees-tax-category.sql y lib/tax.js.
+  const typeMeta = useMemo(() => ({
+    labor: { ...TYPE_META_BASE.labor, label: t("types.labor") },
+    product: { ...TYPE_META_BASE.product, label: t("types.product") },
+    fee: { ...TYPE_META_BASE.fee, label: t("types.fee") },
+    catalog_view: { ...TYPE_META_BASE.catalog_view, label: t("types.catalogView") },
+  }), [t]);
+
+  const taxCategoryMeta = useMemo(() => ({
+    labor: { label: t("taxCategory.labor") },
+    product: { label: t("taxCategory.product") },
+    reembolso: { label: t("taxCategory.reembolso") },
+  }), [t]);
+
+  const recurrenciaLabels = useMemo(() => ({
+    unica: t("recurrencia.unica"),
+    mensual: t("recurrencia.mensual"),
+    anual: t("recurrencia.anual"),
+  }), [t]);
 
   const locationsById = useMemo(() => {
     const map = {};
@@ -103,7 +117,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       p_code: newReel.code.trim() || null,
     });
     setSavingReel(false);
-    if (error) { setReelError("Error: " + error.message); return; }
+    if (error) { setReelError(t("errorAlert", { message: error.message })); return; }
     const footage = parseFloat(newReel.total_footage);
     setReels(prev => [{
       id: data, location_id: newReel.location_id, catalog_item_id: reelsModalItem.id,
@@ -123,18 +137,18 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     setReelError("");
     const { error } = await supabase.rpc("use_reel_footage", { p_reel_id: reel.id, p_footage: footage });
     setSavingReel(false);
-    if (error) { setReelError("Error: " + error.message); return; }
+    if (error) { setReelError(t("errorAlert", { message: error.message })); return; }
     setReels(prev => prev.map(r => r.id === reel.id ? { ...r, remaining_footage: r.remaining_footage - footage } : r));
     setItems(prev => prev.map(i => i.id === reel.catalog_item_id ? { ...i, stock_quantity: (i.stock_quantity ?? 0) - footage } : i));
     setReelFootageInputs(prev => ({ ...prev, [reel.id]: "" }));
   }
 
   async function deleteReel(reel) {
-    if (!confirm("¿Eliminar esta caja de cable?")) return;
+    if (!confirm(t("confirmDeleteReel"))) return;
     setSavingReel(true);
     const { error } = await supabase.rpc("delete_stock_reel", { p_reel_id: reel.id });
     setSavingReel(false);
-    if (error) { alert("Error: " + error.message); return; }
+    if (error) { alert(t("errorAlert", { message: error.message })); return; }
     setReels(prev => prev.filter(r => r.id !== reel.id));
     setItems(prev => prev.map(i => i.id === reel.catalog_item_id ? { ...i, stock_quantity: (i.stock_quantity ?? 0) - reel.remaining_footage } : i));
   }
@@ -222,7 +236,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     }
     const { error } = await supabase.from("catalog_items").update(payload).eq("id", id);
     if (error) {
-      alert("Error al guardar: " + error.message);
+      alert(t("errorSavingAlert", { message: error.message }));
       setSaving(false);
       return;
     }
@@ -234,14 +248,14 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   }
 
   async function deleteItem(id) {
-    if (!confirm("¿Eliminar este ítem?")) return;
+    if (!confirm(t("confirmDeleteItem"))) return;
     await supabase.from("catalog_items").delete().eq("id", id);
     setItems(prev => prev.filter(i => i.id !== id));
   }
 
   async function addItem() {
     if (!newItem.item_code.trim() || !newItem.name.trim() || !newItem.description.trim()) {
-      alert("Item Code, Nombre y Descripción son requeridos.");
+      alert(t("requiredFieldsAlert"));
       return;
     }
     setSaving(true);
@@ -267,7 +281,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       photo_url,
     }]).select().single();
     if (error) {
-      alert("Error al guardar: " + error.message);
+      alert(t("errorSavingAlert", { message: error.message }));
       setSaving(false);
       return;
     }
@@ -352,7 +366,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       };
     }).filter(i => i.item_code && i.name && i.description);
 
-    if (parsed.length === 0) { alert("No se encontraron filas válidas en el CSV."); return; }
+    if (parsed.length === 0) { alert(t("noValidRowsAlert")); return; }
 
     // Filas con el mismo Item Code dentro del mismo archivo: la última gana,
     // para no mandar dos filas apuntando al mismo id en el upsert de abajo.
@@ -366,7 +380,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     // en vez de duplicarlo — re-importar un CSV exportado y editado en Excel
     // es el caso de uso real, no solo cargar un catálogo desde cero.
     const { data: existing, error: lookupError } = await supabase.from("catalog_items").select("id, item_code").in("item_code", uniqueRows.map(i => i.item_code));
-    if (lookupError) { setSaving(false); alert("Error: " + lookupError.message); return; }
+    if (lookupError) { setSaving(false); alert(t("errorAlert", { message: lookupError.message })); return; }
     const existingIdByCode = new Map((existing || []).map(r => [r.item_code, r.id]));
 
     const toUpsert = uniqueRows.map(i => {
@@ -377,7 +391,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
 
     const { data, error } = await supabase.from("catalog_items").upsert(toUpsert).select();
     setSaving(false);
-    if (error) { alert("Error: " + error.message); return; }
+    if (error) { alert(t("errorAlert", { message: error.message })); return; }
 
     if (data) {
       setItems(prev => {
@@ -386,7 +400,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
         return [...byId.values()];
       });
     }
-    alert(`${data.length - updatedCount} ítems nuevos, ${updatedCount} actualizados.`);
+    alert(t("importResultAlert", { newCount: data.length - updatedCount, updatedCount }));
     e.target.value = "";
     setShowMenu(false);
   }
@@ -403,13 +417,13 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       {/* Search bar */}
       <div style={{ position: "relative", marginBottom: 20 }}>
         <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}>🔍</span>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Buscar en ${TYPE_META[tab].label}...`}
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("searchPlaceholder", { type: typeMeta[tab].label })}
           style={{ width: "100%", padding: "14px 16px 14px 42px", border: "1.5px solid var(--border)", borderRadius: 12, fontSize: 15, background: "var(--surface)" }} />
       </div>
 
       {/* Category cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24, maxWidth: 400 }}>
-        {Object.entries(TYPE_META).map(([key, meta]) => (
+        {Object.entries(typeMeta).map(([key, meta]) => (
           <div key={key} className="hover-lift" onClick={() => setTab(key)}
             style={{
               background: "var(--surface)", borderRadius: 14, padding: "20px 16px", cursor: "pointer", textAlign: "center",
@@ -418,7 +432,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
             }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>{meta.icon}</div>
             <div style={{ fontWeight: 700, fontSize: 14, color: "var(--navy)" }}>{meta.label}</div>
-            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{counts[key]} ítems</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{t("itemsCount", { count: counts[key] })}</div>
           </div>
         ))}
       </div>
@@ -426,22 +440,22 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       {/* Toolbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <p style={{ fontWeight: 700, fontSize: 15, color: "var(--navy)" }}>
-          {TYPE_META[tab].icon} {TYPE_META[tab].label} ({filtered.length})
+          {typeMeta[tab].icon} {typeMeta[tab].label} ({filtered.length})
         </p>
         <div style={{ display: "flex", gap: 8, position: "relative" }}>
           {tab === "fee" && <ViewToggle view={feeView} onChange={setFeeView} />}
-          <button className="btn btn-ghost" onClick={() => setShowMenu(m => !m)}>⋮ Más</button>
+          <button className="btn btn-ghost" onClick={() => setShowMenu(m => !m)}>{t("moreButton")}</button>
           {showMenu && (
             <>
               <div style={{ position: "fixed", inset: 0, zIndex: 10 }} onClick={() => setShowMenu(false)} />
               <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "var(--surface)", border: "1.5px solid var(--border)", borderRadius: 10, boxShadow: "0 4px 20px rgba(0,0,0,0.12)", zIndex: 11, minWidth: 180, overflow: "hidden" }}>
-                <button onClick={exportCSV} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>⬇ Exportar CSV</button>
-                <button onClick={() => { fileRef.current?.click(); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>⬆ Importar CSV</button>
+                <button onClick={exportCSV} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>{t("exportCsvButton")}</button>
+                <button onClick={() => { fileRef.current?.click(); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>{t("importCsvButton")}</button>
               </div>
             </>
           )}
           <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} style={{ display: "none" }} />
-          <button className="btn btn-amber" onClick={() => setAdding(true)}>+ Nuevo</button>
+          <button className="btn btn-amber" onClick={() => setAdding(true)}>{t("newButton")}</button>
         </div>
       </div>
 
@@ -462,59 +476,59 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
             </label>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", gap: 8 }}>
-                <input value={newItem.item_code} onChange={e => setNewItem(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "monospace", width: 140, flexShrink: 0 }} />
-                <input value={newItem.name} onChange={e => setNewItem(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del ítem" maxLength={150} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0 }} />
+                <input value={newItem.item_code} onChange={e => setNewItem(f => ({ ...f, item_code: e.target.value }))} placeholder={t("itemCodePlaceholder")} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontFamily: "monospace", width: 140, flexShrink: 0 }} />
+                <input value={newItem.name} onChange={e => setNewItem(f => ({ ...f, name: e.target.value }))} placeholder={t("namePlaceholder")} maxLength={150} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0 }} />
               </div>
-              <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, width: "100%" }} />
+              <input value={newItem.description} onChange={e => setNewItem(f => ({ ...f, description: e.target.value }))} placeholder={t("descriptionPlaceholder")} maxLength={200} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, width: "100%" }} />
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {dataType === "product" && (
-                  <input type="number" value={newItem.msrp} onChange={e => setNewItem(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)", width: 90 }} />
+                  <input type="number" value={newItem.msrp} onChange={e => setNewItem(f => ({ ...f, msrp: e.target.value }))} placeholder={t("msrpPlaceholder")} step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--muted)", width: 90 }} />
                 )}
-                <input type="number" value={newItem.price} onChange={e => setNewItem(f => ({ ...f, price: e.target.value }))} placeholder="Precio venta" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, width: 100 }} title="Precio de venta al cliente (editable a mano)" />
+                <input type="number" value={newItem.price} onChange={e => setNewItem(f => ({ ...f, price: e.target.value }))} placeholder={t("pricePlaceholder")} step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, width: 100 }} title={t("priceTitle")} />
                 {dataType === "product" && (
-                  <input type="number" value={newItem.supplier_price} onChange={e => applyMarkup(setNewItem, { supplier_price: e.target.value })} placeholder="Costo" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--warn)", width: 90 }} />
-                )}
-                {dataType === "product" && (
-                  <input type="number" value={newItem.markup_pct} onChange={e => applyMarkup(setNewItem, { markup_pct: e.target.value })} placeholder="Markup %" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 90 }} title="% sobre el costo — calcula el precio de venta automáticamente" />
+                  <input type="number" value={newItem.supplier_price} onChange={e => applyMarkup(setNewItem, { supplier_price: e.target.value })} placeholder={t("costPlaceholder")} step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--warn)", width: 90 }} />
                 )}
                 {dataType === "product" && (
-                  <input list="vendor-options" value={newItem.vendor} onChange={e => setNewItem(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 120 }} />
+                  <input type="number" value={newItem.markup_pct} onChange={e => applyMarkup(setNewItem, { markup_pct: e.target.value })} placeholder={t("markupPlaceholder")} step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 90 }} title={t("markupTitle")} />
                 )}
                 {dataType === "product" && (
-                  <input type="number" value={newItem.stock_quantity} onChange={e => setNewItem(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--navy)", width: 80 }} title="Cantidad en inventario" />
+                  <input list="vendor-options" value={newItem.vendor} onChange={e => setNewItem(f => ({ ...f, vendor: e.target.value }))} placeholder={t("vendorPlaceholder")} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 120 }} />
                 )}
                 {dataType === "product" && (
-                  <select value={newItem.default_location_id} onChange={e => setNewItem(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 160 }} title="Ubicación de origen">
-                    <option value="">Sin ubicación</option>
+                  <input type="number" value={newItem.stock_quantity} onChange={e => setNewItem(f => ({ ...f, stock_quantity: e.target.value }))} placeholder={t("stockPlaceholder")} step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--navy)", width: 80 }} title={t("stockTitle")} />
+                )}
+                {dataType === "product" && (
+                  <select value={newItem.default_location_id} onChange={e => setNewItem(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 160 }} title={t("locationTitle")}>
+                    <option value="">{t("noLocationOption")}</option>
                     {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                   </select>
                 )}
                 {dataType === "fee" && (
-                  <input type="number" value={newItem.costo} onChange={e => setNewItem(f => ({ ...f, costo: e.target.value }))} placeholder="Costo (Dealer Price)" step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--warn)", width: 150 }} />
+                  <input type="number" value={newItem.costo} onChange={e => setNewItem(f => ({ ...f, costo: e.target.value }))} placeholder={t("feeCostPlaceholder")} step="0.01" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--warn)", width: 150 }} />
                 )}
                 {dataType === "fee" && (
-                  <select value={newItem.tax_category} onChange={e => setNewItem(f => ({ ...f, tax_category: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 200 }} title="Cómo se grava este fee — independiente de que se muestre en la sección Fees">
-                    {Object.entries(TAX_CATEGORY_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+                  <select value={newItem.tax_category} onChange={e => setNewItem(f => ({ ...f, tax_category: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 200 }} title={t("taxCategoryTitle")}>
+                    {Object.entries(taxCategoryMeta).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
                   </select>
                 )}
                 {dataType === "fee" && (
                   <select value={newItem.recurrencia} onChange={e => setNewItem(f => ({ ...f, recurrencia: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 110 }}>
-                    {Object.entries(RECURRENCIA_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                    {Object.entries(recurrenciaLabels).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                   </select>
                 )}
                 {dataType === "fee" && newItem.recurrencia !== "unica" && (
-                  <input type="number" value={newItem.termino_meses} onChange={e => setNewItem(f => ({ ...f, termino_meses: e.target.value }))} placeholder="Término (meses)" step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 130 }} title="Término del contrato en meses (opcional)" />
+                  <input type="number" value={newItem.termino_meses} onChange={e => setNewItem(f => ({ ...f, termino_meses: e.target.value }))} placeholder={t("termMonthsPlaceholder")} step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 130 }} title={t("termMonthsTitle")} />
                 )}
               </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", cursor: "pointer" }} title="No aparece como opción al armar Facturas, Estimas, Propuestas u Órdenes de Cambio">
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", cursor: "pointer" }} title={t("internalOnlyTitle")}>
                 <input type="checkbox" checked={newItem.internal_only} onChange={e => setNewItem(f => ({ ...f, internal_only: e.target.checked }))} />
-                🔒 Interno (no visible en documentos de cliente)
+                {t("internalOnlyLabel")}
               </label>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
-            <button onClick={() => { setAdding(false); setNewPhotoFile(null); setNewPhotoPreview(null); }} className="btn btn-ghost">Cancelar</button>
-            <button onClick={addItem} disabled={saving} className="btn btn-primary">{saving ? "Guardando..." : "Guardar ítem"}</button>
+            <button onClick={() => { setAdding(false); setNewPhotoFile(null); setNewPhotoPreview(null); }} className="btn btn-ghost">{t("cancelButton")}</button>
+            <button onClick={addItem} disabled={saving} className="btn btn-primary">{saving ? t("savingButton") : t("saveItemButton")}</button>
           </div>
         </div>
       )}
@@ -524,41 +538,41 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
         <CatalogoView
           items={filtered}
           view={feeView}
-          emptyLabel="No hay fees aún."
+          emptyLabel={t("emptyFees")}
           columns={[
-            { key: "item_code", label: "Código", render: item => editingId === item.id
+            { key: "item_code", label: t("columnCode"), render: item => editingId === item.id
               ? <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace", width: 100 }} />
               : <span style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--amber)" }}>{item.item_code}</span> },
-            { key: "desc", label: "Descripción", render: item => editingId === item.id
+            { key: "desc", label: t("columnDescription"), render: item => editingId === item.id
               ? <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontWeight: 700 }} />
-                  <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
+                  <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder={t("nameShortPlaceholder")} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontWeight: 700 }} />
+                  <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder={t("descriptionPlaceholder")} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
                 </div>
               : <div>
-                  <div style={{ fontWeight: 700 }}>{item.name || item.description}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title="No visible en documentos de cliente">🔒</span>}</div>
+                  <div style={{ fontWeight: 700 }}>{item.name || item.description}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("internalOnlyBadgeTitle")}>🔒</span>}</div>
                   {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)" }}>{item.description}</div>}
                 </div> },
-            { key: "costo", label: "Costo", render: item => editingId === item.id
+            { key: "costo", label: t("columnCost"), render: item => editingId === item.id
               ? <input type="number" value={editForm.costo} onChange={e => setEditForm(f => ({ ...f, costo: e.target.value }))} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 90 }} />
               : (item.costo != null ? fmt(item.costo) : "—") },
-            { key: "price", label: "Precio", render: item => editingId === item.id
+            { key: "price", label: t("columnPrice"), render: item => editingId === item.id
               ? <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 12, fontWeight: 700, width: 90 }} />
               : <span style={{ fontWeight: 800, color: "var(--navy)" }}>{fmt(item.price)}</span> },
-            { key: "recurrencia", label: "Recurrencia", render: item => editingId === item.id
+            { key: "recurrencia", label: t("columnRecurrence"), render: item => editingId === item.id
               ? <div style={{ display: "flex", gap: 4 }}>
                   <select value={editForm.recurrencia} onChange={e => setEditForm(f => ({ ...f, recurrencia: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }}>
-                    {Object.entries(RECURRENCIA_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                    {Object.entries(recurrenciaLabels).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                   </select>
                   {editForm.recurrencia !== "unica" && (
-                    <input type="number" value={editForm.termino_meses} onChange={e => setEditForm(f => ({ ...f, termino_meses: e.target.value }))} placeholder="meses" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 70 }} />
+                    <input type="number" value={editForm.termino_meses} onChange={e => setEditForm(f => ({ ...f, termino_meses: e.target.value }))} placeholder={t("monthsPlaceholder")} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 70 }} />
                   )}
                 </div>
-              : `${RECURRENCIA_LABELS[item.recurrencia] ?? "Única"}${item.termino_meses ? ` · ${item.termino_meses}m` : ""}` },
-            { key: "tax_category", label: "Tasa %", render: item => editingId === item.id
+              : `${recurrenciaLabels[item.recurrencia] ?? recurrenciaLabels.unica}${item.termino_meses ? ` · ${item.termino_meses}m` : ""}` },
+            { key: "tax_category", label: t("columnTaxRate"), render: item => editingId === item.id
               ? <select value={editForm.tax_category} onChange={e => setEditForm(f => ({ ...f, tax_category: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }}>
-                  {Object.entries(TAX_CATEGORY_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+                  {Object.entries(taxCategoryMeta).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
                 </select>
-              : <span style={{ fontSize: 12 }}>{TAX_CATEGORY_META[item.tax_category]?.label ?? item.tax_category}</span> },
+              : <span style={{ fontSize: 12 }}>{taxCategoryMeta[item.tax_category]?.label ?? item.tax_category}</span> },
             { key: "actions", label: "", render: item => editingId === item.id
               ? <div style={{ display: "flex", gap: 6 }}>
                   <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "4px 10px" }}>💾</button>
@@ -571,25 +585,25 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
           ]}
           renderTile={item => editingId === item.id ? (
             <div key={item.id} style={{ background: "var(--surface)", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", gap: 8 }}>
-              <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
-              <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
+              <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder={t("nameShortPlaceholder")} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
+              <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder={t("descriptionPlaceholder")} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
               <div style={{ display: "flex", gap: 6 }}>
-                <input type="number" value={editForm.costo} onChange={e => setEditForm(f => ({ ...f, costo: e.target.value }))} placeholder="Costo" step="0.01" style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: "50%" }} />
-                <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "6px 8px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 12, fontWeight: 700, width: "50%" }} />
+                <input type="number" value={editForm.costo} onChange={e => setEditForm(f => ({ ...f, costo: e.target.value }))} placeholder={t("costPlaceholder")} step="0.01" style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: "50%" }} />
+                <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder={t("priceShortPlaceholder")} step="0.01" style={{ padding: "6px 8px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 12, fontWeight: 700, width: "50%" }} />
               </div>
               <div style={{ display: "flex", gap: 6 }}>
                 <select value={editForm.recurrencia} onChange={e => setEditForm(f => ({ ...f, recurrencia: e.target.value }))} style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, flex: 1 }}>
-                  {Object.entries(RECURRENCIA_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  {Object.entries(recurrenciaLabels).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                 </select>
                 {editForm.recurrencia !== "unica" && (
-                  <input type="number" value={editForm.termino_meses} onChange={e => setEditForm(f => ({ ...f, termino_meses: e.target.value }))} placeholder="meses" style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 70 }} />
+                  <input type="number" value={editForm.termino_meses} onChange={e => setEditForm(f => ({ ...f, termino_meses: e.target.value }))} placeholder={t("monthsPlaceholder")} style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 70 }} />
                 )}
               </div>
               <select value={editForm.tax_category} onChange={e => setEditForm(f => ({ ...f, tax_category: e.target.value }))} style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }}>
-                {Object.entries(TAX_CATEGORY_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+                {Object.entries(taxCategoryMeta).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
               </select>
               <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 10px", flex: 1, justifyContent: "center" }}>💾 Guardar</button>
+                <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 10px", flex: 1, justifyContent: "center" }}>{t("saveButton")}</button>
                 <button onClick={() => setEditingId(null)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }}>✕</button>
               </div>
             </div>
@@ -599,18 +613,18 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
               <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
               {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)" }}>{item.description}</div>}
               <div style={{ fontWeight: 800, fontSize: 18, color: "var(--navy)" }}>{fmt(item.price)}</div>
-              {item.costo != null && <div style={{ fontSize: 11, color: "var(--warn)" }}>Costo: {fmt(item.costo)}</div>}
-              <div style={{ fontSize: 11, color: "var(--muted)" }}>{RECURRENCIA_LABELS[item.recurrencia] ?? "Única"}{item.termino_meses ? ` · ${item.termino_meses}m` : ""}</div>
-              <div style={{ fontSize: 11, color: "var(--muted)" }}>{TAX_CATEGORY_META[item.tax_category]?.label ?? item.tax_category}</div>
+              {item.costo != null && <div style={{ fontSize: 11, color: "var(--warn)" }}>{t("columnCost")}: {fmt(item.costo)}</div>}
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>{recurrenciaLabels[item.recurrencia] ?? recurrenciaLabels.unica}{item.termino_meses ? ` · ${item.termino_meses}m` : ""}</div>
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>{taxCategoryMeta[item.tax_category]?.label ?? item.tax_category}</div>
               <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", flex: 1, justifyContent: "center" }}>✏️ Editar</button>
+                <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", flex: 1, justifyContent: "center" }}>{t("editButton")}</button>
                 <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", color: "var(--warn)" }}>🗑</button>
               </div>
             </div>
           )}
         />
       ) : filtered.length === 0 ? (
-        <div className="empty"><p>No hay ítems {dataType === "labor" ? "de labor" : "de productos"} aún.</p></div>
+        <div className="empty"><p>{dataType === "labor" ? t("emptyItemsLabor") : t("emptyItemsProduct")}</p></div>
       ) : isCardView ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
           {filtered.map(item => {
@@ -631,37 +645,37 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                         if (f) { setEditPhotoFile(f); setEditPhotoPreview(URL.createObjectURL(f)); }
                       }} />
                     </label>
-                    <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace" }} />
-                    <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del ítem" maxLength={150} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
-                    <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
+                    <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} placeholder={t("itemCodePlaceholder")} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace" }} />
+                    <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder={t("namePlaceholder")} maxLength={150} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} />
+                    <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder={t("descriptionPlaceholder")} maxLength={200} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13 }} />
                     {item.type === "product" && (
-                      <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)" }} />
+                      <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder={t("msrpPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)" }} />
                     )}
-                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} title="Precio de venta al cliente (editable a mano)" />
+                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder={t("priceShortPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700 }} title={t("priceTitle")} />
                     {item.type === "product" && (
-                      <input type="number" value={editForm.supplier_price} onChange={e => applyMarkup(setEditForm, { supplier_price: e.target.value })} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)" }} />
-                    )}
-                    {item.type === "product" && (
-                      <input type="number" value={editForm.markup_pct} onChange={e => applyMarkup(setEditForm, { markup_pct: e.target.value })} placeholder="Markup %" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} title="% sobre el costo — calcula el precio de venta automáticamente" />
+                      <input type="number" value={editForm.supplier_price} onChange={e => applyMarkup(setEditForm, { supplier_price: e.target.value })} placeholder={t("costPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)" }} />
                     )}
                     {item.type === "product" && (
-                      <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} />
+                      <input type="number" value={editForm.markup_pct} onChange={e => applyMarkup(setEditForm, { markup_pct: e.target.value })} placeholder={t("markupPlaceholder")} step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} title={t("markupTitle")} />
                     )}
                     {item.type === "product" && (
-                      <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)" }} title="Cantidad en inventario" />
+                      <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder={t("vendorPlaceholder")} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} />
                     )}
                     {item.type === "product" && (
-                      <select value={editForm.default_location_id} onChange={e => setEditForm(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} title="Ubicación de origen">
-                        <option value="">Sin ubicación</option>
+                      <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder={t("stockPlaceholder")} step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)" }} title={t("stockTitle")} />
+                    )}
+                    {item.type === "product" && (
+                      <select value={editForm.default_location_id} onChange={e => setEditForm(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11 }} title={t("locationTitle")}>
+                        <option value="">{t("noLocationOption")}</option>
                         {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                       </select>
                     )}
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted)", cursor: "pointer" }} title="No aparece como opción al armar Facturas, Estimas, Propuestas u Órdenes de Cambio">
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted)", cursor: "pointer" }} title={t("internalOnlyTitle")}>
                       <input type="checkbox" checked={!!editForm.internal_only} onChange={e => setEditForm(f => ({ ...f, internal_only: e.target.checked }))} />
-                      🔒 Interno
+                      {t("internalOnlyShortLabel")}
                     </label>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px", flex: 1, justifyContent: "center" }}>💾 Guardar</button>
+                      <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px", flex: 1, justifyContent: "center" }}>{t("saveButton")}</button>
                       <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>✕</button>
                     </div>
                   </>
@@ -672,24 +686,24 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                         <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                       ) : "📦"}
                     </div>
-                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title="No visible en documentos de cliente">🔒 Interno</span>}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("internalOnlyBadgeTitle")}>{t("internalOnlyBadge")}</span>}</div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
                     {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)", minHeight: 34 }}>{item.description}</div>}
                     <div>
-                      {item.type === "product" && item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
+                      {item.type === "product" && item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>{t("msrpLabel", { value: fmt(item.msrp) })}</div>}
                       <div style={{ fontWeight: 800, fontSize: 18, color: "var(--navy)" }}>{fmt(item.price)}</div>
                       {item.type === "product" && item.supplier_price != null && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--warn)" }}>
-                          <span>Costo: {fmt(item.supplier_price)}</span>
-                          {margin != null && <span title="Margen real (ganancia / precio)" style={{ color: margin >= 0 ? "var(--ok)" : "var(--warn)", fontWeight: 700 }}>{margin}% margen</span>}
+                          <span>{t("columnCost")}: {fmt(item.supplier_price)}</span>
+                          {margin != null && <span title={t("marginTitle")} style={{ color: margin >= 0 ? "var(--ok)" : "var(--warn)", fontWeight: 700 }}>{t("marginLabel", { margin })}</span>}
                         </div>
                       )}
                       {item.type === "product" && item.markup_pct != null && (
-                        <div style={{ fontSize: 11, color: "var(--muted)" }} title="% sobre el costo usado para calcular el precio de venta">Markup: {item.markup_pct}%</div>
+                        <div style={{ fontSize: 11, color: "var(--muted)" }} title={t("markupUsedTitle")}>{t("markupLabel", { pct: item.markup_pct })}</div>
                       )}
                       {item.type === "product" && item.vendor && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>🏪 {item.vendor}</div>}
                       {item.type === "product" && item.stock_quantity != null && (
-                        <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700, marginTop: 2 }}>📦 Stock: {item.stock_quantity}</div>
+                        <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700, marginTop: 2 }}>{t("stockLabel", { qty: item.stock_quantity })}</div>
                       )}
                       {item.type === "product" && locationBreakdown(item.id).length > 0 && (
                         <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
@@ -698,14 +712,14 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                       )}
                       {item.type === "product" && reelsForItem(item.id).length > 0 && (
                         <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
-                          🧵 {reelsForItem(item.id).length} caja{reelsForItem(item.id).length === 1 ? "" : "s"} · {reelsForItem(item.id).reduce((a, r) => a + r.remaining_footage, 0)} pies restantes
+                          {t("reelsSummary", { count: reelsForItem(item.id).length, feet: reelsForItem(item.id).reduce((a, r) => a + r.remaining_footage, 0) })}
                         </div>
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                      <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", flex: 1, justifyContent: "center" }}>✏️ Editar</button>
+                      <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", flex: 1, justifyContent: "center" }}>{t("editButton")}</button>
                       {item.type === "product" && (
-                        <button onClick={() => openReelsModal(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }} title="Cajas de cable">🧵</button>
+                        <button onClick={() => openReelsModal(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }} title={t("reelsButtonTitle")}>🧵</button>
                       )}
                       <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", color: "var(--warn)" }}>🗑</button>
                     </div>
@@ -734,39 +748,39 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                   </label>
                   <div style={{ flex: 1, display: "grid", gap: 6 }}>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} placeholder="Item Code" style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace", width: 140 }} />
-                      <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del ítem" maxLength={150} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700, flex: 1 }} />
+                      <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} placeholder={t("itemCodePlaceholder")} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace", width: 140 }} />
+                      <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder={t("namePlaceholder")} maxLength={150} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700, flex: 1 }} />
                     </div>
-                    <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Descripción" maxLength={200} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, width: "100%" }} />
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted)", cursor: "pointer" }} title="No aparece como opción al armar Facturas, Estimas, Propuestas u Órdenes de Cambio">
+                    <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder={t("descriptionPlaceholder")} maxLength={200} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, width: "100%" }} />
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted)", cursor: "pointer" }} title={t("internalOnlyTitle")}>
                       <input type="checkbox" checked={!!editForm.internal_only} onChange={e => setEditForm(f => ({ ...f, internal_only: e.target.checked }))} />
-                      🔒 Interno (no visible en documentos de cliente)
+                      {t("internalOnlyLabel")}
                     </label>
                     <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                      <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>💾 Guardar</button>
-                      <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>✕ Cancelar</button>
+                      <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>{t("saveButton")}</button>
+                      <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>{t("cancelWithIconButton")}</button>
                     </div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0, width: 100 }}>
                     {item.type === "product" && (
-                      <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder="MSRP" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)", textAlign: "right", width: "100%", marginBottom: 3 }} />
+                      <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder={t("msrpPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)", textAlign: "right", width: "100%", marginBottom: 3 }} />
                     )}
-                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Precio" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: "right", width: "100%", marginBottom: 3 }} title="Precio de venta al cliente (editable a mano)" />
+                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder={t("priceShortPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: "right", width: "100%", marginBottom: 3 }} title={t("priceTitle")} />
                     {item.type === "product" && (
-                      <input type="number" value={editForm.supplier_price} onChange={e => applyMarkup(setEditForm, { supplier_price: e.target.value })} placeholder="Costo" step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)", textAlign: "right", width: "100%", marginBottom: 3 }} />
-                    )}
-                    {item.type === "product" && (
-                      <input type="number" value={editForm.markup_pct} onChange={e => applyMarkup(setEditForm, { markup_pct: e.target.value })} placeholder="Markup %" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} title="% sobre el costo — calcula el precio de venta automáticamente" />
+                      <input type="number" value={editForm.supplier_price} onChange={e => applyMarkup(setEditForm, { supplier_price: e.target.value })} placeholder={t("costPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)", textAlign: "right", width: "100%", marginBottom: 3 }} />
                     )}
                     {item.type === "product" && (
-                      <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder="Suplidor" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} />
+                      <input type="number" value={editForm.markup_pct} onChange={e => applyMarkup(setEditForm, { markup_pct: e.target.value })} placeholder={t("markupPlaceholder")} step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} title={t("markupTitle")} />
                     )}
                     {item.type === "product" && (
-                      <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock" step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)", textAlign: "right", width: "100%", marginTop: 3 }} title="Cantidad en inventario" />
+                      <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder={t("vendorPlaceholder")} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} />
                     )}
                     {item.type === "product" && (
-                      <select value={editForm.default_location_id} onChange={e => setEditForm(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, width: "100%", marginTop: 3 }} title="Ubicación de origen">
-                        <option value="">Sin ubicación</option>
+                      <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder={t("stockPlaceholder")} step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)", textAlign: "right", width: "100%", marginTop: 3 }} title={t("stockTitle")} />
+                    )}
+                    {item.type === "product" && (
+                      <select value={editForm.default_location_id} onChange={e => setEditForm(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, width: "100%", marginTop: 3 }} title={t("locationTitle")}>
+                        <option value="">{t("noLocationOption")}</option>
                         {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                       </select>
                     )}
@@ -778,16 +792,16 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                     {item.photo_url && signedUrls[item.photo_url] ? (
                       <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                     ) : (
-                      TYPE_META[item.type]?.icon ?? "📦"
+                      typeMeta[item.type]?.icon ?? "📦"
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title="No visible en documentos de cliente">🔒 Interno</span>}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("internalOnlyBadgeTitle")}>{t("internalOnlyBadge")}</span>}</div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
                     {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)" }}>{item.description}</div>}
                     {item.type === "product" && item.vendor && <div style={{ fontSize: 11, color: "var(--muted)" }}>🏪 {item.vendor}</div>}
                     {item.type === "product" && item.stock_quantity != null && (
-                      <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700 }}>📦 Stock: {item.stock_quantity}</div>
+                      <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700 }}>{t("stockLabel", { qty: item.stock_quantity })}</div>
                     )}
                     {item.type === "product" && locationBreakdown(item.id).length > 0 && (
                       <div style={{ fontSize: 10, color: "var(--muted)" }}>
@@ -796,20 +810,20 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                     )}
                     {item.type === "product" && reelsForItem(item.id).length > 0 && (
                       <div style={{ fontSize: 10, color: "var(--muted)" }}>
-                        🧵 {reelsForItem(item.id).length} caja{reelsForItem(item.id).length === 1 ? "" : "s"} · {reelsForItem(item.id).reduce((a, r) => a + r.remaining_footage, 0)} pies restantes
+                        {t("reelsSummary", { count: reelsForItem(item.id).length, feet: reelsForItem(item.id).reduce((a, r) => a + r.remaining_footage, 0) })}
                       </div>
                     )}
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0, width: 110 }}>
-                    {item.type === "product" && item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>msrp {fmt(item.msrp)}</div>}
+                    {item.type === "product" && item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>{t("msrpLabel", { value: fmt(item.msrp) })}</div>}
                     <div style={{ fontWeight: 800, fontSize: 16, color: "var(--navy)" }}>{fmt(item.price)}</div>
-                    {item.type === "product" && item.supplier_price != null && <div style={{ fontSize: 11, color: "var(--warn)" }}>Costo: {fmt(item.supplier_price)}</div>}
-                    {item.type === "product" && item.markup_pct != null && <div style={{ fontSize: 11, color: "var(--muted)" }} title="% sobre el costo usado para calcular el precio de venta">Markup: {item.markup_pct}%</div>}
+                    {item.type === "product" && item.supplier_price != null && <div style={{ fontSize: 11, color: "var(--warn)" }}>{t("columnCost")}: {fmt(item.supplier_price)}</div>}
+                    {item.type === "product" && item.markup_pct != null && <div style={{ fontSize: 11, color: "var(--muted)" }} title={t("markupUsedTitle")}>{t("markupLabel", { pct: item.markup_pct })}</div>}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 12px" }}>✏️ Editar</button>
+                    <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 12px" }}>{t("editButton")}</button>
                     {item.type === "product" && (
-                      <button onClick={() => openReelsModal(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }} title="Cajas de cable">🧵</button>
+                      <button onClick={() => openReelsModal(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }} title={t("reelsButtonTitle")}>🧵</button>
                     )}
                     <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", color: "var(--warn)" }}>🗑</button>
                   </div>
@@ -824,24 +838,24 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }} onClick={() => setReelsModalItem(null)}>
           <div style={{ background: "var(--surface)", borderRadius: 16, padding: 20, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontWeight: 800, fontSize: 17 }}>🧵 Cajas de cable — {reelsModalItem.name || reelsModalItem.description}</div>
-              <button onClick={() => setReelsModalItem(null)} aria-label="Cerrar" style={{ background: "var(--surface-2)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 15 }}>✕</button>
+              <div style={{ fontWeight: 800, fontSize: 17 }}>{t("reelsModalTitle", { name: reelsModalItem.name || reelsModalItem.description })}</div>
+              <button onClick={() => setReelsModalItem(null)} aria-label={t("closeAriaLabel")} style={{ background: "var(--surface-2)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 15 }}>✕</button>
             </div>
 
             <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: 12, marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>+ Agregar caja</div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>{t("addReelSectionTitle")}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <select value={newReel.location_id} onChange={e => setNewReel(f => ({ ...f, location_id: e.target.value }))}
                   style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, flex: "1 1 160px" }}>
-                  <option value="">Ubicación...</option>
+                  <option value="">{t("locationSelectPlaceholder")}</option>
                   {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                 </select>
-                <input value={newReel.code} onChange={e => setNewReel(f => ({ ...f, code: e.target.value }))} placeholder="Código (opcional)"
+                <input value={newReel.code} onChange={e => setNewReel(f => ({ ...f, code: e.target.value }))} placeholder={t("reelCodePlaceholder")}
                   style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 130 }} />
-                <input type="number" value={newReel.total_footage} onChange={e => setNewReel(f => ({ ...f, total_footage: e.target.value }))} placeholder="Pies totales"
+                <input type="number" value={newReel.total_footage} onChange={e => setNewReel(f => ({ ...f, total_footage: e.target.value }))} placeholder={t("totalFootagePlaceholder")}
                   style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 100 }} />
                 <button onClick={addReel} disabled={savingReel || !newReel.location_id || !newReel.total_footage} className="btn btn-primary" style={{ fontSize: 12, padding: "8px 14px" }}>
-                  {savingReel ? "Guardando..." : "Agregar"}
+                  {savingReel ? t("savingButton") : t("addButton")}
                 </button>
               </div>
             </div>
@@ -849,7 +863,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
             {reelError && <p style={{ color: "var(--warn)", fontSize: 12, marginBottom: 10 }}>{reelError}</p>}
 
             {reelsForItem(reelsModalItem.id).length === 0 ? (
-              <div className="empty"><p>Sin cajas registradas para este producto.</p></div>
+              <div className="empty"><p>{t("emptyReels")}</p></div>
             ) : (
               reelsForItem(reelsModalItem.id).map(reel => {
                 const pct = reel.total_footage > 0 ? Math.max(0, Math.min(100, (reel.remaining_footage / reel.total_footage) * 100)) : 0;
@@ -862,14 +876,14 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                       </div>
                       <button onClick={() => deleteReel(reel)} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 8px", color: "var(--warn)" }}>🗑</button>
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>{reel.remaining_footage} / {reel.total_footage} pies restantes</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>{t("feetRemaining", { remaining: reel.remaining_footage, total: reel.total_footage })}</div>
                     <div style={{ background: "var(--surface-2)", borderRadius: 20, height: 6, overflow: "hidden", marginBottom: 8 }}>
                       <div style={{ background: pct <= 15 ? "var(--warn)" : "var(--amber)", height: "100%", width: `${pct}%` }} />
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <input type="number" value={reelFootageInputs[reel.id] ?? ""} onChange={e => setReelFootageInputs(prev => ({ ...prev, [reel.id]: e.target.value }))} placeholder="Pies usados"
+                      <input type="number" value={reelFootageInputs[reel.id] ?? ""} onChange={e => setReelFootageInputs(prev => ({ ...prev, [reel.id]: e.target.value }))} placeholder={t("footageUsedPlaceholder")}
                         style={{ flex: 1, padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12 }} />
-                      <button onClick={() => useReelFootage(reel)} disabled={savingReel || !reelFootageInputs[reel.id]} className="btn btn-amber" style={{ fontSize: 12, padding: "6px 12px" }}>Usar</button>
+                      <button onClick={() => useReelFootage(reel)} disabled={savingReel || !reelFootageInputs[reel.id]} className="btn btn-amber" style={{ fontSize: 12, padding: "6px 12px" }}>{t("useButton")}</button>
                     </div>
                   </div>
                 );

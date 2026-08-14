@@ -1,5 +1,6 @@
 'use client';
 import { useDroppable } from '@dnd-kit/core';
+import { useTranslations } from 'next-intl';
 import JobCard from './JobCard';
 import { HORA_INICIO, HORA_FIN, SLOT_MINUTOS, SLOT_WIDTH, techColor, jobPosition } from './dispatchUtils';
 
@@ -16,6 +17,7 @@ function GanttSlot({ technicianId, hour, minute, disabled }) {
 }
 
 export default function GanttRow({ tecnico, colorIndex, jobs, absence, openEntry }) {
+  const t = useTranslations('admin.dispatchGanttRow');
   const slots = [];
   for (let h = HORA_INICIO; h < HORA_FIN; h++) {
     for (let m = 0; m < 60; m += SLOT_MINUTOS) slots.push({ hour: h, minute: m });
@@ -34,13 +36,13 @@ export default function GanttRow({ tecnico, colorIndex, jobs, absence, openEntry
               {tecnico.name}
             </span>
             {absence && (
-              <span className="badge badge-red" style={{ flexShrink: 0 }} title={absence}>🚫 Ausente</span>
+              <span className="badge badge-red" style={{ flexShrink: 0 }} title={absence}>{t('absentBadge')}</span>
             )}
           </div>
           {openEntry && (
             <div
               style={{ fontSize: 11, fontWeight: 600, color: 'var(--ok)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              title={`Clockeado en: ${openEntry.clientName ?? 'Sin cliente'} — ${openEntry.title}`}
+              title={t('clockedInTitle', { client: openEntry.clientName ?? t('noClient'), title: openEntry.title })}
             >
               🟢 {openEntry.jobNumber ? `#${openEntry.jobNumber} — ` : ''}{openEntry.title}
             </div>
@@ -52,7 +54,7 @@ export default function GanttRow({ tecnico, colorIndex, jobs, absence, openEntry
           <GanttSlot key={`${s.hour}-${s.minute}`} technicianId={tecnico.id} hour={s.hour} minute={s.minute} disabled={!!absence} />
         ))}
         {absence && (
-          <div className="dispatch-absent-overlay" title={`Ausente: ${absence}`} />
+          <div className="dispatch-absent-overlay" title={t('absentTitle', { reason: absence })} />
         )}
         {jobs.map(job => {
           const pos = jobPosition(job);

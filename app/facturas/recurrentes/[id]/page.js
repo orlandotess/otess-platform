@@ -4,8 +4,10 @@ export const revalidate = 0;
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../Sidebar';
 import RecurringInvoiceDetailClient from './RecurringInvoiceDetailClient';
+import { getTranslations } from 'next-intl/server';
 
 export default async function FacturaRecurrenteDetailPage({ params }) {
+  const t = await getTranslations('facturas.recurringDetail');
   const [{ data: recurring }, { data: clients }, { data: history }, { data: taxRules }] = await Promise.all([
     supabase.from('recurring_invoices').select('*, clients(name, email, company, client_type), recurring_invoice_items(*)').eq('id', params.id).single(),
     supabase.from('clients').select('id, name, company, client_type, email').order('name'),
@@ -18,7 +20,7 @@ export default async function FacturaRecurrenteDetailPage({ params }) {
       <div className="admin-shell ds-facturas">
         <Sidebar />
         <main className="main-content">
-          <p>Factura recurrente no encontrada.</p>
+          <p>{t('notFound')}</p>
         </main>
       </div>
     );

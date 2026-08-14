@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
+import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -29,6 +30,8 @@ export async function GET(request) {
   }
 
   const today = todayPR();
+  const locale = getServerLocale();
+  const t = await getEmailTranslator(locale, 'emails.recurringMaintenance');
 
   const { data: due, error: dueErr } = await supabase
     .from('recurring_maintenances')
@@ -91,8 +94,8 @@ export async function GET(request) {
     await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
-      subject: `Mantenimientos recurrentes — ${generated.length} generados, ${failures.length} con error`,
-      html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">Resumen de visitas de mantenimiento generadas automáticamente (${today}):</p><ul style="font-size:13px">${rows}</ul></div>`,
+      subject: t('subject', { generated: generated.length, failures: failures.length }),
+      html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${t('summaryIntro', { date: today })}</p><ul style="font-size:13px">${rows}</ul></div>`,
     }).catch(err => console.error('Error notificando resumen de mantenimientos recurrentes:', err));
   }
 

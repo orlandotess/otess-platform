@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { supabase } from '../../../lib/supabase';
 
 // Deja el primer técnico marcado como "dueño" (jobs.technician_id) y el resto
@@ -12,6 +13,7 @@ function currentTechIds(job) {
 
 export default function TechAssignControl({ job, technicians }) {
   const router = useRouter();
+  const t = useTranslations('admin.dispatchTechAssign');
   const [open, setOpen] = useState(false);
   const [ids, setIds] = useState(() => currentTechIds(job));
   const [saving, setSaving] = useState(false);
@@ -54,7 +56,7 @@ export default function TechAssignControl({ job, technicians }) {
         onClick={e => { e.stopPropagation(); setOpen(true); }}
         style={{ marginTop: 6, fontSize: 11, padding: '4px 8px' }}
       >
-        👤 Asignar técnicos
+        {t('assignButton')}
       </button>
     );
   }
@@ -62,11 +64,11 @@ export default function TechAssignControl({ job, technicians }) {
   return (
     <div onPointerDown={stop} onClick={stop} style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-        {technicians.map(t => {
-          const checked = ids.includes(t.id);
+        {technicians.map(tech => {
+          const checked = ids.includes(tech.id);
           return (
             <label
-              key={t.id}
+              key={tech.id}
               style={{
                 display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6,
                 fontSize: 11, fontWeight: 600, cursor: 'pointer',
@@ -74,16 +76,16 @@ export default function TechAssignControl({ job, technicians }) {
                 color: checked ? '#fff' : 'var(--text)',
               }}
             >
-              <input type="checkbox" checked={checked} onChange={() => toggle(t.id)} style={{ margin: 0 }} />
-              {t.name}
+              <input type="checkbox" checked={checked} onChange={() => toggle(tech.id)} style={{ margin: 0 }} />
+              {tech.name}
             </label>
           );
         })}
-        {technicians.length === 0 && <p style={{ fontSize: 11, color: 'var(--muted)' }}>No hay técnicos registrados.</p>}
+        {technicians.length === 0 && <p style={{ fontSize: 11, color: 'var(--muted)' }}>{t('noTechnicians')}</p>}
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
         <button className="btn btn-primary btn-sm" disabled={saving} onClick={save} style={{ fontSize: 11, padding: '4px 10px' }}>
-          {saving ? 'Guardando...' : 'Guardar'}
+          {saving ? t('saving') : t('save')}
         </button>
         <button
           className="btn btn-ghost btn-sm"
@@ -91,7 +93,7 @@ export default function TechAssignControl({ job, technicians }) {
           onClick={() => { setIds(currentTechIds(job)); setOpen(false); }}
           style={{ fontSize: 11, padding: '4px 10px' }}
         >
-          Cancelar
+          {t('cancel')}
         </button>
       </div>
     </div>

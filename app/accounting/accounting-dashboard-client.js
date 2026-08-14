@@ -1,14 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 
-const QUARTERS = [
-  { key: 'Q1', label: 'Q1', months: 'Ene — Mar' },
-  { key: 'Q2', label: 'Q2', months: 'Abr — Jun' },
-  { key: 'Q3', label: 'Q3', months: 'Jul — Sep' },
-  { key: 'Q4', label: 'Q4', months: 'Oct — Dic' },
+const quarterDefs = [
+  { key: 'Q1', label: 'Q1' },
+  { key: 'Q2', label: 'Q2' },
+  { key: 'Q3', label: 'Q3' },
+  { key: 'Q4', label: 'Q4' },
 ];
 
 export default function AccountingDashboardClient({ quarterData, year }) {
+  const t = useTranslations('accounting.dashboardClient');
+  const QUARTERS = useMemo(() => quarterDefs.map(q => ({ ...q, months: t(`quarterMonths.${q.key}`) })), [t]);
   const [selected, setSelected] = useState(['Q1', 'Q2', 'Q3', 'Q4']);
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -47,12 +50,12 @@ export default function AccountingDashboardClient({ quarterData, year }) {
       {/* Quarter selector */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>📆 Trimestres — {year}</p>
+          <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>📆 {t('quartersTitle', { year })}</p>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
-              onClick={() => setSelected(['Q1','Q2','Q3','Q4'])}>Todos</button>
+              onClick={() => setSelected(['Q1','Q2','Q3','Q4'])}>{t('all')}</button>
             <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
-              onClick={() => setSelected([])}>Ninguno</button>
+              onClick={() => setSelected([])}>{t('none')}</button>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -80,18 +83,18 @@ export default function AccountingDashboardClient({ quarterData, year }) {
         <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--amber)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: '2px solid var(--border)' }}>
             <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', margin: 0 }}>
-              {selected.length === 4 ? '📆 Año completo' : `📊 ${selected.join(' + ')} combinado`}
+              {selected.length === 4 ? `📆 ${t('fullYear')}` : `📊 ${t('combined', { quarters: selected.join(' + ') })}`}
             </h2>
-            <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>{combined.count} facturas</span>
+            <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>{t('invoiceCount', { count: combined.count })}</span>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 16 }}>
             {[
-              { label: 'Facturado', value: combined.total, color: 'var(--navy)' },
-              { label: 'Cobrado', value: combined.collected, color: 'var(--ok)' },
-              { label: 'Pendiente', value: combined.outstanding, color: 'var(--amber)' },
-              { label: 'Nómina', value: combined.payroll, color: 'var(--orange)' },
-              { label: 'Gastos', value: combined.gastos, color: 'var(--warn)' },
+              { label: t('billed'), value: combined.total, color: 'var(--navy)' },
+              { label: t('collected'), value: combined.collected, color: 'var(--ok)' },
+              { label: t('pending'), value: combined.outstanding, color: 'var(--amber)' },
+              { label: t('payroll'), value: combined.payroll, color: 'var(--orange)' },
+              { label: t('expenses'), value: combined.gastos, color: 'var(--warn)' },
             ].map(item => (
               <div key={item.label}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{item.label}</div>
@@ -102,10 +105,10 @@ export default function AccountingDashboardClient({ quarterData, year }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16, padding: '12px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
             {[
-              { label: 'Sub. Productos', value: combined.subProducts },
-              { label: 'Sub. Labor', value: combined.subLabor },
-              { label: 'IVU Productos', value: combined.taxProducts },
-              { label: 'IVU Labor', value: combined.taxLabor },
+              { label: t('subProducts'), value: combined.subProducts },
+              { label: t('subLabor'), value: combined.subLabor },
+              { label: t('ivuProducts'), value: combined.taxProducts },
+              { label: t('ivuLabor'), value: combined.taxLabor },
             ].map(item => (
               <div key={item.label}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{item.label}</div>
@@ -115,14 +118,14 @@ export default function AccountingDashboardClient({ quarterData, year }) {
           </div>
 
           <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', marginBottom: 10 }}>Desglose IVU</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase', marginBottom: 10 }}>{t('ivuBreakdown')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
               {[
-                { label: 'IVU Total', value: combined.ivuTotal, bold: true },
-                { label: 'Estatal (10.5%)', value: combined.ivuEstatal },
-                { label: 'Municipal (1%)', value: combined.ivuMunicipal },
-                { label: 'B2B Labor (4%)', value: combined.ivuB2B },
-                { label: 'Productos (11.5%)', value: combined.ivuProducts },
+                { label: t('ivuTotal'), value: combined.ivuTotal, bold: true },
+                { label: t('stateRate'), value: combined.ivuEstatal },
+                { label: t('municipalRate'), value: combined.ivuMunicipal },
+                { label: t('b2bLaborRate'), value: combined.ivuB2B },
+                { label: t('productsRate'), value: combined.ivuProducts },
               ].map(item => (
                 <div key={item.label}>
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{item.label}</div>
@@ -134,7 +137,7 @@ export default function AccountingDashboardClient({ quarterData, year }) {
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: netEst >= 0 ? 'var(--ok)' : 'var(--warn)', background: netEst >= 0 ? 'var(--ok-tint)' : 'var(--danger-tint)', padding: '6px 14px', borderRadius: 8 }}>
-              Ganancia neta estimada: {fmt(netEst)}
+              {t('netEstimate', { amount: fmt(netEst) })}
             </div>
           </div>
         </div>
@@ -149,15 +152,15 @@ export default function AccountingDashboardClient({ quarterData, year }) {
               <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--navy)', margin: 0 }}>
                 {q.key} — {QUARTERS.find(x => x.key === q.key)?.months}
               </h3>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{q.revenue.count} facturas</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('invoiceCount', { count: q.revenue.count })}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 12 }}>
               {[
-                { label: 'Facturado', value: q.revenue.total, color: 'var(--navy)' },
-                { label: 'Cobrado', value: q.revenue.collected, color: 'var(--ok)' },
-                { label: 'Pendiente', value: q.revenue.outstanding, color: 'var(--amber)' },
-                { label: 'Nómina', value: q.payroll, color: 'var(--orange)' },
-                { label: 'Gastos', value: q.gastos ?? 0, color: 'var(--warn)' },
+                { label: t('billed'), value: q.revenue.total, color: 'var(--navy)' },
+                { label: t('collected'), value: q.revenue.collected, color: 'var(--ok)' },
+                { label: t('pending'), value: q.revenue.outstanding, color: 'var(--amber)' },
+                { label: t('payroll'), value: q.payroll, color: 'var(--orange)' },
+                { label: t('expenses'), value: q.gastos ?? 0, color: 'var(--warn)' },
               ].map(item => (
                 <div key={item.label}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{item.label}</div>
@@ -167,11 +170,11 @@ export default function AccountingDashboardClient({ quarterData, year }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
               {[
-                { label: 'IVU Total', value: q.ivu.ivuTotal },
-                { label: 'Estatal', value: q.ivu.ivuEstatal },
-                { label: 'Municipal', value: q.ivu.ivuMunicipal },
-                { label: 'B2B (4%)', value: q.ivu.ivuLaborB2B },
-                { label: 'Productos', value: q.ivu.ivuProducts },
+                { label: t('ivuTotal'), value: q.ivu.ivuTotal },
+                { label: t('stateShort'), value: q.ivu.ivuEstatal },
+                { label: t('municipalShort'), value: q.ivu.ivuMunicipal },
+                { label: t('b2bShort'), value: q.ivu.ivuLaborB2B },
+                { label: t('productsShort'), value: q.ivu.ivuProducts },
               ].map(item => (
                 <div key={item.label}>
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>{item.label}</div>
@@ -181,7 +184,7 @@ export default function AccountingDashboardClient({ quarterData, year }) {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: netQ >= 0 ? 'var(--ok)' : 'var(--warn)', background: netQ >= 0 ? 'var(--ok-tint)' : 'var(--danger-tint)', padding: '4px 10px', borderRadius: 6 }}>
-                Ganancia neta: {fmt(netQ)}
+                {t('netQuarter', { amount: fmt(netQ) })}
               </span>
             </div>
           </div>
@@ -189,7 +192,7 @@ export default function AccountingDashboardClient({ quarterData, year }) {
       })}
 
       {selected.length === 0 && (
-        <div className="card empty"><p>Selecciona al menos un quarter para ver los datos.</p></div>
+        <div className="card empty"><p>{t('selectAtLeastOne')}</p></div>
       )}
     </div>
   );

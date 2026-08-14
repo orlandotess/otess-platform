@@ -1,24 +1,23 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import NuevaRetencionForm from '../../accounting/retenciones/NuevaRetencionForm';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
+import { useTranslations, useLocale } from 'next-intl';
 
-const methodLabel = { cash: 'Efectivo', check: 'Cheque', card: 'Tarjeta', transfer: 'Transferencia' };
+const PAYMENT_METHOD_KEYS = ['cash', 'check', 'card', 'transfer'];
+const TERMS_TEMPLATE_KEYS = ['standard'];
 const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const DEFAULT_TERMS = `Garantía del Servicio: OTESS se compromete a brindar soporte técnico y mantenimiento correctivo sobre la instalación y configuración de los sistemas implementados por un período de un (1) año a partir de la fecha de finalización del proyecto.
-
-Garantía de los Equipos: La garantía de los equipos y dispositivos instalados está sujeta a los términos y condiciones establecidos por el fabricante o suplidor. OTESS gestionará el proceso de garantía con el proveedor correspondiente en caso de defectos de fabricación dentro del período estipulado por el fabricante. No obstante, los tiempos de respuesta y el alcance de dicha garantía dependerán exclusivamente de la política del suplidor.`;
-
-const TERMS_TEMPLATES = [
-  { key: 'standard', label: 'Garantía estándar', text: DEFAULT_TERMS },
-];
 
 export default function InvoiceActions({ invoiceId, status, isOverdue = false, remindersPausedAt: initialRemindersPausedAt = null, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [], internalNotes: initialInternalNotes = '', internalAttachments: initialInternalAttachments = [], clientId = null, subtotalLabor = 0, existingRetenciones = [], issuedAt = null, clientContacts = [] }) {
   const router = useRouter();
+  const t = useTranslations('facturas.actions');
+  const locale = useLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const paymentMethods = useMemo(() => PAYMENT_METHOD_KEYS.map(key => ({ key, label: t(`paymentMethods.${key}`) })), [t]);
+  const termsTemplates = useMemo(() => TERMS_TEMPLATE_KEYS.map(key => ({ key, label: t(`termsTemplates.${key}.label`), text: t(`termsTemplates.${key}.text`) })), [t]);
   const [remindersPausedAt, setRemindersPausedAt] = useState(initialRemindersPausedAt);
   const [showPayment, setShowPayment] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
@@ -58,7 +57,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const toOptions = [
-    ...(clientEmail ? [{ label: clientName ? `${clientName} (cliente)` : 'Cliente', email: clientEmail }] : []),
+    ...(clientEmail ? [{ label: clientName ? t('emailModal.clientLabelWithName', { name: clientName }) : t('emailModal.clientLabel'), email: clientEmail }] : []),
     ...clientContacts.filter(c => c.email).map(c => ({ label: c.name, email: c.email })),
   ];
   const isCustomEmail = !toOptions.some(o => o.email === emailTo);
@@ -103,7 +102,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
     e.preventDefault();
     const amount = parseFloat(payment.amount);
     const remaining = Number(balance) - amount;
-    if (remaining < -0.01 && !confirm(`Este monto excede el balance pendiente (${fmtMoney(balance)}) por ${fmtMoney(-remaining)}. ¿Registrar el pago de todas formas?`)) {
+    if (remaining < -0.01 && !confirm(t('confirmOverpay', { balance: fmtMoney(balance), excess: fmtMoney(-remaining) }))) {
       return;
     }
     setSaving(true);
@@ -142,7 +141,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
     const data = await res.json();
     setSending(false);
     if (data.success) { setEmailSent(true); setShowEmail(false); router.refresh(); }
-    else alert('Error: ' + data.error);
+    else alert(t('emailError', { error: data.error }));
   }
 
   async function saveNumber(e) {
@@ -152,7 +151,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
     setNumberError('');
     if (trimmed !== invoiceNumber) {
       const { data: dupe } = await supabase.from('invoices').select('id').eq('invoice_number', trimmed).neq('id', invoiceId).maybeSingle();
-      if (dupe) { setNumberError(`Ya existe otra factura con el número ${trimmed}`); return; }
+      if (dupe) { setNumberError(t('duplicateNumberError', { number: trimmed })); return; }
     }
     await supabase.from('invoices').update({ invoice_number: trimmed }).eq('id', invoiceId);
     setShowEditNumber(false);
@@ -221,7 +220,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
   }
 
   async function deleteCheckPhoto(attachment) {
-    if (!confirm('¿Eliminar esta foto?')) return;
+    if (!confirm(t('confirmDeletePhoto'))) return;
     await supabase.from('invoice_internal_attachments').delete().eq('id', attachment.id);
     await supabase.storage.from('Job-photos').remove([attachment.photo_url]);
     setCheckPhotos(prev => prev.filter(p => p.id !== attachment.id));
@@ -246,7 +245,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
     const { error } = await supabase.from('invoices').delete().eq('id', invoiceId);
     if (error) {
       setDeleting(false);
-      alert('No se pudo eliminar la factura: ' + error.message);
+      alert(t('deleteInvoiceError', { error: error.message }));
       return;
     }
     // Full reload (not router.push) so the facturas list and client balance
@@ -285,7 +284,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
   }
 
   async function clearAttachments() {
-    if (!confirm('¿Quitar todos los adjuntos de esta factura?')) return;
+    if (!confirm(t('confirmClearAttachments'))) return;
     setSelectedNoteIds([]);
     await supabase.from('invoices').update({ attached_note_ids: [] }).eq('id', invoiceId);
     router.refresh();
@@ -294,43 +293,43 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
   if (showPaymentOnly) {
     return (
       <>
-        <button className="btn btn-amber" onClick={() => setShowPayment(true)}>+ Registrar pago</button>
+        <button className="btn btn-amber" onClick={() => setShowPayment(true)}>+ {t('registerPayment')}</button>
         {showPayment && <PaymentModal payment={payment} setPayment={setPayment} onSave={savePayment} onClose={() => setShowPayment(false)} saving={saving} balance={balance} />}
       </>
     );
   }
 
   const moreItems = [
-    ['draft', 'sent'].includes(status) && { key: 'items', label: '🧾 Editar líneas de factura', onClick: () => router.push(`/facturas/${invoiceId}/editar`) },
-    { key: 'number', label: '✏️ Editar # de factura', onClick: () => { setNewNumber(invoiceNumber); setNumberError(''); setShowEditNumber(true); } },
-    clientCompany && { key: 'billto', label: '👤 Facturar a', onClick: () => setShowEditBillTo(true) },
-    clientProperties.length > 0 && { key: 'property', label: '🏠 Propiedad', onClick: () => setShowEditProperty(true) },
-    { key: 'terms', label: '📋 Términos', onClick: () => setShowEditTerms(true) },
-    { key: 'notes', label: '📝 Notas internas', onClick: () => setShowInternalNotes(true) },
-    { key: 'checks', label: `📷 Fotos de cheques${checkPhotos.length > 0 ? ` (${checkPhotos.length})` : ''}`, onClick: openCheckPhotos },
-    jobId && { key: 'attach', label: `📎 Adjuntos${selectedNoteIds.length > 0 ? ` (${selectedNoteIds.length})` : ''}`, onClick: openAttachments },
-    selectedNoteIds.length > 0 && { key: 'clearattach', label: '🗑 Quitar adjuntos', onClick: clearAttachments, warn: true },
-    isOverdue && { key: 'pauseReminders', label: remindersPausedAt ? '▶️ Reanudar recordatorios' : '⏸ Pausar recordatorios', onClick: toggleRemindersPaused },
-    status === 'sent' && { key: 'cancel', label: '✕ Cancelar factura', onClick: () => updateStatus('cancelled'), warn: true },
-    status === 'paid' && { key: 'revert', label: '↩ Revertir a enviada', onClick: () => updateStatus('sent') },
-    { key: 'delete', label: '🗑 Eliminar factura', onClick: () => setShowDelete(true), warn: true },
+    ['draft', 'sent'].includes(status) && { key: 'items', label: `🧾 ${t('menu.editLines')}`, onClick: () => router.push(`/facturas/${invoiceId}/editar`) },
+    { key: 'number', label: `✏️ ${t('menu.editNumber')}`, onClick: () => { setNewNumber(invoiceNumber); setNumberError(''); setShowEditNumber(true); } },
+    clientCompany && { key: 'billto', label: `👤 ${t('menu.billTo')}`, onClick: () => setShowEditBillTo(true) },
+    clientProperties.length > 0 && { key: 'property', label: `🏠 ${t('menu.property')}`, onClick: () => setShowEditProperty(true) },
+    { key: 'terms', label: `📋 ${t('menu.terms')}`, onClick: () => setShowEditTerms(true) },
+    { key: 'notes', label: `📝 ${t('menu.internalNotes')}`, onClick: () => setShowInternalNotes(true) },
+    { key: 'checks', label: `📷 ${t('menu.checkPhotos')}${checkPhotos.length > 0 ? ` (${checkPhotos.length})` : ''}`, onClick: openCheckPhotos },
+    jobId && { key: 'attach', label: `📎 ${t('menu.attachments')}${selectedNoteIds.length > 0 ? ` (${selectedNoteIds.length})` : ''}`, onClick: openAttachments },
+    selectedNoteIds.length > 0 && { key: 'clearattach', label: `🗑 ${t('menu.clearAttachments')}`, onClick: clearAttachments, warn: true },
+    isOverdue && { key: 'pauseReminders', label: remindersPausedAt ? `▶️ ${t('menu.resumeReminders')}` : `⏸ ${t('menu.pauseReminders')}`, onClick: toggleRemindersPaused },
+    status === 'sent' && { key: 'cancel', label: `✕ ${t('menu.cancelInvoice')}`, onClick: () => updateStatus('cancelled'), warn: true },
+    status === 'paid' && { key: 'revert', label: `↩ ${t('menu.revertToSent')}`, onClick: () => updateStatus('sent') },
+    { key: 'delete', label: `🗑 ${t('menu.deleteInvoice')}`, onClick: () => setShowDelete(true), warn: true },
   ].filter(Boolean);
 
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', position: 'relative' }}>
       <button className="btn btn-ghost" onClick={handlePdf} disabled={generatingPdf}>
-        {generatingPdf ? '⏳ Generando...' : '🖨️ PDF'}
+        {generatingPdf ? `⏳ ${t('generatingPdf')}` : '🖨️ PDF'}
       </button>
-      <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 Email</button>
+      <button className="btn btn-ghost" onClick={() => setShowEmail(true)}>📧 {t('emailBtn')}</button>
       <button className={`btn ${retenciones.length > 0 ? 'btn-amber' : 'btn-ghost'}`} onClick={() => setShowRetencion(true)}>
-        📋 {retenciones.length > 0 ? `Retención: ${fmtMoney(retenciones.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0))}` : 'Registrar retención'}
+        📋 {retenciones.length > 0 ? t('retentionAmount', { amount: fmtMoney(retenciones.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0)) }) : t('registerRetention')}
       </button>
-      {status === 'draft' && <button className="btn btn-primary" onClick={() => setShowEmail(true)}>📤 Enviar</button>}
-      {status === 'sent' && <button className="btn btn-amber" onClick={() => setShowPayment(true)}>💰 Pago</button>}
-      {status === 'paid' && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Pagada</span>}
-      {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ Enviado</span>}
+      {status === 'draft' && <button className="btn btn-primary" onClick={() => setShowEmail(true)}>📤 {t('send')}</button>}
+      {status === 'sent' && <button className="btn btn-amber" onClick={() => setShowPayment(true)}>💰 {t('payment')}</button>}
+      {status === 'paid' && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ {t('paidBadge')}</span>}
+      {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ {t('sentBadge')}</span>}
 
-      <button className="btn btn-ghost" onClick={() => setShowMore(v => !v)}>⋯ Más</button>
+      <button className="btn btn-ghost" onClick={() => setShowMore(v => !v)}>⋯ {t('more')}</button>
       {showMore && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setShowMore(false)} />
@@ -353,13 +352,13 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {showAttachments && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 600, maxHeight: '80vh', overflow: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📎 Adjuntos del trabajo</h2>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Selecciona qué fotos, videos o documentos compartir con el cliente en esta factura.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📎 {t('attachmentsModal.title')}</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>{t('attachmentsModal.subtitle')}</p>
 
             {loadingNotes ? (
-              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>Cargando...</p>
+              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>{t('loading')}</p>
             ) : jobNotes.length === 0 ? (
-              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>No hay notas ni archivos en este trabajo.</p>
+              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>{t('attachmentsModal.empty')}</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
                 {jobNotes.map(n => {
@@ -369,7 +368,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
                       <input type="checkbox" checked={isSelected} onChange={() => toggleNoteSelection(n.id)} style={{ marginTop: 4 }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
-                          {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale)}
                         </div>
                         {n.signedUrls && n.signedUrls.length > 0 && (
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: n.note ? 8 : 0 }}>
@@ -392,9 +391,9 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
 
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-primary" onClick={saveAttachments} disabled={savingAttachments} style={{ flex: 1, justifyContent: 'center' }}>
-                {savingAttachments ? 'Guardando...' : `💾 Guardar (${selectedNoteIds.length} seleccionados)`}
+                {savingAttachments ? t('saving') : `💾 ${t('attachmentsModal.saveWithCount', { count: selectedNoteIds.length })}`}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowAttachments(false)}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowAttachments(false)}>{t('cancel')}</button>
             </div>
           </div>
         </div>
@@ -404,27 +403,27 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {showEditTerms && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Términos del Proyecto</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('termsModal.title')}</h2>
             <form onSubmit={saveTerms}>
               <div className="form-group" style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 12 }}>Plantilla de términos</label>
+                <label style={{ fontSize: 12 }}>{t('termsModal.templateLabel')}</label>
                 <select
                   value=""
                   onChange={e => {
-                    const tpl = TERMS_TEMPLATES.find(t => t.key === e.target.value);
+                    const tpl = termsTemplates.find(x => x.key === e.target.value);
                     if (tpl) setTerms(tpl.text);
                   }}
                 >
-                  <option value="">— Elegir plantilla —</option>
-                  {TERMS_TEMPLATES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                  <option value="">{t('termsModal.chooseTemplate')}</option>
+                  {termsTemplates.map(tpl => <option key={tpl.key} value={tpl.key}>{tpl.label}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom: 20 }}>
                 <textarea value={terms} onChange={e => setTerms(e.target.value)} rows={10} style={{ fontSize: 13, lineHeight: 1.7, width: '100%' }} />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEditTerms(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{t('save')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditTerms(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -435,17 +434,17 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {showInternalNotes && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 480 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📝 Notas internas</h2>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Solo visibles para el equipo — nunca aparecen en la factura impresa ni por email.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📝 {t('internalNotesModal.title')}</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>{t('internalNotesModal.subtitle')}</p>
             <form onSubmit={saveInternalNotes}>
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <textarea value={internalNotes} onChange={e => setInternalNotes(e.target.value)} rows={6} placeholder="Notas internas de contabilidad..." style={{ width: '100%' }} />
+                <textarea value={internalNotes} onChange={e => setInternalNotes(e.target.value)} rows={6} placeholder={t('internalNotesModal.placeholder')} style={{ width: '100%' }} />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={savingInternalNotes} style={{ flex: 1, justifyContent: 'center' }}>
-                  {savingInternalNotes ? 'Guardando...' : 'Guardar'}
+                  {savingInternalNotes ? t('saving') : t('save')}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowInternalNotes(false)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowInternalNotes(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -456,16 +455,16 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {showCheckPhotos && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 560, maxHeight: '80vh', overflow: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📷 Fotos de cheques</h2>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Internas — nunca se comparten con el cliente.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📷 {t('checkPhotosModal.title')}</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>{t('checkPhotosModal.subtitle')}</p>
 
             <label className="btn btn-primary" style={{ display: 'inline-block', marginBottom: 20, cursor: 'pointer' }}>
-              {uploadingPhoto ? 'Subiendo...' : '+ Subir foto'}
+              {uploadingPhoto ? t('uploading') : `+ ${t('checkPhotosModal.uploadPhoto')}`}
               <input type="file" accept="image/*" onChange={uploadCheckPhoto} disabled={uploadingPhoto} style={{ display: 'none' }} />
             </label>
 
             {checkPhotos.length === 0 ? (
-              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>No hay fotos guardadas.</p>
+              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>{t('checkPhotosModal.empty')}</p>
             ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                 {checkPhotos.map(p => (
@@ -476,7 +475,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
                       <div style={{ width: 140, height: 140, background: 'var(--surface-2)', borderRadius: 8 }} />
                     )}
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                      {formatDatePR(p.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {formatDatePR(p.created_at, { month: 'short', day: 'numeric', year: 'numeric' }, dateLocale)}
                     </div>
                     <button onClick={() => deleteCheckPhoto(p)} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, padding: '2px 6px' }}>🗑</button>
                   </div>
@@ -485,7 +484,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
             )}
 
             <div style={{ display: 'flex', marginTop: 20 }}>
-              <button className="btn btn-ghost" onClick={() => setShowCheckPhotos(false)} style={{ flex: 1, justifyContent: 'center' }}>Cerrar</button>
+              <button className="btn btn-ghost" onClick={() => setShowCheckPhotos(false)} style={{ flex: 1, justifyContent: 'center' }}>{t('close')}</button>
             </div>
           </div>
         </div>
@@ -497,7 +496,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
           <div style={{ width: 640 }}>
             {retenciones.length > 0 && (
               <div style={{ background: 'var(--amber-tint)', border: '1.5px solid var(--amber)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: 'var(--navy)' }}>
-                ⚠️ Esta factura ya tiene {retenciones.length} retención(es) registrada(s) por un total de {fmtMoney(retenciones.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0))}. Puedes registrar otra si es necesario.
+                ⚠️ {t('retentionWarning', { count: retenciones.length, total: fmtMoney(retenciones.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0)) })}
               </div>
             )}
             <NuevaRetencionForm
@@ -515,14 +514,14 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {showEditProperty && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Propiedad del servicio</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('propertyModal.title')}</h2>
             <form onSubmit={saveProperty}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${!propertyId ? 'var(--navy)' : 'var(--border)'}`, background: !propertyId ? 'var(--info-tint)' : 'var(--surface)' }}>
                   <input type="radio" name="property" value="" checked={!propertyId} onChange={() => setPropertyId('')} />
                   <div>
-                    <div style={{ fontWeight: 700 }}>Sin propiedad</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>No asignar propiedad</div>
+                    <div style={{ fontWeight: 700 }}>{t('propertyModal.none')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('propertyModal.noneDesc')}</div>
                   </div>
                 </label>
                 {clientProperties.map(p => (
@@ -536,8 +535,8 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEditProperty(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{t('save')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditProperty(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -548,27 +547,27 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {showEditBillTo && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Facturar a</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('billToModal.title')}</h2>
             <form onSubmit={saveBillTo}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'person' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'person' ? 'var(--info-tint)' : 'var(--surface)' }}>
                   <input type="radio" name="bill_to" value="person" checked={billTo === 'person'} onChange={() => setBillTo('person')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>{clientName}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Persona</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('billToModal.person')}</div>
                   </div>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 15, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${billTo === 'company' ? 'var(--navy)' : 'var(--border)'}`, background: billTo === 'company' ? 'var(--info-tint)' : 'var(--surface)' }}>
                   <input type="radio" name="bill_to" value="company" checked={billTo === 'company'} onChange={() => setBillTo('company')} />
                   <div>
                     <div style={{ fontWeight: 700 }}>{clientCompany}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Empresa</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('billToModal.company')}</div>
                   </div>
                 </label>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEditBillTo(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{t('save')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditBillTo(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -579,16 +578,16 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {showEditNumber && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Editar número de factura</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('numberModal.title')}</h2>
             <form onSubmit={saveNumber}>
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Número de factura</label>
+                <label>{t('numberModal.label')}</label>
                 <input value={newNumber} onChange={e => setNewNumber(e.target.value)} placeholder="INV-1001" required />
                 {numberError && <p style={{ color: 'var(--warn)', fontSize: 13, marginTop: 6 }}>{numberError}</p>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEditNumber(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{t('save')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEditNumber(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -599,14 +598,14 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {showDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>¿Eliminar factura?</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>Se eliminarán también los pagos, retenciones, adjuntos y fotos de cheques asociados a esta factura. Esta acción no se puede deshacer.</p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 12 }}>{t('deleteModal.title')}</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 24 }}>{t('deleteModal.body')}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-ghost" onClick={deleteInvoice} disabled={deleting}
                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger-tint)', color: 'var(--warn)', border: 'none' }}>
-                {deleting ? 'Eliminando...' : '🗑 Sí, eliminar'}
+                {deleting ? t('deleting') : `🗑 ${t('deleteModal.confirm')}`}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => setShowDelete(false)} style={{ flex: 1, justifyContent: 'center' }}>{t('cancel')}</button>
             </div>
           </div>
         </div>
@@ -616,24 +615,24 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {showEmail && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Enviar factura por email</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('emailModal.title')}</h2>
             <form onSubmit={sendEmail}>
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label>Para</label>
+                <label>{t('emailModal.to')}</label>
                 {toOptions.length > 0 && (
                   <select value={isCustomEmail ? '__custom__' : emailTo} onChange={e => setEmailTo(e.target.value === '__custom__' ? '' : e.target.value)}>
                     {toOptions.map(o => <option key={o.email} value={o.email}>{o.label} — {o.email}</option>)}
-                    <option value="__custom__">Otro correo...</option>
+                    <option value="__custom__">{t('emailModal.other')}</option>
                   </select>
                 )}
                 {(toOptions.length === 0 || isCustomEmail) && (
-                  <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="cliente@email.com" required autoFocus={toOptions.length > 0} style={toOptions.length > 0 ? { marginTop: 8 } : undefined} />
+                  <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder={t('emailModal.emailPlaceholder')} required autoFocus={toOptions.length > 0} style={toOptions.length > 0 ? { marginTop: 8 } : undefined} />
                 )}
               </div>
 
               {clientContacts.filter(c => c.email).length > 0 && (
                 <div className="form-group" style={{ marginBottom: 16 }}>
-                  <label>Copiar a (CC)</label>
+                  <label>{t('emailModal.cc')}</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1.5px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
                     {clientContacts.filter(c => c.email).map(c => (
                       <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
@@ -647,15 +646,15 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
               )}
 
               <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Otros correos en copia (opcional)</label>
-                <input value={emailCcExtra} onChange={e => setEmailCcExtra(e.target.value)} placeholder="correo1@ejemplo.com, correo2@ejemplo.com" />
+                <label>{t('emailModal.ccExtra')}</label>
+                <input value={emailCcExtra} onChange={e => setEmailCcExtra(e.target.value)} placeholder={t('emailModal.ccExtraPlaceholder')} />
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sending} style={{ flex: 1, justifyContent: 'center' }}>
-                  {sending ? 'Enviando...' : '📧 Enviar'}
+                  {sending ? t('sending') : `📧 ${t('send')}`}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEmail(false)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowEmail(false)}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -668,41 +667,43 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
 }
 
 function PaymentModal({ payment, setPayment, onSave, onClose, saving, balance }) {
+  const t = useTranslations('facturas.actions');
+  const paymentMethods = useMemo(() => PAYMENT_METHOD_KEYS.map(key => ({ key, label: t(`paymentMethods.${key}`) })), [t]);
   const set = (k, v) => setPayment(p => ({ ...p, [k]: v }));
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Registrar pago</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('paymentModal.title')}</h2>
         <form onSubmit={onSave}>
           <div className="form-row" style={{ marginBottom: 16 }}>
             <div className="form-group">
-              <label>Monto *</label>
-              <input type="number" value={payment.amount} onChange={e => set('amount', e.target.value)} step="0.01" min="0.01" placeholder={`Máx $${Number(balance).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} required />
+              <label>{t('paymentModal.amount')}</label>
+              <input type="number" value={payment.amount} onChange={e => set('amount', e.target.value)} step="0.01" min="0.01" placeholder={t('paymentModal.maxPlaceholder', { amount: `$${Number(balance).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` })} required />
             </div>
             <div className="form-group">
-              <label>Fecha</label>
+              <label>{t('paymentModal.date')}</label>
               <input type="date" value={payment.paid_at} onChange={e => set('paid_at', e.target.value)} />
             </div>
           </div>
           <div className="form-group" style={{ marginBottom: 16 }}>
-            <label>Método de pago</label>
+            <label>{t('paymentModal.method')}</label>
             <select value={payment.method} onChange={e => set('method', e.target.value)}>
-              {Object.entries(methodLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {paymentMethods.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 16 }}>
-            <label>Referencia</label>
-            <input value={payment.reference} onChange={e => set('reference', e.target.value)} placeholder="Cheque #, confirmación, etc." />
+            <label>{t('paymentModal.reference')}</label>
+            <input value={payment.reference} onChange={e => set('reference', e.target.value)} placeholder={t('paymentModal.referencePlaceholder')} />
           </div>
           <div className="form-group" style={{ marginBottom: 20 }}>
-            <label>Notas</label>
-            <textarea value={payment.notes} onChange={e => set('notes', e.target.value)} placeholder="Opcional" style={{ minHeight: 60 }} />
+            <label>{t('paymentModal.notes')}</label>
+            <textarea value={payment.notes} onChange={e => set('notes', e.target.value)} placeholder={t('paymentModal.notesPlaceholder')} style={{ minHeight: 60 }} />
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button type="submit" className="btn btn-primary" disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
-              {saving ? 'Guardando...' : '💾 Guardar pago'}
+              {saving ? t('saving') : `💾 ${t('paymentModal.save')}`}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>{t('cancel')}</button>
           </div>
         </form>
       </div>

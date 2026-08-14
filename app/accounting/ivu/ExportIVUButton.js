@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 export default function ExportIVUButton({ monthlyData, year, totals }) {
+  const t = useTranslations("accounting.ivuExportButton");
   const [showModal, setShowModal] = useState(false);
   const [selectedMonths, setSelectedMonths] = useState(monthlyData.map(m => m.idx));
 
@@ -19,7 +21,10 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
 
   function exportCSV() {
     const filtered = monthlyData.filter(m => selectedMonths.includes(m.idx));
-    const headers = ["Mes", "IVU Productos", "IVU Labor Final", "IVU Labor B2B", "Estatal (10.5%)", "Municipal (1%)", "Total IVU"];
+    const headers = [
+      t("csv.month"), t("csv.products"), t("csv.laborFinal"), t("csv.laborB2B"),
+      t("csv.estatal"), t("csv.municipal"), t("csv.totalIVU"),
+    ];
     const rows = filtered.map(m => [
       m.name,
       m.mProd.toFixed(2),
@@ -32,7 +37,7 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
 
     const sumField = (field) => filtered.reduce((a, m) => a + m[field], 0);
     const totalRow = [
-      "TOTAL",
+      t("csv.total"),
       sumField("mProd").toFixed(2),
       sumField("mLaborFinal").toFixed(2),
       sumField("mLaborB2B").toFixed(2),
@@ -41,7 +46,7 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
       sumField("total").toFixed(2),
     ];
 
-    const noteRow = ["Base de caja: factura cuenta el mes en que se paga por completo, no el mes en que se emite."];
+    const noteRow = [t("csv.note")];
     const csvContent = [noteRow, headers, ...rows, totalRow]
       .map(row => row.map(cell => `"${cell}"`).join(","))
       .join("\n");
@@ -50,7 +55,7 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    const monthLabel = filtered.length === 12 ? "completo" : filtered.map(m => m.name).join("-");
+    const monthLabel = filtered.length === 12 ? t("csv.fullYearFilename") : filtered.map(m => m.name).join("-");
     link.download = `IVU_${year}_${monthLabel}_base-caja.csv`;
     document.body.appendChild(link);
     link.click();
@@ -62,17 +67,17 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
   return (
     <>
       <button onClick={() => setShowModal(true)} className="btn btn-ghost" style={{ padding: "6px 14px", fontSize: 13 }}>
-        ⬇ Exportar CSV
+        {t("exportCSV")}
       </button>
 
       {showModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
           <div style={{ background: "var(--surface)", borderRadius: 16, padding: 28, width: 420 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)", marginBottom: 16 }}>Exportar IVU {year}</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)", marginBottom: 16 }}>{t("modalTitle", { year })}</h2>
 
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              <button onClick={selectAll} className="btn btn-ghost" style={{ fontSize: 12, padding: "5px 10px" }}>Todos</button>
-              <button onClick={selectNone} className="btn btn-ghost" style={{ fontSize: 12, padding: "5px 10px" }}>Ninguno</button>
+              <button onClick={selectAll} className="btn btn-ghost" style={{ fontSize: 12, padding: "5px 10px" }}>{t("selectAll")}</button>
+              <button onClick={selectNone} className="btn btn-ghost" style={{ fontSize: 12, padding: "5px 10px" }}>{t("selectNone")}</button>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 24 }}>
@@ -90,9 +95,9 @@ export default function ExportIVUButton({ monthlyData, year, totals }) {
 
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={exportCSV} disabled={selectedMonths.length === 0} className="btn btn-primary" style={{ flex: 1, justifyContent: "center" }}>
-                ⬇ Descargar CSV ({selectedMonths.length} {selectedMonths.length === 1 ? "mes" : "meses"})
+                {t("download", { count: selectedMonths.length })}
               </button>
-              <button onClick={() => setShowModal(false)} className="btn btn-ghost">Cancelar</button>
+              <button onClick={() => setShowModal(false)} className="btn btn-ghost">{t("cancel")}</button>
             </div>
           </div>
         </div>

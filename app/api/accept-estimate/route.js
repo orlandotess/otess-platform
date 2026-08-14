@@ -1,11 +1,14 @@
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { getServerLocale, getEmailTranslator } from '../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
   try {
     const { estimateId } = await request.json();
+    const locale = getServerLocale();
+    const t = await getEmailTranslator(locale, 'emails.estimateAccepted');
     const { data: est } = await supabase.from('estimates').select('*, clients(name)').eq('id', estimateId).single();
     if (!est) return Response.json({ error: 'Estimado no encontrado' }, { status: 404 });
     if (est.status !== 'sent') return Response.json({ error: 'Este estimado ya no se puede aceptar' }, { status: 400 });
@@ -25,11 +28,11 @@ export async function POST(request) {
       await resend.emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: 'services@otesspr.com',
-        subject: `✅ Estimado ${est.estimate_number} fue aceptado`,
+        subject: t('subject', { number: est.estimate_number }),
         html: `
           <div style="font-family:Arial,sans-serif;padding:20px">
-            <p style="font-size:15px;color:#16223d"><strong>${est.clients?.name ?? 'Un cliente'}</strong> aceptó el estimado <strong>${est.estimate_number}</strong>.</p>
-            <a href="https://app.otesspr.com/estimados/${estimateId}" style="color:#e0972c;font-size:13px">Ver estimado y convertir a trabajo →</a>
+            <p style="font-size:15px;color:#16223d">${t('body', { name: est.clients?.name ?? t('defaultClientName'), number: est.estimate_number })}</p>
+            <a href="https://app.otesspr.com/estimados/${estimateId}" style="color:#e0972c;font-size:13px">${t('viewLink')}</a>
           </div>
         `,
       });

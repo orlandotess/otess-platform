@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { computeRetentionForInvoice } from '../../../lib/retenciones';
+import { useTranslations } from 'next-intl';
 import SearchBox from '../../SearchBox';
 import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 
@@ -19,6 +20,7 @@ export default function NuevaRetencionForm({
   onSaved,
   onCancel,
 }) {
+  const t = useTranslations('accounting.newRetencionForm');
   const [clientId, setClientId] = useState(clientIdLocked || '');
   const [invoice, setInvoice] = useState(invoiceLocked || null);
   const [invoiceQuery, setInvoiceQuery] = useState('');
@@ -109,11 +111,11 @@ export default function NuevaRetencionForm({
 
   return (
     <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--amber)' }}>
-      <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Nueva retención</p>
+      <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('title')}</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
         <div className="form-group">
-          <label>Cliente</label>
+          <label>{t('clientLabel')}</label>
           {clientIdLocked ? (
             <input value={clientNameLocked} disabled />
           ) : (
@@ -122,12 +124,12 @@ export default function NuevaRetencionForm({
         </div>
 
         <div className="form-group" style={{ position: 'relative' }}>
-          <label>Factura (opcional — solo labor)</label>
+          <label>{t('invoiceLabel')}</label>
           {invoiceLocked ? (
             <input value={invoiceLocked.invoice_number} disabled />
           ) : invoice ? (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input value={`${invoice.invoice_number} — ${fmt(invoice.subtotal_labor)} labor`} disabled style={{ flex: 1 }} />
+              <input value={t('invoiceLaborAmount', { number: invoice.invoice_number, amount: fmt(invoice.subtotal_labor) })} disabled style={{ flex: 1 }} />
               <button type="button" className="btn btn-ghost" style={{ padding: '6px 10px', fontSize: 12 }} onClick={clearInvoice}>✕</button>
             </div>
           ) : (
@@ -135,7 +137,7 @@ export default function NuevaRetencionForm({
               <SearchBox
                 value={invoiceQuery}
                 onChange={v => { setInvoiceQuery(v); setShowInvoiceResults(true); }}
-                placeholder={clientId ? 'Buscar factura por número...' : 'Selecciona un cliente primero'}
+                placeholder={clientId ? t('invoiceSearchPlaceholder') : t('invoiceSearchPlaceholderNoClient')}
                 style={{ maxWidth: 'none' }}
               />
               {showInvoiceResults && clientId && (
@@ -143,7 +145,7 @@ export default function NuevaRetencionForm({
                   <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowInvoiceResults(false)} />
                   <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 260, overflowY: 'auto' }}>
                     {filteredInvoices.length === 0 ? (
-                      <p style={{ padding: '12px 14px', fontSize: 13, color: 'var(--muted)' }}>Sin facturas.</p>
+                      <p style={{ padding: '12px 14px', fontSize: 13, color: 'var(--muted)' }}>{t('noInvoices')}</p>
                     ) : filteredInvoices.map(inv => (
                       <div key={inv.id} onClick={() => selectInvoice(inv)}
                         style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
@@ -151,7 +153,7 @@ export default function NuevaRetencionForm({
                           <div style={{ fontWeight: 700, fontSize: 13, fontFamily: 'monospace' }}>{inv.invoice_number}</div>
                           <div style={{ fontSize: 12, color: 'var(--muted)' }}>{inv.issued_at}</div>
                         </div>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{fmt(inv.subtotal_labor)} labor</div>
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>{t('laborAmount', { amount: fmt(inv.subtotal_labor) })}</div>
                       </div>
                     ))}
                   </div>
@@ -162,54 +164,54 @@ export default function NuevaRetencionForm({
         </div>
 
         <div className="form-group">
-          <label>Fecha</label>
+          <label>{t('dateLabel')}</label>
           <input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} />
         </div>
         <div className="form-group">
-          <label>Monto facturado (labor){invoice ? ' — de la factura' : ''}</label>
+          <label>{t('montoFacturadoLabel')}{invoice ? ` — ${t('fromInvoiceSuffix')}` : ''}</label>
           <input type="number" value={form.monto_facturado} onChange={e => set('monto_facturado', e.target.value)} placeholder="0.00" disabled={!!invoice} />
         </div>
         <div className="form-group">
-          <label>Monto exento</label>
+          <label>{t('montoExentoLabel')}</label>
           <input type="number" value={form.monto_exento} onChange={e => set('monto_exento', e.target.value)} placeholder="500.00" />
         </div>
         <div className="form-group">
-          <label>Retención aplicada</label>
+          <label>{t('retencionAplicadaLabel')}</label>
           <input type="number" value={form.retencion_aplicada} onChange={e => { setTouchedAplicada(true); set('retencion_aplicada', e.target.value); }} placeholder="0.00" />
         </div>
         <div className="form-group">
-          <label># Comprobante (480.6B)</label>
-          <input type="text" value={form.numero_comprobante} onChange={e => set('numero_comprobante', e.target.value)} placeholder="Número de comprobante" />
+          <label>{t('voucherNumberLabel')}</label>
+          <input type="text" value={form.numero_comprobante} onChange={e => set('numero_comprobante', e.target.value)} placeholder={t('voucherNumberPlaceholder')} />
         </div>
         <div className="form-group">
-          <label>Estado</label>
+          <label>{t('statusLabel')}</label>
           <select value={form.estado} onChange={e => set('estado', e.target.value)}>
-            <option value="pendiente">Pendiente declarar</option>
-            <option value="declarado">Declarado</option>
+            <option value="pendiente">{t('status.pending')}</option>
+            <option value="declarado">{t('status.declared')}</option>
           </select>
         </div>
         <div className="form-group">
-          <label>Notas</label>
-          <input type="text" value={form.notas} onChange={e => set('notas', e.target.value)} placeholder="Opcional..." />
+          <label>{t('notesLabel')}</label>
+          <input type="text" value={form.notas} onChange={e => set('notas', e.target.value)} placeholder={t('notesPlaceholder')} />
         </div>
       </div>
 
       {form.monto_facturado && (
         <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Base retención</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('baseRetencionLabel')}</div>
             <div style={{ fontWeight: 700 }}>{fmt(baseRetencion)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Retención calculada (10%)</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('calculatedRetencionLabel')}</div>
             <div style={{ fontWeight: 700, color: 'var(--navy)' }}>{fmt(retencionCalculada)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Retención aplicada</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('appliedRetencionLabel')}</div>
             <div style={{ fontWeight: 700, color: 'var(--amber)' }}>{fmt(form.retencion_aplicada || 0)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Diferencia</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('differenceLabel')}</div>
             <div style={{ fontWeight: 700, color: diferencia > 0.01 ? 'var(--warn)' : 'var(--ok)' }}>
               {diferencia > 0.01 ? '⚠️ ' : '✓ '}{fmt(diferencia)}
             </div>
@@ -219,9 +221,9 @@ export default function NuevaRetencionForm({
 
       <div style={{ display: 'flex', gap: 10 }}>
         <button className="btn btn-primary" onClick={save} disabled={saving}>
-          {saving ? 'Guardando...' : '💾 Guardar'}
+          {saving ? t('saving') : `💾 ${t('save')}`}
         </button>
-        <button className="btn btn-ghost" onClick={onCancel}>Cancelar</button>
+        <button className="btn btn-ghost" onClick={onCancel}>{t('cancel')}</button>
       </div>
     </div>
   );

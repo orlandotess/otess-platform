@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { supabase } from '../../../lib/supabase';
 import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 import { rasterizePdfFirstPage } from '../../../lib/pdfRasterize';
@@ -9,6 +10,7 @@ import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 
 export default function NuevoPlano() {
   const router = useRouter();
+  const t = useTranslations('planos.newPlano');
   const [clients, setClients] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [name, setName] = useState('');
@@ -38,7 +40,7 @@ export default function NuevoPlano() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!name.trim() || !file) { setError('Nombre y archivo del plano son requeridos'); return; }
+    if (!name.trim() || !file) { setError(t('errorRequired')); return; }
     setSaving(true); setError(''); setProgress(0);
 
     try {
@@ -48,7 +50,7 @@ export default function NuevoPlano() {
       const sourcePath = `${id}/source.${sourceExt}`;
       const renderedPath = `${id}/rendered.png`;
 
-      setStep(isPdf ? 'Procesando PDF...' : 'Subiendo plano...');
+      setStep(isPdf ? t('stepProcessingPdf') : t('stepUploadingPlano'));
       let renderedBlob = file;
       let width = null, height = null;
 
@@ -66,15 +68,15 @@ export default function NuevoPlano() {
         width = dims.width; height = dims.height;
       }
 
-      setStep('Subiendo archivo original...');
+      setStep(t('stepUploadingSource'));
       const { error: srcErr } = await uploadFileWithProgress('floor-plans', sourcePath, file, setProgress);
       if (srcErr) { setError(srcErr.message); setSaving(false); return; }
 
-      setStep('Subiendo imagen de trabajo...');
+      setStep(t('stepUploadingWorkImage'));
       const { error: renderErr } = await supabase.storage.from('floor-plans').upload(renderedPath, renderedBlob, { contentType: 'image/png' });
       if (renderErr) { setError(renderErr.message); setSaving(false); return; }
 
-      setStep('Guardando...');
+      setStep(t('stepSaving'));
       const { data: plan, error: insertErr } = await supabase.from('floor_plans').insert([{
         name: name.trim(),
         client_id: clientId || null,
@@ -89,7 +91,7 @@ export default function NuevoPlano() {
       if (insertErr) { setError(insertErr.message); setSaving(false); return; }
       router.push(`/planos/${plan.id}`);
     } catch (err) {
-      setError(err.message || 'Ocurrió un error al subir el plano.');
+      setError(err.message || t('errorGeneric'));
       setSaving(false);
     }
   }
@@ -99,33 +101,33 @@ export default function NuevoPlano() {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <div className="page-title">Nuevo plano</div>
+          <div className="page-title">{t('title')}</div>
         </div>
         <form onSubmit={handleSubmit} className="card" style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {error && <p style={{ color: 'var(--warn)', fontSize: 14 }}>{error}</p>}
 
           <div className="form-group">
-            <label>Nombre del plano *</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Planta baja - Oficina Principal" />
+            <label>{t('nameLabel')}</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder={t('namePlaceholder')} />
           </div>
 
           <div className="form-group">
-            <label>Cliente (opcional)</label>
+            <label>{t('clientLabel')}</label>
             <ClientCombobox clients={clients} value={clientId} onChange={setClientId} />
           </div>
 
           {jobs.length > 0 && (
             <div className="form-group">
-              <label>Trabajo (opcional)</label>
+              <label>{t('jobLabel')}</label>
               <select value={jobId} onChange={e => setJobId(e.target.value)}>
-                <option value="">— Sin asignar —</option>
+                <option value="">{t('jobUnassigned')}</option>
                 {jobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
               </select>
             </div>
           )}
 
           <div className="form-group">
-            <label>Archivo del plano * (imagen o PDF)</label>
+            <label>{t('fileLabel')}</label>
             <input type="file" accept="image/*,application/pdf" onChange={handleFile} />
           </div>
 
@@ -137,9 +139,9 @@ export default function NuevoPlano() {
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button type="submit" className="btn btn-primary" disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
-              {saving ? 'Subiendo...' : 'Crear plano'}
+              {saving ? t('submitUploading') : t('submitCreate')}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ justifyContent: 'center' }}>Cancelar</button>
+            <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ justifyContent: 'center' }}>{t('cancel')}</button>
           </div>
         </form>
       </main>

@@ -4,8 +4,9 @@ export const revalidate = 0;
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
+import { getTranslations, getLocale } from 'next-intl/server';
 
-const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
 // Anchored to Puerto Rico's fixed UTC-4 offset via UTC methods (matches
 // admin/timesheet, accounting/payroll, and the Dashboard) so "today" — and
@@ -36,6 +37,12 @@ function getRange(period, offset) {
 }
 
 export default async function AusenciasPage({ searchParams }) {
+  const tr = await getTranslations('admin.ausencias');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  const MONTHS = MONTH_KEYS.map(k => tr(`months.${k}`));
+  const periodLabels = { week: tr('periodOptions.week'), month: tr('periodOptions.month'), year: tr('periodOptions.year') };
+
   const period = ['week', 'month', 'year'].includes(searchParams?.period) ? searchParams.period : 'month';
   const offset = parseInt(searchParams?.offset ?? '0');
   const techFilter = searchParams?.tech ?? 'all';
@@ -64,10 +71,10 @@ export default async function AusenciasPage({ searchParams }) {
   const totalAbsences = absences.length;
   const topTech = byTech.find(t => t.absences.length > 0);
 
-  const fmtDay = d => new Date(`${d}T00:00:00`).toLocaleDateString('es-PR', { weekday: 'short', month: 'short', day: 'numeric' });
+  const fmtDay = d => new Date(`${d}T00:00:00`).toLocaleDateString(dateLocale, { weekday: 'short', month: 'short', day: 'numeric' });
 
   const label = period === 'week'
-    ? `${start.toLocaleDateString('es-PR', { month: 'short', day: 'numeric', timeZone: 'UTC' })} — ${end.toLocaleDateString('es-PR', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
+    ? `${start.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', timeZone: 'UTC' })} — ${end.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
     : period === 'year' ? String(start.getUTCFullYear())
     : `${MONTHS[start.getUTCMonth()]} ${start.getUTCFullYear()}`;
 
@@ -82,33 +89,33 @@ export default async function AusenciasPage({ searchParams }) {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <div className="page-title">Historial de ausencias</div>
+            <div className="page-title">{tr('title')}</div>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 4 }}>{label}</p>
           </div>
-          <Link href="/calendario" className="btn btn-ghost">← Calendario</Link>
+          <Link href="/calendario" className="btn btn-ghost">{tr('backToCalendar')}</Link>
         </div>
 
         <div className="card" style={{ marginBottom: 20, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Periodo</label>
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{tr('period')}</label>
             <div style={{ display: 'flex', gap: 6 }}>
-              {[['week', 'Semana'], ['month', 'Mes'], ['year', 'Año']].map(([p, l]) => (
-                <Link key={p} href={qs({ period: p, offset: '0' })} className={`btn ${period === p ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>{l}</Link>
+              {['week', 'month', 'year'].map(p => (
+                <Link key={p} href={qs({ period: p, offset: '0' })} className={`btn ${period === p ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>{periodLabels[p]}</Link>
               ))}
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Rango</label>
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{tr('range')}</label>
             <div style={{ display: 'flex', gap: 6 }}>
-              <Link href={qs({ offset: String(offset - 1) })} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>← Anterior</Link>
-              {offset !== 0 && <Link href={qs({ offset: '0' })} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Actual</Link>}
-              {offset < 0 && <Link href={qs({ offset: String(offset + 1) })} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>Siguiente →</Link>}
+              <Link href={qs({ offset: String(offset - 1) })} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>{tr('previous')}</Link>
+              {offset !== 0 && <Link href={qs({ offset: '0' })} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>{tr('current')}</Link>}
+              {offset < 0 && <Link href={qs({ offset: String(offset + 1) })} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 13 }}>{tr('next')}</Link>}
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Técnico</label>
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>{tr('technician')}</label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <Link href={qs({ tech: 'all' })} className={`btn ${techFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>Todos</Link>
+              <Link href={qs({ tech: 'all' })} className={`btn ${techFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>{tr('all')}</Link>
               {techs.map(t => (
                 <Link key={t.id} href={qs({ tech: t.id })} className={`btn ${techFilter === t.id ? 'btn-primary' : 'btn-ghost'}`} style={{ padding: '6px 14px', fontSize: 13 }}>{t.name}</Link>
               ))}
@@ -118,16 +125,16 @@ export default async function AusenciasPage({ searchParams }) {
 
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 20 }}>
           <div className="stat-card">
-            <div className="stat-label">Total ausencias</div>
+            <div className="stat-label">{tr('totalAbsences')}</div>
             <div className="stat-value">{totalAbsences}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Técnicos con ausencias</div>
+            <div className="stat-label">{tr('techniciansWithAbsences')}</div>
             <div className="stat-value">{byTech.filter(t => t.absences.length > 0).length}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Más ausencias</div>
-            <div className="stat-value" style={{ fontSize: 18 }}>{topTech ? `${topTech.name} (${topTech.absences.length})` : '—'}</div>
+            <div className="stat-label">{tr('mostAbsences')}</div>
+            <div className="stat-value" style={{ fontSize: 18 }}>{topTech ? tr('mostAbsencesValue', { name: topTech.name, count: topTech.absences.length }) : '—'}</div>
           </div>
         </div>
 
@@ -136,9 +143,9 @@ export default async function AusenciasPage({ searchParams }) {
             <table>
               <thead>
                 <tr>
-                  <th>Técnico</th>
-                  <th style={{ textAlign: 'right' }}>Total ausencias</th>
-                  <th>Fechas y razón</th>
+                  <th>{tr('tableTechnician')}</th>
+                  <th style={{ textAlign: 'right' }}>{tr('tableTotalAbsences')}</th>
+                  <th>{tr('tableDatesReason')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -153,7 +160,7 @@ export default async function AusenciasPage({ searchParams }) {
                       {t.absences.length === 0 && <span style={{ color: 'var(--muted)' }}>—</span>}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {t.absences.map(a => (
-                          <span key={a.id} title={a.reason || 'Sin razón especificada'}
+                          <span key={a.id} title={a.reason || tr('noReasonSpecified')}
                             style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: 'var(--danger-tint)', color: 'var(--warn)', whiteSpace: 'nowrap' }}>
                             {fmtDay(a.date)}
                           </span>
@@ -163,7 +170,7 @@ export default async function AusenciasPage({ searchParams }) {
                   </tr>
                 ))}
                 {byTech.length === 0 && (
-                  <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>No hay técnicos registrados.</td></tr>
+                  <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>{tr('noTechniciansRegistered')}</td></tr>
                 )}
               </tbody>
             </table>

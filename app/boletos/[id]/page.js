@@ -9,12 +9,16 @@ import TechnicianAssign from './TechnicianAssign';
 import TicketReports from './TicketReports';
 import { formatDuration } from '../../../lib/formatDuration';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
-
-const statusLabel = { abierto: 'Abierto', en_progreso: 'En progreso', cerrado: 'Cerrado' };
-const statusCls = { abierto: 'badge-red', en_progreso: 'badge-blue', cerrado: 'badge-gray' };
+import { getTranslations, getLocale } from 'next-intl/server';
 
 export default async function BoletoDetailPage({ params }) {
   const { id } = params;
+  const t = await getTranslations('boletos.detail');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+
+  const statusLabel = { abierto: t('status.open'), en_progreso: t('status.inProgress'), cerrado: t('status.closed') };
+  const statusCls = { abierto: 'badge-red', en_progreso: 'badge-blue', cerrado: 'badge-gray' };
 
   const [{ data: ticket }, { data: technicians }] = await Promise.all([
     supabase.from('service_tickets')
@@ -24,7 +28,7 @@ export default async function BoletoDetailPage({ params }) {
     supabase.from('technicians').select('id, name').order('name'),
   ]);
 
-  if (!ticket) return <div style={{ padding: 40 }}>Boleto no encontrado</div>;
+  if (!ticket) return <div style={{ padding: 40 }}>{t('notFound')}</div>;
 
   const [{ data: reports }, { data: clientContacts }] = await Promise.all([
     supabase.from('ticket_reports').select('*').eq('ticket_id', id).order('created_at', { ascending: false }),
@@ -49,7 +53,7 @@ export default async function BoletoDetailPage({ params }) {
             </span>
             {elapsed && (
               <span style={{ marginLeft: 10, fontSize: 13, color: 'var(--muted)' }}>
-                {ticket.status === 'cerrado' ? `✅ Resuelto en ${elapsed}` : `⏱ ${elapsed} transcurridos`}
+                {ticket.status === 'cerrado' ? t('resolvedIn', { elapsed }) : t('elapsedTime', { elapsed })}
               </span>
             )}
           </div>
@@ -57,18 +61,18 @@ export default async function BoletoDetailPage({ params }) {
         </div>
 
         <div className="card" style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Detalles</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>{t('details')}</h2>
           {ticket.description ? (
             <p style={{ fontSize: 14, color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{ticket.description}</p>
           ) : (
-            <p style={{ fontSize: 14, color: 'var(--muted)' }}>Sin detalles adicionales.</p>
+            <p style={{ fontSize: 14, color: 'var(--muted)' }}>{t('noDetails')}</p>
           )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Cliente</h2>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{t('client')}</h2>
               {ticket.ticket_number && (
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', fontFamily: 'monospace', background: 'var(--amber-tint)', padding: '3px 8px', borderRadius: 8 }}>
                   {ticket.ticket_number}
@@ -87,12 +91,12 @@ export default async function BoletoDetailPage({ params }) {
                 )}
               </>
             ) : (
-              <p style={{ fontSize: 14, color: 'var(--warn)' }}>⚠️ No se encontró un cliente con este correo. Asígnalo abajo.</p>
+              <p style={{ fontSize: 14, color: 'var(--warn)' }}>⚠️ {t('noClientMatch')}</p>
             )}
           </div>
 
           <div className="card">
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Reportado por</h2>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>{t('reportedBy')}</h2>
             {ticket.contact_name || ticket.contact_email || ticket.contact_phone ? (
               <>
                 {ticket.contact_name && <p style={{ fontSize: 14, marginBottom: 4 }}>{ticket.contact_name}</p>}
@@ -100,15 +104,15 @@ export default async function BoletoDetailPage({ params }) {
                 {ticket.contact_phone && <p style={{ fontSize: 13, color: 'var(--muted)' }}>{ticket.contact_phone}</p>}
               </>
             ) : (
-              <p style={{ fontSize: 14, color: 'var(--muted)' }}>No se indicó contacto.</p>
+              <p style={{ fontSize: 14, color: 'var(--muted)' }}>{t('noContact')}</p>
             )}
             <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>
-              {ticket.source === 'email' ? '📧 Recibido por email' : '👤 Abierto por el equipo'} · {formatDateTimePR(ticket.created_at, { dateStyle: 'medium', timeStyle: 'short' })}
+              {ticket.source === 'email' ? t('receivedByEmail') : t('openedByTeam')} · {formatDateTimePR(ticket.created_at, { dateStyle: 'medium', timeStyle: 'short' }, dateLocale)}
             </p>
           </div>
 
           <div className="card">
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>Técnico asignado</h2>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 16 }}>{t('assignedTechnician')}</h2>
             <TechnicianAssign ticketId={id} technicians={technicians ?? []} technicianId={ticket.technician_id} />
           </div>
         </div>

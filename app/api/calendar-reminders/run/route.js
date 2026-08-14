@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { resolveTechEmail } from '../../../../lib/technicianEmail';
+import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = 'https://app.otesspr.com';
@@ -27,14 +28,14 @@ function itemLine(item) {
   return `<li style="margin-bottom:6px">${parts.join(' — ')}</li>`;
 }
 
-function digestEmail(dateLabel, items) {
+function digestEmail(dateLabel, items, t) {
   const rows = items.length
     ? items.sort((a, b) => new Date(a.time) - new Date(b.time)).map(itemLine).join('')
-    : '<li style="color:#999">Sin eventos programados.</li>';
+    : `<li style="color:#999">${t('noEvents')}</li>`;
   return `<div style="font-family:Arial,sans-serif;padding:20px;max-width:560px">
-    <p style="font-size:15px;color:#16223d;font-weight:700">Tu agenda de hoy — ${dateLabel}</p>
+    <p style="font-size:15px;color:#16223d;font-weight:700">${t('digestTitle', { date: dateLabel })}</p>
     <ul style="font-size:14px;color:#333;padding-left:18px">${rows}</ul>
-    <p style="font-size:12px;color:#999;margin-top:20px"><a href="${APP_URL}/calendario" style="color:#e0972c">Ver calendario completo →</a></p>
+    <p style="font-size:12px;color:#999;margin-top:20px"><a href="${APP_URL}/calendario" style="color:#e0972c">${t('viewFullCalendar')}</a></p>
   </div>`;
 }
 
@@ -48,17 +49,21 @@ export async function GET(request) {
     return await runDigest();
   } catch (err) {
     console.error('calendar-reminders/run crashed:', err);
+    const locale = getServerLocale();
+    const t = await getEmailTranslator(locale, 'emails.calendarReminder');
     await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
-      subject: 'Error enviando el resumen del calendario',
-      html: `<div style="font-family:Arial,sans-serif;padding:20px"><p>El cron de agenda diaria falló antes de poder enviar los correos de hoy.</p><pre style="white-space:pre-wrap;font-size:12px;color:#b52a2a">${(err?.stack ?? String(err)).replace(/</g, '&lt;')}</pre></div>`,
+      subject: t('errorSubject'),
+      html: `<div style="font-family:Arial,sans-serif;padding:20px"><p>${t('errorBody')}</p><pre style="white-space:pre-wrap;font-size:12px;color:#b52a2a">${(err?.stack ?? String(err)).replace(/</g, '&lt;')}</pre></div>`,
     }).catch(sendErr => console.error('Error enviando notificación de fallo:', sendErr));
     return Response.json({ error: err?.message ?? String(err) }, { status: 500 });
   }
 }
 
 async function runDigest() {
+  const locale = getServerLocale();
+  const t = await getEmailTranslator(locale, 'emails.calendarReminder');
   const today = todayPR();
   const { start, end } = dayBoundsPR(today);
   const dateLabel = new Intl.DateTimeFormat('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${today}T12:00:00-04:00`));
@@ -116,17 +121,17 @@ async function runDigest() {
     distribute(item, techIdsFor(d.technician_id, []));
   }
   for (const v of visits ?? []) {
-    const item = { time: v.scheduled_at, title: v.requests?.title ?? 'Visita', subtitle: v.requests?.clients?.name };
+    const item = { time: v.scheduled_at, title: v.requests?.title ?? t('defaultVisitTitle'), subtitle: v.requests?.clients?.name };
     distribute(item, techIdsFor(v.technician_id, []));
   }
   for (const e of calendarEvents ?? []) {
     const item = { time: e.start_at, title: e.title, subtitle: [e.clients?.name, e.property_name || e.address].filter(Boolean).join(' — ') };
     distribute(item, techIdsFor(e.technician_id, e.calendar_event_technicians));
   }
-  for (const t of tasks ?? []) {
-    const label = t.task_type === 'checklist' ? 'Checklist' : 'Recordatorio';
-    const item = { time: t.due_at, title: `${label}: ${t.title}`, subtitle: t.clients?.name };
-    distribute(item, techIdsFor(t.technician_id, []));
+  for (const task of tasks ?? []) {
+    const label = task.task_type === 'checklist' ? t('taskChecklist') : t('taskReminder');
+    const item = { time: task.due_at, title: `${label}: ${task.title}`, subtitle: task.clients?.name };
+    distribute(item, techIdsFor(task.technician_id, []));
   }
 
   const sent = [];
@@ -140,29 +145,29 @@ async function runDigest() {
     await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: email,
-      subject: `Tu agenda de hoy — ${dateLabel}`,
-      html: digestEmail(dateLabel, items),
+      subject: t('digestTitle', { date: dateLabel }),
+      html: digestEmail(dateLabel, items, t),
     }).catch(err => console.error(`Error enviando agenda a ${tech.name}:`, err));
     sent.push({ name: tech.name, count: items.length });
   }
 
   const adminSections = [];
   for (const [techId, items] of byTech) {
-    const tech = (technicians ?? []).find(t => t.id === techId);
-    adminSections.push(`<p style="font-weight:700;margin-bottom:4px">${tech?.name ?? 'Técnico desconocido'}</p><ul style="font-size:13px;padding-left:18px">${items.sort((a, b) => new Date(a.time) - new Date(b.time)).map(itemLine).join('')}</ul>`);
+    const tech = (technicians ?? []).find(t2 => t2.id === techId);
+    adminSections.push(`<p style="font-weight:700;margin-bottom:4px">${tech?.name ?? t('unknownTechnician')}</p><ul style="font-size:13px;padding-left:18px">${items.sort((a, b) => new Date(a.time) - new Date(b.time)).map(itemLine).join('')}</ul>`);
   }
   if (unassigned.length) {
-    adminSections.push(`<p style="font-weight:700;margin-bottom:4px;color:#b52a2a">Sin asignar</p><ul style="font-size:13px;padding-left:18px">${unassigned.sort((a, b) => new Date(a.time) - new Date(b.time)).map(itemLine).join('')}</ul>`);
+    adminSections.push(`<p style="font-weight:700;margin-bottom:4px;color:#b52a2a">${t('unassigned')}</p><ul style="font-size:13px;padding-left:18px">${unassigned.sort((a, b) => new Date(a.time) - new Date(b.time)).map(itemLine).join('')}</ul>`);
   }
   if (unresolved.length) {
-    adminSections.push(`<p style="font-weight:700;margin-bottom:4px;color:#b52a2a">No se pudo enviar correo a</p><ul style="font-size:13px;padding-left:18px">${unresolved.map(u => `<li>${u.name} (${u.count} evento${u.count === 1 ? '' : 's'}) — sin email vinculado</li>`).join('')}</ul>`);
+    adminSections.push(`<p style="font-weight:700;margin-bottom:4px;color:#b52a2a">${t('emailNotSent')}</p><ul style="font-size:13px;padding-left:18px">${unresolved.map(u => `<li>${t('noLinkedEmail', { name: u.name, count: u.count })}</li>`).join('')}</ul>`);
   }
 
   await resend.emails.send({
     from: 'OTESS <info@otesspr.com>',
     to: 'services@otesspr.com',
-    subject: `Resumen del calendario — ${dateLabel}`,
-    html: `<div style="font-family:Arial,sans-serif;padding:20px;max-width:600px">${adminSections.join('') || '<p style="color:#999">Sin eventos programados hoy.</p>'}</div>`,
+    subject: t('adminSummarySubject', { date: dateLabel }),
+    html: `<div style="font-family:Arial,sans-serif;padding:20px;max-width:600px">${adminSections.join('') || `<p style="color:#999">${t('noEventsToday')}</p>`}</div>`,
   }).catch(err => console.error('Error enviando resumen de admin:', err));
 
   return Response.json({ sent, unresolved, unassignedCount: unassigned.length });

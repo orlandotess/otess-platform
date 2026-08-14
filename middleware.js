@@ -6,10 +6,22 @@ const supabaseUrl = 'https://zisidorwdhrttmdppnbj.supabase.co';
 const supabaseAnonKey = 'sb_publishable_wL7A9THCYwVcyu3t6uk-3Q_Vt09bJzn';
 
 // Rutas públicas que no requieren sesión ni chequeo de rol
-const PUBLIC_PATHS = ['/login', '/verify-code', '/forgot-password', '/reset-password', '/factura', '/estimado', '/propuesta', '/orden-cambio', '/reporte', '/reporte-boleto', '/reporte-mantenimiento', '/favicon.ico', '/otess-logo.png', '/otess-logo-blanco.png', '/otess-icon.png', '/api/login', '/api/logout', '/api/send-verification-code', '/api/verify-code', '/api/forgot-password', '/api/send-invoice', '/api/send-estimate', '/api/send-report', '/api/send-ticket-report', '/api/recurring-invoices', '/api/recurring-expenses', '/api/recurring-maintenances', '/api/invoice-reminders', '/api/calendar-reminders', '/api/calendar/feed', '/api/backup-storage', '/api/propuestas/aprobar', '/api/ordenes-cambio/aprobar', '/api/paypal/create-order', '/api/paypal/capture-order', '/api/service-tickets/inbound'];
+const PUBLIC_PATHS = ['/login', '/verify-code', '/forgot-password', '/reset-password', '/factura', '/estimado', '/propuesta', '/orden-cambio', '/reporte', '/reporte-boleto', '/reporte-mantenimiento', '/favicon.ico', '/otess-logo.png', '/otess-logo-blanco.png', '/otess-icon.png', '/api/login', '/api/logout', '/api/set-locale', '/api/send-verification-code', '/api/verify-code', '/api/forgot-password', '/api/send-invoice', '/api/send-estimate', '/api/send-report', '/api/send-ticket-report', '/api/recurring-invoices', '/api/recurring-expenses', '/api/recurring-maintenances', '/api/invoice-reminders', '/api/calendar-reminders', '/api/calendar/feed', '/api/backup-storage', '/api/propuestas/aprobar', '/api/ordenes-cambio/aprobar', '/api/paypal/create-order', '/api/paypal/capture-order', '/api/service-tickets/inbound'];
 
 function isPublic(pathname) {
   return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));
+}
+
+// Páginas públicas que ve directamente el cliente final (no el empleado que
+// las generó) — factura/estimado/propuesta/orden de cambio y sus reportes.
+// Por decisión del negocio, estas siempre se muestran en inglés,
+// independientemente del idioma configurado en el navegador del empleado
+// que las creó (ver lib/i18n-server.js para el mismo criterio aplicado a
+// los emails que se les envían).
+const CLIENT_FACING_PATHS = ['/factura', '/estimado', '/propuesta', '/orden-cambio', '/reporte', '/reporte-boleto', '/reporte-mantenimiento'];
+
+function isClientFacing(pathname) {
+  return CLIENT_FACING_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'));
 }
 
 // Rutas permitidas para el rol "tecnico" (todo lo demás redirige a /crew)
@@ -27,6 +39,13 @@ export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
   if (isPublic(pathname)) {
+    if (isClientFacing(pathname)) {
+      // No persistimos esto como cookie de respuesta — solo afecta cómo se
+      // renderiza esta request puntual, sin tocar la cookie real del
+      // navegador del cliente.
+      request.cookies.set('NEXT_LOCALE', 'en');
+      return NextResponse.next({ request });
+    }
     return NextResponse.next();
   }
 

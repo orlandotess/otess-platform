@@ -1,10 +1,12 @@
 'use client';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { isoToLocalInput } from '../../lib/datetimeLocal';
 
 const ENTRY_TYPE_ICONS = { event: '📌', reminder: '🔔', checklist: '☑' };
 
 export default function QuickRescheduleModal({ data, saving, onClose, onSave, onViewDetails }) {
+  const t = useTranslations('calendario.quickReschedule');
   const { type, item } = data;
   const isTask = type === 'task';
   const [form, setForm] = useState(() => isTask
@@ -26,20 +28,20 @@ export default function QuickRescheduleModal({ data, saving, onClose, onSave, on
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
         </div>
 
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>Mover fecha</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>{t('moveDate')}</div>
         {isTask ? (
           <div className="form-group" style={{ marginBottom: 16 }}>
-            <label>Vence</label>
+            <label>{t('due')}</label>
             <input type="datetime-local" value={form.due} onChange={e => setForm(f => ({ ...f, due: e.target.value }))} />
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div className="form-group">
-              <label>Inicio</label>
+              <label>{t('start')}</label>
               <input type="datetime-local" value={form.start} onChange={e => setForm(f => ({ ...f, start: e.target.value }))} />
             </div>
             <div className="form-group">
-              <label>Fin</label>
+              <label>{t('end')}</label>
               <input type="datetime-local" value={form.end} onChange={e => setForm(f => ({ ...f, end: e.target.value }))} />
             </div>
           </div>
@@ -47,13 +49,13 @@ export default function QuickRescheduleModal({ data, saving, onClose, onSave, on
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
           <button className="btn btn-primary" onClick={() => onSave(form)} disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
-            {saving ? 'Guardando...' : '💾 Guardar'}
+            {saving ? t('saving') : t('save')}
           </button>
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-ghost" onClick={onClose}>{t('cancel')}</button>
         </div>
         {onViewDetails && (
           <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={onViewDetails}>
-            Ver detalles →
+            {t('viewDetails')}
           </button>
         )}
       </div>

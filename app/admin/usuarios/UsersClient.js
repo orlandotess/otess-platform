@@ -4,12 +4,13 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { normalizeName } from '../../../lib/normalizeName';
 import { formatDatePR } from '../../../lib/datetimeLocal';
-
-const roleLabel = { admin: 'Admin', tecnico: 'Técnico', vendedor: 'Vendedor', secretaria: 'Secretaría' };
-const roleBadge = { admin: 'badge-blue', tecnico: 'badge-amber', vendedor: 'badge-green', secretaria: 'badge-gray' };
+import { useTranslations } from 'next-intl';
 
 export default function UsersClient({ profiles, technicians, currentRole }) {
   const router = useRouter();
+  const tr = useTranslations('admin.usersClient');
+  const roleLabel = { admin: tr('roles.admin'), tecnico: tr('roles.tecnico'), vendedor: tr('roles.vendedor'), secretaria: tr('roles.secretaria') };
+  const roleBadge = { admin: 'badge-blue', tecnico: 'badge-amber', vendedor: 'badge-green', secretaria: 'badge-gray' };
   const [showInvite, setShowInvite] = useState(false);
   const [invite, setInvite] = useState({ email: '', name: '', role: 'tecnico', password: '' });
   const [sending, setSending] = useState(false);
@@ -45,7 +46,7 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
     if (data.error) {
       setError(data.error);
     } else {
-      setSuccess(data.warning ? `Usuario ${invite.email} creado — ⚠️ ${data.warning}` : `Usuario ${invite.email} creado correctamente`);
+      setSuccess(data.warning ? tr('userCreatedWithWarning', { email: invite.email, warning: data.warning }) : tr('userCreated', { email: invite.email }));
       setShowInvite(false);
       setInvite({ email: '', name: '', role: 'tecnico', password: '' });
       router.refresh();
@@ -74,9 +75,9 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
         const slug = profileName.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
         const { error: techError } = await supabase.from('technicians').insert([{ name: profileName, username: slug || profileId.slice(0, 8), profile_id: profileId }]);
         if (techError) {
-          setSuccess(`⚠️ Rol cambiado, pero no se pudo crear el registro de técnico: ${techError.message}`);
+          setSuccess(tr('roleChangedTechFailed', { error: techError.message }));
         } else {
-          setSuccess(`✓ ${profileName} ahora es técnico y ya puede asignarse a trabajos.`);
+          setSuccess(tr('nowTechnician', { name: profileName }));
         }
       }
     }
@@ -84,14 +85,14 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
   }
 
   async function deleteUser(profileId, name) {
-    if (!confirm(`¿Eliminar usuario "${name}"? Esta acción es permanente.`)) return;
+    if (!confirm(tr('confirmDeleteUser', { name }))) return;
     const res = await fetch('/api/delete-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: profileId }),
     });
     const data = await res.json();
-    if (data.error) { alert('Error: ' + data.error); return; }
+    if (data.error) { alert(tr('errorPrefix', { error: data.error })); return; }
     router.refresh();
   }
 
@@ -102,18 +103,18 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
     const { data: allTechs } = await supabase.from('technicians').select('id, name');
     const existing = (allTechs ?? []).find(t => normalizeName(t.name) === normalizeName(profile.name));
     if (existing) {
-      setSuccess(`${profile.name} ya tiene un registro de técnico.`);
+      setSuccess(tr('alreadyTechnician', { name: profile.name }));
       setEnablingTechFor(null);
       return;
     }
     const slug = profile.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
     const { error: techError } = await supabase.from('technicians').insert([{ name: profile.name, username: slug || profile.id.slice(0, 8), profile_id: profile.id }]);
     if (techError) {
-      setSuccess(`⚠️ No se pudo crear el registro de técnico: ${techError.message}`);
+      setSuccess(tr('techCreateFailed', { error: techError.message }));
       setEnablingTechFor(null);
       return;
     }
-    setSuccess(`✓ ${profile.name} ya puede asignarse a trabajos y aparecerá en Payroll/Timesheet.`);
+    setSuccess(tr('enabledAsTechnician', { name: profile.name }));
     setEnablingTechFor(null);
     router.refresh();
   }
@@ -133,7 +134,7 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
       setSavingEdit(false);
       return;
     }
-    setSuccess(data.warning ? `Usuario actualizado — ⚠️ ${data.warning}` : 'Usuario actualizado correctamente');
+    setSuccess(data.warning ? tr('userUpdatedWithWarning', { warning: data.warning }) : tr('userUpdated'));
     setEditUser(null);
     setSavingEdit(false);
     router.refresh();
@@ -152,7 +153,7 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
     if (data.error) {
       setPasswordError(data.error);
     } else {
-      setSuccess(`Contraseña actualizada para ${passwordUser.name}`);
+      setSuccess(tr('passwordUpdated', { name: passwordUser.name }));
       setPasswordUser(null);
       setNewPassword('');
     }
@@ -169,19 +170,19 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>Usuarios del sistema</h2>
-          <button className="btn btn-primary" onClick={() => setShowInvite(true)}>+ Crear usuario</button>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{tr('title')}</h2>
+          <button className="btn btn-primary" onClick={() => setShowInvite(true)}>{tr('createUser')}</button>
         </div>
 
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Nombre</th>
-                <th>Email</th>
-                <th>Rol</th>
-                <th>Estado</th>
-                <th>Desde</th>
+                <th>{tr('table.name')}</th>
+                <th>{tr('table.email')}</th>
+                <th>{tr('table.role')}</th>
+                <th>{tr('table.status')}</th>
+                <th>{tr('table.since')}</th>
                 <th></th>
               </tr>
             </thead>
@@ -207,7 +208,7 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
                   </td>
                   <td>
                     <span className={`badge ${p.active ? 'badge-green' : 'badge-red'}`}>
-                      {p.active ? 'Activo' : 'Inactivo'}
+                      {p.active ? tr('active') : tr('inactive')}
                     </span>
                   </td>
                   <td style={{ color: 'var(--muted)', fontSize: 12 }}>
@@ -221,7 +222,7 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
                           style={{ fontSize: 12, padding: '5px 10px' }}
                           onClick={() => { setEditUser({ id: p.id, name: p.name }); setEditForm({ name: p.name, email: p.email }); setEditError(''); }}
                         >
-                          ✏️ Editar
+                          {tr('edit')}
                         </button>
                       )}
                       {canChangeRole && !techNames.has(normalizeName(p.name)) && (
@@ -230,9 +231,9 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
                           style={{ fontSize: 12, padding: '5px 10px' }}
                           onClick={() => enableAsTechnician(p)}
                           disabled={enablingTechFor === p.id}
-                          title="Crea su registro de técnico sin cambiar su rol, para poder asignarlo a trabajos y verlo en Payroll/Timesheet"
+                          title={tr('enableAsTechnicianTitle')}
                         >
-                          {enablingTechFor === p.id ? '...' : '🔧 Habilitar como técnico'}
+                          {enablingTechFor === p.id ? '...' : tr('enableAsTechnician')}
                         </button>
                       )}
                       <button
@@ -240,14 +241,14 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
                         style={{ fontSize: 12, padding: '5px 10px' }}
                         onClick={() => { setPasswordUser({ id: p.id, name: p.name }); setNewPassword(''); setPasswordError(''); }}
                       >
-                        🔑 Contraseña
+                        {tr('password')}
                       </button>
                       <button
                         className="btn btn-ghost"
                         style={{ fontSize: 12, padding: '5px 10px', color: p.active ? 'var(--warn)' : 'var(--ok)' }}
                         onClick={() => toggleActive(p.id, p.active)}
                       >
-                        {p.active ? 'Desactivar' : 'Activar'}
+                        {p.active ? tr('deactivate') : tr('activate')}
                       </button>
                       <button
                         className="btn btn-ghost"
@@ -269,32 +270,32 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
       {showInvite && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Crear usuario</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{tr('createUserModalTitle')}</h2>
             <form onSubmit={sendInvite}>
               {error && <div style={{ background: 'var(--danger-tint)', color: 'var(--warn)', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{error}</div>}
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label>Nombre completo</label>
-                <input value={invite.name} onChange={e => setInvite(i => ({ ...i, name: e.target.value }))} placeholder="Juan García" required />
+                <label>{tr('fullName')}</label>
+                <input value={invite.name} onChange={e => setInvite(i => ({ ...i, name: e.target.value }))} placeholder={tr('fullNamePlaceholder')} required />
               </div>
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label>Email</label>
-                <input type="email" value={invite.email} onChange={e => setInvite(i => ({ ...i, email: e.target.value }))} placeholder="juan@email.com" required />
+                <label>{tr('email')}</label>
+                <input type="email" value={invite.email} onChange={e => setInvite(i => ({ ...i, email: e.target.value }))} placeholder={tr('emailPlaceholder')} required />
               </div>
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label>Contraseña</label>
-                <input type="text" value={invite.password} onChange={e => setInvite(i => ({ ...i, password: e.target.value }))} placeholder="Mínimo 6 caracteres" required minLength={6} />
+                <label>{tr('passwordField')}</label>
+                <input type="text" value={invite.password} onChange={e => setInvite(i => ({ ...i, password: e.target.value }))} placeholder={tr('passwordPlaceholder')} required minLength={6} />
               </div>
               <div className="form-group" style={{ marginBottom: 24 }}>
-                <label>Rol</label>
+                <label>{tr('role')}</label>
                 <select value={invite.role} onChange={e => setInvite(i => ({ ...i, role: e.target.value }))}>
                   {Object.entries(roleLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sending} style={{ flex: 1, justifyContent: 'center' }}>
-                  {sending ? 'Creando...' : '✅ Crear usuario'}
+                  {sending ? tr('creating') : tr('createUserSubmit')}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowInvite(false)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowInvite(false)}>{tr('cancel')}</button>
               </div>
             </form>
           </div>
@@ -305,22 +306,22 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
       {editUser && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>Editar usuario</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{tr('editUserModalTitle')}</h2>
             <form onSubmit={saveEdit}>
               {editError && <div style={{ background: 'var(--danger-tint)', color: 'var(--warn)', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{editError}</div>}
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label>Nombre completo</label>
+                <label>{tr('fullName')}</label>
                 <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} required />
               </div>
               <div className="form-group" style={{ marginBottom: 24 }}>
-                <label>Email</label>
+                <label>{tr('email')}</label>
                 <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} required />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={savingEdit} style={{ flex: 1, justifyContent: 'center' }}>
-                  {savingEdit ? 'Guardando...' : '💾 Guardar'}
+                  {savingEdit ? tr('saving') : tr('save')}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setEditUser(null)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setEditUser(null)}>{tr('cancel')}</button>
               </div>
             </form>
           </div>
@@ -331,19 +332,19 @@ export default function UsersClient({ profiles, technicians, currentRole }) {
       {passwordUser && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>Cambiar contraseña</h2>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Usuario: <strong>{passwordUser.name}</strong></p>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>{tr('changePasswordModalTitle')}</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>{tr('userLabel')} <strong>{passwordUser.name}</strong></p>
             <form onSubmit={savePassword}>
               {passwordError && <div style={{ background: 'var(--danger-tint)', color: 'var(--warn)', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{passwordError}</div>}
               <div className="form-group" style={{ marginBottom: 24 }}>
-                <label>Nueva contraseña</label>
-                <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" required minLength={6} />
+                <label>{tr('newPassword')}</label>
+                <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder={tr('passwordPlaceholder')} required minLength={6} />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={savingPassword} style={{ flex: 1, justifyContent: 'center' }}>
-                  {savingPassword ? 'Guardando...' : '💾 Guardar'}
+                  {savingPassword ? tr('saving') : tr('save')}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setPasswordUser(null)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setPasswordUser(null)}>{tr('cancel')}</button>
               </div>
             </form>
           </div>

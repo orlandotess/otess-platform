@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { createClient } from '@supabase/supabase-js';
+import { getServerLocale, getEmailTranslator } from '../../../lib/i18n-server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const supabaseUrl = 'https://zisidorwdhrttmdppnbj.supabase.co';
@@ -7,6 +8,9 @@ const supabaseUrl = 'https://zisidorwdhrttmdppnbj.supabase.co';
 export async function POST(request) {
   const { email } = await request.json();
   if (!email) return Response.json({ error: 'Email requerido' }, { status: 400 });
+
+  const locale = getServerLocale();
+  const t = await getEmailTranslator(locale, 'emails.forgotPassword');
 
   const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -35,21 +39,21 @@ export async function POST(request) {
   </div>
 
   <div style="background:#fff;padding:32px">
-    <p style="color:#555;font-size:15px;margin-top:0">Recibimos una solicitud para restablecer la contraseña de tu cuenta en la plataforma OTESS.</p>
-    <p style="color:#666;font-size:14px">Si fuiste tú, haz clic en el siguiente botón para elegir una nueva contraseña. Este enlace expira en 1 hora.</p>
+    <p style="color:#555;font-size:15px;margin-top:0">${t('intro1')}</p>
+    <p style="color:#666;font-size:14px">${t('intro2')}</p>
 
     <div style="text-align:center;margin:28px 0">
       <a href="${link}" style="background:#e0972c;color:#fff;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;display:inline-block">
-        Restablecer contraseña
+        ${t('resetButton')}
       </a>
     </div>
 
-    <p style="color:#999;font-size:12px">Si no solicitaste este cambio, puedes ignorar este correo — tu contraseña actual seguirá funcionando.</p>
+    <p style="color:#999;font-size:12px">${t('ignoreNote')}</p>
   </div>
 
   <div style="background:#f0f2f5;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center">
-    <p style="color:#888;font-size:12px;margin:0">¿Preguntas? Contáctanos en <a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a> o al (787) 513-8352</p>
-    <p style="color:#aaa;font-size:11px;margin:8px 0 0">OT Electrical & Security Solutions · Carolina, Puerto Rico</p>
+    <p style="color:#888;font-size:12px;margin:0">${t('footerQuestions', { email: '<a href="mailto:info@otesspr.com" style="color:#e0972c">info@otesspr.com</a>', phone: '(787) 513-8352' })}</p>
+    <p style="color:#aaa;font-size:11px;margin:8px 0 0">${t('footerAddress')}</p>
   </div>
 
 </div>
@@ -60,7 +64,7 @@ export async function POST(request) {
     await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: email,
-      subject: 'Restablecer tu contraseña — OTESS',
+      subject: t('subject'),
       html,
     });
   } catch (err) {

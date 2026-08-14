@@ -4,8 +4,10 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../../Sidebar';
 import ClientCombobox from '../../facturas/nueva/ClientCombobox';
+import { useTranslations } from 'next-intl';
 
 export default function NuevoBoletoForm() {
+  const t = useTranslations('boletos.newTicketForm');
   const router = useRouter();
   const searchParams = useSearchParams();
   const clientParam = searchParams.get('client');
@@ -66,42 +68,42 @@ export default function NuevoBoletoForm() {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <div className="page-title">Abrir boleto de servicio</div>
+          <div className="page-title">{t('title')}</div>
         </div>
 
         <form onSubmit={handleSubmit} className="card" style={{ maxWidth: 640 }}>
           <div className="form-group" style={{ marginBottom: 20 }}>
-            <label>Cliente</label>
+            <label>{t('form.client')}</label>
             <ClientCombobox clients={clients} value={form.client_id} onChange={v => set('client_id', v)} />
           </div>
 
           {properties.length > 0 && (
             <div className="form-group" style={{ marginBottom: 20 }}>
-              <label>Propiedad (opcional)</label>
+              <label>{t('form.property')}</label>
               <select value={form.property_id} onChange={e => set('property_id', e.target.value)}>
-                <option value="">Sin propiedad</option>
+                <option value="">{t('form.noProperty')}</option>
                 {properties.map(p => <option key={p.id} value={p.id}>{p.name}{p.street ? ` — ${p.street}` : ''}</option>)}
               </select>
             </div>
           )}
 
           <div className="form-group" style={{ marginBottom: 20 }}>
-            <label>¿Cuál es el problema?</label>
-            <input value={form.subject} onChange={e => set('subject', e.target.value)} placeholder="Ej: El cuadro telefónico no timbra" required />
+            <label>{t('form.subject')}</label>
+            <input value={form.subject} onChange={e => set('subject', e.target.value)} placeholder={t('form.subjectPlaceholder')} required />
           </div>
 
           <div className="form-group" style={{ marginBottom: 20 }}>
-            <label>Detalles (opcional)</label>
-            <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={4} placeholder="Detalles del problema reportado..." />
+            <label>{t('form.description')}</label>
+            <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={4} placeholder={t('form.descriptionPlaceholder')} />
           </div>
 
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
             <div className="form-group" style={{ flex: 1 }}>
-              <label>Contacto (opcional)</label>
-              <input value={form.contact_name} onChange={e => set('contact_name', e.target.value)} placeholder="Nombre" />
+              <label>{t('form.contact')}</label>
+              <input value={form.contact_name} onChange={e => set('contact_name', e.target.value)} placeholder={t('form.contactPlaceholder')} />
             </div>
             <div className="form-group" style={{ flex: 1 }}>
-              <label>Teléfono</label>
+              <label>{t('form.phone')}</label>
               <input value={form.contact_phone} onChange={e => set('contact_phone', e.target.value)} placeholder="787-000-0000" />
             </div>
           </div>
@@ -109,9 +111,9 @@ export default function NuevoBoletoForm() {
           {error && <p style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 16 }}>{error}</p>}
           <div style={{ display: 'flex', gap: 10 }}>
             <button type="submit" className="btn btn-primary" disabled={!canSave || saving}>
-              {saving ? 'Guardando...' : '🎫 Abrir boleto'}
+              {saving ? t('saving') : t('submit')}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => router.back()}>Cancelar</button>
+            <button type="button" className="btn btn-ghost" onClick={() => router.back()}>{t('cancel')}</button>
           </div>
         </form>
       </main>

@@ -2,8 +2,10 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 export default function TechnicianAssign({ ticketId, technicians = [], technicianId }) {
+  const t = useTranslations('boletos.technicianAssign');
   const router = useRouter();
   const [techId, setTechId] = useState(technicianId ?? '');
   const [saving, setSaving] = useState(false);
@@ -23,9 +25,9 @@ export default function TechnicianAssign({ ticketId, technicians = [], technicia
       disabled={saving}
       style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }}
     >
-      <option value="">— Sin asignar —</option>
-      {technicians.map(t => (
-        <option key={t.id} value={t.id}>{t.name}</option>
+      <option value="">{t('unassigned')}</option>
+      {technicians.map(tech => (
+        <option key={tech.id} value={tech.id}>{tech.name}</option>
       ))}
     </select>
   );

@@ -1,14 +1,11 @@
 'use client';
 import { Fragment, useState, useEffect } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
 
 const NAVY = '#16223d';
 
-const DEFAULT_ABOUT_US = `Somos especialistas en la integración de tecnología para crear espacios inteligentes, seguros y eficientes. Nos dedicamos al diseño, instalación y automatización de sistemas de audio, video, iluminación, cableado estructurado, redes y seguridad, brindando así soluciones personalizadas para hogares, oficinas y negocios.
-
-En OTESS transformamos el entorno en un espacio moderno, funcional y seguro.`;
-
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' }).toUpperCase() : null;
+const fmtDate = (d, locale) => d ? new Date(d + 'T00:00:00').toLocaleDateString(locale === 'en' ? 'en-US' : 'es-PR', { month: 'long', day: '2-digit', year: 'numeric' }).toUpperCase() : null;
 
 function groupByArea(items) {
   const topLevel = items.filter(it => !it.parent_item_id).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
@@ -92,6 +89,8 @@ const pageBreak = { ...page, breakBefore: 'page', pageBreakBefore: 'always' };
 const h2 = { fontSize: 22, fontWeight: 800, color: NAVY, marginBottom: 20 };
 
 export default function ProposalDocument({ proposal, option, companyInfo, primaryAddress, taxRules, payments, mode = 'client' }) {
+  const t = useTranslations('propuestas.document');
+  const locale = useLocale();
   // Attachments render collapsed by default (Portal.io-style "N Attachments
   // Included" toggle). The PDF export only ever captures what's on screen at
   // capture time, so openPdfPreview fires otess:print-start/-end around the
@@ -127,6 +126,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
   const clientAsCompany = proposal.clients?.report_name_source === 'company' && proposal.clients?.company;
   const clientPrimaryName = clientAsCompany ? proposal.clients?.company : proposal.clients?.name;
   const clientSecondaryName = clientAsCompany ? null : proposal.clients?.company;
+  const basisLabels = { parts: t('basisPartsLabel'), labor: t('basisLaborLabel'), subtotal: t('basisSubtotalLabel') };
 
   return (
     <div style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", color: '#1a1a1a', minWidth: 700 }}>
@@ -137,20 +137,20 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
             <div>
               <div style={{ fontSize: 28, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>OTESS</div>
-              <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>OT Electrical & Security Solutions</div>
-              <div style={{ fontSize: 12, color: '#999' }}>Calle 56, #2D8 Lomas de Carolina</div>
-              <div style={{ fontSize: 12, color: '#999' }}>Carolina, PR 00987</div>
-              <div style={{ fontSize: 12, color: '#999' }}>(787) 513-8352 · info@otesspr.com</div>
+              <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{t('companyTagline')}</div>
+              <div style={{ fontSize: 12, color: '#999' }}>{t('companyAddressLine1')}</div>
+              <div style={{ fontSize: 12, color: '#999' }}>{t('companyAddressLine2')}</div>
+              <div style={{ fontSize: 12, color: '#999' }}>{t('companyContact')}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 32, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>FACTURA</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>{t('invoiceHeading')}</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#e0972c', fontFamily: 'monospace' }}>{proposal.proposal_number}</div>
-              <div style={{ fontSize: 13, color: '#999', marginTop: 8 }}>Fecha: <strong>{new Date().toLocaleDateString('en-CA')}</strong></div>
-              {proposal.valid_until && <div style={{ fontSize: 13, color: '#999' }}>Vence: <strong>{proposal.valid_until}</strong></div>}
+              <div style={{ fontSize: 13, color: '#999', marginTop: 8 }}>{t('dateLabel')} <strong>{new Date().toLocaleDateString('en-CA')}</strong></div>
+              {proposal.valid_until && <div style={{ fontSize: 13, color: '#999' }}>{t('dueLabel')} <strong>{proposal.valid_until}</strong></div>}
             </div>
           </div>
           <div style={{ background: '#f6f7fa', borderRadius: 10, padding: '16px 20px', marginBottom: 28 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#999', marginBottom: 8, textTransform: 'uppercase' }}>Facturar a</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#999', marginBottom: 8, textTransform: 'uppercase' }}>{t('billTo')}</div>
             <div style={{ fontWeight: 700, fontSize: 16 }}>{clientPrimaryName}</div>
             {clientSecondaryName && <div style={{ color: '#999', fontSize: 14 }}>{clientSecondaryName}</div>}
             {primaryAddress && (
@@ -170,10 +170,10 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
             <div>
               <div style={{ fontSize: 28, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>OTESS</div>
-              <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>Hoja de instalación — uso interno</div>
+              <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{t('installerSubtitle')}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>INSTALADOR</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>{t('installerHeading')}</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: '#e0972c', fontFamily: 'monospace' }}>{proposal.proposal_number}</div>
             </div>
           </div>
@@ -194,7 +194,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
             <div style={{ flex: 1 }} />
             <div>
               <div style={{ fontSize: 40, fontWeight: 900, marginBottom: 36, letterSpacing: -1 }}>{proposal.title}</div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', letterSpacing: '0.08em', marginBottom: 6 }}>A PROPOSAL FOR</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', letterSpacing: '0.08em', marginBottom: 6 }}>{t('aProposalFor')}</div>
               <div style={{ fontSize: 19, fontWeight: 800, color: NAVY, marginBottom: 10 }}>{clientPrimaryName}</div>
               <div style={{ fontSize: 14, lineHeight: 1.8 }}>
                 {clientSecondaryName && <div>{clientSecondaryName}</div>}
@@ -211,21 +211,21 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
             <div style={{ flex: 1 }} />
             <div style={{ borderTop: '1px solid #eee', paddingTop: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#999', letterSpacing: '0.05em', marginBottom: 14 }}>
-                {proposal.prepared_by ? `PREPARED BY ${proposal.prepared_by.toUpperCase()}` : ''}
+                {proposal.prepared_by ? t('preparedByLabel', { name: proposal.prepared_by.toUpperCase() }) : ''}
                 {proposal.prepared_by && proposal.valid_until ? ' • ' : ''}
-                {proposal.valid_until ? `EXPIRES ${fmtDate(proposal.valid_until)}` : ''}
+                {proposal.valid_until ? t('expiresLabel', { date: fmtDate(proposal.valid_until, locale) }) : ''}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <img src="/otess-logo.png" alt="OTESS" style={{ height: 26 }} />
-                <span style={{ fontSize: 13, color: '#999', fontWeight: 600 }}>OT Electrical And Security Solutions</span>
+                <span style={{ fontSize: 13, color: '#999', fontWeight: 600 }}>{t('companyFooterTagline')}</span>
               </div>
             </div>
           </div>
 
           {/* About Us */}
           <div style={pageBreak}>
-            <div style={h2}>About Us</div>
-            <p style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{companyInfo?.about_us || DEFAULT_ABOUT_US}</p>
+            <div style={h2}>{t('aboutUsHeading')}</div>
+            <p style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{companyInfo?.about_us || t('defaultAboutUs')}</p>
           </div>
         </>
       )}
@@ -238,15 +238,15 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
         }, 0);
         return (
           <div key={area.name} style={pageBreak}>
-            {areaIdx === 0 && <div style={h2}>Areas & Items</div>}
+            {areaIdx === 0 && <div style={h2}>{t('areasItemsHeading')}</div>}
             <div style={{ fontSize: 17, fontWeight: 700, color: NAVY, marginBottom: 14 }}>{area.name}</div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1.5px solid #eee' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Items</th>
-                  {!hidePricing && <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Sell Price</th>}
-                  <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Qty</th>
-                  {!hidePricing && <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Total</th>}
+                  <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>{t('itemsColumnHeader')}</th>
+                  {!hidePricing && <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>{t('sellPriceColumnHeader')}</th>}
+                  <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>{t('qtyColumnHeader')}</th>
+                  {!hidePricing && <th style={{ textAlign: 'right', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>{t('totalColumnHeader')}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -272,8 +272,8 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                         {!hidePricing && (
                           <td style={{ textAlign: 'right', verticalAlign: 'top', paddingTop: 14 }}>
                             <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(itemTotal(it))}</div>
-                            {combined && <div style={{ fontSize: 10.5, color: '#999' }}>Combined Price</div>}
-                            {it.discount_amount > 0 && <div style={{ fontSize: 11, color: '#1a7a4a', fontWeight: 600 }}>{fmt(it.discount_amount)} Discount</div>}
+                            {combined && <div style={{ fontSize: 10.5, color: '#999' }}>{t('combinedPriceNote')}</div>}
+                            {it.discount_amount > 0 && <div style={{ fontSize: 11, color: '#1a7a4a', fontWeight: 600 }}>{t('lineDiscountNote', { amount: fmt(it.discount_amount) })}</div>}
                           </td>
                         )}
                       </tr>
@@ -286,7 +286,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600, color: '#999' }}
                             >
                               <span style={{ fontSize: 9 }}>{isExpanded ? '▾' : '▸'}</span>
-                              {it.children.length} Attachment{it.children.length > 1 ? 's' : ''} Included
+                              {t('attachmentsIncluded', { count: it.children.length })}
                             </button>
                           </td>
                         </tr>
@@ -315,7 +315,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
             </table>
             {!hidePricing && (
               <div style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: NAVY, marginTop: 14, paddingTop: 12, borderTop: '1px solid #eee' }}>
-                {area.name} Total: {fmt(areaTotal)}
+                {t('areaTotalLabel', { name: area.name, amount: fmt(areaTotal) })}
               </div>
             )}
           </div>
@@ -326,25 +326,25 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
       {!hidePricing && (
       <>
       <div style={pageBreak}>
-        <div style={h2}>Financial Summary</div>
+        <div style={h2}>{t('financialSummaryHeading')}</div>
         <div style={{ display: 'flex', gap: 40 }}>
           <div style={{ flex: 1 }}>
             {fb.totalDiscount > 0 && (
               <div style={{ background: '#e7f3ee', borderRadius: 8, padding: '14px 16px', fontSize: 13, color: '#1a7a4a', lineHeight: 1.6 }}>
-                You received <strong>{fmt(fb.totalDiscount)}</strong> in line item discounts on this proposal.
+                {t.rich('lineDiscountsReceived', { amount: fmt(fb.totalDiscount), strong: chunks => <strong>{chunks}</strong> })}
               </div>
             )}
           </div>
           <div style={{ width: 300 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14 }}><span style={{ color: '#666' }}>Total Parts</span><span style={{ fontWeight: 700 }}>{fmt(fb.parts)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14 }}><span style={{ color: '#666' }}>Total Labor</span><span style={{ fontWeight: 700 }}>{fmt(fb.labor)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14 }}><span style={{ color: '#666' }}>{t('totalParts')}</span><span style={{ fontWeight: 700 }}>{fmt(fb.parts)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14 }}><span style={{ color: '#666' }}>{t('totalLabor')}</span><span style={{ fontWeight: 700 }}>{fmt(fb.labor)}</span></div>
             <hr style={{ border: 'none', borderTop: '1px solid #eee', margin: '6px 0' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>Subtotal</span><span style={{ fontWeight: 700 }}>{fmt(fb.subtotal)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>Sales Tax — Parts ({partsRate}%)</span><span>{fmt(fb.taxParts)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>Sales Tax — Labor ({laborRate}%)</span><span>{fmt(fb.taxLabor)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700 }}>{fmt(fb.subtotal)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>{t('salesTaxParts', { rate: partsRate })}</span><span>{fmt(fb.taxParts)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>{t('salesTaxLabor', { rate: laborRate })}</span><span>{fmt(fb.taxLabor)}</span></div>
             {fb.documentDiscountAmount > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}>
-                <span>Discount{proposal.discount_type === 'percent' ? ` (${Number(proposal.discount_value)}%)` : ''}</span>
+                <span>{proposal.discount_type === 'percent' ? t('discountLabelWithPercent', { percent: Number(proposal.discount_value) }) : t('discountLabel')}</span>
                 <span>-{fmt(fb.documentDiscountAmount)}</span>
               </div>
             )}
@@ -352,7 +352,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
               <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'right', margin: '0 0 4px' }}>{proposal.discount_note}</p>
             )}
             <hr style={{ border: 'none', borderTop: '1.5px solid #ddd', margin: '10px 0' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: NAVY }}><span>Proposal Total</span><span>{fmt(fb.total)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, color: NAVY }}><span>{t('proposalTotal')}</span><span>{fmt(fb.total)}</span></div>
           </div>
         </div>
       </div>
@@ -361,14 +361,14 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
       <div style={pageBreak}>
         {payments && payments.length > 0 && (
           <>
-            <div style={h2}>Payment Schedule</div>
+            <div style={h2}>{t('paymentScheduleHeading')}</div>
             <div style={{ border: '1px solid #eee', borderRadius: 8, marginBottom: 36 }}>
               {payments.map((p, i) => (
                 <div key={p.id ?? i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', borderBottom: i < payments.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
                   <div>
                     <span style={{ fontWeight: 700, fontSize: 13.5 }}>{p.label}</span>
                     <span style={{ fontSize: 13, color: '#777', marginLeft: 8 }}>
-                      {p.percent}% of {p.basis === 'parts' ? 'Parts' : p.basis === 'labor' ? 'Labor' : 'Subtotal'} Total{p.due_trigger ? ` • Due ${p.due_trigger}` : ''}
+                      {t('paymentPercentOfBasis', { percent: p.percent, basis: basisLabels[p.basis] ?? basisLabels.subtotal })}{p.due_trigger ? t('dueSuffix', { trigger: p.due_trigger }) : ''}
                     </span>
                   </div>
                   <span style={{ fontWeight: 700, fontSize: 14 }}>{fmt((basisAmount[p.basis] ?? 0) * (p.percent / 100))}</span>
@@ -377,10 +377,10 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
             </div>
           </>
         )}
-        <div style={h2}>Project Terms</div>
+        <div style={h2}>{t('projectTermsHeading')}</div>
         <p style={{ fontSize: 13, lineHeight: 1.7, color: '#444', whiteSpace: 'pre-line' }}>{proposal.terms}</p>
         {proposal.valid_until && (
-          <p style={{ fontSize: 12, color: '#999', marginTop: 16 }}>Esta propuesta es válida hasta el {fmtDate(proposal.valid_until)}.</p>
+          <p style={{ fontSize: 12, color: '#999', marginTop: 16 }}>{t('validUntilNote', { date: fmtDate(proposal.valid_until, locale) })}</p>
         )}
       </div>
       </>
@@ -396,6 +396,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
 // onto the area-by-area layout above would mean threading hidePricing-style
 // conditionals through code that doesn't otherwise apply to it.
 function PickListDocument({ proposal, option }) {
+  const t = useTranslations('propuestas.document');
   // Includes attachments/accessories too — the warehouse still needs to pull
   // a bundled part (e.g. a junction box) regardless of how it's priced.
   const products = (option.items ?? []).filter(it => it.item_type === 'product');
@@ -414,7 +415,7 @@ function PickListDocument({ proposal, option }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
             <div style={{ fontSize: 28, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>OTESS</div>
-            <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>Warehouse Pick List — uso interno</div>
+            <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{t('pickListSubtitle')}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#e0972c', fontFamily: 'monospace' }}>{proposal.proposal_number}</div>
@@ -425,8 +426,8 @@ function PickListDocument({ proposal, option }) {
           <thead>
             <tr style={{ borderBottom: '1.5px solid #eee' }}>
               <th style={{ width: 28, padding: '8px 0' }}></th>
-              <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Producto</th>
-              <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>Cantidad</th>
+              <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>{t('productColumnHeader')}</th>
+              <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase' }}>{t('quantityColumnHeader')}</th>
             </tr>
           </thead>
           <tbody>
@@ -447,7 +448,7 @@ function PickListDocument({ proposal, option }) {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={3} style={{ padding: '20px 0', color: '#999', fontSize: 13, textAlign: 'center' }}>No hay productos en esta opción.</td></tr>
+              <tr><td colSpan={3} style={{ padding: '20px 0', color: '#999', fontSize: 13, textAlign: 'center' }}>{t('noProductsInOption')}</td></tr>
             )}
           </tbody>
         </table>

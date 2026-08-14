@@ -6,9 +6,11 @@ import { createSupabaseServerClient } from '../../../lib/supabase-server';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import ClientesDetail from './ClientesDetail';
+import { getTranslations } from 'next-intl/server';
 
 export default async function ClienteDetailPage({ params }) {
   const { id } = params;
+  const t = await getTranslations('clientes.detailPage');
 
   const authClient = createSupabaseServerClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -97,8 +99,8 @@ export default async function ClienteDetailPage({ params }) {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <div className="page-title">Cliente no encontrado</div>
-          <Link href="/clientes" className="btn btn-ghost">← Volver</Link>
+          <div className="page-title">{t('notFound')}</div>
+          <Link href="/clientes" className="btn btn-ghost">← {t('back')}</Link>
         </div>
       </main>
     </div>
@@ -113,12 +115,12 @@ export default async function ClienteDetailPage({ params }) {
             <div className="page-title">{client.name}</div>
             {client.company && <div style={{ color: 'var(--muted)', fontSize: 14, marginTop: 2 }}>{client.company}</div>}
             <span className={`badge ${client.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`} style={{ marginTop: 6, display: 'inline-block' }}>
-              {client.client_type === 'b2b' ? 'B2B' : 'Consumidor final'}
+              {client.client_type === 'b2b' ? t('type.b2b') : t('type.consumerFinal')}
             </span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Link href="/clientes" className="btn btn-ghost">← Clientes</Link>
-            <Link href={`/trabajos/nuevo?client=${id}`} className="btn btn-primary">🔧 Nuevo trabajo</Link>
+            <Link href="/clientes" className="btn btn-ghost">← {t('backToList')}</Link>
+            <Link href={`/trabajos/nuevo?client=${id}`} className="btn btn-primary">🔧 {t('newJob')}</Link>
           </div>
         </div>
 

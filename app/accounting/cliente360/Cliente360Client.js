@@ -4,10 +4,12 @@ import { supabase } from '../../../lib/supabase';
 import Link from 'next/link';
 import SearchBox from '../../SearchBox';
 import IVUInvoiceTableClient from '../ivu/IVUInvoiceTableClient';
+import { useTranslations } from 'next-intl';
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Cliente360Client({ clientTotals, invoices }) {
+  const t = useTranslations('accounting.cliente360Client');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [retenciones, setRetenciones] = useState([]);
@@ -47,12 +49,16 @@ export default function Cliente360Client({ clientTotals, invoices }) {
     : retenciones;
 
   function exportRetencionesCSV() {
-    const headers = ['Factura', 'Fecha', 'Total factura', 'Base labor', 'Exento', 'Retenido', 'Neto', '# Comprobante', 'Estado'];
+    const headers = [
+      t('retentionsColumns.invoice'), t('retentionsColumns.date'), t('retentionsColumns.totalInvoice'),
+      t('retentionsColumns.laborBase'), t('retentionsColumns.exempt'), t('retentionsColumns.withheld'),
+      t('retentionsColumns.net'), t('retentionsColumns.receiptNumber'), t('retentionsColumns.status'),
+    ];
     const rows = visibleRetenciones.map(r => {
       const totalFactura = Number(r.invoices?.total ?? r.monto_facturado ?? 0);
       const retenido = Number(r.retencion_aplicada ?? 0);
       return [
-        r.invoices?.invoice_number ?? '—',
+        r.invoices?.invoice_number ?? t('notAvailable'),
         r.fecha ?? '',
         totalFactura.toFixed(2),
         Number(r.monto_facturado ?? 0).toFixed(2),
@@ -82,26 +88,26 @@ export default function Cliente360Client({ clientTotals, invoices }) {
     <div>
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>Clientes</p>
-          <SearchBox value={search} onChange={setSearch} placeholder="Buscar cliente o empresa..." />
+          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>{t('clientsTitle')}</p>
+          <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
         </div>
         {clientTotals.length === 0 ? (
-          <div className="empty"><p>No hay actividad de clientes todavía.</p></div>
+          <div className="empty"><p>{t('empty')}</p></div>
         ) : visible.length === 0 ? (
-          <div className="empty"><p>Sin resultados para "{search}".</p></div>
+          <div className="empty"><p>{t('noResults', { search })}</p></div>
         ) : (
           <div className="table-wrap">
             <table className="table-dense">
               <thead>
                 <tr>
-                  <th>Cliente</th>
-                  <th style={{ textAlign: 'right' }}>Facturas</th>
-                  <th style={{ textAlign: 'right' }}>Facturado</th>
-                  <th style={{ textAlign: 'right' }}>Cobrado</th>
-                  <th style={{ textAlign: 'right' }}>Neto esperado</th>
-                  <th style={{ textAlign: 'right' }}>IVU Labor</th>
-                  <th style={{ textAlign: 'right' }}>IVU Producto</th>
-                  <th style={{ textAlign: 'right' }}>Retenido</th>
+                  <th>{t('columns.client')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.invoices')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.billed')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.collected')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.expectedNet')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.ivuLabor')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.ivuProduct')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('columns.withheld')}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -113,7 +119,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
                     <td style={{ textAlign: 'right' }}>{fmt(c.facturado)}</td>
                     <td
                       style={{ textAlign: 'right', fontWeight: c.hasVarianza ? 700 : 400, color: c.hasVarianza ? 'var(--warn)' : 'var(--ok)' }}
-                      title={c.hasVarianza ? `Difiere del neto esperado por ${fmt(Math.abs(c.varianza))}` : undefined}
+                      title={c.hasVarianza ? t('varianceTitle', { amount: fmt(Math.abs(c.varianza)) }) : undefined}
                     >
                       {c.hasVarianza && '⚠️ '}{fmt(c.cobrado)}
                     </td>
@@ -121,7 +127,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
                     <td style={{ textAlign: 'right' }}>{fmt(c.ivuLabor)}</td>
                     <td style={{ textAlign: 'right' }}>{fmt(c.ivuProducto)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--amber)' }}>{fmt(c.retenido)}</td>
-                    <td style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>{selected?.id === c.id ? 'Cerrar ↑' : 'Ver →'}</td>
+                    <td style={{ color: 'var(--amber)', fontWeight: 600, fontSize: 13 }}>{selected?.id === c.id ? t('close') : t('view')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -133,18 +139,18 @@ export default function Cliente360Client({ clientTotals, invoices }) {
       {selected && (
         <div ref={detailRef}>
           <div style={{ marginBottom: 16 }}>
-            <Link href={`/clientes/${selected.id}`} className="btn btn-ghost">👤 Ver perfil de {selected.name} →</Link>
+            <Link href={`/clientes/${selected.id}`} className="btn btn-ghost">{t('viewProfileLink', { name: selected.name })}</Link>
           </div>
 
           {selected.hasVarianza && (
             <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--warn)', background: 'var(--danger-tint)' }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)', marginBottom: 6 }}>⚠️ El cobrado no cuadra con el neto esperado</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)', marginBottom: 6 }}>{t('varianceWarningTitle')}</p>
               <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-                Neto esperado (total − retención de cada factura, tope por lo cobrado): <strong>{fmt(selected.netoEsperado)}</strong>
-                {' · '}Cobrado: <strong>{fmt(selected.cobrado)}</strong>
-                {' · '}Diferencia: <strong style={{ color: 'var(--warn)' }}>{fmt(Math.abs(selected.varianza))}</strong>
+                {t('varianceExpectedLabel')} <strong>{fmt(selected.netoEsperado)}</strong>
+                {' · '}{t('varianceCollectedLabel')} <strong>{fmt(selected.cobrado)}</strong>
+                {' · '}{t('varianceDiffLabel')} <strong style={{ color: 'var(--warn)' }}>{fmt(Math.abs(selected.varianza))}</strong>
               </p>
-              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>Pide el comprobante 480.6B al cliente para confirmar la retención real antes de dar el pago por bueno.</p>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{t('varianceHint')}</p>
             </div>
           )}
 
@@ -152,28 +158,28 @@ export default function Cliente360Client({ clientTotals, invoices }) {
 
           <div className="card" style={{ marginTop: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>Historial de retenciones — {selected.name}</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', margin: 0 }}>{t('retentionsHistoryTitle', { name: selected.name })}</p>
               {retenciones.length > 0 && (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <SearchBox value={retencionSearch} onChange={setRetencionSearch} placeholder="Buscar # factura, comprobante o fecha..." />
+                  <SearchBox value={retencionSearch} onChange={setRetencionSearch} placeholder={t('retentionsSearchPlaceholder')} />
                   <button
                     onClick={exportRetencionesCSV}
                     disabled={visibleRetenciones.length === 0}
                     className="btn btn-ghost"
                     style={{ padding: '6px 14px', fontSize: 13 }}
                   >
-                    ⬇ Exportar CSV
+                    {t('exportCSV')}
                   </button>
                 </div>
               )}
             </div>
             {loadingRetenciones ? (
-              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>Cargando...</p>
+              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>{t('loading')}</p>
             ) : retenciones.length === 0 ? (
-              <div className="empty"><p>Sin retenciones registradas.</p></div>
+              <div className="empty"><p>{t('noRetentions')}</p></div>
             ) : (() => {
               const visibleRets = visibleRetenciones;
-              if (visibleRets.length === 0) return <div className="empty"><p>Sin resultados para "{retencionSearch}".</p></div>;
+              if (visibleRets.length === 0) return <div className="empty"><p>{t('noResults', { search: retencionSearch })}</p></div>;
               const totals = visibleRets.reduce((acc, r) => {
                 const totalFactura = Number(r.invoices?.total ?? r.monto_facturado ?? 0);
                 const retenido = Number(r.retencion_aplicada ?? 0);
@@ -190,15 +196,15 @@ export default function Cliente360Client({ clientTotals, invoices }) {
                   <table className="table-dense">
                     <thead>
                       <tr>
-                        <th>Factura</th>
-                        <th>Fecha</th>
-                        <th style={{ textAlign: 'right' }}>Total factura</th>
-                        <th style={{ textAlign: 'right' }}>Base labor</th>
-                        <th style={{ textAlign: 'right' }}>Exento</th>
-                        <th style={{ textAlign: 'right' }}>Retenido</th>
-                        <th style={{ textAlign: 'right' }}>Neto</th>
-                        <th># Comprobante</th>
-                        <th>Estado</th>
+                        <th>{t('retentionsColumns.invoice')}</th>
+                        <th>{t('retentionsColumns.date')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('retentionsColumns.totalInvoice')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('retentionsColumns.laborBase')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('retentionsColumns.exempt')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('retentionsColumns.withheld')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('retentionsColumns.net')}</th>
+                        <th>{t('retentionsColumns.receiptNumber')}</th>
+                        <th>{t('retentionsColumns.status')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -208,7 +214,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
                         return (
                           <tr key={r.id}>
                             <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>
-                              {r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`} style={{ color: 'inherit' }}>{r.invoices?.invoice_number ?? '—'}</Link> : (r.invoices?.invoice_number ?? '—')}
+                              {r.invoice_id ? <Link href={`/facturas/${r.invoice_id}`} style={{ color: 'inherit' }}>{r.invoices?.invoice_number ?? t('notAvailable')}</Link> : (r.invoices?.invoice_number ?? t('notAvailable'))}
                             </td>
                             <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.fecha}</td>
                             <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(totalFactura)}</td>
@@ -216,7 +222,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
                             <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(r.monto_exento)}</td>
                             <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--amber)' }}>{fmt(retenido)}</td>
                             <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(totalFactura - retenido)}</td>
-                            <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.numero_comprobante ?? '—'}</td>
+                            <td style={{ color: 'var(--muted)', fontSize: 13 }}>{r.numero_comprobante ?? t('notAvailable')}</td>
                             <td><span className={`badge ${r.estado === 'declarado' ? 'badge-green' : 'badge-gray'}`}>{r.estado}</span></td>
                           </tr>
                         );
@@ -224,7 +230,7 @@ export default function Cliente360Client({ clientTotals, invoices }) {
                     </tbody>
                     <tfoot>
                       <tr style={{ borderTop: '2px solid var(--border)' }}>
-                        <td colSpan={2} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>TOTAL {retencionSearch ? '(visibles)' : ''}</td>
+                        <td colSpan={2} style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', paddingTop: 12 }}>{retencionSearch ? t('retentionsTotalVisible') : t('retentionsTotal')}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.totalFactura)}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.baseLabor)}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.exento)}</td>

@@ -1,11 +1,14 @@
 "use client";
 import { useState, Fragment } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { supabase } from "../../../../lib/supabase";
 import { prQueryBounds } from "../../../../lib/hours";
 
-const DAY_LABELS = ["Mié", "Jue", "Vie", "Sáb", "Dom", "Lun", "Mar"];
-
 export default function HistorialClient({ rows: initialRows, technicians }) {
+  const t = useTranslations("accounting.payrollHistorialClient");
+  const locale = useLocale();
+  const dateLocale = locale === "en" ? "en-US" : "es-PR";
+  const DAY_LABELS = [t("days.wed"), t("days.thu"), t("days.fri"), t("days.sat"), t("days.sun"), t("days.mon"), t("days.tue")];
   const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState("");
   const [techFilter, setTechFilter] = useState("all");
@@ -16,7 +19,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
   const fmt = n => `$${Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtDate = d => {
     const [y, m, day] = d.split("-");
-    return new Date(y, m - 1, day).toLocaleDateString("es-PR", { month: "long", day: "numeric", year: "numeric" });
+    return new Date(y, m - 1, day).toLocaleDateString(dateLocale, { month: "long", day: "numeric", year: "numeric" });
   };
 
   function weekDayHours(row) {
@@ -47,7 +50,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
   const totHours = filtered.reduce((a, r) => a + r.totalHours, 0);
 
   async function deletePayrollRow(row) {
-    if (!confirm(`¿Eliminar el registro de payroll de ${row.techName} — ${fmtDate(row.payDate)}?`)) return;
+    if (!confirm(t("confirmDelete", { name: row.techName, date: fmtDate(row.payDate) }))) return;
     setSaving(s => ({ ...s, [row.id]: true }));
     await supabase.from("payroll_adjustments").delete()
       .eq("technician_id", row.techId)
@@ -84,45 +87,45 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
             <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}>🔍</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar técnico o fecha..."
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("searchPlaceholder")}
               style={{ width: "100%", padding: "10px 14px 10px 36px", border: "1.5px solid var(--border)", borderRadius: 8, fontSize: 14 }} />
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button onClick={() => setTechFilter("all")} className={`btn ${techFilter === "all" ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>Todos</button>
-            {technicians.map(t => (
-              <button key={t.id} onClick={() => setTechFilter(t.id)} className={`btn ${techFilter === t.id ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>{t.name}</button>
+            <button onClick={() => setTechFilter("all")} className={`btn ${techFilter === "all" ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>{t("all")}</button>
+            {technicians.map(row => (
+              <button key={row.id} onClick={() => setTechFilter(row.id)} className={`btn ${techFilter === row.id ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>{row.name}</button>
             ))}
           </div>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setSortDir("asc")} className={`btn ${sortDir === "asc" ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>↑ Ascendente</button>
-            <button onClick={() => setSortDir("desc")} className={`btn ${sortDir === "desc" ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>↓ Descendente</button>
+            <button onClick={() => setSortDir("asc")} className={`btn ${sortDir === "asc" ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>↑ {t("ascending")}</button>
+            <button onClick={() => setSortDir("desc")} className={`btn ${sortDir === "desc" ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13, padding: "8px 14px" }}>↓ {t("descending")}</button>
           </div>
         </div>
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 20 }}>
-        <div className="stat-card"><div className="stat-label">Horas totales</div><div className="stat-value">{totHours.toFixed(1)}h</div></div>
-        <div className="stat-card"><div className="stat-label">Gross total</div><div className="stat-value" style={{ color: "var(--navy)" }}>{fmt(totGross)}</div></div>
-        <div className="stat-card"><div className="stat-label">Retención total</div><div className="stat-value" style={{ color: "var(--warn)" }}>{fmt(totRet)}</div></div>
-        <div className="stat-card"><div className="stat-label">Net total</div><div className="stat-value" style={{ color: "var(--ok)" }}>{fmt(totNet)}</div></div>
+        <div className="stat-card"><div className="stat-label">{t("totalHours")}</div><div className="stat-value">{totHours.toFixed(1)}h</div></div>
+        <div className="stat-card"><div className="stat-label">{t("totalGross")}</div><div className="stat-value" style={{ color: "var(--navy)" }}>{fmt(totGross)}</div></div>
+        <div className="stat-card"><div className="stat-label">{t("totalRetention")}</div><div className="stat-value" style={{ color: "var(--warn)" }}>{fmt(totRet)}</div></div>
+        <div className="stat-card"><div className="stat-label">{t("totalNet")}</div><div className="stat-value" style={{ color: "var(--ok)" }}>{fmt(totNet)}</div></div>
       </div>
 
       <div className="card">
         {filtered.length === 0 ? (
-          <div className="empty"><p>No hay registros de payroll.</p></div>
+          <div className="empty"><p>{t("empty")}</p></div>
         ) : (
           <div className="table-wrap">
             <table className="table-dense">
               <thead>
                 <tr>
                   <th></th>
-                  <th>Técnico</th>
-                  <th>Fecha de pago</th>
-                  <th style={{ textAlign: "right" }}>Horas</th>
-                  <th style={{ textAlign: "right" }}>Bruto</th>
-                  <th style={{ textAlign: "right" }}>10%</th>
-                  <th style={{ textAlign: "right" }}>Pagado</th>
-                  <th>Mes</th>
+                  <th>{t("columns.technician")}</th>
+                  <th>{t("columns.payDate")}</th>
+                  <th style={{ textAlign: "right" }}>{t("columns.hours")}</th>
+                  <th style={{ textAlign: "right" }}>{t("columns.gross")}</th>
+                  <th style={{ textAlign: "right" }}>{t("columns.retention")}</th>
+                  <th style={{ textAlign: "right" }}>{t("columns.paid")}</th>
+                  <th>{t("columns.month")}</th>
                   <th></th>
                   <th></th>
                 </tr>
@@ -144,7 +147,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
                     <td>
                       <button onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
                         className={`btn ${expandedId === r.id ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 12, padding: "6px 12px" }}>
-                        {expandedId === r.id ? "Ocultar" : "Ver"}
+                        {expandedId === r.id ? t("hide") : t("view")}
                       </button>
                     </td>
                     <td>
@@ -155,7 +158,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
                     <tr>
                       <td colSpan={10} style={{ background: "var(--surface-2)", padding: "14px 18px" }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 10, textTransform: "uppercase" }}>
-                          Horas de la semana — {fmtDate(r.weekStart)} al {fmtDate(r.weekEnd)}
+                          {t("weekHours", { start: fmtDate(r.weekStart), end: fmtDate(r.weekEnd) })}
                         </div>
                         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                           {weekDayHours(r).map(d => (
@@ -178,7 +181,7 @@ export default function HistorialClient({ rows: initialRows, technicians }) {
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: "2px solid var(--border)" }}>
-                  <td colSpan={3} style={{ fontWeight: 700, paddingTop: 12 }}>TOTAL</td>
+                  <td colSpan={3} style={{ fontWeight: 700, paddingTop: 12 }}>{t("total")}</td>
                   <td style={{ textAlign: "right", fontWeight: 700, paddingTop: 12 }}>{totHours.toFixed(2)}</td>
                   <td style={{ textAlign: "right", fontWeight: 900, color: "var(--navy)", paddingTop: 12 }}>{fmt(totGross)}</td>
                   <td style={{ textAlign: "right", fontWeight: 700, color: "var(--warn)", paddingTop: 12 }}>{fmt(totRet)}</td>

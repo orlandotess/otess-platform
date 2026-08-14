@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import Sidebar from '../../Sidebar';
 import LineItemRow from '../../LineItemRow';
 import LineItemPicker from '../../LineItemPicker';
@@ -13,6 +14,7 @@ import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 
 export default function NuevaSolicitud() {
   const router = useRouter();
+  const t = useTranslations('solicitudes.newSolicitud');
   const [catalogItems, setCatalogItems] = useState([]);
   const [taxRules, setTaxRules] = useState([]);
   const [clients, setClients] = useState([]);
@@ -145,7 +147,7 @@ export default function NuevaSolicitud() {
   }
   const removeImage = idx => setImages(prev => prev.filter((_, n) => n !== idx));
 
-  const t = calcularIVU(items, clientType, taxRules);
+  const taxResult = calcularIVU(items, clientType, taxRules);
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
@@ -168,7 +170,7 @@ export default function NuevaSolicitud() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.client_id || !form.title.trim()) { setError('Cliente y título son requeridos'); return; }
+    if (!form.client_id || !form.title.trim()) { setError(t('errorRequired')); return; }
     setSaving(true); setError('');
 
     try {
@@ -254,7 +256,7 @@ export default function NuevaSolicitud() {
 
       router.push(`/solicitudes/${solicitud.id}`);
     } catch (e) {
-      setError(e.message || 'Ocurrió un error al guardar la solicitud. Intenta de nuevo.');
+      setError(e.message || t('errorGeneric'));
     } finally {
       setSaving(false);
     }
@@ -265,7 +267,7 @@ export default function NuevaSolicitud() {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <div className="page-title">Nueva solicitud</div>
+          <div className="page-title">{t('pageTitle')}</div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
@@ -274,23 +276,23 @@ export default function NuevaSolicitud() {
 
             {/* Info general */}
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>Información general</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('generalInfo')}</p>
               <div className="form-group" style={{ position: 'relative' }}>
-                <label>Cliente *</label>
+                <label>{t('clientLabel')}</label>
                 {selectedClient ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
-                    <span style={{ flex: 1, fontWeight: 600 }}>{selectedClient.name}{selectedClient.client_type === 'b2b' ? ' (B2B)' : ''}</span>
-                    <button type="button" onClick={() => { set('client_id', ''); setClientSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700 }}>Cambiar</button>
+                    <span style={{ flex: 1, fontWeight: 600 }}>{selectedClient.name}{selectedClient.client_type === 'b2b' ? t('b2bSuffix') : ''}</span>
+                    <button type="button" onClick={() => { set('client_id', ''); setClientSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700 }}>{t('change')}</button>
                   </div>
                 ) : showNewClient ? (
                   <div style={{ border: '1.5px solid var(--border)', borderRadius: 8, padding: 12 }}>
-                    <input value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Nombre del cliente" style={{ marginBottom: 8 }} />
-                    <input value={newClientPhone} onChange={e => setNewClientPhone(e.target.value)} placeholder="Teléfono (opcional)" style={{ marginBottom: 8 }} />
+                    <input value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder={t('newClientNamePlaceholder')} style={{ marginBottom: 8 }} />
+                    <input value={newClientPhone} onChange={e => setNewClientPhone(e.target.value)} placeholder={t('newClientPhonePlaceholder')} style={{ marginBottom: 8 }} />
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="button" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} disabled={creatingClient} onClick={handleCreateQuickClient}>
-                        {creatingClient ? 'Creando...' : 'Crear cliente'}
+                        {creatingClient ? t('creatingClient') : t('createClient')}
                       </button>
-                      <button type="button" className="btn btn-ghost" onClick={() => setShowNewClient(false)}>Cancelar</button>
+                      <button type="button" className="btn btn-ghost" onClick={() => setShowNewClient(false)}>{t('cancel')}</button>
                     </div>
                   </div>
                 ) : (
@@ -301,7 +303,7 @@ export default function NuevaSolicitud() {
                         value={clientSearch}
                         onChange={e => { setClientSearch(e.target.value); setShowClientDropdown(true); }}
                         onFocus={() => setShowClientDropdown(true)}
-                        placeholder="Buscar cliente por nombre..."
+                        placeholder={t('clientSearchPlaceholder')}
                         style={{ paddingLeft: 36 }}
                       />
                     </div>
@@ -310,18 +312,18 @@ export default function NuevaSolicitud() {
                         <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setShowClientDropdown(false)} />
                         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 11, maxHeight: 240, overflowY: 'auto' }}>
                           {clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 ? (
-                            <div style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13 }}>No se encontraron clientes.</div>
+                            <div style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13 }}>{t('noClientsFound')}</div>
                           ) : clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).map(c => (
                             <div key={c.id} onClick={() => { set('client_id', c.id); setClientSearch(''); setShowClientDropdown(false); }}
                               style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 500, borderBottom: '1px solid var(--border)' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                              {c.name}{c.client_type === 'b2b' ? ' (B2B)' : ''}
+                              {c.name}{c.client_type === 'b2b' ? t('b2bSuffix') : ''}
                             </div>
                           ))}
                           <div onClick={() => { setShowClientDropdown(false); setShowNewClient(true); }}
                             style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--amber)' }}>
-                            + Crear cliente nuevo
+                            {t('createNewClient')}
                           </div>
                         </div>
                       </>
@@ -330,26 +332,26 @@ export default function NuevaSolicitud() {
                 )}
               </div>
               <div className="form-group">
-                <label>¿Qué necesita el cliente? *</label>
-                <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="Ej: Instalación cámaras CCTV" />
+                <label>{t('requestTitleLabel')}</label>
+                <input value={form.title} onChange={e => set('title', e.target.value)} placeholder={t('requestTitlePlaceholder')} />
               </div>
               <div className="form-group">
-                <label>Descripción</label>
-                <textarea value={form.description} onChange={e => set('description', e.target.value)} placeholder="Toda la información posible sobre lo que pide el cliente..." />
+                <label>{t('descriptionLabel')}</label>
+                <textarea value={form.description} onChange={e => set('description', e.target.value)} placeholder={t('descriptionPlaceholder')} />
               </div>
               <div className="form-group">
-                <label>Vendedor</label>
-                <input value={form.salesperson} onChange={e => set('salesperson', e.target.value)} placeholder="Nombre del vendedor" />
+                <label>{t('salespersonLabel')}</label>
+                <input value={form.salesperson} onChange={e => set('salesperson', e.target.value)} placeholder={t('salespersonPlaceholder')} />
               </div>
               <div className="form-group">
-                <label>Notas internas</label>
-                <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Notas internas del equipo..." />
+                <label>{t('notesLabel')}</label>
+                <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder={t('notesPlaceholder')} />
               </div>
             </div>
 
             {/* Imágenes */}
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>📷 Imágenes (hasta 10)</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('imagesTitle')}</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: images.length ? 12 : 0 }}>
                 {images.map((img, idx) => (
                   <div key={idx} style={{ position: 'relative', width: 84, height: 84 }}>
@@ -361,7 +363,7 @@ export default function NuevaSolicitud() {
               </div>
               {images.length < 10 && (
                 <label className="btn btn-ghost" style={{ display: 'inline-flex', cursor: 'pointer', fontSize: 12.5 }}>
-                  + Agregar imágenes
+                  {t('addImages')}
                   <input type="file" accept="image/*" multiple onChange={handleImageSelect} style={{ display: 'none' }} />
                 </label>
               )}
@@ -370,7 +372,7 @@ export default function NuevaSolicitud() {
             {/* Evaluación en sitio */}
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>📍 Evaluación en sitio</p>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('assessmentTitle')}</p>
                 <button type="button" onClick={() => setWantsAssessment(w => !w)}
                   style={{ width: 44, height: 24, borderRadius: 20, border: 'none', cursor: 'pointer', position: 'relative', background: wantsAssessment ? 'var(--amber)' : 'var(--border-strong)', transition: 'background 0.2s' }}>
                   <span style={{ position: 'absolute', top: 2, left: wantsAssessment ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--surface)', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
@@ -379,26 +381,26 @@ export default function NuevaSolicitud() {
               {wantsAssessment && (
                 <div style={{ marginTop: 16 }}>
                   <div className="form-group">
-                    <label>Fecha y hora de la visita</label>
+                    <label>{t('assessmentDateLabel')}</label>
                     <input type="datetime-local" value={assessmentDate} onChange={e => setAssessmentDate(e.target.value)} />
                   </div>
                   <div className="form-group">
-                    <label>Instrucciones para el técnico</label>
-                    <textarea value={assessmentInstructions} onChange={e => setAssessmentInstructions(e.target.value)} placeholder="Ej: Tomar notas sobre control de acceso" />
+                    <label>{t('assessmentInstructionsLabel')}</label>
+                    <textarea value={assessmentInstructions} onChange={e => setAssessmentInstructions(e.target.value)} placeholder={t('assessmentInstructionsPlaceholder')} />
                   </div>
                   <div className="form-group">
-                    <label>Técnicos (opcional, puedes escoger más de uno)</label>
+                    <label>{t('techniciansLabel')}</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-                      {technicians.map(t => {
-                        const checked = technicianIds.includes(t.id);
+                      {technicians.map(tech => {
+                        const checked = technicianIds.includes(tech.id);
                         return (
-                          <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-                            <input type="checkbox" checked={checked} onChange={() => toggleTechnician(t.id)} style={{ margin: 0 }} />
-                            {t.name}
+                          <label key={tech.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleTechnician(tech.id)} style={{ margin: 0 }} />
+                            {tech.name}
                           </label>
                         );
                       })}
-                      {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>No hay técnicos registrados.</p>}
+                      {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>{t('noTechnicians')}</p>}
                     </div>
                   </div>
                 </div>
@@ -407,22 +409,22 @@ export default function NuevaSolicitud() {
 
             {/* Propiedad */}
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>🏠 Propiedad</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('propertyTitle')}</p>
               {properties.length > 0 && !showNewProperty && (
                 <div className="form-group">
-                  <label>Propiedad del cliente</label>
+                  <label>{t('clientPropertyLabel')}</label>
                   {selectedProperty ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, background: 'var(--surface-2)' }}>
                       <span style={{ flex: 1, fontWeight: 600 }}>{selectedProperty.name}{selectedProperty.is_primary ? ' ★' : ''}{selectedProperty.city ? ` — ${selectedProperty.city}` : ''}</span>
-                      <button type="button" onClick={() => set('property_id', '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>Cambiar</button>
+                      <button type="button" onClick={() => set('property_id', '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>{t('change')}</button>
                     </div>
                   ) : (
                     <>
                       <select value={form.property_id} onChange={e => set('property_id', e.target.value)}>
-                        <option value="">— Seleccionar propiedad —</option>
+                        <option value="">{t('selectPropertyPlaceholder')}</option>
                         {properties.map(p => <option key={p.id} value={p.id}>{p.name}{p.is_primary ? ' ★' : ''}</option>)}
                       </select>
-                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>+ Agregar propiedad nueva</button>
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginTop: 8 }} onClick={() => setShowNewProperty(true)}>{t('addNewProperty')}</button>
                     </>
                   )}
                 </div>
@@ -430,28 +432,28 @@ export default function NuevaSolicitud() {
               {(properties.length === 0 || showNewProperty || selectedProperty) && (
                 <>
                   {properties.length > 0 && showNewProperty && (
-                    <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>‹ Usar propiedad existente</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', marginBottom: 12 }} onClick={() => setShowNewProperty(false)}>{t('useExistingProperty')}</button>
                   )}
                   <div className="form-group">
-                    <label>Nombre de la propiedad</label>
-                    <input value={form.property_name} onChange={e => set('property_name', e.target.value)} placeholder="Ej: Oficina Principal, Almacén Caguas" />
+                    <label>{t('propertyNameLabel')}</label>
+                    <input value={form.property_name} onChange={e => set('property_name', e.target.value)} placeholder={t('propertyNamePlaceholder')} />
                   </div>
                   <div className="form-group">
-                    <label>Dirección</label>
-                    <input value={form.street} onChange={e => set('street', e.target.value)} placeholder="Calle y número" />
+                    <label>{t('addressLabel')}</label>
+                    <input value={form.street} onChange={e => set('street', e.target.value)} placeholder={t('addressPlaceholder')} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 10 }}>
                     <div className="form-group">
-                      <label>Ciudad</label>
-                      <input value={form.city} onChange={e => set('city', e.target.value)} placeholder="San Juan" />
+                      <label>{t('cityLabel')}</label>
+                      <input value={form.city} onChange={e => set('city', e.target.value)} placeholder={t('cityPlaceholder')} />
                     </div>
                     <div className="form-group">
-                      <label>Estado</label>
-                      <input value={form.state} onChange={e => set('state', e.target.value)} placeholder="PR" />
+                      <label>{t('stateLabel')}</label>
+                      <input value={form.state} onChange={e => set('state', e.target.value)} placeholder={t('statePlaceholder')} />
                     </div>
                     <div className="form-group">
-                      <label>Zip</label>
-                      <input value={form.zip} onChange={e => set('zip', e.target.value)} placeholder="00901" />
+                      <label>{t('zipLabel')}</label>
+                      <input value={form.zip} onChange={e => set('zip', e.target.value)} placeholder={t('zipPlaceholder')} />
                     </div>
                   </div>
                 </>
@@ -461,21 +463,21 @@ export default function NuevaSolicitud() {
                   {mapsLinks.direct ? (
                     <a href={mapsLinks.direct} target="_blank" rel="noopener noreferrer"
                       style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                      🗺️ Abrir ubicación
+                      {t('openLocation')}
                     </a>
                   ) : (
                     <>
                       <a href={mapsLinks.google} target="_blank" rel="noopener noreferrer"
                         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#4285F4', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                        🗺️ Google Maps
+                        {t('googleMaps')}
                       </a>
                       <a href={mapsLinks.apple} target="_blank" rel="noopener noreferrer"
                         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#000', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                        🍎 Apple Maps
+                        {t('appleMaps')}
                       </a>
                       <a href={mapsLinks.waze} target="_blank" rel="noopener noreferrer"
                         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#33CCFF', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                        🚗 Waze
+                        {t('waze')}
                       </a>
                     </>
                   )}
@@ -485,7 +487,7 @@ export default function NuevaSolicitud() {
 
             {/* Contacto */}
             <div className="card">
-              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>👤 Contactos encargados</p>
+              <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 16 }}>{t('contactsSection')}</p>
               {form.contacts.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
                   {form.contacts.map(c => (
@@ -498,7 +500,7 @@ export default function NuevaSolicitud() {
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                        <button type="button" onClick={() => editContact(c.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✏️ Editar</button>
+                        <button type="button" onClick={() => editContact(c.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>{t('editContact')}</button>
                         <button type="button" onClick={() => removeContact(c.key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warn)', fontSize: 14 }}>✕</button>
                       </div>
                     </div>
@@ -506,41 +508,41 @@ export default function NuevaSolicitud() {
                 </div>
               )}
               {editingContactKey && (
-                <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>Editando contacto — cambia los datos y guarda, o cancela.</p>
+                <p style={{ fontSize: 12.5, color: 'var(--amber)', fontWeight: 600, marginBottom: 10 }}>{t('editingContactNotice')}</p>
               )}
               {contacts.length > 0 && (
                 <div className="form-group">
-                  <label>Seleccionar contacto del cliente</label>
+                  <label>{t('selectContactLabel')}</label>
                   <select value={contactDraft.contact_id} onChange={e => pickExistingContact(e.target.value)}>
-                    <option value="">— Seleccionar contacto —</option>
+                    <option value="">{t('selectContactPlaceholder')}</option>
                     {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_primary ? ' ★' : ''}</option>)}
                   </select>
                 </div>
               )}
               <div className="form-group">
-                <label>Nombre</label>
-                <input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} placeholder="Nombre del contacto" />
+                <label>{t('contactNameLabel')}</label>
+                <input value={contactDraft.name} onChange={e => setContactDraft(d => ({ ...d, name: e.target.value }))} placeholder={t('contactNamePlaceholder')} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div className="form-group">
-                  <label>Teléfono</label>
-                  <input value={contactDraft.phone} onChange={e => setContactDraft(d => ({ ...d, phone: e.target.value }))} placeholder="787-000-0000" />
+                  <label>{t('phoneLabel')}</label>
+                  <input value={contactDraft.phone} onChange={e => setContactDraft(d => ({ ...d, phone: e.target.value }))} placeholder={t('phonePlaceholder')} />
                 </div>
                 <div className="form-group">
-                  <label>Email</label>
-                  <input type="email" value={contactDraft.email} onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))} placeholder="contacto@email.com" />
+                  <label>{t('emailLabel')}</label>
+                  <input type="email" value={contactDraft.email} onChange={e => setContactDraft(d => ({ ...d, email: e.target.value }))} placeholder={t('emailPlaceholder')} />
                 </div>
               </div>
               <div className="form-group">
-                <label>Cargo</label>
-                <input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder="Ej: Project Manager" />
+                <label>{t('positionLabel')}</label>
+                <input value={contactDraft.cargo} onChange={e => setContactDraft(d => ({ ...d, cargo: e.target.value }))} placeholder={t('positionPlaceholder')} />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addContact} disabled={!contactDraft.name.trim()}>
-                  {editingContactKey ? '💾 Guardar cambios' : '+ Agregar contacto'}
+                  {editingContactKey ? t('saveContactChanges') : t('addContact')}
                 </button>
                 {editingContactKey && (
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={cancelEditContact}>Cancelar</button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={cancelEditContact}>{t('cancel')}</button>
                 )}
               </div>
             </div>
@@ -548,13 +550,13 @@ export default function NuevaSolicitud() {
             {/* Líneas */}
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>Producto / Servicio (opcional)</p>
-                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>+ Agregar línea</button>
+                <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>{t('lineItemsTitle')}</p>
+                <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addItem}>{t('addLine')}</button>
               </div>
               <div style={{ marginBottom: 16 }}>
-                <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder="Buscar en catálogo (labor, producto o fee)..." />
+                <LineItemPicker catalogOptions={catalogItems} onSelect={addFromCatalog} placeholder={t('catalogSearchPlaceholder')} />
               </div>
-              {items.length === 0 && <p style={{ fontSize: 13, color: 'var(--muted)' }}>Aún no hay líneas. Se pueden agregar después de la evaluación en sitio.</p>}
+              {items.length === 0 && <p style={{ fontSize: 13, color: 'var(--muted)' }}>{t('noLineItems')}</p>}
               {items.map((item, idx) => (
                 <LineItemRow
                   key={idx}
@@ -595,19 +597,19 @@ export default function NuevaSolicitud() {
             {items.length > 0 && (
               <div className="card">
                 <TaxBreakdown
-                  lineas={items} clientType={clientType} taxRules={taxRules} title="Resumen IVU"
+                  lineas={items} clientType={clientType} taxRules={taxRules} title={t('taxSummaryTitle')}
                   note={clientType === 'b2b' && (
                     <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
-                      Cliente B2B — Labor al 4%
+                      {t('b2bLaborNote')}
                     </div>
                   )}
                 />
               </div>
             )}
             <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
-              {saving ? 'Guardando...' : 'Guardar solicitud'}
+              {saving ? t('saving') : t('saveButton')}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>Cancelar</button>
+            <button type="button" className="btn btn-ghost" onClick={() => router.back()} style={{ width: '100%', justifyContent: 'center' }}>{t('cancel')}</button>
           </div>
         </form>
       </main>

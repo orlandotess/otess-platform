@@ -3,8 +3,13 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import PropuestaPublicClient from './public-client';
+import { getTranslations, getLocale } from 'next-intl/server';
 
 export default async function PropuestaPublicPage({ params }) {
+  const t = await getTranslations('propuestas.publicPage');
+  const locale = await getLocale();
+  const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+
   const { data: proposal } = await supabase
     .from('proposals')
     .select('*, clients(name, email, phone, company, client_type, report_name_source, client_addresses(*)), proposal_options(*, proposal_line_items(*))')
@@ -14,7 +19,7 @@ export default async function PropuestaPublicPage({ params }) {
   if (!proposal) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
-        <p>Propuesta no encontrada.</p>
+        <p>{t('notFound')}</p>
       </div>
     );
   }
@@ -25,8 +30,8 @@ export default async function PropuestaPublicPage({ params }) {
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '-apple-system,sans-serif', background: '#fafafa', padding: 20 }}>
         <div style={{ background: '#fff', borderRadius: 12, padding: 40, maxWidth: 420, textAlign: 'center', border: '1px solid #eee' }}>
           <div style={{ fontSize: 32, marginBottom: 12, color: '#999' }}>⏳</div>
-          <div style={{ fontSize: 19, fontWeight: 700, color: '#16223d', marginBottom: 8 }}>Esta propuesta expiró</div>
-          <p style={{ fontSize: 14, color: '#888' }}>Era válida hasta el {new Date(proposal.valid_until + 'T00:00:00').toLocaleDateString('es-PR', { dateStyle: 'long' })}. Contáctanos si deseas una propuesta actualizada.</p>
+          <div style={{ fontSize: 19, fontWeight: 700, color: '#16223d', marginBottom: 8 }}>{t('expiredTitle')}</div>
+          <p style={{ fontSize: 14, color: '#888' }}>{t('expiredBody', { date: new Date(proposal.valid_until + 'T00:00:00').toLocaleDateString(dateLocale, { dateStyle: 'long' }) })}</p>
         </div>
       </div>
     );
