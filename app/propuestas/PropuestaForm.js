@@ -147,6 +147,7 @@ export default function PropuestaForm({ initialData = null }) {
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [cableCalcTarget, setCableCalcTarget] = useState(null); // { optKey, areaKey } — which area the calculator adds into, or null when closed
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — the item group currently being dragged
+  const [dragArea, setDragArea] = useState(null); // { optKey, areaKey } — area currently being dragged, for reordering areas
   const [selectedItemKeys, setSelectedItemKeys] = useState(new Set()); // parent item keys selected for bulk actions
   const [multiOption, setMultiOption] = useState((initialData?.options?.length ?? 0) > 1);
   const [options, setOptions] = useState(() => {
@@ -285,6 +286,20 @@ export default function PropuestaForm({ initialData = null }) {
         return { ...a, items };
       });
       return { ...o, areas: afterInsert };
+    }));
+  }
+  // Reorders the areas array within one option by moving draggedKey to targetKey's position.
+  function moveArea(optKey, draggedKey, targetKey) {
+    if (draggedKey === targetKey) return;
+    setOptions(prev => prev.map(o => {
+      if (o.key !== optKey) return o;
+      const fromIdx = o.areas.findIndex(a => a.key === draggedKey);
+      const toIdx = o.areas.findIndex(a => a.key === targetKey);
+      if (fromIdx === -1 || toIdx === -1) return o;
+      const areas = [...o.areas];
+      const [moved] = areas.splice(fromIdx, 1);
+      areas.splice(toIdx, 0, moved);
+      return { ...o, areas };
     }));
   }
 
@@ -830,12 +845,25 @@ export default function PropuestaForm({ initialData = null }) {
               {/* Áreas */}
               {opt.areas.map((area, areaIndex) => (
                 <div key={area.key}
-                  onDragOver={e => { if (dragItem) e.preventDefault(); }}
-                  onDrop={e => { e.preventDefault(); if (dragItem) { moveItemGroup(opt.key, dragItem.areaKey, dragItem.itemKey, area.key, null); setDragItem(null); } }}
-                  style={{ background: 'var(--surface-2)', border: dragItem ? '1px dashed var(--border-strong)' : '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                  onDragOver={e => { if (dragItem || dragArea) e.preventDefault(); }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    if (dragArea && dragArea.optKey === opt.key) { moveArea(opt.key, dragArea.areaKey, area.key); setDragArea(null); }
+                    else if (dragItem) { moveItemGroup(opt.key, dragItem.areaKey, dragItem.itemKey, area.key, null); setDragItem(null); }
+                  }}
+                  style={{ background: 'var(--surface-2)', border: (dragItem || dragArea) ? '1px dashed var(--border-strong)' : '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12, opacity: dragArea?.optKey === opt.key && dragArea?.areaKey === area.key ? 0.4 : 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <input value={area.name} onChange={e => updateAreaName(opt.key, area.key, e.target.value)}
-                      style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                      <span
+                        draggable
+                        onDragStart={() => setDragArea({ optKey: opt.key, areaKey: area.key })}
+                        onDragEnd={() => setDragArea(null)}
+                        title={t('dragAreaTitle')}
+                        style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 15, userSelect: 'none', flexShrink: 0 }}
+                      >⠿</span>
+                      <input value={area.name} onChange={e => updateAreaName(opt.key, area.key, e.target.value)}
+                        style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0, flex: 1, minWidth: 0 }} />
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{t('areaTotal', { name: area.name, amount: fmt(areaTotal(area)) })}</span>
                       <div style={{ position: 'relative' }}>

@@ -98,6 +98,7 @@ export default function InvoiceForm({ initialData = null }) {
   const [areas, setAreas] = useState(initialData?.items?.length ? itemsToAreas(initialData.items, t) : [emptyArea(t('area', { n: 1 }))]);
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — item currently being dragged
+  const [dragArea, setDragArea] = useState(null); // areaKey — area currently being dragged, for reordering areas
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -248,6 +249,19 @@ export default function InvoiceForm({ initialData = null }) {
         items.splice(insertIdx === -1 ? items.length : insertIdx, 0, ...block);
         return { ...a, items };
       });
+    });
+  }
+  // Reorders the areas array by moving draggedKey to targetKey's position.
+  function moveArea(draggedKey, targetKey) {
+    if (draggedKey === targetKey) return;
+    setAreas(prev => {
+      const fromIdx = prev.findIndex(a => a.key === draggedKey);
+      const toIdx = prev.findIndex(a => a.key === targetKey);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return next;
     });
   }
   function setItem(areaKey, itemKey, k, v) {
@@ -609,12 +623,25 @@ export default function InvoiceForm({ initialData = null }) {
 
               {areas.map((area, areaIndex) => (
                 <div key={area.key}
-                  onDragOver={e => { if (dragItem) e.preventDefault(); }}
-                  onDrop={e => { e.preventDefault(); if (dragItem) { moveItem(dragItem.areaKey, dragItem.itemKey, area.key, null); setDragItem(null); } }}
-                  style={{ background: 'var(--surface-2)', border: dragItem ? '1px dashed var(--border-strong)' : '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                  onDragOver={e => { if (dragItem || dragArea) e.preventDefault(); }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    if (dragArea) { moveArea(dragArea, area.key); setDragArea(null); }
+                    else if (dragItem) { moveItem(dragItem.areaKey, dragItem.itemKey, area.key, null); setDragItem(null); }
+                  }}
+                  style={{ background: 'var(--surface-2)', border: (dragItem || dragArea) ? '1px dashed var(--border-strong)' : '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12, opacity: dragArea === area.key ? 0.4 : 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <input value={area.name} onChange={e => updateAreaName(area.key, e.target.value)}
-                      style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                      <span
+                        draggable
+                        onDragStart={() => setDragArea(area.key)}
+                        onDragEnd={() => setDragArea(null)}
+                        title={t('dragAreaTitle')}
+                        style={{ cursor: 'grab', color: 'var(--muted)', fontSize: 15, userSelect: 'none', flexShrink: 0 }}
+                      >⠿</span>
+                      <input value={area.name} onChange={e => updateAreaName(area.key, e.target.value)}
+                        style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', border: 'none', background: 'none', padding: 0, flex: 1, minWidth: 0 }} />
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>{t('areaTotal', { name: area.name, amount: fmt(areaTotal(area)) })}</span>
                       <div style={{ position: 'relative' }}>
