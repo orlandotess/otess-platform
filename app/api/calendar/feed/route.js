@@ -3,6 +3,9 @@ import { supabaseServer as supabase } from '../../../../lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+// Una evaluación en sitio no guarda duración propia; se exporta como un bloque fijo.
+const ASSESSMENT_DURATION_MINUTES = 60;
+
 function toUTCArray(iso) {
   const d = new Date(iso);
   return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes()];
@@ -32,8 +35,11 @@ export async function GET(req) {
     // synced phone calendar silently misses those visits entirely.
     supabase.from('job_schedule_days')
       .select('id, scheduled_start, scheduled_end, technician_id, jobs(title, status, clients(name))'),
-    supabase.from('visits')
-      .select('id, technician_id, scheduled_at, duration_minutes, status, requests(title, clients(name))'),
+    // Evaluaciones en sitio de solicitudes — reemplazan la tabla `visits` del
+    // módulo Requests original, que nunca llegó a crearse.
+    supabase.from('solicitudes')
+      .select('id, title, assessment_date, assessment_completed, technician_id, clients(name), solicitud_technicians(technician_id)')
+      .not('assessment_date', 'is', null).neq('status', 'archivada'),
     supabase.from('calendar_events')
       .select('id, title, notes, start_at, end_at, technician_id, clients(name), calendar_event_technicians(technician_id)'),
     supabase.from('tasks')
@@ -80,15 +86,15 @@ export async function GET(req) {
   }
 
   for (const v of visits ?? []) {
-    if (technicianId && v.technician_id !== technicianId) continue;
+    if (!matchesTech(v.technician_id, v.solicitud_technicians)) continue;
     icsEvents.push({
       uid: `visit-${v.id}@otesspr.com`,
-      title: v.requests?.title ?? 'Visita',
-      description: [v.requests?.clients?.name, v.status].filter(Boolean).join(' — '),
-      start: toUTCArray(v.scheduled_at),
+      title: v.title ?? 'Visita',
+      description: [v.clients?.name, v.assessment_completed ? 'completada' : 'agendada'].filter(Boolean).join(' — '),
+      start: toUTCArray(v.assessment_date),
       startInputType: 'utc',
       startOutputType: 'utc',
-      end: toUTCArray(addMinutes(v.scheduled_at, v.duration_minutes ?? 60)),
+      end: toUTCArray(addMinutes(v.assessment_date, ASSESSMENT_DURATION_MINUTES)),
       endInputType: 'utc',
       endOutputType: 'utc',
     });

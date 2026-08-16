@@ -7,6 +7,10 @@ import { getCurrentRole, getCurrentUserName } from '../../lib/supabase-server';
 import Sidebar from '../Sidebar';
 import CalendarioClient from './calendario-client';
 
+// Una evaluación en sitio no guarda duración propia; se dibuja como un bloque fijo,
+// igual que el que ofrecía el formulario de agendado.
+const ASSESSMENT_DURATION_MINUTES = 60;
+
 export default async function CalendarioPage({ searchParams }) {
   const view = searchParams?.view ?? 'month';
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
@@ -49,10 +53,31 @@ export default async function CalendarioPage({ searchParams }) {
 
   const allJobs = [...(jobs ?? []), ...extraJobDays];
 
-  const { data: visits } = await supabase
-    .from('visits')
-    .select('id, request_id, technician_id, scheduled_at, duration_minutes, status, requests(title, clients(name)), technicians(name)')
-    .order('scheduled_at');
+  // Las "visitas" del calendario son las evaluaciones en sitio de una solicitud
+  // (solicitudes.assessment_date). El par requests/visits que se leía aquí quedó
+  // superseded por el módulo Solicitudes y su tabla `visits` nunca llegó a crearse,
+  // así que esta capa salía siempre vacía y el error se perdía en silencio.
+  const { data: assessments, error: assessmentsError } = await supabase
+    .from('solicitudes')
+    .select('id, title, assessment_date, assessment_completed, status, technician_id, clients(name), technicians(name), solicitud_technicians(technician_id)')
+    .not('assessment_date', 'is', null)
+    .neq('status', 'archivada')
+    .order('assessment_date');
+
+  if (assessmentsError) console.error('Calendario: error cargando evaluaciones en sitio:', assessmentsError.message);
+
+  const visits = (assessments ?? []).map(s => ({
+    id: s.id,
+    solicitud_id: s.id,
+    title: s.title,
+    clients: s.clients,
+    technician_id: s.technician_id,
+    technicians: s.technicians,
+    solicitud_technicians: s.solicitud_technicians ?? [],
+    scheduled_at: s.assessment_date,
+    duration_minutes: ASSESSMENT_DURATION_MINUTES,
+    status: s.assessment_completed ? 'completada' : 'agendada',
+  }));
 
   const { data: calendarEvents } = await supabase
     .from('calendar_events')
@@ -97,12 +122,15 @@ export default async function CalendarioPage({ searchParams }) {
     .select('id, client_id, name, street, city, state, zip, is_primary')
     .order('is_primary', { ascending: false });
 
-  // Client service requests waiting to be scheduled into a visit.
-  const { data: pendingRequests } = await supabase
-    .from('requests')
+  // Solicitudes que todavía no tienen una evaluación en sitio puesta en el calendario.
+  const { data: pendingRequests, error: pendingError } = await supabase
+    .from('solicitudes')
     .select('id, title, status, clients(name)')
-    .not('status', 'in', '(agendado,cancelado)')
+    .is('assessment_date', null)
+    .not('status', 'in', '(convertida,archivada)')
     .order('created_at', { ascending: true });
+
+  if (pendingError) console.error('Calendario: error cargando solicitudes pendientes:', pendingError.message);
 
   // Jobs without a date yet (same "cola de despacho" the Dispatch Board's "Sin fecha"
   // panel uses) — candidates for the "+ Reserva" booking modal.

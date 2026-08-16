@@ -276,7 +276,6 @@ export default function FieldApp() {
   // schedule" and the Calendar tab reflect everything, not just jobs.
   const [techEvents, setTechEvents] = useState([]);
   const [techTasks, setTechTasks] = useState([]);
-  const [techVisits, setTechVisits] = useState([]);
   const [techSolicitudes, setTechSolicitudes] = useState([]);
   const [detailEntry, setDetailEntry] = useState(null); // { kind, raw } — simple read-only view for event/task/visit/solicitud
   const [detailEntryNotes, setDetailEntryNotes] = useState([]);
@@ -462,8 +461,10 @@ export default function FieldApp() {
 
   useEffect(() => {
     if (!techId) return;
+    // maybeSingle() y no single(): no tener turno abierto es el caso normal, y single()
+    // devolvía 406 con cero filas, ensuciando la consola en cada carga del Crew App.
     supabase.from('time_entries').select('*').eq('technician_id', techId).is('clocked_out_at', null)
-      .order('clocked_in_at', { ascending: false }).limit(1).single()
+      .order('clocked_in_at', { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => { if (data) { setClockedIn(true); setActiveEntry(data); } });
   }, [techId]);
 
@@ -507,17 +508,16 @@ export default function FieldApp() {
 
   useEffect(() => { if (techId) loadAllJobs(); }, [techId]);
 
-  // Events/tasks/visits assigned to this technician, mirroring the same dual-path pattern as
-  // jobs (a direct technician_id column, plus a junction table for calendar_events' multi-tech
+  // Events/tasks/solicitudes assigned to this technician, mirroring the same dual-path pattern
+  // as jobs (a direct technician_id column, plus a junction table for calendar_events' multi-tech
   // assignment) so the tech's schedule shows everything, not just jobs.
   const SOLICITUD_FIELDS = 'id, solicitud_number, title, assessment_date, assessment_instructions, assessment_completed, status, client_id, property_name, street, city, state, zip, clients(name)';
   async function loadTechScheduleExtras() {
-    const [{ data: eventsDirect }, { data: eventsViaJunction }, { data: tasksDirect }, { data: tasksViaJunction }, { data: visitsData }, { data: solicitudesDirect }, { data: solicitudesViaJunction }] = await Promise.all([
+    const [{ data: eventsDirect }, { data: eventsViaJunction }, { data: tasksDirect }, { data: tasksViaJunction }, { data: solicitudesDirect }, { data: solicitudesViaJunction }] = await Promise.all([
       supabase.from('calendar_events').select('id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name)').eq('technician_id', techId),
       supabase.from('calendar_event_technicians').select('calendar_events(id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name))').eq('technician_id', techId),
       supabase.from('tasks').select('id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name), task_items(id, text, done, sort_order)').eq('technician_id', techId),
       supabase.from('task_technicians').select('tasks(id, task_type, title, notes, due_at, client_id, technician_id, completed, clients(name), task_items(id, text, done, sort_order))').eq('technician_id', techId),
-      supabase.from('visits').select('id, request_id, scheduled_at, duration_minutes, status, requests(title, clients(name))').eq('technician_id', techId),
       supabase.from('solicitudes').select(SOLICITUD_FIELDS).eq('technician_id', techId).not('assessment_date', 'is', null),
       supabase.from('solicitud_technicians').select(`solicitudes(${SOLICITUD_FIELDS})`).eq('technician_id', techId),
     ]);
@@ -541,7 +541,6 @@ export default function FieldApp() {
 
     setTechEvents(events);
     setTechTasks(tasks);
-    setTechVisits(visitsData ?? []);
     setTechSolicitudes(solicitudes);
   }
 
@@ -1576,11 +1575,10 @@ export default function FieldApp() {
     return dayKey(a) === dayKey(b);
   }
 
-  // Events/tasks/visits shown as if they were "just another job" in the calendar and today's
+  // Events/tasks/solicitudes shown as if they were "just another job" in the calendar and today's
   // schedule lists — same row shape, so JobRow/the calendar timeline render them without change.
   // Tapping one opens a lightweight read-only detail (setDetailEntry) instead of the full job
   // clock-in/photos/expenses flow, since those actions don't apply to a task or a visit.
-  const VISIT_STATUS_MAP = { agendada: 'scheduled', en_progreso: 'in_progress', completada: 'completed', cancelada: 'cancelled' };
   function normalizeEntry(kind, raw) {
     if (kind === 'event') {
       return {
@@ -1597,13 +1595,6 @@ export default function FieldApp() {
         scheduled_start: raw.due_at, status: raw.completed ? 'completed' : 'scheduled', _kind: 'task', _raw: raw,
       };
     }
-    if (kind === 'visit') {
-      return {
-        id: `visit-${raw.id}`, title: `👁 ${raw.requests?.title ?? 'Visita'}`, clients: raw.requests?.clients, property_name: null,
-        street: null, city: null, state: null, zip: null,
-        scheduled_start: raw.scheduled_at, status: VISIT_STATUS_MAP[raw.status] ?? 'scheduled', _kind: 'visit', _raw: raw,
-      };
-    }
     // solicitud (evaluación en sitio)
     return {
       id: `solicitud-${raw.id}`, title: `📋 ${raw.title}`, clients: raw.clients, property_name: raw.property_name,
@@ -1616,7 +1607,6 @@ export default function FieldApp() {
     ...calendarJobs,
     ...techEvents.map(e => normalizeEntry('event', e)),
     ...techTasks.map(task => normalizeEntry('task', task)),
-    ...techVisits.map(v => normalizeEntry('visit', v)),
     ...techSolicitudes.map(s => normalizeEntry('solicitud', s)),
   ];
 
@@ -1642,7 +1632,6 @@ export default function FieldApp() {
     ...jobs,
     ...techEvents.filter(e => isToday(e.start_at)).map(e => normalizeEntry('event', e)),
     ...techTasks.filter(task => isToday(task.due_at)).map(task => normalizeEntry('task', task)),
-    ...techVisits.filter(v => isToday(v.scheduled_at)).map(v => normalizeEntry('visit', v)),
     ...techSolicitudes.filter(s => isToday(s.assessment_date)).map(s => normalizeEntry('solicitud', s)),
   ].sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
 

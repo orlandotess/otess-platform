@@ -51,7 +51,7 @@ export default function AccountingCalendarClient({ year, month, jobs, visits, ca
       map[d].push(ev);
     };
     jobs.forEach(j => add(j.scheduled_start, { type: 'job', label: j.title, href: `/trabajos/${j.id}`, sub: j.clients?.name }));
-    visits.forEach(v => add(v.scheduled_at, { type: 'visit', label: v.requests?.title ?? t('visitFallback'), href: `/solicitudes/${v.request_id}`, sub: v.requests?.clients?.name }));
+    visits.forEach(v => add(v.assessment_date, { type: 'visit', label: v.title ?? t('visitFallback'), href: `/solicitudes/${v.id}`, sub: v.clients?.name }));
     calendarEvents.forEach(e => add(e.start_at, { type: 'event', label: e.title, href: calendarHref, sub: e.clients?.name }));
     tasks.forEach(task => add(task.due_at, { type: 'task', label: task.title, href: calendarHref, sub: task.clients?.name }));
     absences.forEach(a => add(a.date, { type: 'absence', label: t('technicianAbsent', { name: a.technicians?.name ?? t('technicianFallback') }), href: '/admin/ausencias' }));

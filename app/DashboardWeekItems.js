@@ -39,7 +39,7 @@ export default function DashboardWeekItems({ jobs, visits, events, tasks, absenc
       return;
     }
     if (kind === 'job') router.push(`/trabajos/${data.id}`);
-    else if (kind === 'visit') router.push(`/solicitudes/${data.request_id}`);
+    else if (kind === 'visit') router.push(`/solicitudes/${data.solicitud_id}`);
     else if (kind === 'event' || kind === 'task') router.push('/calendario?view=week');
   }
 
@@ -81,8 +81,8 @@ export default function DashboardWeekItems({ jobs, visits, events, tasks, absenc
           }
 
           const dotColor = techColors[data.technician_id] ?? 'var(--ink-faint)';
-          const title = kind === 'visit' ? (data.requests?.title ?? t('visitFallback')) : data.title;
-          const clientName = kind === 'visit' ? data.requests?.clients?.name : data.clients?.name;
+          const title = kind === 'visit' ? (data.title ?? t('visitFallback')) : data.title;
+          const clientName = data.clients?.name;
           const icon = kind === 'event' ? ENTRY_TYPE_ICONS.event : kind === 'task' ? ENTRY_TYPE_ICONS[data.task_type] : kind === 'visit' ? '👁' : null;
           const statusKey = STATUS_BADGE_CLS[data.status] ? data.status : null;
           const badge = kind === 'job' ? (STATUS_BADGE_CLS[data.status] ?? 'badge-gray') : null;

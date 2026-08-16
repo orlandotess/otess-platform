@@ -54,11 +54,15 @@ export default async function DashboardCalendarWidget() {
       .gte('scheduled_start', rangeStart)
       .lte('scheduled_start', rangeEndTs)
       .order('scheduled_start'),
-    supabase.from('visits')
-      .select('id, request_id, technician_id, scheduled_at, duration_minutes, status, requests(title, clients(name)), technicians(name)')
-      .gte('scheduled_at', rangeStart)
-      .lte('scheduled_at', rangeEndTs)
-      .order('scheduled_at'),
+    // Las "visitas" son las evaluaciones en sitio de una solicitud; la tabla `visits`
+    // del módulo Requests original nunca llegó a crearse (ver app/calendario/page.js).
+    supabase.from('solicitudes')
+      .select('id, title, assessment_date, assessment_completed, status, technician_id, clients(name), technicians(name)')
+      .not('assessment_date', 'is', null)
+      .neq('status', 'archivada')
+      .gte('assessment_date', rangeStart)
+      .lte('assessment_date', rangeEndTs)
+      .order('assessment_date'),
     supabase.from('calendar_events')
       .select('id, title, notes, address, start_at, end_at, client_id, technician_id, clients(name), technicians(name), calendar_event_technicians(technician_id, technicians(name))')
       .gte('start_at', rangeStart)
@@ -80,7 +84,16 @@ export default async function DashboardCalendarWidget() {
 
   const techs = technicians ?? [];
   const allJobs = jobs ?? [];
-  const allVisits = visits ?? [];
+  const allVisits = (visits ?? []).map(s => ({
+    id: s.id,
+    solicitud_id: s.id,
+    title: s.title,
+    clients: s.clients,
+    technician_id: s.technician_id,
+    technicians: s.technicians,
+    scheduled_at: s.assessment_date,
+    status: s.assessment_completed ? 'completada' : 'agendada',
+  }));
   const allEvents = calendarEvents ?? [];
   const allTasks = tasks ?? [];
   const allAbsences = absences ?? [];

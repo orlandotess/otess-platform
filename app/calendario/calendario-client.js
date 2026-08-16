@@ -279,7 +279,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     if (type === 'job') return { title: item.title, sub: item.clients?.name, time: fmt(item.scheduled_start), tech: item.technicians?.name };
     if (type === 'event') return { icon: ENTRY_TYPE_ICONS.event, title: item.title, sub: item.clients?.name, time: fmt(item.start_at), tech: item.technicians?.name };
     if (type === 'task') return { icon: ENTRY_TYPE_ICONS[item.task_type], title: item.title, sub: item.clients?.name, time: fmt(item.due_at), tech: item.technicians?.name };
-    if (type === 'visit') return { icon: '👁', title: item.requests?.title ?? t('labels.visit'), sub: item.requests?.clients?.name, time: fmt(item.scheduled_at), tech: item.technicians?.name };
+    if (type === 'visit') return { icon: '👁', title: item.title ?? t('labels.visit'), sub: item.clients?.name, time: fmt(item.scheduled_at), tech: item.technicians?.name };
     if (type === 'absence') return { icon: '🚫', title: t('labels.technicianAbsent', { name: item.technicians?.name ?? t('labels.technician') }), sub: item.reason, time: item.date ? new Date(`${item.date}T00:00:00`).toLocaleDateString(dateLocale, { weekday: 'long', month: 'long', day: 'numeric' }) : null };
     return { title: item.title };
   }
@@ -373,8 +373,13 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     [jobs, selectedTech, visibleTypes.job, searchLower]
   );
 
+  // Una solicitud puede llevar varios técnicos asignados a la evaluación, igual que
+  // los eventos — el técnico de la columna `technician_id` es solo el dueño.
+  const visitMatchesTech = (visit, techId) =>
+    visit.technician_id === techId || (visit.solicitud_technicians ?? []).some(st => st.technician_id === techId);
+
   const filteredVisits = useMemo(() =>
-    !visibleTypes.visit ? [] : visits.filter(v => (selectedTech === 'all' || v.technician_id === selectedTech) && matchesSearch(v.requests?.title, v.requests?.clients?.name)),
+    !visibleTypes.visit ? [] : visits.filter(v => (selectedTech === 'all' || visitMatchesTech(v, selectedTech)) && matchesSearch(v.title, v.clients?.name)),
     [visits, selectedTech, visibleTypes.visit, searchLower]
   );
 
@@ -489,25 +494,18 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     setDayDate(now.toISOString().slice(0, 10));
   }
 
-  async function handleSchedule({ requestId, technicianId, dateStr, time, duration }) {
+  // Agendar una evaluación en sitio es ponerle fecha y técnico a la solicitud; el
+  // status no se toca, porque solicitudes no tiene un estado "agendada".
+  async function handleSchedule({ solicitudId, technicianId, dateStr, time }) {
     setSaving(true);
     try {
-      const scheduled_at = new Date(`${dateStr}T${time}:00`).toISOString();
-      const res = await fetch('/api/visits', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          request_id: requestId,
-          technician_id: technicianId,
-          scheduled_at,
-          duration_minutes: duration,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(err.error ?? t('alerts.scheduleVisitError'));
-        return;
-      }
+      const assessment_date = new Date(`${dateStr}T${time}:00`).toISOString();
+      const { error } = await supabase.from('solicitudes').update({
+        assessment_date,
+        technician_id: technicianId,
+      }).eq('id', solicitudId);
+      if (error) { alert(error.message ?? t('alerts.scheduleVisitError')); return; }
+
       setScheduleModal(null);
       router.refresh();
     } finally {
@@ -875,7 +873,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 }}>{r.clients?.name}</div>
                           {canScheduleVisit && (
                             <button className="btn btn-primary" style={{ width: '100%', fontSize: 11.5, padding: '5px 0' }}
-                              onClick={() => { setScheduleModal({ requestId: r.id }); setShowRequests(false); }}>
+                              onClick={() => { setScheduleModal({ solicitudId: r.id }); setShowRequests(false); }}>
                               {t('scheduleModal.title')}
                             </button>
                           )}
@@ -1078,7 +1076,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                             background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)', userSelect: 'none', WebkitUserSelect: 'none' }}>
-                          <span style={{ fontSize: 9 }}>👁</span> {v.requests?.title ?? t('labels.visit')}
+                          <span style={{ fontSize: 9 }}>👁</span> {v.title ?? t('labels.visit')}
                         </div>
                       ))}
                       {dayJobs.slice(0, Math.max(5 - dayAbsences.length - dayVisits.length, 0)).map(j => (
@@ -1157,7 +1155,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               const start = new Date(v.scheduled_at);
               const startMin = start.getHours() * 60 + start.getMinutes();
               list.push({ key: `v${v.id}`, type: 'visit', techId: v.technician_id, startMin, endMin: startMin + 30,
-                icon: '👁', label: v.requests?.title ?? t('labels.visit'), time: fmtTime(v.scheduled_at),
+                icon: '👁', label: v.title ?? t('labels.visit'), time: fmtTime(v.scheduled_at),
                 onClick: (e) => showQuickPreview('visit', v, e) });
             });
             filteredJobs.forEach(j => {
@@ -1354,7 +1352,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={`v${v.id}`} className="cal-entry" onClick={(e) => showQuickPreview('visit', v, e)}
                           style={{ background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)',
                             borderRadius: 4, padding: '3px 8px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>
-                          <span style={{ fontSize: 10 }}>👁</span> {v.requests?.title ?? t('labels.visit')} · {fmtTime(v.scheduled_at)}
+                          <span style={{ fontSize: 10 }}>👁</span> {v.title ?? t('labels.visit')} · {fmtTime(v.scheduled_at)}
                         </div>
                       ))}
                       {hourJobs.map(j => (
@@ -1450,7 +1448,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       {dayDetail && (() => {
         const dItems = [
           ...getAbsencesForDate(dayDetail).map(a => ({ type: 'absence', item: a, time: null, label: `🚫 ${t('labels.technicianAbsent', { name: a.technicians?.name ?? t('labels.technician') })}`, color: 'var(--warn)' })),
-          ...getVisitsForDate(dayDetail).map(v => ({ type: 'visit', item: v, time: v.scheduled_at, label: `👁 ${v.requests?.title ?? t('labels.visit')}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)' })),
+          ...getVisitsForDate(dayDetail).map(v => ({ type: 'visit', item: v, time: v.scheduled_at, label: `👁 ${v.title ?? t('labels.visit')}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)' })),
           ...getJobsForDate(dayDetail).map(j => ({ type: 'job', item: j, time: j.scheduled_start, label: j.title, color: techColors[j.technician_id] ?? 'var(--ink-faint)' })),
           ...getEventsForDate(dayDetail).map(e => ({ type: 'event', item: e, time: e.start_at, label: `${ENTRY_TYPE_ICONS.event} ${e.title}`, color: techColors[e.technician_id] ?? 'var(--navy)' })),
           ...getTasksForDate(dayDetail).map(tk => ({ type: 'task', item: tk, time: tk.due_at, label: `${ENTRY_TYPE_ICONS[tk.task_type]} ${tk.title}`, color: techColors[tk.technician_id] ?? 'var(--muted)' })),
@@ -1567,8 +1565,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
-                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{selectedVisit.requests?.title ?? t('labels.visit')}</div>
-                <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{selectedVisit.requests?.clients?.name}</div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>{selectedVisit.title ?? t('labels.visit')}</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{selectedVisit.clients?.name}</div>
               </div>
               <button onClick={() => setSelectedVisit(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--muted)' }}>×</button>
             </div>
@@ -1585,7 +1583,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 </div>
               ))}
             </div>
-            <Link href={`/solicitudes/${selectedVisit.request_id}`} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+            <Link href={`/solicitudes/${selectedVisit.solicitud_id}`} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
               {t('visitDetail.viewFullRequest')} →
             </Link>
           </div>
@@ -1815,13 +1813,12 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
 
 function ScheduleModal({ data, pendingRequests, technicians, saving, onClose, onSubmit }) {
   const t = useTranslations('calendario.client');
-  const [requestId, setRequestId] = useState(data.requestId ?? '');
+  const [solicitudId, setSolicitudId] = useState(data.solicitudId ?? '');
   const [technicianId, setTechnicianId] = useState('');
   const [dateStr, setDateStr] = useState(data.dateStr ?? new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState(data.time ?? '09:00');
-  const [duration, setDuration] = useState(60);
 
-  const canSubmit = requestId && technicianId && dateStr && time;
+  const canSubmit = solicitudId && technicianId && dateStr && time;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
@@ -1835,7 +1832,7 @@ function ScheduleModal({ data, pendingRequests, technicians, saving, onClose, on
         <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('scheduleModal.request')}</label>
-            <select value={requestId} onChange={e => setRequestId(e.target.value)} className="input" style={{ width: '100%' }}>
+            <select value={solicitudId} onChange={e => setSolicitudId(e.target.value)} className="input" style={{ width: '100%' }}>
               <option value="">{t('common.select')}</option>
               {pendingRequests.map(r => (
                 <option key={r.id} value={r.id}>{r.title} — {r.clients?.name}</option>
@@ -1861,15 +1858,11 @@ function ScheduleModal({ data, pendingRequests, technicians, saving, onClose, on
               <input type="time" value={time} onChange={e => setTime(e.target.value)} className="input" style={{ width: '100%' }} />
             </div>
           </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>{t('scheduleModal.durationMin')}</label>
-            <input type="number" step="15" value={duration} onChange={e => setDuration(parseInt(e.target.value) || 60)} className="input" style={{ width: '100%' }} />
-          </div>
         </div>
 
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
           disabled={!canSubmit || saving}
-          onClick={() => onSubmit({ requestId, technicianId, dateStr, time, duration })}>
+          onClick={() => onSubmit({ solicitudId, technicianId, dateStr, time })}>
           {saving ? t('scheduleModal.scheduling') : t('scheduleModal.title')}
         </button>
       </div>

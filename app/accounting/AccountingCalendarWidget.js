@@ -12,8 +12,11 @@ export default async function AccountingCalendarWidget({ searchParams }) {
   const [{ data: jobs }, { data: visits }, { data: calendarEvents }, { data: tasks }, { data: absences }, { data: invoicesIssued }, { data: invoicesDue }, { data: payments }, { data: retenciones }] = await Promise.all([
     supabase.from('jobs').select('id, title, scheduled_start, scheduled_end, status, clients(name)')
       .gte('scheduled_start', `${monthStart}T00:00:00.000Z`).lte('scheduled_start', `${monthEnd}T23:59:59.999Z`),
-    supabase.from('visits').select('id, request_id, scheduled_at, requests(title, clients(name))')
-      .gte('scheduled_at', `${monthStart}T00:00:00.000Z`).lte('scheduled_at', `${monthEnd}T23:59:59.999Z`),
+    // Evaluaciones en sitio de solicitudes — la capa que antes leía la tabla `visits`,
+    // que nunca llegó a crearse (ver app/calendario/page.js).
+    supabase.from('solicitudes').select('id, title, assessment_date, clients(name)')
+      .not('assessment_date', 'is', null).neq('status', 'archivada')
+      .gte('assessment_date', `${monthStart}T00:00:00.000Z`).lte('assessment_date', `${monthEnd}T23:59:59.999Z`),
     supabase.from('calendar_events').select('id, title, start_at, clients(name)')
       .gte('start_at', `${monthStart}T00:00:00.000Z`).lte('start_at', `${monthEnd}T23:59:59.999Z`),
     supabase.from('tasks').select('id, title, due_at, clients(name)')

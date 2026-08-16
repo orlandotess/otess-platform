@@ -78,9 +78,12 @@ async function runDigest() {
     supabase.from('job_schedule_days')
       .select('id, scheduled_start, technician_id, jobs(title, property_name, street, city, clients(name))')
       .gte('scheduled_start', start).lt('scheduled_start', end),
-    supabase.from('visits')
-      .select('id, technician_id, scheduled_at, requests(title, clients(name))')
-      .gte('scheduled_at', start).lt('scheduled_at', end),
+    // Evaluaciones en sitio de solicitudes — reemplazan la tabla `visits` del
+    // módulo Requests original, que nunca llegó a crearse.
+    supabase.from('solicitudes')
+      .select('id, title, assessment_date, technician_id, clients(name), solicitud_technicians(technician_id)')
+      .not('assessment_date', 'is', null).neq('status', 'archivada')
+      .gte('assessment_date', start).lt('assessment_date', end),
     supabase.from('calendar_events')
       .select('id, title, address, property_name, start_at, technician_id, clients(name), calendar_event_technicians(technician_id)')
       .gte('start_at', start).lt('start_at', end),
@@ -121,8 +124,8 @@ async function runDigest() {
     distribute(item, techIdsFor(d.technician_id, []));
   }
   for (const v of visits ?? []) {
-    const item = { time: v.scheduled_at, title: v.requests?.title ?? t('defaultVisitTitle'), subtitle: v.requests?.clients?.name };
-    distribute(item, techIdsFor(v.technician_id, []));
+    const item = { time: v.assessment_date, title: v.title ?? t('defaultVisitTitle'), subtitle: v.clients?.name };
+    distribute(item, techIdsFor(v.technician_id, v.solicitud_technicians));
   }
   for (const e of calendarEvents ?? []) {
     const item = { time: e.start_at, title: e.title, subtitle: [e.clients?.name, e.property_name || e.address].filter(Boolean).join(' — ') };
