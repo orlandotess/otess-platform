@@ -284,11 +284,11 @@ export default function LineItemRow({
             )}
           </div>
         )}
-        <div style={{ textAlign: 'center', flexShrink: 0, width: 40 }}>
+        <div style={{ textAlign: 'center', flexShrink: 0, width: 58 }}>
           {viewMode ? (
             <span style={{ fontSize: 13 }}>x{quantity}</span>
           ) : (
-            <input type="number" value={quantity} onChange={e => onQuantityChange(e.target.value)} style={{ fontSize: 13, padding: '4px 6px', textAlign: 'center', width: '100%' }} min="0" step="0.01" />
+            <input type="number" className="compact-number" value={quantity} onChange={e => onQuantityChange(e.target.value)} style={{ fontSize: 13, padding: '4px 4px', width: '100%' }} min="0" step="0.01" title={t('quantityLabel')} />
           )}
         </div>
         {(showPricing || alwaysShowPricing) && (
@@ -415,12 +415,12 @@ export default function LineItemRow({
         )}
       </div>
 
-      <div style={{ textAlign: 'center', flexShrink: 0, width: 50 }}>
+      <div style={{ textAlign: 'center', flexShrink: 0, width: 58 }}>
         <label style={{ fontSize: 9, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>{t('quantityLabel')}</label>
         {viewMode ? (
           <div style={{ fontSize: 13 }}>{quantity}</div>
         ) : (
-          <input type="number" value={quantity} onChange={e => onQuantityChange(e.target.value)} style={{ fontSize: 13, padding: '4px 6px', textAlign: 'center', width: '100%' }} min="0" step="0.01" />
+          <input type="number" className="compact-number" value={quantity} onChange={e => onQuantityChange(e.target.value)} style={{ fontSize: 13, padding: '4px 4px', width: '100%' }} min="0" step="0.01" />
         )}
         {stockHint != null && (
           <div style={{ fontSize: 9, color: stockHint <= 0 ? 'var(--warn)' : 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' }} title={t('stockHintTitle')}>{t('stockHint', { count: stockHint })}</div>
