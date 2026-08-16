@@ -45,10 +45,21 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // ?dry=1 arma el digest completo pero no envía ni un correo, para poder verificar
+  // qué saldría sin llenarle el buzón al equipo. El cron nunca lo pasa.
+  const params = new URL(request.url).searchParams;
+  const dry = params.get('dry') === '1';
+  // Override de fecha (YYYY-MM-DD) solo para pruebas: sin él no hay forma de ver el
+  // digest de un día con eventos. Solo se acepta junto a dry=1, así que no puede
+  // usarse para dispararle al equipo el correo de otro día.
+  const dateParam = params.get('date');
+  const today = dry && /^\d{4}-\d{2}-\d{2}$/.test(dateParam ?? '') ? dateParam : null;
+
   try {
-    return await runDigest();
+    return await runDigest({ dry, today });
   } catch (err) {
     console.error('calendar-reminders/run crashed:', err);
+    if (dry) return Response.json({ dry: true, error: err?.message ?? String(err) }, { status: 500 });
     const locale = getServerLocale();
     const t = await getEmailTranslator(locale, 'emails.calendarReminder');
     await resend.emails.send({
@@ -61,10 +72,10 @@ export async function GET(request) {
   }
 }
 
-async function runDigest() {
+async function runDigest({ dry = false, today: todayOverride = null } = {}) {
   const locale = getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.calendarReminder');
-  const today = todayPR();
+  const today = todayOverride ?? todayPR();
   const { start, end } = dayBoundsPR(today);
   const dateLabel = new Intl.DateTimeFormat('es-PR', { timeZone: 'America/Puerto_Rico', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${today}T12:00:00-04:00`));
 
@@ -145,12 +156,14 @@ async function runDigest() {
     if (!tech) continue;
     const email = resolveTechEmail(tech, profiles ?? []);
     if (!email) { unresolved.push({ name: tech.name, count: items.length }); continue; }
-    await resend.emails.send({
-      from: 'OTESS <info@otesspr.com>',
-      to: email,
-      subject: t('digestTitle', { date: dateLabel }),
-      html: digestEmail(dateLabel, items, t),
-    }).catch(err => console.error(`Error enviando agenda a ${tech.name}:`, err));
+    if (!dry) {
+      await resend.emails.send({
+        from: 'OTESS <info@otesspr.com>',
+        to: email,
+        subject: t('digestTitle', { date: dateLabel }),
+        html: digestEmail(dateLabel, items, t),
+      }).catch(err => console.error(`Error enviando agenda a ${tech.name}:`, err));
+    }
     sent.push({ name: tech.name, count: items.length });
   }
 
@@ -166,12 +179,15 @@ async function runDigest() {
     adminSections.push(`<p style="font-weight:700;margin-bottom:4px;color:#b52a2a">${t('emailNotSent')}</p><ul style="font-size:13px;padding-left:18px">${unresolved.map(u => `<li>${t('noLinkedEmail', { name: u.name, count: u.count })}</li>`).join('')}</ul>`);
   }
 
-  await resend.emails.send({
-    from: 'OTESS <info@otesspr.com>',
-    to: 'services@otesspr.com',
-    subject: t('adminSummarySubject', { date: dateLabel }),
-    html: `<div style="font-family:Arial,sans-serif;padding:20px;max-width:600px">${adminSections.join('') || `<p style="color:#999">${t('noEventsToday')}</p>`}</div>`,
-  }).catch(err => console.error('Error enviando resumen de admin:', err));
+  const adminHtml = `<div style="font-family:Arial,sans-serif;padding:20px;max-width:600px">${adminSections.join('') || `<p style="color:#999">${t('noEventsToday')}</p>`}</div>`;
+  if (!dry) {
+    await resend.emails.send({
+      from: 'OTESS <info@otesspr.com>',
+      to: 'services@otesspr.com',
+      subject: t('adminSummarySubject', { date: dateLabel }),
+      html: adminHtml,
+    }).catch(err => console.error('Error enviando resumen de admin:', err));
+  }
 
-  return Response.json({ sent, unresolved, unassignedCount: unassigned.length });
+  return Response.json({ sent, unresolved, unassignedCount: unassigned.length, ...(dry ? { dry: true, adminHtml } : {}) });
 }
