@@ -489,7 +489,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   function handleLineDescriptionSelect(value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
-      setNewLine(l => ({ ...l, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '', title: l.title || match.name || match.description }));
+      setNewLine(l => ({ ...l, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '', title: l.title || match.name || '' }));
       applyNewLineCatalogPhoto(match);
     } else {
       setNewLine(l => ({ ...l, description: value }));
@@ -498,7 +498,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   function handleLineTitleSelect(value) {
     const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
     if (match) {
-      setNewLine(l => ({ ...l, type: match.type, tax_category: match.tax_category, title: match.name || match.description, description: l.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '' }));
+      setNewLine(l => ({ ...l, type: match.type, tax_category: match.tax_category, title: match.name || match.item_code, description: l.description || match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', vendor: l.vendor || match.vendor || '' }));
       applyNewLineCatalogPhoto(match);
     } else {
       setNewLine(l => ({ ...l, title: value }));
@@ -1760,13 +1760,13 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                           title={editLineForm.title}
                           onTitleChange={value => {
                             const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
-                            if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, title: match.name || match.description, description: f.description || `${match.item_code} — ${match.description}`, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' })); applyEditLineCatalogPhoto(match); }
+                            if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, title: match.name || match.item_code, description: f.description || match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '' })); applyEditLineCatalogPhoto(match); }
                             else setEditLineForm(f => ({ ...f, title: value }));
                           }}
                           description={editLineForm.description}
                           onDescriptionChange={value => {
                             const match = catalogItems.find(c => `${c.item_code} — ${c.description}` === value);
-                            if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', title: f.title || match.name || match.description })); applyEditLineCatalogPhoto(match); }
+                            if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', title: f.title || match.name || '' })); applyEditLineCatalogPhoto(match); }
                             else setEditLineForm(f => ({ ...f, description: value }));
                           }}
                           catalogOptions={catalogItems.filter(c => c.type === editLineForm.type)}

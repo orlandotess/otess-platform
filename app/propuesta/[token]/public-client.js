@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import ProposalDocument, { financialBreakdown } from '../../propuestas/ProposalDocument';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
+import { displayTitle } from '../../../lib/lineItemTitle';
 import { useTranslations } from 'next-intl';
 
 const NAVY = '#16223d';
@@ -171,7 +172,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                                     )}
                                   </div>
                                   <span style={{ fontSize: 12.5, color: '#555', flex: 1, minWidth: 0 }}>
-                                    {it.title && <div style={{ fontWeight: 700, color: '#333' }}>{it.title}</div>}
+                                    {displayTitle(it.title, it.description) && <div style={{ fontWeight: 700, color: '#333' }}>{it.title}</div>}
                                     <div style={{ whiteSpace: 'pre-wrap' }}>{it.description}</div>
                                   </span>
                                   <span style={{ width: 60, flexShrink: 0, textAlign: 'right', fontSize: 12, color: '#999' }}>{fmt(it.unit_price)}</span>

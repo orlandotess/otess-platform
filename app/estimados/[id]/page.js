@@ -5,6 +5,7 @@ import { Fragment } from 'react';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import EstimateActions from './EstimateActions';
+import { displayTitle } from '../../../lib/lineItemTitle';
 import { getTranslations } from 'next-intl/server';
 
 // Materials added by the cable/tubo calculator collapse into one client-facing
@@ -258,7 +259,7 @@ export default async function EstimaDetail({ params }) {
                         {entry.item.photo_signed_url ? <img src={entry.item.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{entry.item.type === 'labor' ? '🔧' : '📦'}</span>}
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        {entry.item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.item.title}</div>}
+                        {displayTitle(entry.item.title, entry.item.group_description?.trim() || entry.item.description) && <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.item.title}</div>}
                         <div style={{ whiteSpace: 'pre-wrap' }}>{entry.item.group_description?.trim() || entry.item.description}</div>
                         {childrenByParentId.get(entry.item.id)?.length > 0 && (
                           <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>

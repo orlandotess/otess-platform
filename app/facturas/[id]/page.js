@@ -5,6 +5,7 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { fallbackLineItems } from '../../../lib/ivu';
+import { displayTitle } from '../../../lib/lineItemTitle';
 import Sidebar from '../../Sidebar';
 import InvoiceActions from './InvoiceActions';
 import PaymentsTable from './PaymentsTable';
@@ -238,6 +239,7 @@ export default async function FacturaDetail({ params }) {
                 <tbody>
                   {area.items.map(item => {
                     const children = childrenByParentId.get(item.id) ?? [];
+                    const showTitle = displayTitle(item.title, item.description);
                     return (
                     <Fragment key={item.id}>
                       <tr style={{ borderBottom: children.length ? 'none' : '1px solid var(--border)', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
@@ -247,8 +249,8 @@ export default async function FacturaDetail({ params }) {
                               {item.photo_signed_url ? <img src={item.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{item.type === 'labor' ? '🔧' : '📦'}</span>}
                             </div>
                             <div>
-                              {item.title && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
-                              <div style={{ fontWeight: item.title ? 400 : 700, fontSize: item.title ? 13 : 14, color: item.title ? 'var(--muted)' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                              {showTitle && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
+                              <div style={{ fontWeight: showTitle ? 400 : 700, fontSize: showTitle ? 13 : 14, color: showTitle ? 'var(--muted)' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
                               <span style={{ fontSize: 10.5, fontWeight: 600, color: item.type === 'labor' ? 'var(--amber)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                 {item.type === 'labor' ? t('itemType.labor') : t('itemType.product')}
                               </span>

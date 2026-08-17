@@ -1,6 +1,7 @@
 'use client';
 import { Fragment, useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
+import { displayTitle } from '../../lib/lineItemTitle';
 
 const NAVY = '#16223d';
 
@@ -255,6 +256,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                   const bundled = combined || it.discount_amount > 0;
                   const isExpanded = printMode || !!expandedIds[it.id];
                   const colCount = hidePricing ? 2 : 4;
+                  const shownTitle = displayTitle(it.title, it.description);
                   return (
                     <Fragment key={it.id}>
                       <tr style={{ borderBottom: it.children.length ? 'none' : '1px solid #f4f4f4', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
@@ -263,8 +265,8 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                             {it.photo_signed_url ? <img src={it.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{it.item_type === 'product' ? '📦' : '🔧'}</span>}
                           </div>
                           <div>
-                            {it.title && <div style={{ fontWeight: 700, fontSize: 14 }}>{it.title}</div>}
-                            <div style={{ fontWeight: it.title ? 400 : 700, fontSize: it.title ? 13 : 14, color: it.title ? '#555' : undefined, whiteSpace: 'pre-wrap' }}>{it.description}</div>
+                            {shownTitle && <div style={{ fontWeight: 700, fontSize: 14 }}>{shownTitle}</div>}
+                            <div style={{ fontWeight: shownTitle ? 400 : 700, fontSize: shownTitle ? 13 : 14, color: shownTitle ? '#555' : undefined, whiteSpace: 'pre-wrap' }}>{it.description}</div>
                           </div>
                         </td>
                         {!hidePricing && <td style={{ textAlign: 'right', fontSize: 13.5, color: '#333', verticalAlign: 'top', paddingTop: 14 }}>{bundled ? '' : fmt(it.unit_price)}</td>}

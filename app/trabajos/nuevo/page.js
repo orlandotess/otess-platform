@@ -244,7 +244,7 @@ function NuevoTrabajoForm() {
       setAreas(prev => prev.map(a => a.key === areaKey
         ? { ...a, items: a.items.map(it => it.key === itemKey ? {
               ...it, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-              vendor: it.vendor || match.vendor || '', title: it.title || match.name || match.description,
+              vendor: it.vendor || match.vendor || '', title: it.title || match.name || '',
             } : it) } : a));
       applyCatalogItemPhoto(areaKey, itemKey, match);
     } else {
@@ -256,7 +256,7 @@ function NuevoTrabajoForm() {
     if (match) {
       setAreas(prev => prev.map(a => a.key === areaKey
         ? { ...a, items: a.items.map(it => it.key === itemKey ? {
-              ...it, type: match.type, tax_category: match.tax_category, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
+              ...it, type: match.type, tax_category: match.tax_category, title: match.name || match.item_code, description: it.description || match.description,
               unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
               vendor: it.vendor || match.vendor || '',
             } : it) } : a));

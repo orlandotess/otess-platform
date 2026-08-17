@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
+import { displayTitle } from '../../../lib/lineItemTitle';
 import AcceptEstimateButton from './AcceptEstimateButton';
 import { getTranslations } from 'next-intl/server';
 
@@ -146,7 +147,7 @@ export default async function EstimaPublica({ params }) {
                           <img src={item.photo_signed_url} alt="" style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 6, background: '#f4f4f4', flexShrink: 0 }} />
                         )}
                         <div>
-                          {item.title && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
+                          {displayTitle(item.title, item.description) && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
                           <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
                           {item.accessoryCount > 0 && (
                             <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>

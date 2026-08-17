@@ -372,7 +372,7 @@ export default function PropuestaForm({ initialData = null }) {
       setOptions(prev => prev.map(o => o.key === optKey
         ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.map(it => it.key === itemKey ? {
               ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-              vendor: it.vendor || match.vendor || '', title: it.title || match.name || match.description,
+              vendor: it.vendor || match.vendor || '', title: it.title || match.name || '',
             } : it) } : a) }
         : o));
       applyCatalogItemPhoto(optKey, areaKey, itemKey, match);
@@ -385,7 +385,7 @@ export default function PropuestaForm({ initialData = null }) {
     if (match) {
       setOptions(prev => prev.map(o => o.key === optKey
         ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: a.items.map(it => it.key === itemKey ? {
-              ...it, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
+              ...it, title: match.name || match.item_code, description: it.description || match.description,
               unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
               vendor: it.vendor || match.vendor || '',
             } : it) } : a) }

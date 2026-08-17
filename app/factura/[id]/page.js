@@ -4,6 +4,7 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { fallbackLineItems } from '../../../lib/ivu';
+import { displayTitle } from '../../../lib/lineItemTitle';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import { getTranslations } from 'next-intl/server';
 
@@ -193,6 +194,7 @@ export default async function FacturaPublica({ params }) {
                   <tbody>
                     {area.items.map(item => {
                       const children = childrenByParentId.get(item.id) ?? [];
+                      const showTitle = displayTitle(item.title, item.description);
                       return (
                       <Fragment key={item.id}>
                         <tr style={{ borderBottom: children.length ? 'none' : '1px solid #f4f4f4' }}>
@@ -202,8 +204,8 @@ export default async function FacturaPublica({ params }) {
                                 {item.photo_signed_url ? <img src={item.photo_signed_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{item.type === 'labor' ? '🔧' : '📦'}</span>}
                               </div>
                               <div>
-                                {item.title && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
-                                <div style={{ fontWeight: item.title ? 400 : 700, fontSize: item.title ? 13 : 14, color: item.title ? '#555' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                                {showTitle && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
+                                <div style={{ fontWeight: showTitle ? 400 : 700, fontSize: showTitle ? 13 : 14, color: showTitle ? '#555' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
                                 <span style={{ fontSize: 10.5, fontWeight: 600, color: item.type === 'labor' ? '#92600a' : '#999', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                   {item.type === 'labor' ? t('table.laborType') : t('table.productType')}
                                 </span>

@@ -324,7 +324,7 @@ export default function EstimateForm({ initialData = null }) {
       setAreas(prev => prev.map(a => a.key === areaKey
         ? { ...a, items: a.items.map(it => it.key === itemKey ? {
               ...it, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
-              vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, title: it.title || match.name || match.description, tax_category: match.tax_category ?? it.tax_category,
+              vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, title: it.title || match.name || '', tax_category: match.tax_category ?? it.tax_category,
             } : it) }
         : a));
       applyCatalogItemPhoto(areaKey, itemKey, match);
@@ -356,7 +356,7 @@ export default function EstimateForm({ initialData = null }) {
     if (match) {
       setAreas(prev => prev.map(a => a.key === areaKey
         ? { ...a, items: a.items.map(it => it.key === itemKey ? {
-              ...it, title: match.name || match.description, description: it.description || `${match.item_code} — ${match.description}`,
+              ...it, title: match.name || match.item_code, description: it.description || match.description,
               unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '',
               vendor: it.vendor || match.vendor || '', catalog_item_id: match.id, tax_category: match.tax_category ?? it.tax_category,
             } : it) }

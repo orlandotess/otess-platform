@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
+import { displayTitle } from '../lib/lineItemTitle';
 
 // Styled catalog search used in place of a native <input list>/<datalist>,
 // which renders inconsistently across browsers and can't be themed.
@@ -87,6 +88,8 @@ export default function LineItemRow({
   const t = useTranslations('shared.lineItemRow');
   const locale = useLocale();
   const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
+  // Only affects the read-only render; editing still shows the raw title field.
+  const shownTitle = displayTitle(title, description);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMargin, setShowMargin] = useState(false);
   const [marginPct, setMarginPct] = useState('');
@@ -278,8 +281,8 @@ export default function LineItemRow({
                 🛡️ {warrantyStatus === 'expired' ? t('warrantyExpired') : t('warranty')} {new Date(`${warrantyExpiresAt}T00:00:00`).toLocaleDateString(dateLocale)}
               </span>
             )}
-            {title && <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 4 }}>{title}</div>}
-            {description && <div style={{ fontWeight: title ? 400 : 700, fontSize: 13.5, marginTop: title ? 2 : 4, whiteSpace: 'pre-wrap' }}>{description}</div>}
+            {shownTitle && <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 4 }}>{shownTitle}</div>}
+            {description && <div style={{ fontWeight: shownTitle ? 400 : 700, fontSize: 13.5, marginTop: shownTitle ? 2 : 4, whiteSpace: 'pre-wrap' }}>{description}</div>}
           </>
         ) : (
           <>
