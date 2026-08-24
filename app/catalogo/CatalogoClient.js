@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { supabase } from "../../lib/supabase";
 import ViewToggle, { useCatalogView } from "../ViewToggle";
 import CatalogoView from "../CatalogoView";
+import { matchesCatalogQuery } from "../../lib/catalogSearch";
 
 const TYPE_META_BASE = {
   labor: { icon: "🔧", color: "#e0972c" },
@@ -170,11 +171,10 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   const counts = { labor: items.filter(i => i.type === "labor").length, product: items.filter(i => i.type === "product").length, fee: items.filter(i => i.type === "fee").length };
   counts.catalog_view = counts.product;
 
-  const filtered = items.filter(i => i.type === dataType && (
-    i.item_code.toLowerCase().includes(search.toLowerCase()) ||
-    (i.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    i.description.toLowerCase().includes(search.toLowerCase())
-  ));
+  // Mismo matcher que los buscadores de propuestas/facturas: por palabras y
+  // tolerante a campos nulos — `i.description.toLowerCase()` lanzaba si la
+  // columna venía vacía, y bastaba una fila así para tumbar la página entera.
+  const filtered = items.filter(i => i.type === dataType && matchesCatalogQuery(i, search));
 
   // Genera signed URLs para las fotos de los ítems visibles
   useEffect(() => {
