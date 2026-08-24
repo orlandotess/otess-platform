@@ -1,9 +1,8 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../../lib/resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { formatDateTimePR } from '../../../../lib/datetimeLocal';
 import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
   const { token, option_id, signed_name } = await request.json();
@@ -54,7 +53,7 @@ export async function POST(request) {
   // Avisar al equipo — nunca debe impedir que la aprobación del cliente se registre,
   // así que cualquier fallo de envío se ignora.
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('subject', { number: proposal.proposal_number }),

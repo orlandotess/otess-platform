@@ -1,11 +1,10 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../../lib/resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { formatDateTimePR } from '../../../../lib/datetimeLocal';
 import { generatePurchaseOrders } from '../../../../lib/generatePurchaseOrders';
 import { buildChecklistItemsFromLineItems } from '../../../../lib/generateChecklistFromLineItems';
 import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
   const { token, signed_name } = await request.json();
@@ -77,7 +76,7 @@ export async function POST(request) {
   }
 
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('subject', { number: order.change_order_number }),

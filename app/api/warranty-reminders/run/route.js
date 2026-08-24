@@ -1,8 +1,7 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../../lib/resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 const APP_URL = 'https://app.otesspr.com';
 const LEAD_DAYS = 30;
@@ -61,7 +60,7 @@ export async function GET(request) {
         date: item.warranty_expires_at,
       });
 
-      const { error: sendError } = await resend.emails.send({
+      const { error: sendError } = await getResend().emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: 'services@otesspr.com',
         subject: emailTitle,

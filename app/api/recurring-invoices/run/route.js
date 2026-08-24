@@ -1,11 +1,10 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../../lib/resend';
 import { withRetry } from '../../../../lib/withRetry';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { calcularIVU, tasaParaLinea } from '../../../../lib/tax';
 import { nextBusinessDay } from '../../../../lib/businessDays';
 import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 const APP_URL = 'https://app.otesspr.com';
 
@@ -155,7 +154,7 @@ export async function GET(request) {
       ...generated.map(g => `<li style="color:#1a7a4a">✓ ${g.invoiceNumber} — ${g.clientName} — ${fmt(g.total)}</li>`),
       ...failures.map(f => `<li style="color:#b52a2a">✗ ${f.clientName} — ${f.reason}</li>`),
     ].join('');
-    const { error: sendError } = await resend.emails.send({
+    const { error: sendError } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('subject', { generated: generated.length, failures: failures.length }),

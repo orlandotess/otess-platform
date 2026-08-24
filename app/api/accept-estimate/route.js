@@ -1,8 +1,7 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../lib/resend';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { getServerLocale, getEmailTranslator } from '../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
   try {
@@ -25,7 +24,7 @@ export async function POST(request) {
     }]);
 
     try {
-      await resend.emails.send({
+      await getResend().emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: 'services@otesspr.com',
         subject: t('subject', { number: est.estimate_number }),

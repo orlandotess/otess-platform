@@ -1,11 +1,10 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../../lib/resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { getCurrentRole } from '../../../../lib/supabase-server';
 import { resolveTechEmail } from '../../../../lib/technicianEmail';
 import { buildMapsAddress, buildMapsLinks } from '../../../../lib/mapsLinks';
 import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = 'https://app.otesspr.com';
 
 function fmtDateTime(iso) {
@@ -74,7 +73,7 @@ export async function POST(request) {
     <p style="font-size:12px;color:#999;margin-top:20px"><a href="${APP_URL}/trabajos/${job.id}" style="color:#e0972c">${t('viewJob')}</a></p>
   </div>`;
 
-  const { error } = await resend.emails.send({
+  const { error } = await getResend().emails.send({
     from: 'OTESS <info@otesspr.com>',
     to: email,
     subject: t('subject', { title: job.title }),

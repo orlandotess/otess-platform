@@ -1,10 +1,9 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../lib/resend';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { getCurrentRole } from '../../../lib/supabase-server';
 import { fallbackLineItems } from '../../../lib/ivu';
 import { getClientEmailTranslator } from '../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
   try {
@@ -146,7 +145,7 @@ export async function POST(request) {
 </body>
 </html>`;
 
-    const { error } = await resend.emails.send({
+    const { error } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: toEmail,
       ...(ccList.length ? { cc: ccList } : {}),

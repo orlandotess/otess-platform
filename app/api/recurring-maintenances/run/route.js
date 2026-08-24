@@ -1,10 +1,9 @@
 export const dynamic = 'force-dynamic';
 
-import { Resend } from 'resend';
+import { getResend } from '../../../../lib/resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 function todayPR() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Puerto_Rico', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -91,7 +90,7 @@ export async function GET(request) {
       ...generated.map(g => `<li style="color:#1a7a4a">✓ ${g.title}${g.client ? ` — ${g.client}` : ''}</li>`),
       ...failures.map(f => `<li style="color:#b52a2a">✗ ${f.title} — ${f.reason}</li>`),
     ].join('');
-    const { error: sendError } = await resend.emails.send({
+    const { error: sendError } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('subject', { generated: generated.length, failures: failures.length }),

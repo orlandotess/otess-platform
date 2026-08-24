@@ -1,9 +1,8 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../../lib/resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { resolveTechEmail } from '../../../../lib/technicianEmail';
 import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = 'https://app.otesspr.com';
 
 function todayPR() {
@@ -62,7 +61,7 @@ export async function GET(request) {
     if (dry) return Response.json({ dry: true, error: err?.message ?? String(err) }, { status: 500 });
     const locale = getServerLocale();
     const t = await getEmailTranslator(locale, 'emails.calendarReminder');
-    const { error: sendError } = await resend.emails.send({
+    const { error: sendError } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('errorSubject'),
@@ -159,7 +158,7 @@ async function runDigest({ dry = false, today: todayOverride = null } = {}) {
     const email = resolveTechEmail(tech, profiles ?? []);
     if (!email) { unresolved.push({ name: tech.name, count: items.length }); continue; }
     if (!dry) {
-      const { error: sendError } = await resend.emails.send({
+      const { error: sendError } = await getResend().emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: email,
         subject: t('digestTitle', { date: dateLabel }),
@@ -188,7 +187,7 @@ async function runDigest({ dry = false, today: todayOverride = null } = {}) {
 
   const adminHtml = `<div style="font-family:Arial,sans-serif;padding:20px;max-width:600px">${adminSections.join('') || `<p style="color:#999">${t('noEventsToday')}</p>`}</div>`;
   if (!dry) {
-    const { error: sendError } = await resend.emails.send({
+    const { error: sendError } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('adminSummarySubject', { date: dateLabel }),

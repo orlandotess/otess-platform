@@ -1,9 +1,8 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../../lib/resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { getCurrentRole } from '../../../../lib/supabase-server';
 import { getClientEmailTranslator } from '../../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
   const role = await getCurrentRole();
@@ -31,7 +30,7 @@ export async function POST(request) {
   const publicUrl = `https://app.otesspr.com/propuesta/${proposal.public_token}`;
 
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: proposal.clients.email,
       subject: t('subject', { number: proposal.proposal_number, title: proposal.title }),

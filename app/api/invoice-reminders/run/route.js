@@ -1,9 +1,8 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../../lib/resend';
 import { withRetry } from '../../../../lib/withRetry';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { getServerLocale, getEmailTranslator, getClientEmailTranslator } from '../../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 const APP_URL = 'https://app.otesspr.com';
 const REMINDER_INTERVAL_DAYS = 7;
@@ -45,7 +44,7 @@ async function checkIvuReminders(today, t) {
       const emailSubject = t('ivuSubject', { month: monthLabel });
       const emailBody = t('ivuBody', { dueDate: row.due_date });
 
-      const { error: sendError } = await resend.emails.send({
+      const { error: sendError } = await getResend().emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: 'services@otesspr.com',
         subject: emailSubject,
@@ -131,7 +130,7 @@ export async function GET(request) {
         continue;
       }
 
-      await withRetry(() => resend.emails.send({
+      await withRetry(() => getResend().emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: inv.clients.email,
         subject: tClient('reminderSubject', { number: inv.invoice_number }),
@@ -155,7 +154,7 @@ export async function GET(request) {
       ...reminded.map(r => `<li style="color:#1a7a4a">✓ ${r.invoiceNumber} — ${r.clientName} — ${fmt(r.balance)}</li>`),
       ...failures.map(f => `<li style="color:#b52a2a">✗ ${f.invoiceNumber} — ${f.clientName} — ${f.reason}</li>`),
     ].join('');
-    const { error: sendError } = await resend.emails.send({
+    const { error: sendError } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('summarySubject', { reminded: reminded.length, failures: failures.length }),

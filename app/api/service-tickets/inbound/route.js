@@ -1,8 +1,7 @@
-import { Resend } from 'resend';
+import { getResend } from '../../../../lib/resend';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 function stripHtml(html) {
   if (!html) return null;
@@ -33,7 +32,7 @@ export async function POST(request) {
 
   let event;
   try {
-    event = resend.webhooks.verify({
+    event = getResend().webhooks.verify({
       payload,
       headers: {
         id: request.headers.get('svix-id'),
@@ -63,7 +62,7 @@ export async function POST(request) {
   // no tiene permiso de lectura), seguimos solo con el asunto en vez del cuerpo completo.
   let full = null;
   try {
-    const { data, error: receivingError } = await resend.emails.receiving.get(email_id);
+    const { data, error: receivingError } = await getResend().emails.receiving.get(email_id);
     if (receivingError) throw new Error(receivingError.message ?? JSON.stringify(receivingError));
     full = data;
   } catch (err) {
@@ -125,7 +124,7 @@ export async function POST(request) {
       link: `/boletos/${ticket.id}`,
     }]);
 
-    await resend.emails.send({
+    await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('subject', { clientLabel }),

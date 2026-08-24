@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Resend } from 'resend';
+import { getResend } from '../../../lib/resend';
 import { createSupabaseServerClient, getCurrentRole } from '../../../lib/supabase-server';
 import { supabaseServer } from '../../../lib/supabase';
 import { getServerLocale, getEmailTranslator } from '../../../lib/i18n-server';
@@ -23,15 +23,13 @@ export async function POST() {
     return Response.json({ error: 'No aplica para este usuario' }, { status: 400 });
   }
 
-  // El cliente se construye aquí y no al importar el módulo: sin RESEND_API_KEY
-  // el constructor lanza, la ruta entera falla al cargarse y el navegador recibe
-  // una página de error HTML en vez de JSON — que el frontend mostraba como
-  // "Error de conexión", escondiendo la causa real.
+  // Se comprueba antes de llamar a getResend(): sin la clave, el constructor de
+  // Resend lanza, y esta ruta es la única donde ese fallo deja al usuario fuera
+  // de la aplicación. Mejor decirlo que devolver un 500 sin explicación.
   if (!process.env.RESEND_API_KEY) {
     console.error('send-verification-code: falta RESEND_API_KEY en este entorno');
     return Response.json({ error: 'El envío de correo no está configurado en este entorno' }, { status: 500 });
   }
-  const resend = new Resend(process.env.RESEND_API_KEY);
 
   const locale = getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.verificationCode');
@@ -93,7 +91,7 @@ export async function POST() {
     // Resend devuelve { error } en vez de lanzar cuando la API rechaza el envío
     // (clave inválida, dominio sin verificar, límite de tasa). Sin esta
     // comprobación la ruta respondía success y el código nunca llegaba.
-    const { error: sendError } = await resend.emails.send({
+    const { error: sendError } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: user.email,
       subject: t('subject', { code }),
