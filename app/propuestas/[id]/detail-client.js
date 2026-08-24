@@ -13,6 +13,7 @@ import { useTranslations, useLocale } from 'next-intl';
 const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', cambios_requeridos: 'badge-amber', expirada: 'badge-gray', aprobada: 'badge-green', rechazada: 'badge-red', completada: 'badge-dark' };
 const STATUS_ORDER = ['borrador', 'enviada', 'vista', 'cambios_requeridos', 'expirada', 'aprobada', 'rechazada', 'completada'];
 const STATUS_KEYS = new Set(STATUS_ORDER);
+const EXPIRABLE_STATUSES = ['enviada', 'vista', 'cambios_requeridos'];
 
 export default function PropuestaDetailClient({ proposal, options, taxRules, payments, paymentRequests, companyInfo, primaryAddress, property }) {
   const router = useRouter();
@@ -36,6 +37,9 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
   const [requests, setRequests] = useState(paymentRequests ?? []);
   const [requestingId, setRequestingId] = useState(null);
   const [generatingPO, setGeneratingPO] = useState(false);
+  const [validUntil, setValidUntil] = useState(proposal.valid_until ?? '');
+  const [validUntilDraft, setValidUntilDraft] = useState(proposal.valid_until ?? '');
+  const [savingValidUntil, setSavingValidUntil] = useState(false);
 
   const menuItemStyle = { display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 10px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6, color: 'var(--navy)' };
 
@@ -301,6 +305,27 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
     }
   }
 
+  // Mover la fecha tambien tiene que mover el estado: la pagina vuelve a marcar
+  // 'expirada' en cada carga si valid_until quedo en el pasado, asi que extender
+  // una propuesta vencida sin sacarla de ese estado no cambiaria nada.
+  async function saveValidUntil() {
+    const next = validUntilDraft || null;
+    const today = new Date().toISOString().split('T')[0];
+    const patch = { valid_until: next };
+    let nextStatus = status;
+    if (status === 'expirada' && (!next || next >= today)) nextStatus = proposal.sent_at ? 'enviada' : 'borrador';
+    else if (next && next < today && EXPIRABLE_STATUSES.includes(status)) nextStatus = 'expirada';
+    if (nextStatus !== status) patch.status = nextStatus;
+
+    setSavingValidUntil(true);
+    const { error } = await supabase.from('proposals').update(patch).eq('id', proposal.id);
+    setSavingValidUntil(false);
+    if (error) { alert(t('validUntilError', { error: error.message })); return; }
+    setValidUntil(next ?? '');
+    setStatus(nextStatus);
+    router.refresh();
+  }
+
   async function deleteProposal() {
     setDeleting(true);
     const { data: opts } = await supabase.from('proposal_options').select('id').eq('proposal_id', proposal.id);
@@ -436,6 +461,26 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
           </div>
         </div>
       )}
+
+      <div className="card" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{t('validUntilLabel')}</div>
+          <div style={{ fontSize: 13, color: 'var(--navy)' }}>
+            {validUntil ? formatDatePR(`${validUntil}T12:00:00Z`, { dateStyle: 'long' }, dateLocale) : t('validUntilNone')}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="date" value={validUntilDraft} onChange={e => setValidUntilDraft(e.target.value)} style={{ maxWidth: 180 }} />
+          <button
+            className="btn btn-ghost"
+            disabled={savingValidUntil || (validUntilDraft || '') === (validUntil || '')}
+            onClick={saveValidUntil}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {savingValidUntil ? t('savingLabel') : t('saveValidUntil')}
+          </button>
+        </div>
+      </div>
 
       {status !== 'borrador' && (
         <div className="card" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
