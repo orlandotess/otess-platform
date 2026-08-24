@@ -21,7 +21,8 @@ function getWeekRange(offset = 0) {
   return { weekStart, weekEnd };
 }
 
-export default async function TimesheetPage({ searchParams }) {
+export default async function TimesheetPage(props) {
+  const searchParams = await props.searchParams;
   const tr = await getTranslations('admin.timesheet');
   const locale = await getLocale();
   const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';

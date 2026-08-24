@@ -20,7 +20,8 @@ function dayBoundsPR(day) {
 // "dueño" del bloque sigue siendo jobs.technician_id.
 const JOB_FIELDS = 'id, title, job_number, status, technician_id, scheduled_start, scheduled_end, property_name, street, city, clients(name), technicians(name), job_technicians(technician_id, technicians(name))';
 
-export default async function DispatchPage({ searchParams }) {
+export default async function DispatchPage(props) {
+  const searchParams = await props.searchParams;
   const t = await getTranslations('admin.dispatch');
   const day = searchParams?.day ?? todayPR();
   const { start, end } = dayBoundsPR(day);

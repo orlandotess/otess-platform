@@ -5,7 +5,8 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import PropuestaPublicClient from './public-client';
 import { getTranslations, getLocale } from 'next-intl/server';
 
-export default async function PropuestaPublicPage({ params }) {
+export default async function PropuestaPublicPage(props) {
+  const params = await props.params;
   const t = await getTranslations('propuestas.publicPage');
   const locale = await getLocale();
   const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';

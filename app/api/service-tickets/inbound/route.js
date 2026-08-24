@@ -26,7 +26,7 @@ function parseSender(from) {
 }
 
 export async function POST(request) {
-  const locale = getServerLocale();
+  const locale = await getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.serviceTicketInbound');
   const payload = await request.text();
 

@@ -6,7 +6,7 @@ import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server
 
 export async function POST(request) {
   const { token, option_id, signed_name } = await request.json();
-  const locale = getServerLocale();
+  const locale = await getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.proposalApproved');
 
   if (!token || !option_id) {

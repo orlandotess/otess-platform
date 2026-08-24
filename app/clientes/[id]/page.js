@@ -8,11 +8,12 @@ import Link from 'next/link';
 import ClientesDetail from './ClientesDetail';
 import { getTranslations } from 'next-intl/server';
 
-export default async function ClienteDetailPage({ params }) {
+export default async function ClienteDetailPage(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('clientes.detailPage');
 
-  const authClient = createSupabaseServerClient();
+  const authClient = await createSupabaseServerClient();
   const { data: { user } } = await authClient.auth.getUser();
   let currentRole = 'tecnico';
   if (user?.email) {

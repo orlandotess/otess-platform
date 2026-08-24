@@ -35,7 +35,7 @@ const SOLICITUD_DETAIL_RE = /^\/solicitudes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}
 // Rutas bloqueadas para el rol "vendedor" (redirige a /)
 const VENDEDOR_BLOCKED = ['/accounting', '/admin/usuarios'];
 
-export async function middleware(request) {
+export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
   if (isPublic(pathname)) {

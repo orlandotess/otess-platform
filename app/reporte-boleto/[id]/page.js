@@ -17,7 +17,8 @@ function Section({ title, children }) {
   );
 }
 
-export default async function ReporteBoletoPublico({ params }) {
+export default async function ReporteBoletoPublico(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('reportes.boleto');
   const locale = await getLocale();

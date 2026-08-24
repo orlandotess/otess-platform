@@ -72,7 +72,8 @@ function entryTotal(entry) {
   return own + childrenTotal;
 }
 
-export default async function EstimaDetail({ params }) {
+export default async function EstimaDetail(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('estimados.detail');
 

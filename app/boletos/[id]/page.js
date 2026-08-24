@@ -11,7 +11,8 @@ import { formatDuration } from '../../../lib/formatDuration';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import { getTranslations, getLocale } from 'next-intl/server';
 
-export default async function BoletoDetailPage({ params }) {
+export default async function BoletoDetailPage(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('boletos.detail');
   const locale = await getLocale();

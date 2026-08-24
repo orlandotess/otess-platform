@@ -31,7 +31,8 @@ function getWeekRange(offset = 0) {
 
 const nowPR = () => new Date(Date.now() - 4 * 60 * 60 * 1000);
 
-export default async function RetencionesPage({ searchParams }) {
+export default async function RetencionesPage(props) {
+  const searchParams = await props.searchParams;
   const t = await getTranslations("accounting.retenciones");
   const locale = await getLocale();
   const tab = searchParams?.tab ?? "cliente";

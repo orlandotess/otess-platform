@@ -7,7 +7,8 @@ import Sidebar from '../../../Sidebar';
 import PropuestaForm from '../../PropuestaForm';
 import { getTranslations } from 'next-intl/server';
 
-export default async function EditarPropuestaPage({ params }) {
+export default async function EditarPropuestaPage(props) {
+  const params = await props.params;
   const t = await getTranslations('propuestas.editProposal');
   const { data: proposal } = await supabase
     .from('proposals')

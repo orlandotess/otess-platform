@@ -8,7 +8,7 @@ import { getServerLocale, getEmailTranslator } from '../../../../lib/i18n-server
 
 export async function POST(request) {
   const { token, signed_name } = await request.json();
-  const locale = getServerLocale();
+  const locale = await getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.changeOrderApproved');
   if (!token) return Response.json({ error: 'Falta el token' }, { status: 400 });
 

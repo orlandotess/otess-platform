@@ -10,7 +10,8 @@ import { getTranslations, getLocale } from 'next-intl/server';
 
 const STATUS_CLS = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', aprobada: 'badge-green', rechazada: 'badge-red' };
 
-export default async function OrdenCambioDetail({ params }) {
+export default async function OrdenCambioDetail(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('ordenesCambio.detail');
   const locale = await getLocale();

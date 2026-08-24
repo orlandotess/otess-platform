@@ -7,7 +7,8 @@ import Link from 'next/link';
 import PlanoEditor from './PlanoEditor';
 import { getTranslations } from 'next-intl/server';
 
-export default async function PlanoDetail({ params }) {
+export default async function PlanoDetail(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('planos.detail');
 

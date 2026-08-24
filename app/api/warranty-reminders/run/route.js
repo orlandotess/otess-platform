@@ -21,7 +21,7 @@ export async function GET(request) {
   }
 
   const today = todayPR();
-  const locale = getServerLocale();
+  const locale = await getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.warrantyReminder');
   const threshold = new Date(today);
   threshold.setDate(threshold.getDate() + LEAD_DAYS);

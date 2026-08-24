@@ -7,7 +7,8 @@ import Sidebar from '../../../Sidebar';
 import InvoiceForm from '../../InvoiceForm';
 import { getTranslations } from 'next-intl/server';
 
-export default async function EditarFacturaPage({ params }) {
+export default async function EditarFacturaPage(props) {
+  const params = await props.params;
   const t = await getTranslations('facturas.editInvoice');
   const { data: invoice } = await supabase.from('invoices').select('*').eq('id', params.id).single();
 

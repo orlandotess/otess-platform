@@ -15,7 +15,8 @@ const statusBadgeCls = {
   archivada:            'badge-gray',
 };
 
-export default async function SolicitudDetail({ params }) {
+export default async function SolicitudDetail(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('solicitudes.detail');
   const statusBadge = Object.fromEntries(

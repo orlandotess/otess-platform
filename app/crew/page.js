@@ -447,7 +447,7 @@ export default function FieldApp() {
       if (!session) { window.location.replace('/login'); return; }
       setProfileId(session.user.id);
       // profiles.id doesn't always match auth.users.id in this app — look up by email instead,
-      // same as getCurrentRole() and middleware.js do, or this silently falls through to the
+      // same as getCurrentRole() and proxy.js do, or this silently falls through to the
       // 'OTESS' fallback below and resolves techId to the wrong technician.
       const { data: profile } = await supabase.from('profiles').select('name').eq('email', session.user.email).single();
       if (profile) setTechName(profile.name);

@@ -11,7 +11,8 @@ const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'ba
 const STATUS_KEYS = new Set(['borrador', 'enviada', 'vista', 'cambios_requeridos', 'expirada', 'aprobada', 'rechazada', 'completada']);
 const EXPIRABLE_STATUSES = ['enviada', 'vista', 'cambios_requeridos'];
 
-export default async function PropuestasPage({ searchParams }) {
+export default async function PropuestasPage(props) {
+  const searchParams = await props.searchParams;
   const t = await getTranslations('propuestas.list');
   const showArchived = searchParams?.archived === '1';
 

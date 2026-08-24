@@ -98,7 +98,8 @@ function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}, techWeek
   return { regular, overtime, grossOverridePay };
 }
 
-export default async function AccountingPayroll({ searchParams }) {
+export default async function AccountingPayroll(props) {
+  const searchParams = await props.searchParams;
   const t = await getTranslations('accounting.payroll');
   const locale = await getLocale();
   const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';

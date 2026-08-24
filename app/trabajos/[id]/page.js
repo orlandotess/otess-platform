@@ -17,7 +17,8 @@ const statusBadgeDefs = {
   cancelled:   { cls: 'badge-red',   key: 'cancelled' },
 };
 
-export default async function TrabajoDetail({ params }) {
+export default async function TrabajoDetail(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('trabajos.detail');
   const statusBadge = Object.fromEntries(

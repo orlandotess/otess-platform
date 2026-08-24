@@ -7,7 +7,8 @@ import Sidebar from '../../../Sidebar';
 import ChangeOrderForm from '../../ChangeOrderForm';
 import { getTranslations } from 'next-intl/server';
 
-export default async function EditarOrdenCambioPage({ params }) {
+export default async function EditarOrdenCambioPage(props) {
+  const params = await props.params;
   const t = await getTranslations('ordenesCambio.editOrder');
   const { data: order } = await supabase
     .from('change_orders')

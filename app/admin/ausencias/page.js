@@ -36,7 +36,8 @@ function getRange(period, offset) {
   return { start: base, end: new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)) };
 }
 
-export default async function AusenciasPage({ searchParams }) {
+export default async function AusenciasPage(props) {
+  const searchParams = await props.searchParams;
   const tr = await getTranslations('admin.ausencias');
   const locale = await getLocale();
   const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';

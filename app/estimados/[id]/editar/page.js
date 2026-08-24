@@ -7,7 +7,8 @@ import Sidebar from '../../../Sidebar';
 import EstimateForm from '../../EstimateForm';
 import { getTranslations } from 'next-intl/server';
 
-export default async function EditarEstimadoPage({ params }) {
+export default async function EditarEstimadoPage(props) {
+  const params = await props.params;
   const t = await getTranslations('estimados.editEstimate');
   const { data: estimate } = await supabase.from('estimates').select('*').eq('id', params.id).single();
 

@@ -59,7 +59,7 @@ export async function GET(request) {
   } catch (err) {
     console.error('calendar-reminders/run crashed:', err);
     if (dry) return Response.json({ dry: true, error: err?.message ?? String(err) }, { status: 500 });
-    const locale = getServerLocale();
+    const locale = await getServerLocale();
     const t = await getEmailTranslator(locale, 'emails.calendarReminder');
     const { error: sendError } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
@@ -73,7 +73,7 @@ export async function GET(request) {
 }
 
 async function runDigest({ dry = false, today: todayOverride = null } = {}) {
-  const locale = getServerLocale();
+  const locale = await getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.calendarReminder');
   const today = todayOverride ?? todayPR();
   const { start, end } = dayBoundsPR(today);

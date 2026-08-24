@@ -263,7 +263,8 @@ import MonthPeriodSelector from './MonthPeriodSelector';
 import WeekPeriodSelector from './WeekPeriodSelector';
 import YearPeriodSelector from './YearPeriodSelector';
 
-export default async function AccountingDashboard({ searchParams }) {
+export default async function AccountingDashboard(props) {
+  const searchParams = await props.searchParams;
   const t = await getTranslations('accounting.dashboard');
   const { yearStart, yearEnd, year, month } = getPeriods();
 

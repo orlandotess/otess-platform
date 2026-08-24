@@ -11,7 +11,8 @@ import IVUPaymentTracker from './IVUPaymentTracker';
 import { computeInvoiceIVU } from '../../../lib/ivu';
 import { getTranslations, getLocale } from 'next-intl/server';
 
-export default async function AccountingIVU({ searchParams }) {
+export default async function AccountingIVU(props) {
+  const searchParams = await props.searchParams;
   const t = await getTranslations('accounting.ivu');
   const locale = await getLocale();
   const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';

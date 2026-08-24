@@ -8,7 +8,7 @@ export async function POST(request) {
   const { email } = await request.json();
   if (!email) return Response.json({ error: 'Email requerido' }, { status: 400 });
 
-  const locale = getServerLocale();
+  const locale = await getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.forgotPassword');
 
   const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY);

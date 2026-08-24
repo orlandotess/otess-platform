@@ -27,7 +27,7 @@ export async function GET(request) {
   }
 
   const today = todayPR();
-  const locale = getServerLocale();
+  const locale = await getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.recurringExpense');
 
   const { data: due, error: dueErr } = await supabase

@@ -11,7 +11,8 @@ import InvoiceActions from './InvoiceActions';
 import PaymentsTable from './PaymentsTable';
 import { getTranslations } from 'next-intl/server';
 
-export default async function FacturaDetail({ params }) {
+export default async function FacturaDetail(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('facturas.detail');
 

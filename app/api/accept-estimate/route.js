@@ -6,7 +6,7 @@ import { getServerLocale, getEmailTranslator } from '../../../lib/i18n-server';
 export async function POST(request) {
   try {
     const { estimateId } = await request.json();
-    const locale = getServerLocale();
+    const locale = await getServerLocale();
     const t = await getEmailTranslator(locale, 'emails.estimateAccepted');
     const { data: est } = await supabase.from('estimates').select('*, clients(name)').eq('id', estimateId).single();
     if (!est) return Response.json({ error: 'Estimado no encontrado' }, { status: 404 });

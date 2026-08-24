@@ -5,7 +5,8 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import OrdenCambioPublicClient from './public-client';
 import { getTranslations, getLocale } from 'next-intl/server';
 
-export default async function OrdenCambioPublicPage({ params }) {
+export default async function OrdenCambioPublicPage(props) {
+  const params = await props.params;
   const t = await getTranslations('ordenesCambio.publicPage');
   const locale = await getLocale();
   const { data: order } = await supabase

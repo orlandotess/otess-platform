@@ -28,7 +28,8 @@ function getWeekRange(offset = 0) {
 
 const nowPR = () => new Date(Date.now() - 4 * 60 * 60 * 1000);
 
-export default async function GastosPage({ searchParams }) {
+export default async function GastosPage(props) {
+  const searchParams = await props.searchParams;
   const t = await getTranslations("accounting.gastos");
   const locale = await getLocale();
   const dateLocale = locale === "en" ? "en-US" : "es-PR";

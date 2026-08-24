@@ -6,7 +6,8 @@ import { displayTitle } from '../../../lib/lineItemTitle';
 import AcceptEstimateButton from './AcceptEstimateButton';
 import { getTranslations } from 'next-intl/server';
 
-export default async function EstimaPublica({ params }) {
+export default async function EstimaPublica(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('estimados.public');
 

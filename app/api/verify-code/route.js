@@ -16,7 +16,7 @@ function getCookie(request, name) {
 }
 
 export async function POST(request) {
-  const authClient = createSupabaseServerClient();
+  const authClient = await createSupabaseServerClient();
   const { data: { user } } = await authClient.auth.getUser();
   if (!user?.email) {
     return Response.json({ error: 'No autenticado' }, { status: 401 });

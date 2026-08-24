@@ -24,7 +24,8 @@ function formatViewedAt(dateStr, locale, t) {
   return formatDatePR(dateStr, { month: 'short', day: 'numeric' }, dateLocale);
 }
 
-export default async function EstimadosPage({ searchParams }) {
+export default async function EstimadosPage(props) {
+  const searchParams = await props.searchParams;
   const t = await getTranslations('estimados.list');
   const locale = await getLocale();
   const showArchived = searchParams?.archived === '1';

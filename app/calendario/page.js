@@ -11,7 +11,8 @@ import CalendarioClient from './calendario-client';
 // igual que el que ofrecía el formulario de agendado.
 const ASSESSMENT_DURATION_MINUTES = 60;
 
-export default async function CalendarioPage({ searchParams }) {
+export default async function CalendarioPage(props) {
+  const searchParams = await props.searchParams;
   const view = searchParams?.view ?? 'month';
   const year = parseInt(searchParams?.year ?? new Date().getFullYear());
   const month = parseInt(searchParams?.month ?? new Date().getMonth());

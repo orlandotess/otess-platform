@@ -6,7 +6,8 @@ import Sidebar from '../../../Sidebar';
 import RecurringInvoiceDetailClient from './RecurringInvoiceDetailClient';
 import { getTranslations } from 'next-intl/server';
 
-export default async function FacturaRecurrenteDetailPage({ params }) {
+export default async function FacturaRecurrenteDetailPage(props) {
+  const params = await props.params;
   const t = await getTranslations('facturas.recurringDetail');
   const [{ data: recurring }, { data: clients }, { data: history }, { data: taxRules }] = await Promise.all([
     supabase.from('recurring_invoices').select('*, clients(name, email, company, client_type), recurring_invoice_items(*)').eq('id', params.id).single(),

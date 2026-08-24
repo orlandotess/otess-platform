@@ -2,7 +2,7 @@ import { supabaseServer } from '../../../lib/supabase';
 import { getCurrentRole } from '../../../lib/supabase-server';
 
 // Categorías buscables. `roles` refleja las mismas restricciones que
-// TECNICO_ALLOWED/VENDEDOR_BLOCKED en middleware.js — un técnico solo ve
+// TECNICO_ALLOWED/VENDEDOR_BLOCKED en proxy.js — un técnico solo ve
 // clientes/trabajos/propiedades/contactos/boletos porque es lo único que
 // puede abrir; nunca se le devuelven facturas/estimados/propuestas aunque
 // coincidan con la búsqueda.

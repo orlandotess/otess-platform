@@ -12,7 +12,7 @@ function hashCode(code) {
 }
 
 export async function POST() {
-  const authClient = createSupabaseServerClient();
+  const authClient = await createSupabaseServerClient();
   const { data: { user } } = await authClient.auth.getUser();
   if (!user?.email) {
     return Response.json({ error: 'No autenticado' }, { status: 401 });
@@ -31,7 +31,7 @@ export async function POST() {
     return Response.json({ error: 'El envío de correo no está configurado en este entorno' }, { status: 500 });
   }
 
-  const locale = getServerLocale();
+  const locale = await getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.verificationCode');
 
   const { data: lastCode } = await supabaseServer

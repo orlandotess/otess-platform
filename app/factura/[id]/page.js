@@ -8,7 +8,8 @@ import { displayTitle } from '../../../lib/lineItemTitle';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import { getTranslations } from 'next-intl/server';
 
-export default async function FacturaPublica({ params }) {
+export default async function FacturaPublica(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('facturas.public');
 

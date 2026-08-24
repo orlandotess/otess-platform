@@ -19,7 +19,7 @@ export async function POST(request) {
   const { jobId, technicianId } = await request.json();
   if (!jobId || !technicianId) return Response.json({ error: 'jobId y technicianId son requeridos' }, { status: 400 });
 
-  const locale = getServerLocale();
+  const locale = await getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.jobAssignment');
 
   const [{ data: job }, { data: tech }, { data: profiles }, { data: scheduleDays }] = await Promise.all([

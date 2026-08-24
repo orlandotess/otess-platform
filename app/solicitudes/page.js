@@ -6,7 +6,8 @@ import Link from 'next/link';
 import SolicitudesTableClient from './SolicitudesTableClient';
 import { getTranslations } from 'next-intl/server';
 
-export default async function SolicitudesPage({ searchParams }) {
+export default async function SolicitudesPage(props) {
+  const searchParams = await props.searchParams;
   const t = await getTranslations('solicitudes.list');
   const showArchived = searchParams?.archived === '1';
 

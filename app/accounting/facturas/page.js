@@ -36,7 +36,8 @@ function getWeekRange(offset = 0) {
 
 const nowPR = () => new Date(Date.now() - 4 * 60 * 60 * 1000);
 
-export default async function AccountingFacturas({ searchParams }) {
+export default async function AccountingFacturas(props) {
+  const searchParams = await props.searchParams;
   const t = await getTranslations('accounting.facturasReport');
   const locale = await getLocale();
   const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';

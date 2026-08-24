@@ -18,7 +18,8 @@ function Section({ title, children }) {
   );
 }
 
-export default async function ReportePublico({ params }) {
+export default async function ReportePublico(props) {
+  const params = await props.params;
   const { id } = params;
   const t = await getTranslations('reportes.trabajo');
   const locale = await getLocale();
