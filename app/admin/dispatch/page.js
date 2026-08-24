@@ -30,11 +30,15 @@ export default async function DispatchPage({ searchParams }) {
     .select('id, name')
     .order('name');
 
-  // Jobs ya asignados a un técnico y programados para este día (visita principal).
+  // Jobs programados para este día (visita principal). Sin filtrar por technician_id:
+  // asignar un técnico desde el job (app/trabajos/[id]/JobTabs.js) solo inserta en
+  // job_technicians, así que jobs.technician_id casi siempre queda NULL y el filtro
+  // dejaba fuera del board justamente los jobs del día. El board ya sabe repartirlos
+  // (assignedTechIds mira job_technicians, y los que no tienen ninguno caen en la
+  // fila "Sin técnico").
   const { data: scheduledJobs } = await supabase
     .from('jobs')
     .select(JOB_FIELDS)
-    .not('technician_id', 'is', null)
     .gte('scheduled_start', start)
     .lte('scheduled_start', end)
     .order('scheduled_start');
