@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
+import { matchesCatalogQuery, CATALOG_RESULT_LIMIT } from '../lib/catalogSearch';
 import { displayTitle } from '../lib/lineItemTitle';
 
 // Styled catalog search used in place of a native <input list>/<datalist>,
@@ -12,11 +13,8 @@ import { displayTitle } from '../lib/lineItemTitle';
 export function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder, maxLength, fontSize = 13.5, fontWeight = 700, multiline = false }) {
   const t = useTranslations('shared.lineItemRow');
   const [open, setOpen] = useState(false);
-  const q = (value || '').trim().toLowerCase();
-  const results = (q
-    ? catalogOptions.filter(c => c.name?.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q) || c.item_code?.toLowerCase().includes(q))
-    : catalogOptions
-  ).slice(0, 8);
+  const matches = catalogOptions.filter(c => matchesCatalogQuery(c, value));
+  const results = matches.slice(0, CATALOG_RESULT_LIMIT);
 
   function select(c) {
     onChange(`${c.item_code} — ${c.description}`);
@@ -52,6 +50,11 @@ export function CatalogDescriptionInput({ value, onChange, catalogOptions, place
                 {c.price != null && <div style={{ fontSize: 12, fontWeight: 700, flexShrink: 0, alignSelf: 'center' }}>${Number(c.price).toFixed(2)}</div>}
               </div>
             ))}
+            {matches.length > results.length && (
+              <p style={{ padding: '8px 12px', fontSize: 11.5, color: 'var(--muted)', margin: 0 }}>
+                {t('catalogInput.moreResults', { shown: results.length, total: matches.length })}
+              </p>
+            )}
           </div>
         </>
       )}

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { matchesCatalogQuery, CATALOG_RESULT_LIMIT } from '../lib/catalogSearch';
 
 // Buscador único del catálogo, resuelto por id (no por round-trip de string
 // como CatalogDescriptionInput en app/LineItemRow.js). Al seleccionar copia
@@ -19,12 +20,9 @@ export default function LineItemPicker({ onSelect, tipos = ['labor', 'product', 
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
-  const q = query.trim().toLowerCase();
   const pool = catalogOptions.filter(c => tipos.includes(c.type) && !c.internal_only);
-  const results = (q
-    ? pool.filter(c => c.name?.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q) || c.item_code?.toLowerCase().includes(q))
-    : pool
-  ).slice(0, 8);
+  const matches = pool.filter(c => matchesCatalogQuery(c, query));
+  const results = matches.slice(0, CATALOG_RESULT_LIMIT);
 
   function select(c) {
     onSelect(c);
@@ -60,6 +58,11 @@ export default function LineItemPicker({ onSelect, tipos = ['labor', 'product', 
                 {c.price != null && <div style={{ fontSize: 12, fontWeight: 700, flexShrink: 0, alignSelf: 'center' }}>${Number(c.price).toFixed(2)}</div>}
               </div>
             ))}
+            {matches.length > results.length && (
+              <p style={{ padding: '8px 12px', fontSize: 11.5, color: 'var(--muted)', margin: 0 }}>
+                {t('moreResults', { shown: results.length, total: matches.length })}
+              </p>
+            )}
           </div>
         </>
       )}

@@ -1355,11 +1355,13 @@
         "labor": "Labor",
         "product": "Producto",
         "fee": "Fee"
-      }
+      },
+      "moreResults": "Mostrando {shown} de {total}. Escribe más para afinar."
     },
     "lineItemRow": {
       "catalogInput": {
-        "noResults": "Sin resultados de catálogo. Se usará el texto escrito."
+        "noResults": "Sin resultados de catálogo. Se usará el texto escrito.",
+        "moreResults": "Mostrando {shown} de {total}. Escribe más para afinar."
       },
       "type": {
         "labor": "Labor",

@@ -1355,11 +1355,13 @@
         "labor": "Labor",
         "product": "Product",
         "fee": "Fee"
-      }
+      },
+      "moreResults": "Showing {shown} of {total}. Type more to narrow."
     },
     "lineItemRow": {
       "catalogInput": {
-        "noResults": "No catalog results. The typed text will be used."
+        "noResults": "No catalog results. The typed text will be used.",
+        "moreResults": "Showing {shown} of {total}. Type more to narrow."
       },
       "type": {
         "labor": "Labor",
