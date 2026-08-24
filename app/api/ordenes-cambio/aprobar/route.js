@@ -76,7 +76,7 @@ export async function POST(request) {
   }
 
   try {
-    await getResend().emails.send({
+    const { error: sendError } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('subject', { number: order.change_order_number }),
@@ -89,6 +89,7 @@ export async function POST(request) {
         </div>
       `,
     });
+    if (sendError) console.error('Error notificando aprobación:', sendError.message);
   } catch (err) {
     console.error('Error notificando aprobación:', err);
   }

@@ -30,7 +30,7 @@ export async function POST(request) {
   const publicUrl = `https://app.otesspr.com/propuesta/${proposal.public_token}`;
 
   try {
-    await getResend().emails.send({
+    const { error: sendError } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: proposal.clients.email,
       subject: t('subject', { number: proposal.proposal_number, title: proposal.title }),
@@ -46,6 +46,7 @@ export async function POST(request) {
         </div>
       `,
     });
+    if (sendError) throw new Error(sendError.message);
   } catch (err) {
     return Response.json({ success: true, warning: `Estado actualizado, pero el email no se pudo enviar: ${err.message}` });
   }

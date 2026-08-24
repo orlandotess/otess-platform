@@ -53,7 +53,7 @@ export async function POST(request) {
   // Avisar al equipo — nunca debe impedir que la aprobación del cliente se registre,
   // así que cualquier fallo de envío se ignora.
   try {
-    await getResend().emails.send({
+    const { error: sendError } = await getResend().emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('subject', { number: proposal.proposal_number }),
@@ -67,6 +67,7 @@ export async function POST(request) {
         </div>
       `,
     });
+    if (sendError) console.error('Error notificando aprobación:', sendError.message);
   } catch (err) {
     console.error('Error notificando aprobación:', err);
   }

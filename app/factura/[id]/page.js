@@ -33,7 +33,7 @@ export default async function FacturaPublica({ params }) {
     try {
       const { Resend } = await import('resend');
       const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
+      const { error: sendError } = await resend.emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: 'services@otesspr.com',
         subject: `👁️ Factura ${inv.invoice_number} fue abierta`,
@@ -45,6 +45,7 @@ export default async function FacturaPublica({ params }) {
           </div>
         `,
       });
+      if (sendError) console.error('Error notificando vista:', sendError.message);
     } catch (err) {
       console.error('Error notificando vista:', err);
     }

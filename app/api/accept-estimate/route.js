@@ -24,7 +24,7 @@ export async function POST(request) {
     }]);
 
     try {
-      await getResend().emails.send({
+      const { error: sendError } = await getResend().emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: 'services@otesspr.com',
         subject: t('subject', { number: est.estimate_number }),
@@ -35,6 +35,7 @@ export async function POST(request) {
           </div>
         `,
       });
+      if (sendError) console.error('Error notificando aceptación:', sendError.message);
     } catch (err) {
       console.error('Error notificando aceptación:', err);
     }
