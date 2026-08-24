@@ -91,12 +91,13 @@ export async function GET(request) {
       ...generated.map(g => `<li style="color:#1a7a4a">✓ ${g.title}${g.client ? ` — ${g.client}` : ''}</li>`),
       ...failures.map(f => `<li style="color:#b52a2a">✗ ${f.title} — ${f.reason}</li>`),
     ].join('');
-    await resend.emails.send({
+    const { error: sendError } = await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('subject', { generated: generated.length, failures: failures.length }),
       html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${t('summaryIntro', { date: today })}</p><ul style="font-size:13px">${rows}</ul></div>`,
-    }).catch(err => console.error('Error notificando resumen de mantenimientos recurrentes:', err));
+    }).catch(err => ({ error: err }));
+    if (sendError) console.error('Error notificando resumen de mantenimientos recurrentes:', sendError.message);
   }
 
   return Response.json({ generated, failures });

@@ -61,12 +61,15 @@ export async function GET(request) {
         date: item.warranty_expires_at,
       });
 
-      await resend.emails.send({
+      const { error: sendError } = await resend.emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: 'services@otesspr.com',
         subject: emailTitle,
         html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${emailTitle}</p><p style="font-size:13px;color:#666">${emailBody}</p>${link ? `<a href="${APP_URL}${link}" style="color:#e0972c;font-size:13px">${t('viewJobLink')}</a>` : ''}</div>`,
-      }).catch(err => console.error('Error enviando recordatorio de garantía:', err));
+      });
+      // Si el envío falla hay que dejarlo caer al catch: marcar el recordatorio
+      // como enviado más abajo lo daría por entregado y no se reintentaría nunca.
+      if (sendError) throw new Error(`No se pudo enviar el correo: ${sendError.message}`);
 
       await supabase.from('inbox_notifications').insert([{ type: 'warranty_reminder', title, body, link }]);
 

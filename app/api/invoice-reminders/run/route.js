@@ -45,12 +45,15 @@ async function checkIvuReminders(today, t) {
       const emailSubject = t('ivuSubject', { month: monthLabel });
       const emailBody = t('ivuBody', { dueDate: row.due_date });
 
-      await resend.emails.send({
+      const { error: sendError } = await resend.emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: 'services@otesspr.com',
         subject: emailSubject,
         html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${emailSubject}</p><p style="font-size:13px;color:#666">${emailBody}</p><a href="${APP_URL}/accounting/ivu?year=${row.year}&month=${row.month}" style="color:#e0972c;font-size:13px">${t('ivuLinkText')}</a></div>`,
-      }).catch(err => console.error('Error enviando recordatorio IVU:', err));
+      }).catch(err => ({ error: err }));
+      // Si el envío falla hay que dejarlo caer al catch: marcar el recordatorio
+      // como enviado más abajo lo daría por entregado y no se reintentaría nunca.
+      if (sendError) throw new Error(`No se pudo enviar el correo: ${sendError.message}`);
 
       await supabase.from('inbox_notifications').insert([{
         type: 'ivu_reminder', title, body, link: `/accounting/ivu?year=${row.year}&month=${row.month}`,
@@ -152,12 +155,13 @@ export async function GET(request) {
       ...reminded.map(r => `<li style="color:#1a7a4a">✓ ${r.invoiceNumber} — ${r.clientName} — ${fmt(r.balance)}</li>`),
       ...failures.map(f => `<li style="color:#b52a2a">✗ ${f.invoiceNumber} — ${f.clientName} — ${f.reason}</li>`),
     ].join('');
-    await resend.emails.send({
+    const { error: sendError } = await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('summarySubject', { reminded: reminded.length, failures: failures.length }),
       html: `<div style="font-family:Arial,sans-serif;padding:20px"><p style="font-size:15px;color:#16223d">${t('summaryIntro', { date: today })}</p><ul style="font-size:13px">${rows}</ul></div>`,
-    }).catch(err => console.error('Error notificando resumen de recordatorios:', err));
+    }).catch(err => ({ error: err }));
+    if (sendError) console.error('Error notificando resumen de recordatorios:', sendError.message);
   }
 
   return Response.json({ reminded, failures });

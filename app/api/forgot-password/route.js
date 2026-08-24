@@ -61,12 +61,13 @@ export async function POST(request) {
 </html>`;
 
   try {
-    await resend.emails.send({
+    const { error: sendError } = await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: email,
       subject: t('subject'),
       html,
     });
+    if (sendError) console.error('forgot-password resend error:', sendError.message);
   } catch (err) {
     console.error('forgot-password resend error:', err.message);
   }

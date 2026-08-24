@@ -62,12 +62,13 @@ export async function GET(request) {
     if (dry) return Response.json({ dry: true, error: err?.message ?? String(err) }, { status: 500 });
     const locale = getServerLocale();
     const t = await getEmailTranslator(locale, 'emails.calendarReminder');
-    await resend.emails.send({
+    const { error: sendError } = await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('errorSubject'),
       html: `<div style="font-family:Arial,sans-serif;padding:20px"><p>${t('errorBody')}</p><pre style="white-space:pre-wrap;font-size:12px;color:#b52a2a">${(err?.stack ?? String(err)).replace(/</g, '&lt;')}</pre></div>`,
-    }).catch(sendErr => console.error('Error enviando notificación de fallo:', sendErr));
+    }).catch(err => ({ error: err }));
+    if (sendError) console.error('Error enviando notificación de fallo:', sendError.message);
     return Response.json({ error: err?.message ?? String(err) }, { status: 500 });
   }
 }
@@ -150,6 +151,7 @@ async function runDigest({ dry = false, today: todayOverride = null } = {}) {
 
   const sent = [];
   const unresolved = [];
+  const failed = [];
 
   for (const [techId, items] of byTech) {
     const tech = (technicians ?? []).find(t => t.id === techId);
@@ -157,12 +159,17 @@ async function runDigest({ dry = false, today: todayOverride = null } = {}) {
     const email = resolveTechEmail(tech, profiles ?? []);
     if (!email) { unresolved.push({ name: tech.name, count: items.length }); continue; }
     if (!dry) {
-      await resend.emails.send({
+      const { error: sendError } = await resend.emails.send({
         from: 'OTESS <info@otesspr.com>',
         to: email,
         subject: t('digestTitle', { date: dateLabel }),
         html: digestEmail(dateLabel, items, t),
-      }).catch(err => console.error(`Error enviando agenda a ${tech.name}:`, err));
+      }).catch(err => ({ error: err }));
+      if (sendError) {
+        console.error(`Error enviando agenda a ${tech.name}:`, sendError.message);
+        failed.push({ name: tech.name, count: items.length, reason: sendError.message });
+        continue;
+      }
     }
     sent.push({ name: tech.name, count: items.length });
   }
@@ -181,13 +188,14 @@ async function runDigest({ dry = false, today: todayOverride = null } = {}) {
 
   const adminHtml = `<div style="font-family:Arial,sans-serif;padding:20px;max-width:600px">${adminSections.join('') || `<p style="color:#999">${t('noEventsToday')}</p>`}</div>`;
   if (!dry) {
-    await resend.emails.send({
+    const { error: sendError } = await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: 'services@otesspr.com',
       subject: t('adminSummarySubject', { date: dateLabel }),
       html: adminHtml,
-    }).catch(err => console.error('Error enviando resumen de admin:', err));
+    }).catch(err => ({ error: err }));
+    if (sendError) console.error('Error enviando resumen de admin:', sendError.message);
   }
 
-  return Response.json({ sent, unresolved, unassignedCount: unassigned.length, ...(dry ? { dry: true, adminHtml } : {}) });
+  return Response.json({ sent, unresolved, failed, unassignedCount: unassigned.length, ...(dry ? { dry: true, adminHtml } : {}) });
 }
