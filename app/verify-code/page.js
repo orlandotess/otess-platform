@@ -41,7 +41,7 @@ export default function VerifyCodePage() {
     setError('');
     try {
       const res = await fetch('/api/send-verification-code', { method: 'POST' });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || t('errorSendFailed'));
         return;
@@ -63,7 +63,7 @@ export default function VerifyCodePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || t('errorIncorrectCode'));
         setLoading(false);

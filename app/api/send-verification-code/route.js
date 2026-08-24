@@ -4,7 +4,6 @@ import { createSupabaseServerClient, getCurrentRole } from '../../../lib/supabas
 import { supabaseServer } from '../../../lib/supabase';
 import { getServerLocale, getEmailTranslator } from '../../../lib/i18n-server';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const CODE_TTL_MINUTES = 10;
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -23,6 +22,16 @@ export async function POST() {
   if (role !== 'admin') {
     return Response.json({ error: 'No aplica para este usuario' }, { status: 400 });
   }
+
+  // El cliente se construye aquí y no al importar el módulo: sin RESEND_API_KEY
+  // el constructor lanza, la ruta entera falla al cargarse y el navegador recibe
+  // una página de error HTML en vez de JSON — que el frontend mostraba como
+  // "Error de conexión", escondiendo la causa real.
+  if (!process.env.RESEND_API_KEY) {
+    console.error('send-verification-code: falta RESEND_API_KEY en este entorno');
+    return Response.json({ error: 'El envío de correo no está configurado en este entorno' }, { status: 500 });
+  }
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
   const locale = getServerLocale();
   const t = await getEmailTranslator(locale, 'emails.verificationCode');
@@ -81,12 +90,19 @@ export async function POST() {
 </html>`;
 
   try {
-    await resend.emails.send({
+    // Resend devuelve { error } en vez de lanzar cuando la API rechaza el envío
+    // (clave inválida, dominio sin verificar, límite de tasa). Sin esta
+    // comprobación la ruta respondía success y el código nunca llegaba.
+    const { error: sendError } = await resend.emails.send({
       from: 'OTESS <info@otesspr.com>',
       to: user.email,
       subject: t('subject', { code }),
       html,
     });
+    if (sendError) {
+      console.error('send-verification-code resend error:', sendError.message);
+      return Response.json({ error: 'No se pudo enviar el correo' }, { status: 500 });
+    }
   } catch (err) {
     console.error('send-verification-code resend error:', err.message);
     return Response.json({ error: 'No se pudo enviar el correo' }, { status: 500 });
