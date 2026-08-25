@@ -5,6 +5,11 @@ import { CatalogDescriptionInput } from './LineItemRow';
 import { supabase } from '../lib/supabase';
 
 const DEFAULT_FEET_PER_UNIT = { cable: '1000', tubo: '10' };
+// Offered alongside the catalog results on the cable Tipo: the crew has to read
+// the run and know which cable to pull, whether or not that cable is a catalog
+// item yet. Picking one leaves it as free text, so its cost and markup can be
+// typed underneath like any other new material.
+const DEFAULT_CABLE_TYPES = ['Cat6 Riser', 'Cat6 Outdoor', 'Cat6 Plenum', 'Cat5 Outdoor'];
 
 function suggestItemCode(desc) {
   return desc.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
@@ -18,7 +23,27 @@ function emptyAccessory() {
 // things on a run, and until they could be picked from the catalog they were
 // the only materials that always went out at $0 — the calculated count reused
 // an accessory's price only if one happened to share its description.
-const EMPTY_MATERIAL_META = { unit_price: '', supplier_price: '', msrp: '', vendor: '', catalog_item_id: null };
+const EMPTY_MATERIAL_META = { unit_price: '', supplier_price: '', msrp: '', vendor: '', catalog_item_id: null, markup_pct: '', saveToCatalog: true, newItemCode: '' };
+
+// What a material is worth on the line. A catalog pick carries its own price;
+// anything typed here is worth its cost plus its markup — the same arithmetic
+// that saves it to the catalog further down. Until this existed the two
+// disagreed: a material typed with cost and markup was filed in the catalog at
+// the marked-up price and quoted to the client at $0.
+function materialUnitPrice(m) {
+  if (m?.catalog_item_id) return parseFloat(m.unit_price) || 0;
+  const own = parseFloat(m?.unit_price);
+  if (!isNaN(own) && own > 0) return own;
+  const cost = parseFloat(m?.supplier_price) || 0;
+  const pct = m?.markup_pct !== '' && m?.markup_pct != null ? parseFloat(m.markup_pct) : null;
+  return cost > 0 && pct != null && !isNaN(pct) ? markedUpPrice(cost, pct) : cost;
+}
+// Rounded to the cent, the way Catálogo rounds it when the same markup is
+// applied there — otherwise the line carries 1.3095, the catalog carries
+// 1.31, and 16 of them disagree by a penny.
+function markedUpPrice(cost, pct) {
+  return Math.round(cost * (1 + pct / 100) * 100) / 100;
+}
 function catalogMeta(match) {
   if (!match) return { ...EMPTY_MATERIAL_META };
   return {
@@ -27,6 +52,9 @@ function catalogMeta(match) {
     msrp: match.msrp ?? '',
     vendor: match.vendor || '',
     catalog_item_id: match.id,
+    markup_pct: '',
+    saveToCatalog: false,
+    newItemCode: '',
   };
 }
 function emptyCableRow() {
@@ -50,7 +78,7 @@ function mergeAccessoryMaterials(map, materials) {
     map.set(key, {
       desc: existing ? existing.desc : desc,
       qty: (existing?.qty || 0) + qty,
-      unit_price: existing?.unit_price ?? (parseFloat(m.unit_price) || 0),
+      unit_price: existing?.unit_price ?? materialUnitPrice(m),
       supplier_price: existing?.supplier_price ?? (parseFloat(m.supplier_price) || 0),
       msrp: existing?.msrp ?? (m.msrp ?? ''),
       vendor: existing?.vendor ?? (m.vendor || ''),
@@ -83,6 +111,9 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
     const match = resolveCatalogMaterial(value);
     setDescription(match ? (match.name || match.description) : value);
     setDescriptionMeta(catalogMeta(match));
+  }
+  function updateDescriptionMeta(field, value) {
+    setDescriptionMeta(m => ({ ...m, [field]: value }));
   }
 
   function handleTypeChange(type) {
@@ -133,6 +164,11 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       ? { ...seg, calcDescription: match ? (match.name || match.description) : value, calcMeta: catalogMeta(match) }
       : seg));
   }
+  function updateSegmentMeta(idx, field, value) {
+    setSegments(s => s.map((seg, i) => i === idx
+      ? { ...seg, calcMeta: { ...(seg.calcMeta ?? EMPTY_MATERIAL_META), [field]: value } }
+      : seg));
+  }
   // A lado that doesn't name its own tubería falls back to the run's default —
   // description and pricing together, so the fallback isn't priced at $0 just
   // for being a fallback.
@@ -162,8 +198,10 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
         // `||`, not `??`: an accessory row typed with this same description but
         // left unpriced used to win and send the tubo out at $0. A real price
         // from either side wins over a zero from the other.
-        unit_price: existing?.unit_price || meta.unit_price || 0,
-        supplier_price: existing?.supplier_price || meta.supplier_price || 0,
+        unit_price: existing?.unit_price || materialUnitPrice(meta),
+        // parseFloat: a meta typed into the form carries strings, and the
+        // totals preview formats this with toFixed().
+        supplier_price: existing?.supplier_price || parseFloat(meta.supplier_price) || 0,
         msrp: existing?.msrp || meta.msrp || '',
         vendor: existing?.vendor || meta.vendor || '',
         catalog_item_id: existing?.catalog_item_id ?? meta.catalog_item_id ?? null,
@@ -180,9 +218,15 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   // Tipo, not per corrida.
   // ---------------------------------------------------------------------
   const [cableRows, setCableRows] = useState([emptyCableRow()]);
+  const cableTypeOptions = [...new Set([...DEFAULT_CABLE_TYPES, ...cableRows.map(r => r.type.trim()).filter(Boolean)])];
 
   function addCableRow() {
     setCableRows(r => [...r, emptyCableRow()]);
+  }
+  function updateCableRowTypeMeta(idx, field, value) {
+    setCableRows(r => r.map((row, i) => i === idx
+      ? { ...row, typeMeta: { ...(row.typeMeta ?? EMPTY_MATERIAL_META), [field]: value } }
+      : row));
   }
   function updateCableRowType(idx, value) {
     const match = resolveCatalogMaterial(value);
@@ -232,8 +276,9 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
         type: existing ? existing.type : type,
         feet: (existing?.feet || 0) + feet,
         // Corridas pool by type, so the pricing comes from whichever corrida
-        // picked the cable out of the catalog — the rest only typed its name.
-        meta: existing?.meta?.catalog_item_id ? existing.meta : (rowMeta.catalog_item_id ? rowMeta : (existing?.meta ?? rowMeta)),
+        // actually priced the cable — picked it from the catalog, or typed its
+        // cost. The rest only named it.
+        meta: materialUnitPrice(existing?.meta) > 0 ? existing.meta : (materialUnitPrice(rowMeta) > 0 ? rowMeta : (existing?.meta ?? rowMeta)),
       });
     });
     return [...map.values()].map(tt => ({ ...tt, boxes: feetPerBox > 0 ? Math.ceil(tt.feet / parseFloat(feetPerBox)) : 0 }));
@@ -252,8 +297,10 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
         qty: (existing?.qty || 0) + tt.boxes,
         // Same rule as the tubo above: a real price beats a zero, whichever
         // side it came from.
-        unit_price: existing?.unit_price || meta.unit_price || 0,
-        supplier_price: existing?.supplier_price || meta.supplier_price || 0,
+        unit_price: existing?.unit_price || materialUnitPrice(meta),
+        // parseFloat: a meta typed into the form carries strings, and the
+        // totals preview formats this with toFixed().
+        supplier_price: existing?.supplier_price || parseFloat(meta.supplier_price) || 0,
         msrp: existing?.msrp || meta.msrp || '',
         vendor: existing?.vendor || meta.vendor || '',
         catalog_item_id: existing?.catalog_item_id ?? meta.catalog_item_id ?? null,
@@ -267,10 +314,20 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   async function handleAdd() {
     if (materialTotals.length === 0) return;
     const toSave = new Map();
-    const accessoryRows = calcType === 'tubo'
-      ? segments.flatMap(seg => seg.materials || [])
-      : cableRows.flatMap(row => row.materials || []);
-    accessoryRows.forEach(m => {
+    // Every field that names a material feeds this, not just the accessory
+    // rows: a tubería or a cable typed with its cost belongs in the catalog
+    // for the same reason a locknut does — so the next run finds it priced.
+    const namedMaterials = calcType === 'tubo'
+      ? [
+          ...segments.flatMap(seg => seg.materials || []),
+          ...segments.map(seg => ({ ...(seg.calcMeta ?? {}), description: (seg.calcDescription || '').trim() })),
+          { ...descriptionMeta, description: description.trim() },
+        ]
+      : [
+          ...cableRows.flatMap(row => row.materials || []),
+          ...cableRows.map(row => ({ ...(row.typeMeta ?? {}), description: row.type.trim() })),
+        ];
+    namedMaterials.forEach(m => {
       if (!m.saveToCatalog || m.catalog_item_id) return;
       const desc = (m.description || '').trim();
       const code = (m.newItemCode || suggestItemCode(desc)).trim();
@@ -283,7 +340,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       const results = await Promise.all([...toSave.values()].map(({ desc, code, cost, pct }) =>
         supabase.from('catalog_items').insert([{
           type: 'product', item_code: code, name: desc, description: desc,
-          price: cost > 0 && pct != null ? cost * (1 + pct / 100) : cost,
+          price: cost > 0 && pct != null ? markedUpPrice(cost, pct) : cost,
           supplier_price: cost || null, markup_pct: pct, vendor: vendor.trim() || null,
           tax_category: 'product', internal_only: false,
         }])
@@ -323,6 +380,51 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
     });
   }
 
+  // Cost, markup and "save to catalog" for a material that isn't in the catalog
+  // yet. Offered under every field that names one — the accessories, the tubo
+  // and the cable alike — since the catalog rarely has the tubería already and
+  // typing the cost here is the whole point.
+  function renderNewMaterialFields(description, meta, onField) {
+    if (meta?.catalog_item_id || !(description || '').trim()) return null;
+    return (
+      <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center', fontSize: 11, flexWrap: 'wrap' }}>
+        <input
+          type="number"
+          value={meta?.supplier_price ?? ''}
+          onChange={e => onField('supplier_price', e.target.value)}
+          placeholder={t('accessory.costPlaceholder')}
+          min="0"
+          step="0.01"
+          style={{ width: 80, fontSize: 11 }}
+        />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 400, textTransform: 'none', letterSpacing: 'normal' }}>
+          <input type="checkbox" checked={!!meta?.saveToCatalog} onChange={e => onField('saveToCatalog', e.target.checked)} />
+          {t('accessory.saveToCatalog')}
+        </label>
+        {meta?.saveToCatalog && (
+          <>
+            <input
+              value={meta.newItemCode || suggestItemCode(description)}
+              onChange={e => onField('newItemCode', e.target.value)}
+              placeholder={t('accessory.codePlaceholder')}
+              style={{ width: 90, fontSize: 11, fontFamily: 'monospace' }}
+            />
+            <input
+              type="number"
+              value={meta.markup_pct ?? ''}
+              onChange={e => onField('markup_pct', e.target.value)}
+              placeholder={t('accessory.markupPlaceholder')}
+              min="0"
+              step="1"
+              title={t('accessory.markupTitle')}
+              style={{ width: 70, fontSize: 11 }}
+            />
+          </>
+        )}
+      </div>
+    );
+  }
+
   function renderAccessoryList(materials, onFieldChange, onRemove, onAddClick) {
     return (
       <>
@@ -350,43 +452,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
               />
               <button type="button" onClick={() => onRemove(midx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>×</button>
             </div>
-            {!mat.catalog_item_id && mat.description.trim() && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center', fontSize: 11, flexWrap: 'wrap' }}>
-                <input
-                  type="number"
-                  value={mat.supplier_price ?? ''}
-                  onChange={e => onFieldChange(midx, 'supplier_price', e.target.value)}
-                  placeholder={t('accessory.costPlaceholder')}
-                  min="0"
-                  step="0.01"
-                  style={{ width: 80, fontSize: 11 }}
-                />
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 400, textTransform: 'none', letterSpacing: 'normal' }}>
-                  <input type="checkbox" checked={!!mat.saveToCatalog} onChange={e => onFieldChange(midx, 'saveToCatalog', e.target.checked)} />
-                  {t('accessory.saveToCatalog')}
-                </label>
-                {mat.saveToCatalog && (
-                  <>
-                    <input
-                      value={mat.newItemCode || suggestItemCode(mat.description)}
-                      onChange={e => onFieldChange(midx, 'newItemCode', e.target.value)}
-                      placeholder={t('accessory.codePlaceholder')}
-                      style={{ width: 90, fontSize: 11, fontFamily: 'monospace' }}
-                    />
-                    <input
-                      type="number"
-                      value={mat.markup_pct ?? ''}
-                      onChange={e => onFieldChange(midx, 'markup_pct', e.target.value)}
-                      placeholder={t('accessory.markupPlaceholder')}
-                      min="0"
-                      step="1"
-                      title={t('accessory.markupTitle')}
-                      style={{ width: 70, fontSize: 11 }}
-                    />
-                  </>
-                )}
-              </div>
-            )}
+            {renderNewMaterialFields(mat.description, mat, (field, value) => onFieldChange(midx, field, value))}
           </div>
         ))}
         <button type="button" className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px', marginTop: 6, marginLeft: 20 }} onClick={onAddClick}>+ {t('accessory.addMaterial')}</button>
@@ -435,6 +501,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
               fontSize={13.5}
               fontWeight={400}
             />
+            {renderNewMaterialFields(description, descriptionMeta, updateDescriptionMeta)}
           </div>
         )}
 
@@ -498,6 +565,11 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                     <div style={{ fontSize: 13, fontWeight: 700, padding: '7px 0' }}>{segmentUnitsNeeded(seg)}</div>
                   </div>
                 </div>
+                {(seg.calcDescription || '').trim() !== '' && (
+                  <div style={{ marginLeft: 20 }}>
+                    {renderNewMaterialFields(seg.calcDescription, seg.calcMeta, (field, value) => updateSegmentMeta(idx, field, value))}
+                  </div>
+                )}
               </div>
             ))}
             <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addSegment}>+ {t('segments.addSide')}</button>
@@ -558,10 +630,12 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                     value={row.type}
                     onChange={v => updateCableRowType(idx, v)}
                     catalogOptions={catalogOptions}
+                    suggestions={cableTypeOptions}
                     placeholder={t('cableRows.typePlaceholder')}
                     fontSize={12.5}
                     fontWeight={400}
                   />
+                  {renderNewMaterialFields(row.type, row.typeMeta, (field, value) => updateCableRowTypeMeta(idx, field, value))}
                 </div>
                 {renderAccessoryList(
                   row.materials,

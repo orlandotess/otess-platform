@@ -10,11 +10,18 @@ import { displayTitle } from '../lib/lineItemTitle';
 // picking a result calls onChange with "item_code — description" so the
 // parent's existing `catalogItems.find(c => \`${c.item_code} — ${c.description}\` === value)`
 // matching logic keeps working unchanged.
-export function CatalogDescriptionInput({ value, onChange, catalogOptions, placeholder, maxLength, fontSize = 13.5, fontWeight = 700, multiline = false }) {
+// `suggestions` are plain names offered above the catalog results — the cable
+// types the crew reads off a run, which have to stay pickable whether or not
+// the catalog carries them yet. Picking one is the same as typing it: free
+// text, so its cost and markup can be filled in underneath.
+export function CatalogDescriptionInput({ value, onChange, catalogOptions, suggestions = [], placeholder, maxLength, fontSize = 13.5, fontWeight = 700, multiline = false }) {
   const t = useTranslations('shared.lineItemRow');
   const [open, setOpen] = useState(false);
   const matches = catalogOptions.filter(c => matchesCatalogQuery(c, value));
   const results = matches.slice(0, CATALOG_RESULT_LIMIT);
+  const query = (value ?? '').trim().toLowerCase();
+  const suggestionResults = suggestions.filter(sug =>
+    sug.toLowerCase() !== query && sug.toLowerCase().includes(query));
 
   function select(c) {
     onChange(`${c.item_code} — ${c.description}`);
@@ -34,11 +41,17 @@ export function CatalogDescriptionInput({ value, onChange, catalogOptions, place
         rows={multiline ? 3 : undefined}
         style={{ fontSize, fontWeight, width: '100%', ...(multiline ? { resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4, minHeight: 60 } : {}) }}
       />
-      {open && catalogOptions.length > 0 && (
+      {open && (catalogOptions.length > 0 || suggestionResults.length > 0) && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 20, maxHeight: 260, overflowY: 'auto' }}>
-            {results.length === 0 ? (
+            {suggestionResults.map(sug => (
+              <div key={`sug-${sug}`} onMouseDown={e => e.preventDefault()} onClick={() => { onChange(sug); setOpen(false); }}
+                style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12.5, color: 'var(--muted)' }}>
+                {sug}
+              </div>
+            ))}
+            {results.length === 0 && suggestionResults.length === 0 ? (
               <p style={{ padding: '10px 12px', fontSize: 12.5, color: 'var(--muted)' }}>{t('catalogInput.noResults')}</p>
             ) : results.map(c => (
               <div key={c.id} onMouseDown={e => e.preventDefault()} onClick={() => select(c)}
