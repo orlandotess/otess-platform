@@ -1487,6 +1487,23 @@
       "grandTotalLabel": "TOTAL",
       "filenameSuffix": "Lista_Compra"
     },
+    "materialSummary": {
+      "title": "Resumen de materiales",
+      "subtitle": "Cantidad total de cada material, sumada a través de todas las áreas.",
+      "exportBtn": "Exportar CSV",
+      "generalArea": "General",
+      "columnMaterial": "Material",
+      "columnQuantity": "Cantidad",
+      "columnUnitPrice": "Precio unit.",
+      "columnTotal": "Total",
+      "mixedPrice": "Varía",
+      "grandTotalLabel": "TOTAL",
+      "mixedPriceNote": "Varía = el material se cotizó a más de un precio.",
+      "unpricedWarning": "{count, plural, one {1 material sin precio} other {# materiales sin precio}}",
+      "unpricedHint": "Está saliendo gratis en el estimado. Añádele precio en el Catálogo o en la línea.",
+      "noProductsAlert": "No hay materiales para exportar.",
+      "filenameSuffix": "Resumen_Materiales"
+    },
     "equipmentTypes": {
       "camera": "Cámara",
       "access_control": "Control de Acceso",

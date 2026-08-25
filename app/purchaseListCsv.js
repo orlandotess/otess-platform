@@ -41,7 +41,9 @@ export function exportPurchaseListCSV(items, docNumber, t) {
   flushVendorSubtotal();
   csvRows.push(['', '', '', t('grandTotalLabel'), grandTotal.toFixed(2)]);
 
-  const csvContent = csvRows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+  // Descriptions here carry inch marks (Tubo pvc 1"), and an embedded quote has
+  // to be doubled inside a quoted CSV field (RFC 4180) or the field ends early.
+  const csvContent = csvRows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

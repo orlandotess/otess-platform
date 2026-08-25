@@ -631,6 +631,9 @@ textarea { resize: vertical; min-height: 80px; }
 }
 
 @media print {
+  /* Internal-only blocks (e.g. the material takeoff summary on an estimate)
+     stay off anything the client ends up holding. */
+  .no-print { display: none !important; }
   .sidebar, .page-header .btn, nav, button { display: none !important; }
   .admin-shell { display: block; }
   .main-content { margin: 0; padding: 20px; max-width: 100%; }

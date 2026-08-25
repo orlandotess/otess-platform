@@ -5,6 +5,7 @@ import { Fragment } from 'react';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import EstimateActions from './EstimateActions';
+import MaterialSummary from '../../MaterialSummary';
 import { displayTitle } from '../../../lib/lineItemTitle';
 import { getTranslations } from 'next-intl/server';
 
@@ -393,6 +394,8 @@ export default async function EstimaDetail(props) {
             </div>
           )}
         </div>
+
+        <MaterialSummary items={items ?? []} docNumber={est.estimate_number} />
       </main>
     </div>
   );
