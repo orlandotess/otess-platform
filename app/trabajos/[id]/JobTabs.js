@@ -12,6 +12,7 @@ import TaxBreakdown from '../../TaxBreakdown';
 import { calcularIVU } from '../../../lib/tax';
 import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import MaterialSummary from '../../MaterialSummary';
+import { normalizeForSummary } from '../../../lib/materialSummary';
 import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDatePR, formatDateTimePR } from '../../../lib/datetimeLocal';
@@ -477,13 +478,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   // parent/child awareness, so bundled accessories need their price zeroed
   // out here before they're fed in.
   const lineItemsForTax = lineItems.map(it => it.parent_item_id && itemLineTotal(it) === 0 ? { ...it, unit_price: 0 } : it);
-  // The material summary values every material at its own price, since the
-  // warehouse still buys a bundled accessory. On a job that money is folded
-  // into the parent's price instead of billed on its own, so the summary can
-  // legitimately total more than the job does — say so, but only when a
-  // bundled accessory actually carries a price.
-  const hasBundledPrices = lineItems.some(it =>
-    it.parent_item_id && itemLineTotal(it) === 0 && (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0) > 0);
+  // A bundled accessory brings its quantity to the material summary — the
+  // warehouse pulls it either way — but its money already sits in its parent's
+  // price, exactly as itemLineTotal() treats it, so the summary totals what
+  // the job actually bills.
+  const summaryItems = normalizeForSummary(lineItems);
   async function toggleCombinePrice(item, checked) {
     setLineItems(prev => prev.map(i => i.id === item.id ? { ...i, combine_price: checked } : i));
     await supabase.from('job_line_items').update({ combine_price: checked }).eq('id', item.id);
@@ -1979,7 +1978,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
             </div>
           </div>
 
-          <MaterialSummary items={lineItems} docNumber={job.job_number} bundledPricesExcluded={hasBundledPrices} />
+          <MaterialSummary items={summaryItems} docNumber={job.job_number} />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">

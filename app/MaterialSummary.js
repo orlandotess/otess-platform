@@ -7,7 +7,7 @@ import { buildMaterialSummary, exportMaterialSummaryCSV } from '../lib/materialS
 // `estimate-doc` element the client PDF is captured from, and marked no-print —
 // it exposes bundled quantities and costs the client-facing document folds into
 // a single lot price.
-export default function MaterialSummary({ items = [], docNumber, bundledPricesExcluded = false, style }) {
+export default function MaterialSummary({ items = [], docNumber, style }) {
   const t = useTranslations('shared.materialSummary');
   const generalArea = t('generalArea');
   const { rows, areas, totalQuantity, grandTotal, unpricedCount } = buildMaterialSummary(items, generalArea);
@@ -61,9 +61,11 @@ export default function MaterialSummary({ items = [], docNumber, bundledPricesEx
                 ))}
                 <td style={td({ textAlign: 'right', fontWeight: 700 })}>{r.quantity}</td>
                 <td style={td({ textAlign: 'right', color: r.unpriced ? 'var(--warn)' : 'var(--muted)' })}>
-                  {r.unitPrice == null ? t('mixedPrice') : fmt(r.unitPrice)}
+                  {r.priceElsewhere ? t('includedPrice') : r.unitPrice == null ? t('mixedPrice') : fmt(r.unitPrice)}
                 </td>
-                <td style={td({ textAlign: 'right', fontWeight: 700, color: r.unpriced ? 'var(--warn)' : 'var(--navy)' })}>{fmt(r.lineTotal)}</td>
+                <td style={td({ textAlign: 'right', fontWeight: 700, color: r.unpriced ? 'var(--warn)' : 'var(--navy)' })}>
+                  {r.priceElsewhere ? '—' : fmt(r.lineTotal)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -79,11 +81,11 @@ export default function MaterialSummary({ items = [], docNumber, bundledPricesEx
         </table>
       </div>
 
-      {rows.some(r => r.unitPrice == null) && (
+      {rows.some(r => !r.priceElsewhere && r.unitPrice == null) && (
         <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--muted)' }}>{t('mixedPriceNote')}</div>
       )}
-      {bundledPricesExcluded && (
-        <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--muted)' }}>{t('bundledNote')}</div>
+      {rows.some(r => r.priceElsewhere) && (
+        <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--muted)' }}>{t('includedPriceNote')}</div>
       )}
     </div>
   );

@@ -9,6 +9,8 @@ import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { exportProposalDataCSV } from '../../propuestaDataCsv';
 import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { useTranslations, useLocale } from 'next-intl';
+import MaterialSummary from '../../MaterialSummary';
+import { normalizeForSummary } from '../../../lib/materialSummary';
 
 const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', cambios_requeridos: 'badge-amber', expirada: 'badge-gray', aprobada: 'badge-green', rechazada: 'badge-red', completada: 'badge-dark' };
 const STATUS_ORDER = ['borrador', 'enviada', 'vista', 'cambios_requeridos', 'expirada', 'aprobada', 'rechazada', 'completada'];
@@ -601,6 +603,11 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
                 </div>
               );
             })()}
+            <MaterialSummary
+              items={normalizeForSummary(opt.items, { typeField: 'item_type', dropCalculatorGroups: true })}
+              docNumber={`${proposal.proposal_number}_${opt.name}`}
+              style={{ marginBottom: 12 }}
+            />
             <div id={`proposal-doc-${opt.id}`} className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
                 <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} />
