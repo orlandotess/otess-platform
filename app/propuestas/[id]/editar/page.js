@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { Suspense } from 'react';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../Sidebar';
 import PropuestaForm from '../../PropuestaForm';
@@ -65,14 +64,12 @@ export default async function EditarPropuestaPage(props) {
   }
 
   return (
-    <Suspense fallback={<div style={{ padding: 40 }}>{t('loading')}</div>}>
-      <PropuestaForm
-        initialData={{
-          proposal: { ...proposal, cover_photo_signed_url: coverSignedUrl },
-          options: optionsWithSignedPhotos,
-          payments: payments ?? [],
-        }}
-      />
-    </Suspense>
+    <PropuestaForm
+      initialData={{
+        proposal: { ...proposal, cover_photo_signed_url: coverSignedUrl },
+        options: optionsWithSignedPhotos,
+        payments: payments ?? [],
+      }}
+    />
   );
 }

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../../Sidebar';
@@ -13,12 +13,7 @@ import { localInputToIso } from '../../../lib/datetimeLocal';
 import { useTranslations } from 'next-intl';
 
 export default function NuevoTrabajo() {
-  const t = useTranslations('trabajos.newJob');
-  return (
-    <Suspense fallback={<div style={{ padding: 40 }}>{t('loading')}</div>}>
-      <NuevoTrabajoForm />
-    </Suspense>
-  );
+  return <NuevoTrabajoForm />;
 }
 
 function emptyItem(overrides = {}) {

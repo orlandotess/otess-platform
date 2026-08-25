@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { Suspense } from 'react';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../Sidebar';
 import ChangeOrderForm from '../../ChangeOrderForm';
@@ -45,9 +44,5 @@ export default async function EditarOrdenCambioPage(props) {
     })
   );
 
-  return (
-    <Suspense fallback={<div style={{ padding: 40 }}>{t('loading')}</div>}>
-      <ChangeOrderForm initialData={{ order, items: itemsWithSignedUrls }} />
-    </Suspense>
-  );
+  return <ChangeOrderForm initialData={{ order, items: itemsWithSignedUrls }} />;
 }

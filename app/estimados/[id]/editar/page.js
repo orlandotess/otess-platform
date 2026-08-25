@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { Suspense } from 'react';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../Sidebar';
 import EstimateForm from '../../EstimateForm';
@@ -42,9 +41,5 @@ export default async function EditarEstimadoPage(props) {
     })
   );
 
-  return (
-    <Suspense fallback={<div style={{ padding: 40 }}>{t('loading')}</div>}>
-      <EstimateForm initialData={{ estimate, items: itemsWithSignedUrls }} />
-    </Suspense>
-  );
+  return <EstimateForm initialData={{ estimate, items: itemsWithSignedUrls }} />;
 }

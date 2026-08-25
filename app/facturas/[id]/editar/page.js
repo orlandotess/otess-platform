@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { Suspense } from 'react';
 import { supabaseServer as supabase } from '../../../../lib/supabase';
 import Sidebar from '../../../Sidebar';
 import InvoiceForm from '../../InvoiceForm';
@@ -41,9 +40,5 @@ export default async function EditarFacturaPage(props) {
     })
   );
 
-  return (
-    <Suspense fallback={<div style={{ padding: 40 }}>{t('loading')}</div>}>
-      <InvoiceForm initialData={{ invoice, items: itemsWithSignedUrls }} />
-    </Suspense>
-  );
+  return <InvoiceForm initialData={{ invoice, items: itemsWithSignedUrls }} />;
 }
