@@ -72,6 +72,23 @@ function entryTotal(entry) {
   return own + childrenTotal;
 }
 
+// A parent whose accessories are bundled into its price (the calculator's
+// default) is quoted as one lot: entryTotal() above already rolls the children
+// in, so showing the parent's own quantity and unit price beside that total
+// reads as a contradiction ("76 x $12.36" next to a $1,169 row). Those two
+// columns render as "—", the same way a repeated-title group does.
+function isBundle(item) {
+  return (item.children ?? []).length > 0 && item.combine_price !== false;
+}
+// Cost for a bundle is the whole lot's cost — parent plus every accessory —
+// mirroring the group branch's supplier_total rather than a single unit cost.
+function bundleSupplierTotal(item) {
+  return [item, ...(item.children ?? [])].reduce(
+    (s, i) => s + (i.supplier_price != null ? (Number(i.supplier_price) || 0) * (Number(i.quantity) || 0) : 0),
+    0,
+  );
+}
+
 export default async function EstimaDetail(props) {
   const params = await props.params;
   const { id } = params;
@@ -275,14 +292,25 @@ export default async function EstimaDetail(props) {
                       {entry.item.type === 'labor' ? t('table.laborType') : t('table.productType')}
                     </span>
                   </td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>{entry.item.quantity}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>{isBundle(entry.item) ? '—' : entry.item.quantity}</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>
-                    {entry.item.msrp != null && (
-                      <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${Number(entry.item.msrp).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                    )}
-                    ${Number(entry.item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                    {entry.item.supplier_price != null && (
-                      <div style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${Number(entry.item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    {isBundle(entry.item) ? (
+                      <>
+                        —
+                        {bundleSupplierTotal(entry.item) > 0 && (
+                          <div style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${bundleSupplierTotal(entry.item).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {entry.item.msrp != null && (
+                          <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${Number(entry.item.msrp).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        )}
+                        ${Number(entry.item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        {entry.item.supplier_price != null && (
+                          <div style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${Number(entry.item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        )}
+                      </>
                     )}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>

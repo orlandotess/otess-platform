@@ -233,6 +233,17 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
     materialTotals.forEach((item, groupIndex) => {
       onAdd({
         title: materialGroupTitle.trim() || null,
+        // On estimates the first material of the batch becomes the parent row
+        // and the rest hang off it as accessories (see addPrefilledItem in
+        // app/estimados/EstimateForm.js). Seeding that parent's
+        // group_description with the group title makes the client-facing row
+        // read "Pipe, Box and Miscellaneous" instead of whichever material
+        // happened to sort first ("Tubo pvc 1\""). Still editable per line
+        // afterwards — but only seed it when the batch actually produces
+        // accessories, since the estimate form only exposes the field for a
+        // parent that has children (isGroupHead); a lone material would carry
+        // a description the user could no longer edit.
+        group_description: groupIndex === 0 && materialTotals.length > 1 ? (materialGroupTitle.trim() || null) : null,
         description: item.desc,
         area: area.trim() || '',
         vendor: item.vendor || vendor.trim() || '',

@@ -86,6 +86,12 @@ export default async function EstimaPublica(props) {
         description: item.group_description?.trim() || item.description,
         displayTotal: Number(item.line_total) + Number(item.tax_amount) + bundledTotal,
         accessoryCount: bundled ? children.length : 0,
+        // A bundle is priced as one lot: displayTotal above already rolls the
+        // accessories in, so printing the parent's own quantity and unit price
+        // beside it reads as a contradiction ("76 x $12.36" next to a $1,169
+        // total). Those two columns render as "—" instead — same as a
+        // repeated-title group does on the internal detail page.
+        isBundle: bundled && children.length > 0,
       },
       ...(bundled ? [] : children.map(c => ({ ...c, displayTotal: Number(c.line_total) + Number(c.tax_amount), accessoryCount: 0 }))),
     ];
@@ -164,8 +170,8 @@ export default async function EstimaPublica(props) {
                         {item.type === 'labor' ? t('table.laborType') : t('table.productType')}
                       </span>
                     </td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{item.quantity}</td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{fmt(item.unit_price)}</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{item.isBundle ? '—' : item.quantity}</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{item.isBundle ? '—' : fmt(item.unit_price)}</td>
                     <td style={{ padding: '12px', textAlign: 'right', color: '#999', fontSize: 12, borderBottom: '1px solid #f4f4f4' }}>{item.tax_rate === 0 ? t('exempt') : `${(item.tax_rate * 100).toFixed(1)}%`}</td>
                     <td style={{ padding: '12px 0 12px 12px', textAlign: 'right', fontWeight: 700, fontSize: 14, borderBottom: '1px solid #f4f4f4' }}>{fmt(item.displayTotal)}</td>
                   </tr>
