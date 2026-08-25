@@ -1296,7 +1296,7 @@
       "typeTubo": "Tubería",
       "areaLabel": "Área",
       "areaPlaceholder": "Piso 1, Oficina 2...",
-      "materialDescriptionLabel": "Descripción del material",
+      "materialDescriptionLabel": "Tipo de tubería por defecto",
       "materialDescriptionPlaceholder": "Tubo PVC 3/4...",
       "vendorLabel": "Suplidor",
       "vendorPlaceholder": "Adi, Multi Electric...",
@@ -1312,6 +1312,8 @@
         "label": "Lados / corridas",
         "sidePlaceholder": "Lado {number}",
         "feetPlaceholder": "Pies",
+        "pipeTypeLabel": "Tipo de tubería",
+        "unitsLabel": "Tubos",
         "addSide": "Agregar lado"
       },
       "cableRows": {
@@ -1324,7 +1326,8 @@
           "feet": "PIES"
         },
         "namePlaceholder": "Ej: Escritorio 1, Cam #2...",
-        "addRow": "Agregar corrida"
+        "addRow": "Agregar corrida",
+        "typePlaceholder": "Cat6 Riser, caja de 1000 pies..."
       },
       "accessory": {
         "materialPlaceholder": "Material (ej. Caja PVC 4x4x2)",

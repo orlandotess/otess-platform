@@ -1296,7 +1296,7 @@
       "typeTubo": "Conduit",
       "areaLabel": "Area",
       "areaPlaceholder": "Floor 1, Office 2...",
-      "materialDescriptionLabel": "Material description",
+      "materialDescriptionLabel": "Default pipe type",
       "materialDescriptionPlaceholder": "3/4 PVC conduit...",
       "vendorLabel": "Vendor",
       "vendorPlaceholder": "Adi, Multi Electric...",
@@ -1312,6 +1312,8 @@
         "label": "Sides / runs",
         "sidePlaceholder": "Side {number}",
         "feetPlaceholder": "Feet",
+        "pipeTypeLabel": "Pipe type",
+        "unitsLabel": "Pipes",
         "addSide": "Add side"
       },
       "cableRows": {
@@ -1324,7 +1326,8 @@
           "feet": "FEET"
         },
         "namePlaceholder": "E.g: Desk 1, Cam #2...",
-        "addRow": "Add run"
+        "addRow": "Add run",
+        "typePlaceholder": "Cat6 Riser, 1000 ft box..."
       },
       "accessory": {
         "materialPlaceholder": "Material (e.g. 4x4x2 PVC box)",

@@ -5,7 +5,6 @@ import { CatalogDescriptionInput } from './LineItemRow';
 import { supabase } from '../lib/supabase';
 
 const DEFAULT_FEET_PER_UNIT = { cable: '1000', tubo: '10' };
-const DEFAULT_CABLE_TYPES = ['Cat6 Riser', 'Cat6 Outdoor', 'Cat6 Plenum', 'Cat5 Outdoor'];
 
 function suggestItemCode(desc) {
   return desc.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
@@ -13,6 +12,28 @@ function suggestItemCode(desc) {
 
 function emptyAccessory() {
   return { description: '', quantity: '', saveToCatalog: true, newItemCode: '' };
+}
+
+// Pricing carried by a catalog pick. The tubo and the cable are the priciest
+// things on a run, and until they could be picked from the catalog they were
+// the only materials that always went out at $0 — the calculated count reused
+// an accessory's price only if one happened to share its description.
+const EMPTY_MATERIAL_META = { unit_price: '', supplier_price: '', msrp: '', vendor: '', catalog_item_id: null };
+function catalogMeta(match) {
+  if (!match) return { ...EMPTY_MATERIAL_META };
+  return {
+    unit_price: match.price ?? 0,
+    supplier_price: match.supplier_price ?? 0,
+    msrp: match.msrp ?? '',
+    vendor: match.vendor || '',
+    catalog_item_id: match.id,
+  };
+}
+function emptyCableRow() {
+  return { name: '', area: '', type: '', qty: '1', feet: '', materials: [], typeMeta: { ...EMPTY_MATERIAL_META } };
+}
+function emptySegment() {
+  return { label: '', feet: '', materials: [], calcDescription: '', calcMeta: { ...EMPTY_MATERIAL_META } };
 }
 
 // Merges a flat list of accessory rows (per-material description/qty/cost) into
@@ -48,11 +69,21 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   const [calcType, setCalcType] = useState('cable');
   const [area, setArea] = useState('');
   const [description, setDescription] = useState('');
+  const [descriptionMeta, setDescriptionMeta] = useState({ ...EMPTY_MATERIAL_META });
   const [vendor, setVendor] = useState('');
   const [feetPerBox, setFeetPerBox] = useState(DEFAULT_FEET_PER_UNIT.cable);
   const [materialGroupTitle, setMaterialGroupTitle] = useState(t('materialGroupTitleDefault.cable'));
 
   const unitLabel = calcType === 'tubo' ? t('unit.tubo') : t('unit.box');
+
+  // Every field that names a material resolves the same way: picking a catalog
+  // result stores the item's own description plus its pricing, typing free text
+  // clears the pricing back out.
+  function updateDescription(value) {
+    const match = resolveCatalogMaterial(value);
+    setDescription(match ? (match.name || match.description) : value);
+    setDescriptionMeta(catalogMeta(match));
+  }
 
   function handleTypeChange(type) {
     setCalcType(type);
@@ -64,13 +95,13 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   // Tubería: "Lados / Corridas" — one run of pipe per side, with its own
   // fittings and a calculated tubo count (feet ÷ pies-por-tubo).
   // ---------------------------------------------------------------------
-  const [segments, setSegments] = useState([{ label: '', feet: '', materials: [], calcDescription: '' }]);
+  const [segments, setSegments] = useState([emptySegment()]);
 
   function updateSegment(idx, field, value) {
     setSegments(s => s.map((seg, i) => i === idx ? { ...seg, [field]: value } : seg));
   }
   function addSegment() {
-    setSegments(s => [...s, { label: '', feet: '', materials: [], calcDescription: '' }]);
+    setSegments(s => [...s, emptySegment()]);
   }
   function removeSegment(idx) {
     setSegments(s => s.filter((_, i) => i !== idx));
@@ -96,8 +127,20 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   function segmentUnitsNeeded(seg) {
     return feetPerBox > 0 ? Math.ceil((parseFloat(seg.feet) || 0) / parseFloat(feetPerBox)) : 0;
   }
-  function segmentCalcDescription(seg) {
-    return (seg.calcDescription || '').trim() || description.trim();
+  function updateSegmentType(idx, value) {
+    const match = resolveCatalogMaterial(value);
+    setSegments(s => s.map((seg, i) => i === idx
+      ? { ...seg, calcDescription: match ? (match.name || match.description) : value, calcMeta: catalogMeta(match) }
+      : seg));
+  }
+  // A lado that doesn't name its own tubería falls back to the run's default —
+  // description and pricing together, so the fallback isn't priced at $0 just
+  // for being a fallback.
+  function segmentMaterial(seg) {
+    const own = (seg.calcDescription || '').trim();
+    return own
+      ? { desc: own, meta: seg.calcMeta ?? EMPTY_MATERIAL_META }
+      : { desc: description.trim(), meta: descriptionMeta };
   }
   const totalFeet = segments.reduce((sum, s) => sum + (parseFloat(s.feet) || 0), 0);
   const boxesNeeded = segments.reduce((sum, s) => sum + segmentUnitsNeeded(s), 0);
@@ -108,7 +151,7 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
     // Rounded per lado (not on the combined total): a partial stick left over
     // from one physical run isn't usable in a separate one.
     segments.forEach(seg => {
-      const segDesc = segmentCalcDescription(seg);
+      const { desc: segDesc, meta } = segmentMaterial(seg);
       const segQty = segmentUnitsNeeded(seg);
       if (!segDesc || segQty <= 0) return;
       const key = segDesc.toLowerCase();
@@ -116,11 +159,14 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       map.set(key, {
         desc: existing ? existing.desc : segDesc,
         qty: (existing?.qty || 0) + segQty,
-        unit_price: existing?.unit_price ?? 0,
-        supplier_price: existing?.supplier_price ?? 0,
-        msrp: existing?.msrp ?? '',
-        vendor: existing?.vendor ?? '',
-        catalog_item_id: existing?.catalog_item_id ?? null,
+        // `||`, not `??`: an accessory row typed with this same description but
+        // left unpriced used to win and send the tubo out at $0. A real price
+        // from either side wins over a zero from the other.
+        unit_price: existing?.unit_price || meta.unit_price || 0,
+        supplier_price: existing?.supplier_price || meta.supplier_price || 0,
+        msrp: existing?.msrp || meta.msrp || '',
+        vendor: existing?.vendor || meta.vendor || '',
+        catalog_item_id: existing?.catalog_item_id ?? meta.catalog_item_id ?? null,
       });
     });
     return [...map.values()];
@@ -133,11 +179,16 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
   // across many drops from the same spool, so rounding happens once per
   // Tipo, not per corrida.
   // ---------------------------------------------------------------------
-  const [cableRows, setCableRows] = useState([{ name: '', area: '', type: '', qty: '1', feet: '', materials: [] }]);
-  const cableTypeOptions = [...new Set([...DEFAULT_CABLE_TYPES, ...cableRows.map(r => r.type.trim()).filter(Boolean)])];
+  const [cableRows, setCableRows] = useState([emptyCableRow()]);
 
   function addCableRow() {
-    setCableRows(r => [...r, { name: '', area: '', type: '', qty: '1', feet: '', materials: [] }]);
+    setCableRows(r => [...r, emptyCableRow()]);
+  }
+  function updateCableRowType(idx, value) {
+    const match = resolveCatalogMaterial(value);
+    setCableRows(r => r.map((row, i) => i === idx
+      ? { ...row, type: match ? (match.name || match.description) : value, typeMeta: catalogMeta(match) }
+      : row));
   }
   function updateCableRow(idx, field, value) {
     setCableRows(r => r.map((row, i) => i === idx ? { ...row, [field]: value } : row));
@@ -176,7 +227,14 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       if (!type || feet <= 0) return;
       const key = type.toLowerCase();
       const existing = map.get(key);
-      map.set(key, { type: existing ? existing.type : type, feet: (existing?.feet || 0) + feet });
+      const rowMeta = row.typeMeta ?? EMPTY_MATERIAL_META;
+      map.set(key, {
+        type: existing ? existing.type : type,
+        feet: (existing?.feet || 0) + feet,
+        // Corridas pool by type, so the pricing comes from whichever corrida
+        // picked the cable out of the catalog — the rest only typed its name.
+        meta: existing?.meta?.catalog_item_id ? existing.meta : (rowMeta.catalog_item_id ? rowMeta : (existing?.meta ?? rowMeta)),
+      });
     });
     return [...map.values()].map(tt => ({ ...tt, boxes: feetPerBox > 0 ? Math.ceil(tt.feet / parseFloat(feetPerBox)) : 0 }));
   })();
@@ -188,14 +246,17 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
       if (tt.boxes <= 0) return;
       const key = tt.type.toLowerCase();
       const existing = map.get(key);
+      const meta = tt.meta ?? EMPTY_MATERIAL_META;
       map.set(key, {
         desc: existing ? existing.desc : tt.type,
         qty: (existing?.qty || 0) + tt.boxes,
-        unit_price: existing?.unit_price ?? 0,
-        supplier_price: existing?.supplier_price ?? 0,
-        msrp: existing?.msrp ?? '',
-        vendor: existing?.vendor ?? '',
-        catalog_item_id: existing?.catalog_item_id ?? null,
+        // Same rule as the tubo above: a real price beats a zero, whichever
+        // side it came from.
+        unit_price: existing?.unit_price || meta.unit_price || 0,
+        supplier_price: existing?.supplier_price || meta.supplier_price || 0,
+        msrp: existing?.msrp || meta.msrp || '',
+        vendor: existing?.vendor || meta.vendor || '',
+        catalog_item_id: existing?.catalog_item_id ?? meta.catalog_item_id ?? null,
       });
     });
     return [...map.values()];
@@ -366,7 +427,14 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
         {calcType === 'tubo' && (
           <div className="form-group" style={{ marginBottom: 12 }}>
             <label>{t('materialDescriptionLabel')}</label>
-            <input value={description} onChange={e => setDescription(e.target.value)} placeholder={t('materialDescriptionPlaceholder')} />
+            <CatalogDescriptionInput
+              value={description}
+              onChange={updateDescription}
+              catalogOptions={catalogOptions}
+              placeholder={t('materialDescriptionPlaceholder')}
+              fontSize={13.5}
+              fontWeight={400}
+            />
           </div>
         )}
 
@@ -410,16 +478,26 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                   midx => removeMaterial(idx, midx),
                   () => addMaterial(idx)
                 )}
-                {segmentUnitsNeeded(seg) > 0 && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 6, marginLeft: 20, alignItems: 'center' }}>
-                    <input
-                      value={segmentCalcDescription(seg)}
-                      onChange={e => updateSegment(idx, 'calcDescription', e.target.value)}
-                      style={{ flex: 1, fontSize: 12 }}
+                {/* Shown from the start, not once the count turns positive: the
+                    tubería has to be nameable while the pies are being typed,
+                    which is the whole point of the field. */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 6, marginLeft: 20, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 2, textTransform: 'none', letterSpacing: 'normal' }}>{t('segments.pipeTypeLabel')}</label>
+                    <CatalogDescriptionInput
+                      value={segmentMaterial(seg).desc}
+                      onChange={v => updateSegmentType(idx, v)}
+                      catalogOptions={catalogOptions}
+                      placeholder={t('materialDescriptionPlaceholder')}
+                      fontSize={12}
+                      fontWeight={400}
                     />
-                    <span style={{ width: 70, fontSize: 12, fontWeight: 700, textAlign: 'center' }}>{segmentUnitsNeeded(seg)}</span>
                   </div>
-                )}
+                  <div style={{ width: 70, textAlign: 'center' }}>
+                    <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 2, textTransform: 'none', letterSpacing: 'normal' }}>{t('segments.unitsLabel')}</label>
+                    <div style={{ fontSize: 13, fontWeight: 700, padding: '7px 0' }}>{segmentUnitsNeeded(seg)}</div>
+                  </div>
+                </div>
               </div>
             ))}
             <button type="button" className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={addSegment}>+ {t('segments.addSide')}</button>
@@ -430,7 +508,6 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
             <div style={{ display: 'flex', gap: 6, fontSize: 10, color: 'var(--muted)', fontWeight: 700, marginBottom: 4, padding: '0 4px' }}>
               <span style={{ flex: '2 1 0' }}>{t('cableRows.columns.name')}</span>
               <span style={{ flex: '1.2 1 0' }}>{t('cableRows.columns.area')}</span>
-              <span style={{ flex: '1.4 1 0' }}>{t('cableRows.columns.type')}</span>
               <span style={{ width: 56 }}>{t('cableRows.columns.qty')}</span>
               <span style={{ width: 56 }}>{t('cableRows.columns.feet')}</span>
               <span style={{ width: 16 }} />
@@ -451,16 +528,6 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                     placeholder={t('cableRows.columns.area')}
                     style={{ flex: '1.2 1 0', fontSize: 12.5 }}
                   />
-                  <input
-                    list={`cable-type-options-${idx}`}
-                    value={row.type}
-                    onChange={e => updateCableRow(idx, 'type', e.target.value)}
-                    placeholder={t('cableRows.columns.type')}
-                    style={{ flex: '1.4 1 0', fontSize: 12.5 }}
-                  />
-                  <datalist id={`cable-type-options-${idx}`}>
-                    {cableTypeOptions.map(ct => <option key={ct} value={ct} />)}
-                  </datalist>
                   <input
                     type="number"
                     className="compact-number"
@@ -484,6 +551,17 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
                   {cableRows.length > 1 && (
                     <button type="button" onClick={() => removeCableRow(idx)} style={{ width: 16, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>×</button>
                   )}
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 2, textTransform: 'none', letterSpacing: 'normal' }}>{t('cableRows.columns.type')}</label>
+                  <CatalogDescriptionInput
+                    value={row.type}
+                    onChange={v => updateCableRowType(idx, v)}
+                    catalogOptions={catalogOptions}
+                    placeholder={t('cableRows.typePlaceholder')}
+                    fontSize={12.5}
+                    fontWeight={400}
+                  />
                 </div>
                 {renderAccessoryList(
                   row.materials,
