@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
@@ -23,6 +23,7 @@ function emptyItem(parentKey = null, itemType = 'labor') {
     discount: '',
     vendor: '',
     combinePrice: true, // only meaningful for parent (non-accessory) items
+    from_calculator: false,
     photoFile: null,
     photoPreview: null,
     existingPhotoPath: null,
@@ -67,6 +68,7 @@ function itemsToAreas(items, t) {
       discount: parent.discount_amount ?? '',
       vendor: parent.vendor ?? '',
       combinePrice: parent.combine_price !== false,
+      from_calculator: !!parent.from_calculator,
       photoFile: null,
       photoPreview: parent.photo_signed_url ?? null,
       existingPhotoPath: parent.photo_url ?? null,
@@ -84,6 +86,8 @@ function itemsToAreas(items, t) {
         supplier_price: child.supplier_price ?? '',
         exempt: !!child.exempt_reason,
         discount: child.discount_amount ?? '',
+        vendor: child.vendor ?? '',
+        from_calculator: !!child.from_calculator,
         photoFile: null,
         photoPreview: child.photo_signed_url ?? null,
         existingPhotoPath: child.photo_url ?? null,
@@ -230,9 +234,47 @@ export default function PropuestaForm({ initialData = null }) {
   // modal's onAdd) into a specific area instead of appending a blank one.
   // The calculator's own `area` field is dropped since grouping here already
   // happens by area, not by a per-item field.
-  function addPrefilledItem(optKey, areaKey, { area, ...item }) {
+  //
+  // The calculator emits one onAdd call per material in a single "Agregar
+  // línea" click, tagging each with a 0-based `groupIndex` and the batch's
+  // `groupCount`. A batch of two or more lands as one independent parent line
+  // — described by the material group's title, quantity 1, priced at the sum
+  // of the lot — with every material, the first one included, hanging off it
+  // as an accessory. That is exactly how a proposal already prices a bundle
+  // (see ProposalDocument.js): a combined parent carries the money and its
+  // children print as an itemized "N adjuntos incluidos" list with no prices
+  // of their own, so nothing about the existing structure has to change.
+  const calculatorGroupKey = useRef(null);
+  function addPrefilledItem(optKey, areaKey, { area, groupIndex, groupCount, group_description, title, ...item }) {
+    // A single-material run has nothing to group: it lands as its own line,
+    // exactly the way it always did.
+    const grouped = groupCount > 1;
+    if (grouped && groupIndex === 0) calculatorGroupKey.current = Math.random().toString(36).slice(2);
+    const parentKey = grouped ? calculatorGroupKey.current : null;
+    const lotValue = (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
+
     setOptions(prev => prev.map(o => o.key === optKey
-      ? { ...o, areas: o.areas.map(a => a.key === areaKey ? { ...a, items: [...a.items, { ...emptyItem(null, 'product'), ...item }] } : a) }
+      ? { ...o, areas: o.areas.map(a => {
+          if (a.key !== areaKey) return a;
+          const items = [...a.items];
+          if (grouped && groupIndex === 0) {
+            items.push({
+              ...emptyItem(null, 'product'),
+              key: parentKey,
+              description: (group_description || title || item.description || '').trim(),
+              quantity: 1,
+              unit_price: 0, // accumulated below, one material per onAdd call
+              combinePrice: true,
+              from_calculator: true,
+            });
+          }
+          items.push({ ...emptyItem(parentKey, 'product'), ...item, from_calculator: true });
+          return { ...a, items: parentKey
+            ? items.map(it => it.key === parentKey
+                ? { ...it, unit_price: (parseFloat(it.unit_price) || 0) + lotValue }
+                : it)
+            : items };
+        }) }
       : o));
   }
   // Accessories are inserted right after the last item already belonging to
@@ -596,6 +638,7 @@ export default function PropuestaForm({ initialData = null }) {
             discount_amount: it.discount !== '' ? parseFloat(it.discount) : null,
             vendor: it.vendor || null,
             combine_price: it.combinePrice !== false,
+            from_calculator: !!it.from_calculator,
             photo_url: photoPath,
             sort_order: sortOrder++,
           }]).select().single();
@@ -621,6 +664,8 @@ export default function PropuestaForm({ initialData = null }) {
             supplier_price: it.supplier_price !== '' ? parseFloat(it.supplier_price) : null,
             exempt_reason: it.exempt ? 'Exento' : null,
             discount_amount: it.discount !== '' ? parseFloat(it.discount) : null,
+            vendor: it.vendor || null,
+            from_calculator: !!it.from_calculator,
             photo_url: photoPath,
             sort_order: sortOrder++,
           }]);

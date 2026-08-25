@@ -254,6 +254,10 @@ export default function CableCalculator({ areaOptions = [], vendorOptions = [], 
         catalog_item_id: item.catalog_item_id || null,
         from_calculator: true,
         groupIndex,
+        // How many materials this "Agregar línea" click produced. Proposals use
+        // it to decide whether the batch is worth grouping under a parent line
+        // at all — a lone material has nothing to group and stays a plain line.
+        groupCount: materialTotals.length,
       });
     });
   }

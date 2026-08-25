@@ -254,12 +254,19 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                 {area.items.map(it => {
                   const combined = it.children.length > 0 && it.combine_price !== false;
                   const bundled = combined || it.discount_amount > 0;
-                  const isExpanded = printMode || !!expandedIds[it.id];
+                  // A calculator group is quoted as one lot and stays that way
+                  // here: the materials behind it are internal takeoff detail,
+                  // listed on the Pick List, not on the document the client
+                  // reads. So no "N adjuntos incluidos" toggle, no itemized
+                  // children, and no "precio combinado" note — from the
+                  // client's side there is nothing to combine, just the lot.
+                  const hideChildren = !!it.from_calculator;
+                  const isExpanded = !hideChildren && (printMode || !!expandedIds[it.id]);
                   const colCount = hidePricing ? 2 : 4;
                   const shownTitle = displayTitle(it.title, it.description);
                   return (
                     <Fragment key={it.id}>
-                      <tr style={{ borderBottom: it.children.length ? 'none' : '1px solid #f4f4f4', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+                      <tr style={{ borderBottom: it.children.length && !hideChildren ? 'none' : '1px solid #f4f4f4', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                         <td style={{ padding: '14px 10px 14px 0', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                           <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                             {it.photo_signed_url ? <img src={it.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{it.item_type === 'product' ? '📦' : '🔧'}</span>}
@@ -274,12 +281,12 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                         {!hidePricing && (
                           <td style={{ textAlign: 'right', verticalAlign: 'top', paddingTop: 14 }}>
                             <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(itemTotal(it))}</div>
-                            {combined && <div style={{ fontSize: 10.5, color: '#999' }}>{t('combinedPriceNote')}</div>}
+                            {combined && !hideChildren && <div style={{ fontSize: 10.5, color: '#999' }}>{t('combinedPriceNote')}</div>}
                             {it.discount_amount > 0 && <div style={{ fontSize: 11, color: '#1a7a4a', fontWeight: 600 }}>{t('lineDiscountNote', { amount: fmt(it.discount_amount) })}</div>}
                           </td>
                         )}
                       </tr>
-                      {it.children.length > 0 && (
+                      {it.children.length > 0 && !hideChildren && (
                         <tr style={{ borderBottom: 'none' }}>
                           <td colSpan={colCount} style={{ padding: '0 0 8px 52px' }}>
                             <button
@@ -401,7 +408,12 @@ function PickListDocument({ proposal, option }) {
   const t = useTranslations('propuestas.document');
   // Includes attachments/accessories too — the warehouse still needs to pull
   // a bundled part (e.g. a junction box) regardless of how it's priced.
-  const products = (option.items ?? []).filter(it => it.item_type === 'product');
+  // A calculator group header ("Pipe, Box and Miscellaneous") is a price
+  // bucket, not something anyone can pull off a shelf — the materials it
+  // stands for are its children, which are listed here on their own. A parent
+  // that is a real material with real accessories still belongs on the sheet,
+  // so "has children" isn't the test; the header carries its own mark.
+  const products = (option.items ?? []).filter(it => it.item_type === 'product' && !(it.from_calculator && !it.parent_item_id));
   const grouped = new Map();
   products.forEach(it => {
     const key = it.description;
