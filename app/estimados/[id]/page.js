@@ -395,7 +395,7 @@ export default async function EstimaDetail(props) {
           )}
         </div>
 
-        <MaterialSummary items={items ?? []} docNumber={est.estimate_number} />
+        <MaterialSummary items={items ?? []} docNumber={est.estimate_number} style={{ marginBottom: 20 }} />
       </main>
     </div>
   );

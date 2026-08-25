@@ -1499,6 +1499,7 @@
       "mixedPrice": "Varies",
       "grandTotalLabel": "TOTAL",
       "mixedPriceNote": "Varies = the material was quoted at more than one price.",
+      "bundledNote": "This total is the value of the material. Some accessories have their price combined: their cost already sits inside the parent line, so it is not billed twice.",
       "unpricedWarning": "{count, plural, one {1 material with no price} other {# materials with no price}}",
       "unpricedHint": "It is going out free on this estimate. Add a price in the Catalog or on the line.",
       "noProductsAlert": "There are no materials to export.",

@@ -7,7 +7,7 @@ import { buildMaterialSummary, exportMaterialSummaryCSV } from '../lib/materialS
 // `estimate-doc` element the client PDF is captured from, and marked no-print —
 // it exposes bundled quantities and costs the client-facing document folds into
 // a single lot price.
-export default function MaterialSummary({ items = [], docNumber }) {
+export default function MaterialSummary({ items = [], docNumber, bundledPricesExcluded = false, style }) {
   const t = useTranslations('shared.materialSummary');
   const generalArea = t('generalArea');
   const { rows, areas, totalQuantity, grandTotal, unpricedCount } = buildMaterialSummary(items, generalArea);
@@ -19,7 +19,7 @@ export default function MaterialSummary({ items = [], docNumber }) {
   const td = extra => ({ padding: '10px 14px', fontSize: 13, ...extra });
 
   return (
-    <div className="card no-print" style={{ marginBottom: 20 }}>
+    <div className="card no-print" style={style}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)' }}>🧮 {t('title')}</div>
@@ -81,6 +81,9 @@ export default function MaterialSummary({ items = [], docNumber }) {
 
       {rows.some(r => r.unitPrice == null) && (
         <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--muted)' }}>{t('mixedPriceNote')}</div>
+      )}
+      {bundledPricesExcluded && (
+        <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--muted)' }}>{t('bundledNote')}</div>
       )}
     </div>
   );

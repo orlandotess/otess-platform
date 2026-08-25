@@ -1499,6 +1499,7 @@
       "mixedPrice": "Varía",
       "grandTotalLabel": "TOTAL",
       "mixedPriceNote": "Varía = el material se cotizó a más de un precio.",
+      "bundledNote": "Este total es el valor del material. Hay accesorios con precio combinado: su costo ya va dentro de la línea padre, así que no se factura otra vez.",
       "unpricedWarning": "{count, plural, one {1 material sin precio} other {# materiales sin precio}}",
       "unpricedHint": "Está saliendo gratis en el estimado. Añádele precio en el Catálogo o en la línea.",
       "noProductsAlert": "No hay materiales para exportar.",
