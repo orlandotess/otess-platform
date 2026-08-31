@@ -32,7 +32,7 @@ export async function POST(request) {
         <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr>
             ${i.photo_signed_url ? `<td style="padding-right:10px;vertical-align:top"><img src="${i.photo_signed_url}" alt="" width="40" height="40" style="width:40px;height:40px;object-fit:contain;border-radius:6px;background:#f4f4f4;display:block" /></td>` : ''}
-            <td style="vertical-align:top">${i.description}</td>
+            <td style="vertical-align:top">${i.description}${i.note?.trim() ? `<div style="font-size:12.5px;color:#777;font-style:italic;white-space:pre-wrap;margin-top:3px">${i.note}</div>` : ''}</td>
           </tr></table>
         </td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:center;font-size:13px">${i.type === 'labor' ? t('typeLabor') : t('typeProduct')}</td>

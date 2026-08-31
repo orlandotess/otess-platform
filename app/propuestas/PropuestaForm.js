@@ -14,6 +14,7 @@ function emptyItem(parentKey = null, itemType = 'labor') {
     item_type: itemType,
     title: '',
     description: '',
+    note: '',
     quantity: 1,
     msrp: '',
     unit_price: '',
@@ -60,6 +61,7 @@ function itemsToAreas(items, t) {
       item_type: parent.item_type,
       title: parent.title ?? '',
       description: parent.description,
+      note: parent.note ?? '',
       quantity: parent.quantity,
       msrp: parent.msrp ?? '',
       unit_price: parent.unit_price ?? '',
@@ -80,6 +82,7 @@ function itemsToAreas(items, t) {
         parentKey,
         item_type: child.item_type,
         description: child.description,
+        note: child.note ?? '',
         quantity: child.quantity,
         msrp: child.msrp ?? '',
         unit_price: child.unit_price ?? '',
@@ -630,6 +633,7 @@ export default function PropuestaForm({ initialData = null }) {
             item_type: it.item_type,
             title: it.title.trim() || null,
             description: it.description.trim(),
+            note: it.note?.trim() || null,
             quantity: parseFloat(it.quantity) || 1,
             msrp: it.msrp !== '' ? parseFloat(it.msrp) : null,
             unit_price: parseFloat(it.unit_price) || 0,
@@ -658,6 +662,7 @@ export default function PropuestaForm({ initialData = null }) {
             parent_item_id: keyToId[it.parentKey],
             item_type: it.item_type,
             description: it.description.trim(),
+            note: it.note?.trim() || null,
             quantity: parseFloat(it.quantity) || 1,
             msrp: it.msrp !== '' ? parseFloat(it.msrp) : null,
             unit_price: parseFloat(it.unit_price) || 0,
@@ -941,6 +946,8 @@ export default function PropuestaForm({ initialData = null }) {
                           showPricing={showPricing}
                           description={it.description}
                           onDescriptionChange={v => updateItem(opt.key, area.key, it.key, 'description', v)}
+                          note={it.note}
+                          onNoteChange={v => updateItem(opt.key, area.key, it.key, 'note', v)}
                           catalogOptions={catalogItems.filter(c => !c.internal_only)}
                           datalistId={`cat-${optIndex}-${areaIndex}-${itemIndex}`}
                           quantity={it.quantity}
@@ -972,6 +979,8 @@ export default function PropuestaForm({ initialData = null }) {
                           onTitleChange={v => handleTitleCatalogSelect(opt.key, area.key, it.key, v)}
                           description={it.description}
                           onDescriptionChange={v => handleCatalogSelect(opt.key, area.key, it.key, v)}
+                          note={it.note}
+                          onNoteChange={v => updateItem(opt.key, area.key, it.key, 'note', v)}
                           catalogOptions={catalogItems.filter(c => c.type === it.item_type && !c.internal_only)}
                           datalistId={`cat-${optIndex}-${areaIndex}-${itemIndex}`}
                           quantity={it.quantity}

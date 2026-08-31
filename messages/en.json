@@ -1407,7 +1407,11 @@
       "vendorLabel": "Supplier",
       "vendorPlaceholder": "Adi, Multi Electric...",
       "warrantyExpiresLabel": "Warranty expires",
-      "monthsAbbrev": "{count}mo"
+      "monthsAbbrev": "{count}mo",
+      "addNote": "+ Note",
+      "addNoteTitle": "Add a note to this item — it shows to the client under the line",
+      "notePlaceholder": "Note for the client...",
+      "removeNoteTitle": "Remove the note"
     },
     "taxBreakdown": {
       "categories": {

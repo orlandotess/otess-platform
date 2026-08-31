@@ -280,6 +280,7 @@ export default async function EstimaDetail(props) {
                       <div style={{ minWidth: 0 }}>
                         {displayTitle(entry.item.title, entry.item.group_description?.trim() || entry.item.description) && <div style={{ fontWeight: 700, marginBottom: 2 }}>{entry.item.title}</div>}
                         <div style={{ whiteSpace: 'pre-wrap' }}>{entry.item.group_description?.trim() || entry.item.description}</div>
+                        {entry.item.note?.trim() && <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', fontWeight: 400, whiteSpace: 'pre-wrap', marginTop: 3 }}>{entry.item.note}</div>}
                         {childrenByParentId.get(entry.item.id)?.length > 0 && (
                           <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>
                             {t('accessoriesIncluded', { count: childrenByParentId.get(entry.item.id).length })}
@@ -330,7 +331,10 @@ export default async function EstimaDetail(props) {
                         <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                           {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 11 }}>{child.type === 'labor' ? '🔧' : '📦'}</span>}
                         </div>
-                        <div style={{ whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                        <div>
+                          <div style={{ whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                          {child.note?.trim() && <div style={{ fontSize: 11.5, color: 'var(--muted)', fontStyle: 'italic', whiteSpace: 'pre-wrap', marginTop: 3 }}>{child.note}</div>}
+                        </div>
                       </div>
                     </td>
                     <td />

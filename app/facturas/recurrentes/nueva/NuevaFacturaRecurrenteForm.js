@@ -24,7 +24,7 @@ export default function NuevaFacturaRecurrenteForm() {
     client_id: '', bill_to: 'person', notes: '', terms: '',
     frequency: 'monthly', next_run_date: todayISO(), due_days: 15,
   });
-  const [items, setItems] = useState([{ type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', exempt: false }]);
+  const [items, setItems] = useState([{ type: 'labor', tax_category: 'labor', description: '', note: '', quantity: 1, unit_price: '', exempt: false }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -76,7 +76,7 @@ export default function NuevaFacturaRecurrenteForm() {
     if (err) { setError(err.message); setSaving(false); return; }
 
     const lineItems = items.filter(i => i.description.trim()).map((i, idx) => ({
-      recurring_invoice_id: recurring.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description,
+      recurring_invoice_id: recurring.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description, note: i.note?.trim() || null,
       quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
       exempt: i.exempt, sort_order: idx,
     }));
@@ -173,6 +173,8 @@ export default function NuevaFacturaRecurrenteForm() {
                   onTypeChange={v => setItemType(idx, v)}
                   description={item.description}
                   onDescriptionChange={v => setItem(idx, 'description', v)}
+                  note={item.note}
+                  onNoteChange={v => setItem(idx, 'note', v)}
                   quantity={item.quantity}
                   onQuantityChange={v => setItem(idx, 'quantity', v)}
                   unitPrice={item.unit_price}

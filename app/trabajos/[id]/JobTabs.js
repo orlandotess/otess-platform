@@ -421,7 +421,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   const [dragLineItem, setDragLineItem] = useState(null);
   const [addingLineFor, setAddingLineFor] = useState(null); // area name currently showing the add-line form, or null
   const [addingAccessoryFor, setAddingAccessoryFor] = useState(null); // parent item id currently showing the accessory add-form, or null
-  const [newLine, setNewLine] = useState({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
+  const [newLine, setNewLine] = useState({ type: 'labor', tax_category: 'labor', title: '', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
   const [catalogItems, setCatalogItems] = useState([]);
   const [cableCalcTarget, setCableCalcTarget] = useState(null); // area name currently targeted, or null
   const [showLineMenu, setShowLineMenu] = useState(false);
@@ -530,6 +530,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       tax_category: item.tax_category ?? item.type,
       title: item.title ?? '',
       description: item.description,
+      note: item.note ?? '',
       quantity: item.quantity,
       unit_price: item.unit_price,
       msrp: item.msrp ?? '',
@@ -578,6 +579,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       tax_category: editLineForm.tax_category || editLineForm.type,
       title: editLineForm.title?.trim() || null,
       description: editLineForm.description.trim(),
+      note: editLineForm.note?.trim() || null,
       quantity: parseFloat(editLineForm.quantity) || 1,
       unit_price: parseFloat(editLineForm.unit_price) || 0,
       msrp: editLineForm.msrp !== '' ? parseFloat(editLineForm.msrp) : null,
@@ -593,6 +595,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       tax_category: editLineForm.tax_category || editLineForm.type,
       title: editLineForm.title?.trim() || null,
       description: editLineForm.description.trim(),
+      note: editLineForm.note?.trim() || null,
       quantity: parseFloat(editLineForm.quantity) || 1,
       unit_price: parseFloat(editLineForm.unit_price) || 0,
       msrp: editLineForm.msrp !== '' ? parseFloat(editLineForm.msrp) : null,
@@ -622,6 +625,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       tax_category: newLine.tax_category || newLine.type,
       title: newLine.title.trim() || null,
       description: newLine.description.trim(),
+      note: newLine.note?.trim() || null,
       quantity: parseFloat(newLine.quantity) || 1,
       unit_price: parseFloat(newLine.unit_price) || 0,
       msrp: newLine.msrp !== '' ? parseFloat(newLine.msrp) : null,
@@ -634,7 +638,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
-    setNewLine({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
+    setNewLine({ type: 'labor', tax_category: 'labor', title: '', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
     setAddingLineFor(null);
     setSavingLine(false);
   }
@@ -658,6 +662,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       job_id: job.id,
       type: parent.type, tax_category: parent.tax_category || parent.type,
       description: newLine.description.trim(),
+      note: newLine.note?.trim() || null,
       quantity: parseFloat(newLine.quantity) || 1, unit_price: parseFloat(newLine.unit_price) || 0,
       msrp: newLine.msrp !== '' ? parseFloat(newLine.msrp) : null,
       supplier_price: newLine.supplier_price !== '' ? parseFloat(newLine.supplier_price) : null,
@@ -668,7 +673,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
-    setNewLine({ type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
+    setNewLine({ type: 'labor', tax_category: 'labor', title: '', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
     setAddingAccessoryFor(null);
     setSavingLine(false);
   }
@@ -1776,6 +1781,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                             if (match) { setEditLineForm(f => ({ ...f, type: match.type, tax_category: match.tax_category, description: match.description, unit_price: match.price ?? '', msrp: match.msrp ?? '', supplier_price: match.supplier_price ?? '', title: f.title || match.name || '' })); applyEditLineCatalogPhoto(match); }
                             else setEditLineForm(f => ({ ...f, description: value }));
                           }}
+                          note={editLineForm.note}
+                          onNoteChange={v => setEditLineForm(f => ({ ...f, note: v }))}
                           catalogOptions={catalogItems.filter(c => c.type === editLineForm.type)}
                           datalistId="job-catalog-edit"
                           quantity={editLineForm.quantity}
@@ -1810,6 +1817,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                             type={it.type}
                             title={it.title}
                             description={it.description}
+                            note={it.note}
                             quantity={it.quantity}
                             msrp={it.msrp}
                             unitPrice={it.unit_price}
@@ -1840,6 +1848,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                                 showPricing={it.combine_price === false}
                                 description={editLineForm.description}
                                 onDescriptionChange={v => setEditLineForm(f => ({ ...f, description: v }))}
+                                note={editLineForm.note}
+                                onNoteChange={v => setEditLineForm(f => ({ ...f, note: v }))}
                                 catalogOptions={catalogItems}
                                 datalistId={`job-catalog-child-edit`}
                                 quantity={editLineForm.quantity}
@@ -1867,6 +1877,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                                 viewMode
                                 showPricing={it.combine_price === false}
                                 description={child.description}
+                                note={child.note}
                                 quantity={child.quantity}
                                 msrp={child.msrp}
                                 unitPrice={child.unit_price}
@@ -1888,6 +1899,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                               showPricing={it.combine_price === false}
                               description={newLine.description}
                               onDescriptionChange={v => setNewLine(l => ({ ...l, description: v }))}
+                              note={newLine.note}
+                              onNoteChange={v => setNewLine(l => ({ ...l, note: v }))}
                               catalogOptions={catalogItems}
                               datalistId="job-catalog-accessory-new"
                               quantity={newLine.quantity}
@@ -1937,6 +1950,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                         onTitleChange={handleLineTitleSelect}
                         description={newLine.description}
                         onDescriptionChange={handleLineDescriptionSelect}
+                        note={newLine.note}
+                        onNoteChange={v => setNewLine(l => ({ ...l, note: v }))}
                         catalogOptions={catalogItems.filter(c => c.type === newLine.type)}
                         datalistId={`job-catalog-${areaIndex}`}
                         quantity={newLine.quantity}

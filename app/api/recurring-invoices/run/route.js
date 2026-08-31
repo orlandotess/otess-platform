@@ -77,7 +77,7 @@ export async function GET(request) {
         const base = (it.quantity || 0) * (it.unit_price || 0);
         const rate = tasaParaLinea(it, clientType, taxRules);
         return {
-          type: it.type, tax_category: it.tax_category || it.type, description: it.description, quantity: it.quantity, unit_price: it.unit_price,
+          type: it.type, tax_category: it.tax_category || it.type, description: it.description, note: it.note, quantity: it.quantity, unit_price: it.unit_price,
           tax_rate: rate, line_total: base, tax_amount: base * rate, sort_order: it.sort_order,
         };
       });

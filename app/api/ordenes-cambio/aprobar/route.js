@@ -42,7 +42,7 @@ export async function POST(request) {
       const { data: coItems } = await supabase.from('change_order_line_items').select('*').eq('change_order_id', order.id).order('sort_order');
       if (coItems?.length) {
         const { data: insertedJobItems } = await supabase.from('job_line_items').insert(coItems.map(it => ({
-          job_id: order.job_id, change_order_id: order.id, type: it.type, description: it.description,
+          job_id: order.job_id, change_order_id: order.id, type: it.type, description: it.description, note: it.note,
           quantity: it.quantity, unit_price: it.unit_price, msrp: it.msrp,
           supplier_price: it.supplier_price, exempt_reason: it.exempt_reason,
           area: it.area, vendor: it.vendor, photo_url: it.photo_url, sort_order: it.sort_order,

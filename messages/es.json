@@ -1407,7 +1407,11 @@
       "vendorLabel": "Suplidor",
       "vendorPlaceholder": "Adi, Multi Electric...",
       "warrantyExpiresLabel": "Garantía vence",
-      "monthsAbbrev": "{count}m"
+      "monthsAbbrev": "{count}m",
+      "addNote": "+ Nota",
+      "addNoteTitle": "Añadir una nota a este ítem — se muestra al cliente debajo de la línea",
+      "notePlaceholder": "Nota para el cliente...",
+      "removeNoteTitle": "Quitar la nota"
     },
     "taxBreakdown": {
       "categories": {

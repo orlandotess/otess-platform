@@ -97,6 +97,7 @@ export default function LineItemRow({
   area, onAreaChange, areaOptions = [],
   vendor, onVendorChange, vendorOptions = [],
   warrantyExpiresAt, onWarrantyExpiresAtChange,
+  note, onNoteChange,
   photoUrl, onPhotoSelect, uploadingPhoto = false,
   fmt,
   actions,
@@ -107,6 +108,12 @@ export default function LineItemRow({
   // Only affects the read-only render; editing still shows the raw title field.
   const shownTitle = displayTitle(title, description);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Portal.io-style item note. Derived rather than pure state so a row whose
+  // note arrives after mount (items load async in Trabajos/Solicitudes) still
+  // shows its editor without needing an effect to sync.
+  const [noteOpen, setNoteOpen] = useState(false);
+  const hasNoteText = !!(note ?? '').trim();
+  const showNoteEditor = !!onNoteChange && (noteOpen || hasNoteText);
   const [showMargin, setShowMargin] = useState(false);
   const [marginPct, setMarginPct] = useState('');
 
@@ -162,10 +169,40 @@ export default function LineItemRow({
     onWarrantyExpiresAtChange(d.toISOString().slice(0, 10));
   }
 
+  // Portal.io-style note: free text under an existing item that prints on the
+  // client-facing document. Rendered under the description in both the
+  // accessory and the full row, so it looks the same wherever it's used.
+  function renderNote(compact = false) {
+    if (viewMode) {
+      if (!hasNoteText) return null;
+      return (
+        <div style={{ fontSize: compact ? 11.5 : 12.5, color: 'var(--muted)', fontStyle: 'italic', whiteSpace: 'pre-wrap', marginTop: 3 }}>{note}</div>
+      );
+    }
+    if (!onNoteChange) return null;
+    if (!showNoteEditor) {
+      return (
+        <button type="button" onClick={() => setNoteOpen(true)} title={t('addNoteTitle')}
+          style={{ background: 'none', border: 'none', padding: 0, marginTop: 3, cursor: 'pointer', color: 'var(--muted)', fontSize: compact ? 10.5 : 11 }}>
+          {t('addNote')}
+        </button>
+      );
+    }
+    return (
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 4 }}>
+        <textarea value={note ?? ''} onChange={e => onNoteChange(e.target.value)} rows={2} maxLength={1000}
+          placeholder={t('notePlaceholder')} title={t('addNoteTitle')}
+          style={{ flex: 1, minWidth: 0, fontSize: compact ? 11.5 : 12.5, fontStyle: 'italic', fontFamily: 'inherit', lineHeight: 1.4, resize: 'vertical', minHeight: 40, padding: '4px 6px' }} />
+        <button type="button" onClick={() => { onNoteChange(''); setNoteOpen(false); }} title={t('removeNoteTitle')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12, padding: '2px 4px', flexShrink: 0 }}>✕</button>
+      </div>
+    );
+  }
+
   if (isAccessory) {
     const accessorySubtotal = (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
     return (
-      <div style={{ display: 'flex', gap: 10, marginBottom: 8, marginLeft: 32, alignItems: 'center', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 8, marginLeft: 32, alignItems: showNoteEditor || (viewMode && hasNoteText) ? 'flex-start' : 'center', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}>
         <label style={{ cursor: viewMode ? 'default' : 'pointer', flexShrink: 0 }}>
           {photoUrl ? (
             <img src={photoUrl} style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 6, background: 'var(--surface)' }} />
@@ -190,6 +227,7 @@ export default function LineItemRow({
             <CatalogDescriptionInput value={description} onChange={onDescriptionChange} catalogOptions={catalogOptions}
               placeholder={t('accessoryPlaceholder')} maxLength={200} fontSize={13} fontWeight={400} />
           )}
+          {renderNote(true)}
         </div>
         {(showPricing || alwaysShowPricing) && (
           <div style={{ textAlign: 'right', flexShrink: 0, width: 95 }}>
@@ -299,6 +337,7 @@ export default function LineItemRow({
             )}
             {shownTitle && <div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 4 }}>{shownTitle}</div>}
             {description && <div style={{ fontWeight: shownTitle ? 400 : 700, fontSize: 13.5, marginTop: shownTitle ? 2 : 4, whiteSpace: 'pre-wrap' }}>{description}</div>}
+            {renderNote()}
           </>
         ) : (
           <>
@@ -318,6 +357,7 @@ export default function LineItemRow({
             <CatalogDescriptionInput value={description} onChange={onDescriptionChange} catalogOptions={catalogOptions}
               placeholder={t('descriptionPlaceholder')} maxLength={2000} fontWeight={onTitleChange ? 400 : 700}
               multiline={!!onTitleChange} />
+            {renderNote()}
           </>
         )}
       </div>

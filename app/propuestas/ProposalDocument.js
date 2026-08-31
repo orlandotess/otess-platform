@@ -274,6 +274,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                           <div>
                             {shownTitle && <div style={{ fontWeight: 700, fontSize: 14 }}>{shownTitle}</div>}
                             <div style={{ fontWeight: shownTitle ? 400 : 700, fontSize: shownTitle ? 13 : 14, color: shownTitle ? '#555' : undefined, whiteSpace: 'pre-wrap' }}>{it.description}</div>
+                            {it.note?.trim() && <div style={{ fontSize: 12.5, color: '#777', fontStyle: 'italic', whiteSpace: 'pre-wrap', marginTop: 4 }}>{it.note}</div>}
                           </div>
                         </td>
                         {!hidePricing && <td style={{ textAlign: 'right', fontSize: 13.5, color: '#333', verticalAlign: 'top', paddingTop: 14 }}>{bundled ? '' : fmt(it.unit_price)}</td>}
@@ -306,7 +307,10 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
                             <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                               {child.photo_signed_url ? <img src={child.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>{child.item_type === 'product' ? '📦' : '🔧'}</span>}
                             </div>
-                            <div style={{ fontSize: 13, fontWeight: 400, color: '#555', whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 400, color: '#555', whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                              {child.note?.trim() && <div style={{ fontSize: 12, color: '#777', fontStyle: 'italic', whiteSpace: 'pre-wrap', marginTop: 3 }}>{child.note}</div>}
+                            </div>
                           </td>
                           {!hidePricing && <td style={{ textAlign: 'right', fontSize: 13.5, color: '#333', verticalAlign: 'top', paddingTop: 10 }}>{it.combine_price === false ? fmt(child.unit_price) : ''}</td>}
                           <td style={{ textAlign: 'center', fontSize: 13.5, color: '#333', verticalAlign: 'top', paddingTop: 10 }}>x{child.quantity}</td>

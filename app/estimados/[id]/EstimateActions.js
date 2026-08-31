@@ -101,7 +101,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       let poMessage = null;
       if (items.length) {
         const { data: insertedItems, error: itemsErr } = await supabase.from('job_line_items').insert(items.map(i => ({
-          job_id: job.id, type: i.type, title: i.title, description: i.description,
+          job_id: job.id, type: i.type, title: i.title, description: i.description, note: i.note,
           quantity: i.quantity, unit_price: i.unit_price, msrp: i.msrp,
           supplier_price: i.supplier_price, exempt_reason: i.exempt_reason,
           area: i.area, vendor: i.vendor, photo_url: i.photo_url, sort_order: i.sort_order,

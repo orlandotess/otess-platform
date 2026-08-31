@@ -105,7 +105,7 @@ export default function NuevaSolicitud() {
   const clientType = selectedClient?.client_type ?? 'final';
   const selectedProperty = properties.find(p => p.id === form.property_id);
 
-  const addItem = () => setItems(i => [...i, { type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
+  const addItem = () => setItems(i => [...i, { type: 'labor', tax_category: 'labor', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null }]);
   async function addFromCatalog(catalogItem) {
     let photoPreview = null;
     if (catalogItem.photo_url) {
@@ -242,7 +242,7 @@ export default function NuevaSolicitud() {
           if (!upErr) photoPath = path;
         }
         lineItems.push({
-          solicitud_id: solicitud.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description,
+          solicitud_id: solicitud.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description, note: i.note?.trim() || null,
           quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
           msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
           supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -564,6 +564,8 @@ export default function NuevaSolicitud() {
                   onTypeChange={v => setItemType(idx, v)}
                   description={item.description}
                   onDescriptionChange={v => handleDescriptionSelect(idx, v)}
+                  note={item.note}
+                  onNoteChange={v => setItem(idx, 'note', v)}
                   catalogOptions={catalogItems.filter(c => c.type === item.type)}
                   datalistId={`catalog-${idx}`}
                   quantity={item.quantity}

@@ -61,6 +61,7 @@ export async function POST(request) {
             <td style="vertical-align:top">
               ${i.title ? `<div style="font-weight:700;margin-bottom:2px">${i.title}</div>` : ''}
               <div>${i.description}</div>
+              ${i.note?.trim() ? `<div style="font-size:12.5px;color:#777;font-style:italic;white-space:pre-wrap;margin-top:3px">${i.note}</div>` : ''}
               ${i.accessoryCount > 0 ? `<div style="font-size:11px;color:#999;margin-top:2px">${t('accessoryIncluded', { count: i.accessoryCount })}</div>` : ''}
             </td>
           </tr></table>

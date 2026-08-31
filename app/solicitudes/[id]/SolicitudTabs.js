@@ -80,7 +80,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
 
       if (items.length) {
         const { data: insertedItems } = await supabase.from('job_line_items').insert(items.map(i => ({
-          job_id: job.id, type: i.type, title: i.title, tax_category: i.tax_category, description: i.description,
+          job_id: job.id, type: i.type, title: i.title, tax_category: i.tax_category, description: i.description, note: i.note,
           quantity: i.quantity, unit_price: i.unit_price, msrp: i.msrp,
           supplier_price: i.supplier_price, exempt_reason: i.exempt_reason,
           area: i.area, vendor: i.vendor, photo_url: i.photo_url, sort_order: i.sort_order,
@@ -293,7 +293,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
   // --- Líneas ---
   const [lineItems, setLineItems] = useState(items);
   const [addingLine, setAddingLine] = useState(false);
-  const [newLine, setNewLine] = useState({ type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
+  const [newLine, setNewLine] = useState({ type: 'labor', tax_category: 'labor', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
   const [savingLine, setSavingLine] = useState(false);
   const [catalogItems, setCatalogItems] = useState([]);
 
@@ -342,6 +342,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
     }
     const { data } = await supabase.from('solicitud_line_items').insert([{
       solicitud_id: solicitud.id, type: newLine.type, tax_category: newLine.tax_category || newLine.type, description: newLine.description.trim(),
+      note: newLine.note?.trim() || null,
       quantity: parseFloat(newLine.quantity) || 1, unit_price: parseFloat(newLine.unit_price) || 0,
       msrp: newLine.msrp !== '' ? parseFloat(newLine.msrp) : null,
       supplier_price: newLine.supplier_price !== '' ? parseFloat(newLine.supplier_price) : null,
@@ -350,7 +351,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
       photo_url: photoPath, sort_order: lineItems.length,
     }]).select().single();
     if (data) setLineItems(prev => [...prev, { ...data, photo_signed_url: newLine.photoPreview }]);
-    setNewLine({ type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
+    setNewLine({ type: 'labor', tax_category: 'labor', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, area: '', vendor: '', photoFile: null, photoPreview: null });
     setAddingLine(false);
     setSavingLine(false);
   }
@@ -657,6 +658,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
                 <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8 }}>
                   {isTecnico ? `${item.quantity}${item.area ? ` — ${item.area}` : ''}` : `${item.quantity} × ${fmt(item.unit_price)}`}
                 </span>
+                {item.note?.trim() && <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', whiteSpace: 'pre-wrap', marginTop: 3 }}>{item.note}</div>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {!isTecnico && <span style={{ fontWeight: 700, fontSize: 13.5 }}>{fmt(item.quantity * item.unit_price)}</span>}
@@ -669,6 +671,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
               <LineItemRow
                 type={newLine.type} onTypeChange={setNewLineType}
                 description={newLine.description} onDescriptionChange={v => setNewLine(l => ({ ...l, description: v }))}
+                note={newLine.note} onNoteChange={v => setNewLine(l => ({ ...l, note: v }))}
                 catalogOptions={catalogItems} datalistId="new-line"
                 quantity={newLine.quantity} onQuantityChange={v => setNewLine(l => ({ ...l, quantity: v }))}
                 msrp={newLine.msrp} onMsrpChange={v => setNewLine(l => ({ ...l, msrp: v }))}

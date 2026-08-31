@@ -163,7 +163,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                             </div>
                             <div style={{ display: 'grid', gap: 10 }}>
                               {areaItems.map(it => (
-                                <div key={it.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <div key={it.id} style={{ display: 'flex', gap: 10, alignItems: it.note?.trim() ? 'flex-start' : 'center' }}>
                                   <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 6, background: '#f6f6f6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                                     {it.photo_signed_url ? (
                                       <img src={it.photo_signed_url} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -174,6 +174,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
                                   <span style={{ fontSize: 12.5, color: '#555', flex: 1, minWidth: 0 }}>
                                     {displayTitle(it.title, it.description) && <div style={{ fontWeight: 700, color: '#333' }}>{it.title}</div>}
                                     <div style={{ whiteSpace: 'pre-wrap' }}>{it.description}</div>
+                                    {it.note?.trim() && <div style={{ fontSize: 11.5, color: '#999', fontStyle: 'italic', whiteSpace: 'pre-wrap', marginTop: 3 }}>{it.note}</div>}
                                   </span>
                                   <span style={{ width: 60, flexShrink: 0, textAlign: 'right', fontSize: 12, color: '#999' }}>{fmt(it.unit_price)}</span>
                                   <span style={{ width: 30, flexShrink: 0, textAlign: 'center', fontSize: 12, color: '#999' }}>x{it.quantity}</span>

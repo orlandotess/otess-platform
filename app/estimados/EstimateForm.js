@@ -19,7 +19,7 @@ function emptyItem(overrides = {}) {
   return {
     key: Math.random().toString(36).slice(2),
     parentKey: null, combinePrice: true,
-    type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1,
+    type: 'labor', tax_category: 'labor', title: '', description: '', note: '', quantity: 1,
     unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: !overrides.catalog_item_id, group_description: '', from_calculator: false,
     photoFile: null, photoPreview: null, existingPhotoPath: null,
     ...overrides,
@@ -43,7 +43,7 @@ function itemsToAreas(items, t) {
     let area = areas.find(a => a.name === name);
     if (!area) { area = { key: Math.random().toString(36).slice(2), name, items: [] }; areas.push(area); }
     const parent = emptyItem({
-      type: li.type, tax_category: li.tax_category ?? li.type, title: li.title ?? '', description: li.description,
+      type: li.type, tax_category: li.tax_category ?? li.type, title: li.title ?? '', description: li.description, note: li.note ?? '',
       quantity: li.quantity, unit_price: li.unit_price,
       msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
       vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
@@ -54,7 +54,7 @@ function itemsToAreas(items, t) {
     rows.filter(c => c.parent_item_id === li.id).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).forEach(child => {
       area.items.push(emptyItem({
         parentKey: parent.key,
-        type: child.type, tax_category: child.tax_category ?? child.type, description: child.description,
+        type: child.type, tax_category: child.tax_category ?? child.type, description: child.description, note: child.note ?? '',
         quantity: child.quantity, unit_price: child.unit_price,
         msrp: child.msrp ?? '', supplier_price: child.supplier_price ?? '', exempt: !!child.exempt_reason,
         vendor: child.vendor ?? '', catalog_item_id: child.catalog_item_id ?? null, from_calculator: !!child.from_calculator,
@@ -525,7 +525,7 @@ export default function EstimateForm({ initialData = null }) {
         const base = itemLineTotal(i);
         const rate = tasaParaLinea(i, clientType, taxRules);
         const { data: row, error: err } = await supabase.from('estimate_line_items').insert([{
-          estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description,
+          estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description, note: i.note?.trim() || null,
           quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
           msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
           supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -549,7 +549,7 @@ export default function EstimateForm({ initialData = null }) {
           const base = itemLineTotal(i);
           const rate = tasaParaLinea(i, clientType, taxRules);
           const { error: err } = await supabase.from('estimate_line_items').insert([{
-            estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description,
+            estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description, note: i.note?.trim() || null,
             quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
             msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
             supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -776,6 +776,8 @@ export default function EstimateForm({ initialData = null }) {
                           alwaysShowPricing
                           description={item.description}
                           onDescriptionChange={v => handleAccessoryCatalogSelect(area.key, item.key, v)}
+                          note={item.note}
+                          onNoteChange={v => setItem(area.key, item.key, 'note', v)}
                           catalogOptions={catalogItems.filter(c => !c.internal_only)}
                           catalogItemId={item.catalog_item_id}
                           vendor={item.vendor}
@@ -809,6 +811,8 @@ export default function EstimateForm({ initialData = null }) {
                         onTitleChange={v => handleTitleCatalogSelect(area.key, item.key, v)}
                         description={item.description}
                         onDescriptionChange={v => handleCatalogSelect(area.key, item.key, v)}
+                        note={item.note}
+                        onNoteChange={v => setItem(area.key, item.key, 'note', v)}
                         catalogOptions={catalogItems.filter(c => c.type === item.type && !c.internal_only)}
                         catalogItemId={item.catalog_item_id}
                         datalistId={`est-cat-${areaIndex}-${itemIndex}`}

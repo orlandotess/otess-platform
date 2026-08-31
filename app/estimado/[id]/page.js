@@ -157,6 +157,7 @@ export default async function EstimaPublica(props) {
                         <div>
                           {displayTitle(item.title, item.description) && <div style={{ fontWeight: 700, marginBottom: 2 }}>{item.title}</div>}
                           <div style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                          {item.note?.trim() && <div style={{ fontSize: 12.5, color: '#777', fontStyle: 'italic', fontWeight: 400, whiteSpace: 'pre-wrap', marginTop: 3 }}>{item.note}</div>}
                           {item.accessoryCount > 0 && (
                             <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
                               {t('accessoriesIncluded', { count: item.accessoryCount })}

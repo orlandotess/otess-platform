@@ -11,7 +11,7 @@ import { calcularIVU } from '../../../../lib/tax';
 import { useTranslations, useLocale } from 'next-intl';
 
 function toInputItem(it) {
-  return { key: it.id, type: it.type, tax_category: it.tax_category ?? it.type, description: it.description, quantity: it.quantity, unit_price: it.unit_price, exempt: it.exempt };
+  return { key: it.id, type: it.type, tax_category: it.tax_category ?? it.type, description: it.description, note: it.note ?? '', quantity: it.quantity, unit_price: it.unit_price, exempt: it.exempt };
 }
 
 export default function RecurringInvoiceDetailClient({ recurring, clients, history, taxRules = [] }) {
@@ -44,7 +44,7 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
 
-  const addItem = () => setItems(i => [...i, { key: Math.random().toString(36).slice(2), type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', exempt: false }]);
+  const addItem = () => setItems(i => [...i, { key: Math.random().toString(36).slice(2), type: 'labor', tax_category: 'labor', description: '', note: '', quantity: 1, unit_price: '', exempt: false }]);
   const addFromCatalog = catalogItem => setItems(i => [...i, {
     key: Math.random().toString(36).slice(2), type: catalogItem.type, tax_category: catalogItem.tax_category,
     description: catalogItem.description, quantity: 1, unit_price: catalogItem.price ?? '', exempt: false,
@@ -80,7 +80,7 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
 
     await supabase.from('recurring_invoice_items').delete().eq('recurring_invoice_id', recurring.id);
     const lineItems = items.filter(i => i.description.trim()).map((i, idx) => ({
-      recurring_invoice_id: recurring.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description,
+      recurring_invoice_id: recurring.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description, note: i.note?.trim() || null,
       quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
       exempt: i.exempt, sort_order: idx,
     }));
@@ -185,6 +185,8 @@ export default function RecurringInvoiceDetailClient({ recurring, clients, histo
                 onTypeChange={v => setItemType(item.key, v)}
                 description={item.description}
                 onDescriptionChange={v => setItem(item.key, 'description', v)}
+                note={item.note}
+                onNoteChange={v => setItem(item.key, 'note', v)}
                 quantity={item.quantity}
                 onQuantityChange={v => setItem(item.key, 'quantity', v)}
                 unitPrice={item.unit_price}

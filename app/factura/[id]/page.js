@@ -208,6 +208,7 @@ export default async function FacturaPublica(props) {
                               <div>
                                 {showTitle && <div style={{ fontWeight: 700, fontSize: 14 }}>{item.title}</div>}
                                 <div style={{ fontWeight: showTitle ? 400 : 700, fontSize: showTitle ? 13 : 14, color: showTitle ? '#555' : undefined, whiteSpace: 'pre-wrap' }}>{item.description}</div>
+                                {item.note?.trim() && <div style={{ fontSize: 12.5, color: '#777', fontStyle: 'italic', fontWeight: 400, whiteSpace: 'pre-wrap', margin: '3px 0' }}>{item.note}</div>}
                                 <span style={{ fontSize: 10.5, fontWeight: 600, color: item.type === 'labor' ? '#92600a' : '#999', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                   {item.type === 'labor' ? t('table.laborType') : t('table.productType')}
                                 </span>
@@ -235,7 +236,10 @@ export default async function FacturaPublica(props) {
                                 <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 6, background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                                   {child.photo_signed_url ? <img src={child.photo_signed_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 11 }}>{child.type === 'labor' ? '🔧' : '📦'}</span>}
                                 </div>
-                                <div style={{ fontSize: 12.5, color: '#999', whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                                <div>
+                                  <div style={{ fontSize: 12.5, color: '#999', whiteSpace: 'pre-wrap' }}>{child.description}</div>
+                                  {child.note?.trim() && <div style={{ fontSize: 11.5, color: '#999', fontStyle: 'italic', whiteSpace: 'pre-wrap', marginTop: 3 }}>{child.note}</div>}
+                                </div>
                               </div>
                             </td>
                             <td style={{ padding: '8px 12px', textAlign: 'center', fontSize: 12.5, color: '#999' }}>x{child.quantity}</td>

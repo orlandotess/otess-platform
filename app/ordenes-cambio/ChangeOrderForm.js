@@ -10,7 +10,7 @@ import { calcularIVU, tasaParaLinea } from '../../lib/tax';
 import { useTranslations } from 'next-intl';
 
 function emptyItem() {
-  return { type: 'labor', tax_category: 'labor', description: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, saveToCatalog: true, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
+  return { type: 'labor', tax_category: 'labor', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, saveToCatalog: true, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
 }
 
 export default function ChangeOrderForm({ initialData = null }) {
@@ -39,7 +39,7 @@ export default function ChangeOrderForm({ initialData = null }) {
   const [items, setItems] = useState(
     initialData?.items?.length
       ? initialData.items.map(li => ({
-          type: li.type, tax_category: li.tax_category ?? li.type, description: li.description, quantity: li.quantity, unit_price: li.unit_price,
+          type: li.type, tax_category: li.tax_category ?? li.type, description: li.description, note: li.note ?? '', quantity: li.quantity, unit_price: li.unit_price,
           msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
           area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null, saveToCatalog: !li.catalog_item_id,
           photoFile: null, photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
@@ -216,7 +216,7 @@ export default function ChangeOrderForm({ initialData = null }) {
       const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
       const rate = tasaParaLinea(i, clientType, taxRules);
       lineItems.push({
-        change_order_id: order.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description,
+        change_order_id: order.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description, note: i.note?.trim() || null,
         quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
         msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
         supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -300,6 +300,8 @@ export default function ChangeOrderForm({ initialData = null }) {
                   onTypeChange={v => setItemType(idx, v)}
                   description={item.description}
                   onDescriptionChange={v => handleCatalogSelect(idx, v)}
+                  note={item.note}
+                  onNoteChange={v => setItem(idx, 'note', v)}
                   catalogOptions={catalogItems.filter(c => c.type === item.type && !c.internal_only)}
                   catalogItemId={item.catalog_item_id}
                   datalistId={`co-cat-${idx}`}

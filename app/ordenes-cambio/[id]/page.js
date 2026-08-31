@@ -114,6 +114,7 @@ export default async function OrdenCambioDetail(props) {
                 <tr key={item.id} style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                   <td style={{ padding: '12px 14px', fontWeight: 500 }}>
                     {item.description}
+                    {item.note?.trim() && <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', fontWeight: 400, whiteSpace: 'pre-wrap', marginTop: 3 }}>{item.note}</div>}
                     {item.area && <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>{t('areaLabel', { area: item.area })}</div>}
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>

@@ -20,7 +20,7 @@ function emptyItem(overrides = {}) {
   return {
     key: Math.random().toString(36).slice(2),
     parentKey: null, combinePrice: true,
-    type: 'labor', tax_category: 'labor', title: '', description: '', quantity: 1,
+    type: 'labor', tax_category: 'labor', title: '', description: '', note: '', quantity: 1,
     unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '',
     photoFile: null, photoPreview: null, existingPhotoPath: null,
     ...overrides,
@@ -362,7 +362,7 @@ function NuevoTrabajoForm() {
           for (const i of area.items.filter(it => !it.parentKey && it.description.trim())) {
             const photoPath = await uploadItemPhoto(i, sortOrder);
             const { data: row } = await supabase.from('job_line_items').insert([{
-              job_id: job.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description,
+              job_id: job.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description, note: i.note?.trim() || null,
               quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
               msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
               supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -379,7 +379,7 @@ function NuevoTrabajoForm() {
           for (const i of area.items.filter(it => it.parentKey && it.description.trim() && keyToId[it.parentKey])) {
             const photoPath = await uploadItemPhoto(i, sortOrder);
             await supabase.from('job_line_items').insert([{
-              job_id: job.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description,
+              job_id: job.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description, note: i.note?.trim() || null,
               quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
               msrp: i.msrp !== '' ? parseFloat(i.msrp) : null,
               supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
@@ -746,6 +746,8 @@ function NuevoTrabajoForm() {
                               showPricing={showPricing}
                               description={item.description}
                               onDescriptionChange={v => setItem(area.key, item.key, 'description', v)}
+                              note={item.note}
+                              onNoteChange={v => setItem(area.key, item.key, 'note', v)}
                               catalogOptions={catalogItems}
                               datalistId={`catalog-${areaIndex}-${itemIndex}`}
                               quantity={item.quantity}
@@ -777,6 +779,8 @@ function NuevoTrabajoForm() {
                             onTitleChange={v => handleTitleSelect(area.key, item.key, v)}
                             description={item.description}
                             onDescriptionChange={v => handleDescriptionSelect(area.key, item.key, v)}
+                            note={item.note}
+                            onNoteChange={v => setItem(area.key, item.key, 'note', v)}
                             catalogOptions={catalogItems.filter(c => c.type === item.type)}
                             datalistId={`catalog-${areaIndex}-${itemIndex}`}
                             quantity={item.quantity}
