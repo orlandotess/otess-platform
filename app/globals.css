@@ -517,7 +517,11 @@ label {
   text-transform: uppercase;
 }
 
-input, select, textarea {
+/* Los checkbox y radio quedan fuera: el ancho del 100% y el padding de abajo
+   están pensados para campos de texto, y aplicados a una casilla la estiran a
+   lo ancho de su fila — se veía como un cuadro azul gigante en el modal de
+   adjuntos, sobre todo en pantallas anchas como un Fold abierto. */
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   padding: 10px 14px;
   border: 1.5px solid var(--border);
   border-radius: 8px;
@@ -530,7 +534,7 @@ input, select, textarea {
   width: 100%;
 }
 
-input:focus, select:focus, textarea:focus {
+input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus {
   border-color: var(--navy);
 }
 
