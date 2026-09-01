@@ -1361,6 +1361,13 @@
       },
       "moreResults": "Mostrando {shown} de {total}. Escribe más para afinar."
     },
+    "catalogResults": {
+      "type": {
+        "labor": "Labor",
+        "product": "Producto",
+        "fee": "Fee"
+      }
+    },
     "lineItemRow": {
       "catalogInput": {
         "noResults": "Sin resultados de catálogo. Se usará el texto escrito.",
