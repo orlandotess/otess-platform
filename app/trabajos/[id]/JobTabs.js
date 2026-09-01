@@ -16,10 +16,14 @@ import { normalizeForSummary } from '../../../lib/materialSummary';
 import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDatePR, formatDateTimePR } from '../../../lib/datetimeLocal';
-import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 import { computeHours, getJobScheduleWindow } from '../../../lib/hours';
 import { useJobChecklist } from '../../../lib/useJobChecklist';
 
+import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
+// Thumbnails of note photos are served resized (see the same constant in
+// page.js) — the lightbox and the annotator still get the original.
+const NOTE_THUMB_WIDTH = 800;
+const THUMB_TRANSFORM = { transform: { width: NOTE_THUMB_WIDTH, height: NOTE_THUMB_WIDTH, resize: 'contain' } };
 const SUPABASE_URL = 'https://zisidorwdhrttmdppnbj.supabase.co';
 
 const statusOptions = [
@@ -567,10 +571,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     if (editLineForm.photoFile) {
       const ext = editLineForm.photoFile.name.split('.').pop();
       const path = `${job.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, editLineForm.photoFile);
+      const { path: finalPath, error: upErr } = await uploadJobPhoto(path, editLineForm.photoFile);
       if (!upErr) {
-        photoPath = path;
-        const { data: signed } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600);
+        photoPath = finalPath;
+        const { data: signed } = await supabase.storage.from('Job-photos').createSignedUrl(finalPath, 3600);
         photoSignedUrl = signed?.signedUrl ?? null;
       }
     }
@@ -616,8 +620,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     if (newLine.photoFile) {
       const ext = newLine.photoFile.name.split('.').pop();
       const path = `${job.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, newLine.photoFile);
-      if (!upErr) photoPath = path;
+      const { path: finalPath, error: upErr } = await uploadJobPhoto(path, newLine.photoFile);
+      if (!upErr) photoPath = finalPath;
     }
     const { data } = await supabase.from('job_line_items').insert([{
       job_id: job.id,
@@ -655,8 +659,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     if (newLine.photoFile) {
       const ext = newLine.photoFile.name.split('.').pop();
       const path = `${job.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, newLine.photoFile);
-      if (!upErr) photoPath = path;
+      const { path: finalPath, error: upErr } = await uploadJobPhoto(path, newLine.photoFile);
+      if (!upErr) photoPath = finalPath;
     }
     const { data } = await supabase.from('job_line_items').insert([{
       job_id: job.id,
@@ -764,8 +768,8 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     if (newExpense.photoFile) {
       const ext = newExpense.photoFile.name.split('.').pop();
       const path = `${job.id}/expenses/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, newExpense.photoFile);
-      if (!upErr) receiptPath = path;
+      const { path: finalPath, error: upErr } = await uploadJobPhoto(path, newExpense.photoFile);
+      if (!upErr) receiptPath = finalPath;
     }
     const { data } = await supabase.from('expenses').insert([{
       job_id: job.id,
@@ -863,11 +867,11 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
         const file = pendingPhotos[i];
         const ext = file.name.split('.').pop();
         const path = `${job.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-        const { error } = await uploadFileWithProgress('Job-photos', path, file, pct => {
-          setUploadProgress(prev => ({ ...prev, [i]: pct }));
+        const { path: finalPath, error } = await uploadJobPhoto(path, file, {
+          onProgress: pct => setUploadProgress(prev => ({ ...prev, [i]: pct })),
         });
-        if (!error) uploadedPaths.push(path);
-        else failedNames.push(file.name);
+        if (!error) uploadedPaths.push(finalPath);
+        else failedNames.push(error.code === 'unsupported_image' ? `${file.name} (${error.message})` : file.name);
       }
       setUploadingPhoto(false);
     }
@@ -886,10 +890,16 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
         const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
         return data?.signedUrl ?? null;
       }));
+      const thumbUrls = await Promise.all(uploadedPaths.map(async (p, i) => {
+        const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600, THUMB_TRANSFORM);
+        return data?.signedUrl ?? signedUrls[i] ?? null;
+      }));
       setNotesList(prev => [{
         ...newNote,
         photo_urls: uploadedPaths.length > 0 ? signedUrls : null,
         photo_url: signedUrls[0] ?? null,
+        thumb_urls: uploadedPaths.length > 0 ? thumbUrls : null,
+        thumb_url: thumbUrls[0] ?? null,
         raw_photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
         raw_photo_url: uploadedPaths[0] ?? null,
       }, ...prev]);
@@ -912,18 +922,24 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   async function handleAnnotateExistingSave(blob) {
     if (!annotatingExisting) return;
     const { noteId, path } = annotatingExisting;
-    const { error } = await supabase.storage.from('Job-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    const { error } = await uploadJobPhoto(path, blob, { upsert: true, contentType: 'image/jpeg' });
     if (!error) {
       const { data } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600);
       const signedUrl = data?.signedUrl ?? null;
+      // Re-sign the thumbnail too, or the grid keeps showing the pre-annotation
+      // render while the lightbox shows the marked-up original.
+      const { data: thumbData } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600, THUMB_TRANSFORM);
+      const thumbUrl = thumbData?.signedUrl ?? signedUrl;
       setNotesList(prev => prev.map(n => {
         if (n.id !== noteId) return n;
         if (annotatingExisting.isGallery) {
           const newUrls = [...n.photo_urls];
           newUrls[annotatingExisting.galleryIdx] = signedUrl;
-          return { ...n, photo_urls: newUrls, photo_url: newUrls[0] };
+          const newThumbs = [...(n.thumb_urls ?? n.photo_urls)];
+          newThumbs[annotatingExisting.galleryIdx] = thumbUrl;
+          return { ...n, photo_urls: newUrls, photo_url: newUrls[0], thumb_urls: newThumbs, thumb_url: newThumbs[0] };
         }
-        return { ...n, photo_url: signedUrl };
+        return { ...n, photo_url: signedUrl, thumb_url: thumbUrl };
       }));
     }
     setAnnotatingExisting(null);
@@ -1164,7 +1180,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     return isVideo ? (
                       <video key={idx} src={url} controls style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                     ) : (
-                      <img key={idx} src={url} alt={t('pinnedNote.photoAlt')} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: null })}
+                      <img key={idx} src={n.thumb_urls?.[idx] ?? url} alt={t('pinnedNote.photoAlt')} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: null })}
                         style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                     );
                   })}
@@ -1178,7 +1194,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ maxWidth: 260, maxHeight: 160, borderRadius: 8, background: '#000' }} />
                 ) : (
-                  <img src={n.photo_url} alt={t('pinnedNote.photoAlt')} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: null })}
+                  <img src={n.thumb_url ?? n.photo_url} alt={t('pinnedNote.photoAlt')} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: null })}
                     style={{ maxWidth: 260, maxHeight: 160, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                 );
               })()}
@@ -2234,7 +2250,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     return isVideo ? (
                       <video key={idx} src={url} controls style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                     ) : (
-                      <img key={idx} src={url} alt={t('notes.jobPhotoAlt')} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
+                      <img key={idx} src={n.thumb_urls?.[idx] ?? url} alt={t('notes.jobPhotoAlt')} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
                         style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                     );
                   })}
@@ -2251,7 +2267,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 10, marginBottom: n.note ? 10 : 0, background: '#000' }} />
                 ) : (
-                  <img src={n.photo_url} alt={t('notes.jobPhotoAlt')} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
+                  <img src={n.thumb_url ?? n.photo_url} alt={t('notes.jobPhotoAlt')} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
                     style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0, cursor: 'zoom-in' }} />
                 );
               })()}

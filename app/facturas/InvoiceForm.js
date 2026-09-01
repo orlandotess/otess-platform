@@ -10,6 +10,7 @@ import TaxBreakdown from '../TaxBreakdown';
 import { calcularIVU, tasaParaLinea, aplicarDescuento } from '../../lib/tax';
 import { useTranslations } from 'next-intl';
 
+import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 const TERMS_TEMPLATE_DEFS = [
   { key: 'standard' },
 ];
@@ -437,8 +438,8 @@ export default function InvoiceForm({ initialData = null }) {
       if (!i.photoFile) return i.existingPhotoPath ?? null;
       const ext = i.photoFile.name.split('.').pop();
       const path = `${invoice.id}/${Date.now()}-${sortOrder}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, i.photoFile);
-      return upErr ? null : path;
+      const { path: finalPath, error: upErr } = await uploadJobPhoto(path, i.photoFile);
+      return upErr ? null : finalPath;
     }
 
     // Ítems marcados "☑ Guardar en catálogo" que no vienen de una selección

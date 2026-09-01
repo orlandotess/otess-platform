@@ -9,6 +9,13 @@ import { normalizeName } from '../../../lib/normalizeName';
 import { calcularIVU } from '../../../lib/tax';
 import { getTranslations } from 'next-intl/server';
 
+const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
+// Note photos come off a phone camera at 5-10 MB each; a job with a dozen of
+// them was pulling 30+ MB just to fill a grid of 130px tiles. Thumbnails get a
+// resized render, while the lightbox and the photo annotator keep the original
+// (the annotator re-uploads what it is given, so it must never see a thumbnail).
+const NOTE_THUMB_WIDTH = 800;
+
 const statusBadgeDefs = {
   estimate:    { cls: 'badge-gray',  key: 'estimate' },
   scheduled:   { cls: 'badge-blue',  key: 'scheduled' },
@@ -73,7 +80,7 @@ export default async function TrabajoDetail(props) {
     : [{ data: [] }, { data: [] }, { data: [] }];
 
   // Generate signed URLs for notes with photos (1 hour expiry)
-  async function signPath(rawPath) {
+  async function signPath(rawPath, thumbWidth = null) {
     if (!rawPath) return null;
     try {
       let filePath = rawPath;
@@ -83,7 +90,10 @@ export default async function TrabajoDetail(props) {
         filePath = pathParts[1];
         if (!filePath) return null;
       }
-      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(filePath, 3600);
+      const opts = thumbWidth && IMAGE_PATH.test(filePath)
+        ? { transform: { width: thumbWidth, height: thumbWidth, resize: 'contain' } }
+        : undefined;
+      const { data } = await supabase.storage.from('Job-photos').createSignedUrl(filePath, 3600, opts);
       return data?.signedUrl ?? null;
     } catch {
       return null;
@@ -93,12 +103,17 @@ export default async function TrabajoDetail(props) {
   const notesWithSignedUrls = await Promise.all(
     (notes ?? []).map(async (note) => {
       if (note.photo_urls && note.photo_urls.length > 0) {
-        const signedUrls = await Promise.all(note.photo_urls.map(p => signPath(p)));
-        return { ...note, photo_urls: signedUrls.filter(Boolean), photo_url: signedUrls[0] ?? null, raw_photo_urls: note.photo_urls, raw_photo_url: note.photo_url };
+        // Sign each photo as a set so photo_urls/thumb_urls/raw_photo_urls stay
+        // index-aligned — the annotator writes back to raw_photo_urls[index].
+        const signed = (await Promise.all(note.photo_urls.map(async p => {
+          const full = await signPath(p);
+          return full ? { full, thumb: await signPath(p, NOTE_THUMB_WIDTH) ?? full, raw: p } : null;
+        }))).filter(Boolean);
+        return { ...note, photo_urls: signed.map(x => x.full), thumb_urls: signed.map(x => x.thumb), photo_url: signed[0]?.full ?? null, thumb_url: signed[0]?.thumb ?? null, raw_photo_urls: signed.map(x => x.raw), raw_photo_url: note.photo_url };
       }
       if (!note.photo_url) return note;
       const signedUrl = await signPath(note.photo_url);
-      return { ...note, photo_url: signedUrl, raw_photo_url: note.photo_url };
+      return { ...note, photo_url: signedUrl, thumb_url: await signPath(note.photo_url, NOTE_THUMB_WIDTH) ?? signedUrl, raw_photo_url: note.photo_url };
     })
   );
 
@@ -127,11 +142,15 @@ export default async function TrabajoDetail(props) {
   const pinnedClientNotesWithSignedUrls = await Promise.all(
     (pinnedClientNotes ?? []).map(async (note) => {
       if (note.photo_urls && note.photo_urls.length > 0) {
-        const signedUrls = await Promise.all(note.photo_urls.map(p => signPath(p)));
-        return { ...note, photo_urls: signedUrls.filter(Boolean), photo_url: signedUrls[0] ?? null };
+        const signed = (await Promise.all(note.photo_urls.map(async p => {
+          const full = await signPath(p);
+          return full ? { full, thumb: await signPath(p, NOTE_THUMB_WIDTH) ?? full } : null;
+        }))).filter(Boolean);
+        return { ...note, photo_urls: signed.map(x => x.full), thumb_urls: signed.map(x => x.thumb), photo_url: signed[0]?.full ?? null, thumb_url: signed[0]?.thumb ?? null };
       }
       if (!note.photo_url) return note;
-      return { ...note, photo_url: await signPath(note.photo_url) };
+      const pinnedSigned = await signPath(note.photo_url);
+      return { ...note, photo_url: pinnedSigned, thumb_url: await signPath(note.photo_url, NOTE_THUMB_WIDTH) ?? pinnedSigned };
     })
   );
 

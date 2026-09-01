@@ -7,6 +7,7 @@ import LineItemRow from '../LineItemRow';
 import CableCalculator from '../CableCalculator';
 import { useTranslations } from 'next-intl';
 
+import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 function emptyItem(parentKey = null, itemType = 'labor') {
   return {
     key: Math.random().toString(36).slice(2),
@@ -478,8 +479,8 @@ export default function PropuestaForm({ initialData = null }) {
     if (!it.photoFile) return it.existingPhotoPath ?? null;
     const ext = it.photoFile.name.split('.').pop();
     const path = `proposals/${optionId}/${Date.now()}-${sortOrder}.${ext}`;
-    const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, it.photoFile);
-    return upErr ? null : path;
+    const { path: finalPath, error: upErr } = await uploadJobPhoto(path, it.photoFile);
+    return upErr ? null : finalPath;
   }
 
   async function handleSave() {
@@ -518,8 +519,8 @@ export default function PropuestaForm({ initialData = null }) {
     let coverPath = existingCoverPath;
     if (coverPhoto) {
       const ext = coverPhoto.name.split('.').pop();
-      coverPath = `proposals/covers/${Date.now()}.${ext}`;
-      await supabase.storage.from('Job-photos').upload(coverPath, coverPhoto);
+      const subidaCover = await uploadJobPhoto(`proposals/covers/${Date.now()}.${ext}`, coverPhoto);
+      coverPath = subidaCover.path ?? existingCoverPath;
     }
 
     if (isEdit) {

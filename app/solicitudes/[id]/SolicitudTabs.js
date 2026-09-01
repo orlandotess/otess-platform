@@ -10,8 +10,8 @@ import { calcularIVU } from '../../../lib/tax';
 import { buildChecklistItemsFromLineItems } from '../../../lib/generateChecklistFromLineItems';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDateTimePR } from '../../../lib/datetimeLocal';
-import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 
+import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 const statusOptions = [
   { value: 'nueva', key: 'nueva' },
   { value: 'necesita_aprobacion', key: 'necesitaAprobacion' },
@@ -337,8 +337,8 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
     if (newLine.photoFile) {
       const ext = newLine.photoFile.name.split('.').pop();
       const path = `${solicitud.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, newLine.photoFile);
-      if (!upErr) photoPath = path;
+      const { path: finalPath, error: upErr } = await uploadJobPhoto(path, newLine.photoFile);
+      if (!upErr) photoPath = finalPath;
     }
     const { data } = await supabase.from('solicitud_line_items').insert([{
       solicitud_id: solicitud.id, type: newLine.type, tax_category: newLine.tax_category || newLine.type, description: newLine.description.trim(),
@@ -386,8 +386,8 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
       const file = pendingPhotos[i];
       const ext = file.name.split('.').pop();
       const path = `${solicitud.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-      const { error } = await uploadFileWithProgress('Job-photos', path, file, () => {});
-      if (!error) uploadedPaths.push(path);
+      const { path: finalPath, error } = await uploadJobPhoto(path, file);
+      if (!error) uploadedPaths.push(finalPath);
     }
     const { data: newNote } = await supabase.from('solicitud_notes').insert([{
       solicitud_id: solicitud.id,

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { buildMapsLinks, pickMapsLink } from '../../../lib/mapsLinks';
 import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
-import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
+import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 import { sumBillableLineItems } from '../../../lib/proposalLineItemTotal';
 import SearchBox from '../../SearchBox';
 
@@ -398,10 +398,10 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
         const file = pendingNotePhotos[i];
         const ext = file.name.split('.').pop();
         const path = `client-notes/${client.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-        const { error } = await uploadFileWithProgress('Job-photos', path, file, pct => {
-          setNoteUploadProgress(prev => ({ ...prev, [i]: pct }));
+        const { path: finalPath, error } = await uploadJobPhoto(path, file, {
+          onProgress: pct => setNoteUploadProgress(prev => ({ ...prev, [i]: pct })),
         });
-        if (!error) uploadedPaths.push(path);
+        if (!error) uploadedPaths.push(finalPath);
       }
       setUploadingNotePhoto(false);
     }

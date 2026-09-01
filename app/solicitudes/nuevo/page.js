@@ -10,8 +10,8 @@ import TaxBreakdown from '../../TaxBreakdown';
 import { calcularIVU } from '../../../lib/tax';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { localInputToIso } from '../../../lib/datetimeLocal';
-import { uploadFileWithProgress } from '../../../lib/uploadWithProgress';
 
+import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 export default function NuevaSolicitud() {
   const router = useRouter();
   const t = useTranslations('solicitudes.newSolicitud');
@@ -225,8 +225,8 @@ export default function NuevaSolicitud() {
         for (let i = 0; i < images.length; i++) {
           const ext = images[i].file.name.split('.').pop();
           const path = `${solicitud.id}/intake-${Date.now()}-${i}.${ext}`;
-          const { error: upErr } = await uploadFileWithProgress('Job-photos', path, images[i].file, () => {});
-          if (!upErr) uploadedPaths.push(path);
+          const { path: finalPath, error: upErr } = await uploadJobPhoto(path, images[i].file);
+          if (!upErr) uploadedPaths.push(finalPath);
         }
         if (uploadedPaths.length) await supabase.from('solicitudes').update({ photo_urls: uploadedPaths }).eq('id', solicitud.id);
       }
@@ -238,8 +238,8 @@ export default function NuevaSolicitud() {
         if (i.photoFile) {
           const ext = i.photoFile.name.split('.').pop();
           const path = `${solicitud.id}/${Date.now()}-${sortOrder}.${ext}`;
-          const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, i.photoFile);
-          if (!upErr) photoPath = path;
+          const { path: finalPath, error: upErr } = await uploadJobPhoto(path, i.photoFile);
+          if (!upErr) photoPath = finalPath;
         }
         lineItems.push({
           solicitud_id: solicitud.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description, note: i.note?.trim() || null,

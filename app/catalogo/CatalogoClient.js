@@ -6,6 +6,7 @@ import ViewToggle, { useCatalogView } from "../ViewToggle";
 import CatalogoView from "../CatalogoView";
 import { matchesCatalogQuery } from "../../lib/catalogSearch";
 
+import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 const TYPE_META_BASE = {
   labor: { icon: "🔧", color: "#e0972c" },
   product: { icon: "📦", color: "#2a4cb5" },
@@ -200,9 +201,9 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   async function uploadPhoto(file) {
     const ext = file.name.split(".").pop();
     const path = `catalog/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-    const { error } = await supabase.storage.from("Job-photos").upload(path, file);
+    const { path: finalPath, error } = await uploadJobPhoto(path, file);
     if (error) return null;
-    return path;
+    return finalPath;
   }
 
   async function saveEdit(id) {

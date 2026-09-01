@@ -12,6 +12,7 @@ import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { localInputToIso } from '../../../lib/datetimeLocal';
 import { useTranslations } from 'next-intl';
 
+import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 export default function NuevoTrabajo() {
   return <NuevoTrabajoForm />;
 }
@@ -350,8 +351,8 @@ function NuevoTrabajoForm() {
           if (!i.photoFile) return i.existingPhotoPath ?? null;
           const ext = i.photoFile.name.split('.').pop();
           const path = `${job.id}/${Date.now()}-${sortOrder}.${ext}`;
-          const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, i.photoFile);
-          return upErr ? null : path;
+          const { path: finalPath, error: upErr } = await uploadJobPhoto(path, i.photoFile);
+          return upErr ? null : finalPath;
         }
 
         // Parents are inserted first so their DB ids can be attached to their

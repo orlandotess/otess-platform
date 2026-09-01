@@ -9,6 +9,7 @@ import TaxBreakdown from '../TaxBreakdown';
 import { calcularIVU, tasaParaLinea } from '../../lib/tax';
 import { useTranslations } from 'next-intl';
 
+import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 function emptyItem() {
   return { type: 'labor', tax_category: 'labor', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, saveToCatalog: true, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
 }
@@ -210,8 +211,8 @@ export default function ChangeOrderForm({ initialData = null }) {
       if (i.photoFile) {
         const ext = i.photoFile.name.split('.').pop();
         const path = `change-orders/${order.id}/${Date.now()}-${sortOrder}.${ext}`;
-        const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, i.photoFile);
-        if (!upErr) photoPath = path;
+        const { path: finalPath, error: upErr } = await uploadJobPhoto(path, i.photoFile);
+        if (!upErr) photoPath = finalPath;
       }
       const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
       const rate = tasaParaLinea(i, clientType, taxRules);

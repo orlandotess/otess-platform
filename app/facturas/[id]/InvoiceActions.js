@@ -7,8 +7,10 @@ import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 import { useTranslations, useLocale } from 'next-intl';
 
+import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 const PAYMENT_METHOD_KEYS = ['cash', 'check', 'card', 'transfer'];
 const TERMS_TEMPLATE_KEYS = ['standard'];
+const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function InvoiceActions({ invoiceId, status, isOverdue = false, remindersPausedAt: initialRemindersPausedAt = null, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [], internalNotes: initialInternalNotes = '', internalAttachments: initialInternalAttachments = [], clientId = null, subtotalLabor = 0, existingRetenciones = [], issuedAt = null, clientContacts = [] }) {
@@ -206,12 +208,12 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
     setUploadingPhoto(true);
     const ext = file.name.split('.').pop();
     const path = `invoice-checks/${invoiceId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error: uploadErr } = await supabase.storage.from('Job-photos').upload(path, file);
+    const { path: finalPath, error: uploadErr } = await uploadJobPhoto(path, file);
     if (!uploadErr) {
-      const { data } = await supabase.from('invoice_internal_attachments').insert([{ invoice_id: invoiceId, photo_url: path }]).select().single();
+      const { data } = await supabase.from('invoice_internal_attachments').insert([{ invoice_id: invoiceId, photo_url: finalPath }]).select().single();
       if (data) {
         setCheckPhotos(prev => [data, ...prev]);
-        const { data: signed } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600);
+        const { data: signed } = await supabase.storage.from('Job-photos').createSignedUrl(finalPath, 3600);
         setCheckPhotoUrls(prev => ({ ...prev, [data.id]: signed?.signedUrl ?? null }));
       }
     }
@@ -261,7 +263,12 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       const withSigned = await Promise.all((data ?? []).map(async n => {
         const paths = n.photo_urls && n.photo_urls.length > 0 ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
         const signedUrls = await Promise.all(paths.map(async p => {
-          const { data: sd } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
+          // Job photos come straight off a phone camera (5-10 MB each) and this
+          // modal lists every note in the job at once, so signing the originals
+          // for 60px thumbnails left the previews blank while tens of MB
+          // downloaded. Ask storage for a resized render; videos/PDFs sign as-is.
+          const opts = IMAGE_PATH.test(p) ? { transform: { width: 160, height: 160, resize: 'cover' } } : undefined;
+          const { data: sd } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600, opts);
           return sd?.signedUrl ?? null;
         }));
         return { ...n, signedUrls: signedUrls.filter(Boolean) };

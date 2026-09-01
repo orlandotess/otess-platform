@@ -9,6 +9,10 @@ import { pickMapsLink } from '../../lib/mapsLinks';
 import ClientCombobox from '../facturas/nueva/ClientCombobox';
 import QuickRescheduleModal from './QuickRescheduleModal';
 
+import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
+const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
+const ATTACHMENT_THUMB = { transform: { width: 400, height: 400, resize: 'contain' } };
+
 const TECH_COLORS = [
   '#16223d', '#e0972c', '#27ae60', '#2a4cb5', '#e05c2a',
   '#8e44ad', '#16a085', '#c0392b', '#d35400', '#1abc9c', '#c1501f',
@@ -89,13 +93,20 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const notePhotoInputRef = useRef(null);
 
   async function resolveNotePhotoUrls(notes) {
-    return Promise.all(notes.map(async n => ({
-      ...n,
-      photo_signed_urls: await Promise.all((n.photo_urls ?? []).map(async p => {
+    return Promise.all(notes.map(async n => {
+      const paths = n.photo_urls ?? [];
+      const photo_signed_urls = await Promise.all(paths.map(async p => {
         const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
         return data?.signedUrl ?? null;
-      })),
-    })));
+      }));
+      // The 56px tiles get a resized render; the link still opens the original.
+      const photo_thumb_urls = await Promise.all(paths.map(async (p, i) => {
+        if (!IMAGE_PATH.test(p)) return photo_signed_urls[i];
+        const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600, ATTACHMENT_THUMB);
+        return data?.signedUrl ?? photo_signed_urls[i];
+      }));
+      return { ...n, photo_signed_urls, photo_thumb_urls };
+    }));
   }
 
   useEffect(() => {
@@ -128,8 +139,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     for (const { file } of newNotePhotos) {
       const ext = file.name.split('.').pop();
       const path = `${id}/note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-      const { error } = await supabase.storage.from('Job-photos').upload(path, file);
-      if (!error) uploadedPaths.push(path);
+      const { path: finalPath, error } = await uploadJobPhoto(path, file);
+      if (!error) uploadedPaths.push(finalPath);
     }
     const { data, error } = await supabase.from(table).insert([{
       [fkColumn]: id, note: newNoteText.trim() || null, author_name: currentUserName || null,
@@ -166,9 +177,9 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 {n.note && <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>}
                 {(n.photo_signed_urls ?? []).filter(Boolean).length > 0 && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: n.note ? 6 : 0 }}>
-                    {n.photo_signed_urls.filter(Boolean).map((url, i) => (
+                    {n.photo_signed_urls.map((url, i) => url && (
                       <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                        <img src={url} alt={t('notes.photoAlt')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                        <img src={n.photo_thumb_urls?.[i] ?? url} alt={t('notes.photoAlt')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
                       </a>
                     ))}
                   </div>
@@ -678,8 +689,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     for (const file of files) {
       const ext = file.name.split('.').pop();
       const path = `${selectedTask.id}/${item.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-      const { error } = await supabase.storage.from('Job-photos').upload(path, file);
-      if (!error) uploaded.push({ path, previewUrl: URL.createObjectURL(file) });
+      const { path: finalPath, error } = await uploadJobPhoto(path, file);
+      if (!error) uploaded.push({ path: finalPath, previewUrl: URL.createObjectURL(file) });
     }
     if (!uploaded.length) return;
     const newAttachments = [...(item.attachments ?? []), ...uploaded.map(u => u.path)];
@@ -2353,7 +2364,7 @@ function ChecklistItemRow({ item, onToggle, onUploadFiles, onRemoveAttachment, o
                 ) : isVideoFile(path) ? (
                   <video src={url} onClick={() => onOpenLightbox(i)} controls style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
                 ) : (
-                  <img src={url} alt={t('checklistItem.attachmentAlt')} onClick={() => onOpenLightbox(i)}
+                  <img src={item.attachment_thumb_urls?.[i] ?? url} alt={t('checklistItem.attachmentAlt')} onClick={() => onOpenLightbox(i)}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
                 )}
                 <button type="button" onClick={() => onRemoveAttachment(i)}

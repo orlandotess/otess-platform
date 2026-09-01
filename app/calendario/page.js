@@ -7,6 +7,9 @@ import { getCurrentRole, getCurrentUserName } from '../../lib/supabase-server';
 import Sidebar from '../Sidebar';
 import CalendarioClient from './calendario-client';
 
+const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
+const ATTACHMENT_THUMB = { transform: { width: 400, height: 400, resize: 'contain' } };
+
 // Una evaluación en sitio no guarda duración propia; se dibuja como un bloque fijo,
 // igual que el que ofrecía el formulario de agendado.
 const ASSESSMENT_DURATION_MINUTES = 60;
@@ -99,7 +102,15 @@ export default async function CalendarioPage(props) {
         const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
         return data?.signedUrl ?? null;
       }));
-      return { ...item, attachment_urls };
+      // Attachments show as 56px tiles but come off a phone camera at several MB
+      // each — serve the tiles a resized render and keep the originals for the
+      // lightbox. Videos/PDFs can't be transformed, so they fall back to the original.
+      const attachment_thumb_urls = await Promise.all(paths.map(async (p, i) => {
+        if (!IMAGE_PATH.test(p)) return attachment_urls[i];
+        const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600, ATTACHMENT_THUMB);
+        return data?.signedUrl ?? attachment_urls[i];
+      }));
+      return { ...item, attachment_urls, attachment_thumb_urls };
     })),
   })));
 

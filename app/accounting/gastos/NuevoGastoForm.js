@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useTranslations } from 'next-intl';
 
+import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 const expenseCategoryDefs = [
   { value: 'materiales', key: 'materiales' },
   { value: 'gasolina', key: 'gasolina' },
@@ -54,8 +55,8 @@ export default function NuevoGastoForm({ jobs = [], onSaved, onCancel }) {
     if (photoFile) {
       const ext = photoFile.name.split('.').pop();
       const path = jobId ? `${jobId}/expenses/${Date.now()}.${ext}` : `general/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, photoFile);
-      if (!upErr) receiptPath = path;
+      const { path: finalPath, error: upErr } = await uploadJobPhoto(path, photoFile);
+      if (!upErr) receiptPath = finalPath;
     }
     const { data } = await supabase.from('expenses').insert([{
       job_id: jobId || null,

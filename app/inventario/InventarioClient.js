@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase";
 import BarcodeScanner from "../BarcodeScanner";
 import { useTranslations, useLocale } from "next-intl";
 
+import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 const TYPE_ICON = {
   warehouse: "🏢",
   site: "📍",
@@ -174,8 +175,9 @@ export default function InventarioClient({ locations: initialLocations, location
     if (unitPhotoFile) {
       const ext = unitPhotoFile.name.split(".").pop();
       photo_path = `inventory/${unitForm.catalog_item_id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("Job-photos").upload(photo_path, unitPhotoFile);
-      if (upErr) { setSavingUnit(false); setUnitError(t("alerts.photoUploadFailed")); return; }
+      const subida = await uploadJobPhoto(photo_path, unitPhotoFile);
+      if (subida.error) { setSavingUnit(false); setUnitError(subida.error.code === 'unsupported_image' ? subida.error.message : t("alerts.photoUploadFailed")); return; }
+      photo_path = subida.path;
     }
     const { data, error } = await supabase.from("location_stock_units").insert([{
       location_id: selectedId,

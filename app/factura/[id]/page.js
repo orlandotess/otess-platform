@@ -8,6 +8,8 @@ import { displayTitle } from '../../../lib/lineItemTitle';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import { getTranslations } from 'next-intl/server';
 
+const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
+
 export default async function FacturaPublica(props) {
   const params = await props.params;
   const { id } = params;
@@ -59,7 +61,12 @@ export default async function FacturaPublica(props) {
     attachedNotes = await Promise.all((notes ?? []).map(async n => {
       const paths = n.photo_urls && n.photo_urls.length > 0 ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
       const signedUrls = await Promise.all(paths.map(async p => {
-        const { data: sd } = await supabase.storage.from('Job-photos').createSignedUrl(p, 86400);
+        // Phone-camera originals run 5-10 MB each; these render at most 420px
+        // tall (and at 2x for the html2pdf capture), so serve a resized render
+        // instead of making the browser pull tens of MB before anything shows.
+        // Videos/PDFs can't be transformed and sign as-is.
+        const opts = IMAGE_PATH.test(p) ? { transform: { width: 1400, height: 1400, resize: 'contain' } } : undefined;
+        const { data: sd } = await supabase.storage.from('Job-photos').createSignedUrl(p, 86400, opts);
         return sd?.signedUrl ?? null;
       }));
       return { ...n, signedUrls: signedUrls.filter(Boolean) };

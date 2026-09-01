@@ -5,11 +5,20 @@ import PhotoAnnotator from '../PhotoAnnotator';
 import BarcodeScanner from '../BarcodeScanner';
 import { buildMapsLinks, pickMapsLink } from '../../lib/mapsLinks';
 import { normalizeName } from '../../lib/normalizeName';
-import { uploadFileWithProgress } from '../../lib/uploadWithProgress';
 import { computeHours, prDayKey, prTimeParts, buildPRTimestamp } from '../../lib/hours';
 import { formatDatePR, formatDateTimePR, formatTimePR } from '../../lib/datetimeLocal';
 import { useJobChecklist } from '../../lib/useJobChecklist';
 import { useTranslations, useLocale } from 'next-intl';
+
+import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
+const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
+// Técnicos open this on a phone: a note photo straight off the camera is 5-10 MB,
+// and a job with a dozen of them used to pull 30+ MB just to fill the tiles. The
+// tiles get a resized render; the lightbox and the photo annotator keep the
+// original (the annotator re-uploads what it is handed, so it must never get a
+// thumbnail). Videos and PDFs can't be transformed and stay as they are.
+const NOTE_THUMB_WIDTH = 800;
+const ENTRY_THUMB_WIDTH = 400;
 
 const ORANGE = '#E05C2A';
 
@@ -299,13 +308,20 @@ export default function FieldApp() {
   const [savingMaintReport, setSavingMaintReport] = useState(false);
 
   async function resolveNotePhotoUrls(notes) {
-    return Promise.all(notes.map(async n => ({
-      ...n,
-      photo_signed_urls: await Promise.all((n.photo_urls ?? []).map(async p => {
+    return Promise.all(notes.map(async n => {
+      const paths = n.photo_urls ?? [];
+      const photo_signed_urls = await Promise.all(paths.map(async p => {
         const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
         return data?.signedUrl ?? null;
-      })),
-    })));
+      }));
+      // The 56px tiles get a resized render; the link still opens the original.
+      const photo_thumb_urls = await Promise.all(paths.map(async (p, i) => {
+        if (!IMAGE_PATH.test(p)) return photo_signed_urls[i];
+        const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600, { transform: { width: ENTRY_THUMB_WIDTH, height: ENTRY_THUMB_WIDTH, resize: 'contain' } });
+        return data?.signedUrl ?? photo_signed_urls[i];
+      }));
+      return { ...n, photo_signed_urls, photo_thumb_urls };
+    }));
   }
 
   // event/task notes carry an author_name column; solicitud_notes doesn't (it also
@@ -336,8 +352,8 @@ export default function FieldApp() {
     for (const { file } of newEntryNotePhotos) {
       const ext = file.name.split('.').pop();
       const path = `${entryId}/note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-      const { error } = await supabase.storage.from('Job-photos').upload(path, file);
-      if (!error) uploadedPaths.push(path);
+      const { path: finalPath, error } = await uploadJobPhoto(path, file);
+      if (!error) uploadedPaths.push(finalPath);
     }
     const { data, error } = await supabase.from(cfg.table).insert([{
       [cfg.fkColumn]: entryId, note: newEntryNoteText.trim() || null,
@@ -613,20 +629,23 @@ export default function FieldApp() {
     setLoading(false);
   }
 
-  async function getSignedUrl(path) {
+  async function getSignedUrl(path, thumbWidth = null) {
     if (!path) return null;
+    const opts = thumbWidth && IMAGE_PATH.test(path)
+      ? { transform: { width: thumbWidth, height: thumbWidth, resize: 'contain' } }
+      : undefined;
     if (path.startsWith('http')) {
       // Old format - extract path
       try {
         const url = new URL(path);
         const parts = url.pathname.split('/Job-photos/');
         if (parts[1]) {
-          const { data } = await supabase.storage.from('Job-photos').createSignedUrl(parts[1], 3600);
+          const { data } = await supabase.storage.from('Job-photos').createSignedUrl(parts[1], 3600, opts);
           return data?.signedUrl ?? null;
         }
       } catch { return null; }
     }
-    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600);
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(path, 3600, opts);
     return data?.signedUrl ?? null;
   }
 
@@ -661,11 +680,12 @@ export default function FieldApp() {
     const notesWithUrls = await Promise.all((notes ?? []).map(async n => {
       if (n.photo_urls && n.photo_urls.length > 0) {
         const signedUrls = await Promise.all(n.photo_urls.map(p => getSignedUrl(p)));
-        return { ...n, photo_urls: signedUrls, photo_url: signedUrls[0] ?? null, raw_photo_urls: n.photo_urls, raw_photo_url: n.photo_url };
+        const thumbUrls = await Promise.all(n.photo_urls.map(async (p, i) => await getSignedUrl(p, NOTE_THUMB_WIDTH) ?? signedUrls[i]));
+        return { ...n, photo_urls: signedUrls, thumb_urls: thumbUrls, photo_url: signedUrls[0] ?? null, thumb_url: thumbUrls[0] ?? null, raw_photo_urls: n.photo_urls, raw_photo_url: n.photo_url };
       }
       if (!n.photo_url) return n;
       const signedUrl = await getSignedUrl(n.photo_url);
-      return { ...n, photo_url: signedUrl, raw_photo_url: n.photo_url };
+      return { ...n, photo_url: signedUrl, thumb_url: await getSignedUrl(n.photo_url, NOTE_THUMB_WIDTH) ?? signedUrl, raw_photo_url: n.photo_url };
     }));
     setDetailNotes(notesWithUrls);
     const checklistWithUrls = await Promise.all(
@@ -1023,10 +1043,10 @@ export default function FieldApp() {
     setFabUploadProgress(0);
     const ext = file.name.split('.').pop();
     const path = fabSelectedJob.id + '/' + Date.now() + '.' + ext;
-    const { error } = await uploadFileWithProgress('Job-photos', path, file, setFabUploadProgress);
+    const { path: finalPath, error } = await uploadJobPhoto(path, file, { onProgress: setFabUploadProgress });
     setUploadingPhoto(false);
     if (!error) {
-      await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, photo_url: path, created_by: profileId }]);
+      await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, photo_url: finalPath, created_by: profileId }]);
       setPhotoSuccess(t('alerts.photoUploaded'));
       setTimeout(() => { setPhotoSuccess(''); setShowJobPhoto(false); setShowFab(false); setFabSelectedJob(null); }, 2000);
     } else {
@@ -1057,8 +1077,8 @@ export default function FieldApp() {
     if (expensePhotoFile) {
       const ext = expensePhotoFile.name.split('.').pop();
       const path = expenseJob ? `${expenseJob.id}/expenses/${Date.now()}.${ext}` : `general/expenses/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, expensePhotoFile);
-      if (!upErr) receiptPath = path;
+      const { path: finalPath, error: upErr } = await uploadJobPhoto(path, expensePhotoFile);
+      if (!upErr) receiptPath = finalPath;
     }
     await supabase.from('expenses').insert([{
       job_id: expenseJob ? expenseJob.id : null,
@@ -1088,8 +1108,8 @@ export default function FieldApp() {
     if (detailExpensePhotoFile) {
       const ext = detailExpensePhotoFile.name.split('.').pop();
       const path = `${detailJob.id}/expenses/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('Job-photos').upload(path, detailExpensePhotoFile);
-      if (!upErr) receiptPath = path;
+      const { path: finalPath, error: upErr } = await uploadJobPhoto(path, detailExpensePhotoFile);
+      if (!upErr) receiptPath = finalPath;
     }
     const { data } = await supabase.from('expenses').insert([{
       job_id: detailJob.id,
@@ -1157,11 +1177,11 @@ export default function FieldApp() {
       const file = detailPhotos[i];
       const ext = file.name.split('.').pop();
       const path = detailJob.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.' + ext;
-      const { error } = await uploadFileWithProgress('Job-photos', path, file, pct => {
-        setDetailUploadProgress(prev => ({ ...prev, [i]: pct }));
+      const { path: finalPath, error } = await uploadJobPhoto(path, file, {
+        onProgress: pct => setDetailUploadProgress(prev => ({ ...prev, [i]: pct })),
       });
-      if (!error) uploadedPaths.push(path);
-      else failedNames.push(file.name);
+      if (!error) uploadedPaths.push(finalPath);
+      else failedNames.push(error.code === 'unsupported_image' ? `${file.name} (${error.message})` : file.name);
     }
 
     const { data: note } = await supabase.from('job_notes').insert([{
@@ -1176,10 +1196,13 @@ export default function FieldApp() {
 
     if (note) {
       const signedUrls = await Promise.all(uploadedPaths.map(p => getSignedUrl(p)));
+      const thumbUrls = await Promise.all(uploadedPaths.map(async (p, i) => await getSignedUrl(p, NOTE_THUMB_WIDTH) ?? signedUrls[i]));
       setDetailNotes(prev => [{
         ...note,
         photo_urls: uploadedPaths.length > 0 ? signedUrls : null,
+        thumb_urls: uploadedPaths.length > 0 ? thumbUrls : null,
         photo_url: signedUrls[0] ?? null,
+        thumb_url: thumbUrls[0] ?? null,
         raw_photo_urls: uploadedPaths.length > 0 ? uploadedPaths : null,
         raw_photo_url: uploadedPaths[0] ?? null,
       }, ...prev]);
@@ -1215,17 +1238,22 @@ export default function FieldApp() {
   async function handleAnnotateExistingSave(blob) {
     if (!annotatingExisting) return;
     const { noteId, path } = annotatingExisting;
-    const { error } = await supabase.storage.from('Job-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    const { error } = await uploadJobPhoto(path, blob, { upsert: true, contentType: 'image/jpeg' });
     if (!error) {
       const signedUrl = await getSignedUrl(path);
+      // Re-sign the thumbnail too, or the tile keeps showing the pre-annotation
+      // render while the lightbox shows the marked-up original.
+      const thumbUrl = await getSignedUrl(path, NOTE_THUMB_WIDTH) ?? signedUrl;
       setDetailNotes(prev => prev.map(n => {
         if (n.id !== noteId) return n;
         if (annotatingExisting.isGallery) {
           const newUrls = [...n.photo_urls];
           newUrls[annotatingExisting.galleryIdx] = signedUrl;
-          return { ...n, photo_urls: newUrls, photo_url: newUrls[0] };
+          const newThumbs = [...(n.thumb_urls ?? n.photo_urls)];
+          newThumbs[annotatingExisting.galleryIdx] = thumbUrl;
+          return { ...n, photo_urls: newUrls, photo_url: newUrls[0], thumb_urls: newThumbs, thumb_url: newThumbs[0] };
         }
-        return { ...n, photo_url: signedUrl };
+        return { ...n, photo_url: signedUrl, thumb_url: thumbUrl };
       }));
     }
     setAnnotatingExisting(null);
@@ -1488,8 +1516,9 @@ export default function FieldApp() {
     if (invUnitPhotoFile) {
       const ext = invUnitPhotoFile.name.split('.').pop();
       photo_path = `inventory/${invUnitForm.catalog_item_id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await uploadFileWithProgress('Job-photos', photo_path, invUnitPhotoFile, setInvUnitUploadProgress);
-      if (upErr) { setInvSavingUnit(false); setInvUnitError(t('alerts.uploadPhotoFailedRetry')); return; }
+      const subida = await uploadJobPhoto(photo_path, invUnitPhotoFile, { onProgress: setInvUnitUploadProgress });
+      if (subida.error) { setInvSavingUnit(false); setInvUnitError(subida.error.code === 'unsupported_image' ? subida.error.message : t('alerts.uploadPhotoFailedRetry')); return; }
+      photo_path = subida.path;
     }
     const { data, error } = await supabase.from('location_stock_units').insert([{
       location_id: invLocationId,
@@ -2893,7 +2922,7 @@ export default function FieldApp() {
                             return isVideo ? (
                               <video key={idx} src={url} controls style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                             ) : (
-                              <img key={idx} src={url} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
+                              <img key={idx} src={n.thumb_urls?.[idx] ?? url} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
                                 style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                             );
                           })}
@@ -2910,7 +2939,7 @@ export default function FieldApp() {
                         return isVideo ? (
                           <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 250, borderRadius: 10, marginBottom: 8, background: '#000' }} />
                         ) : (
-                          <img src={n.photo_url} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
+                          <img src={n.thumb_url ?? n.photo_url} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
                             style={{ width: '100%', maxHeight: 250, objectFit: 'cover', borderRadius: 10, marginBottom: 8, cursor: 'zoom-in' }} />
                         );
                       })()}
@@ -3121,9 +3150,9 @@ export default function FieldApp() {
                         {n.note && <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>}
                         {(n.photo_signed_urls ?? []).filter(Boolean).length > 0 && (
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: n.note ? 6 : 0 }}>
-                            {n.photo_signed_urls.filter(Boolean).map((url, i) => (
+                            {n.photo_signed_urls.map((url, i) => url && (
                               <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                                <img src={url} alt={t('detailEntry.notePhotoAlt')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
+                                <img src={n.photo_thumb_urls?.[i] ?? url} alt={t('detailEntry.notePhotoAlt')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
                               </a>
                             ))}
                           </div>
@@ -3693,6 +3722,7 @@ export default function FieldApp() {
                   <p style={{ fontSize: 11, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
                   {notesInGroup.map(n => {
                     const thumbUrls = n.photo_urls && n.photo_urls.length > 0 ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
+                    const thumbSrcs = n.thumb_urls && n.thumb_urls.length > 0 ? n.thumb_urls : (n.thumb_url ? [n.thumb_url] : thumbUrls);
                     const isVideo = url => /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
                     const isPdf = url => /\.pdf(\?|$)/i.test(url);
                     return (
@@ -3706,7 +3736,7 @@ export default function FieldApp() {
                               ) : isVideo(url) ? (
                                 <video key={idx} src={url} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, background: '#000' }} />
                               ) : (
-                                <img key={idx} src={url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid #eee' }} />
+                                <img key={idx} src={thumbSrcs[idx] ?? url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid #eee' }} />
                               )
                             ))}
                           </div>
