@@ -3459,10 +3459,20 @@
       "inventario": {
         "title": "Inventario",
         "location": "Ubicación",
+        "myVan": "Mi Van",
         "searchLocationPlaceholder": "Buscar ubicación...",
         "chooseLocation": "Elige una ubicación para ver su stock.",
         "stock": "STOCK",
-        "adjust": "Ajustar",
+        "movement": "Movimiento",
+        "registerMovement": "Registrar",
+        "movementModes": {
+          "transfer_in": "Traer de otra ubicación",
+          "use": "Usado en un trabajo",
+          "transfer_out": "Devolver a otra ubicación",
+          "receive": "Recibido nuevo (compra)"
+        },
+        "selectOriginOption": "¿De dónde viene?",
+        "selectDestinationOption": "¿A dónde va?",
         "searchProductPlaceholder": "Buscar producto...",
         "noProductsHere": "Sin productos en esta ubicación.",
         "equipo": "EQUIPO",
@@ -3479,7 +3489,7 @@
         "selectProductOption": "Selecciona un producto...",
         "quantityPlaceholder": "Cantidad (negativo para restar)",
         "reasonPlaceholder": "Motivo (opcional) — Ej: usado en trabajo",
-        "adjustStockModalTitle": "Ajustar stock — {location}",
+        "movementModalTitle": "Movimiento — {location}",
         "addEquipoModalTitle": "Agregar equipo — {location}",
         "createNewProductLink": "¿No está en la lista? Crear producto nuevo",
         "newProduct": "Nuevo producto",
@@ -5261,6 +5271,8 @@
         "archive": "📥 Archivar",
         "reactivate": "📤 Reactivar",
         "delete": "🗑 Eliminar",
+        "assignedTechnician": "TÉCNICO ASIGNADO",
+        "noTechnician": "Sin asignar",
         "adjustStock": "+ Ajustar Stock",
         "transfer": "⇄ Transferir",
         "history": "🕒 Historial",
@@ -5349,6 +5361,7 @@
         "genericError": "Error: {message}",
         "renamePrompt": "Renombrar \"{name}\":",
         "cannotDeleteLocation": "No se puede eliminar: tiene sub-ubicaciones o stock asignado. Muévelos primero, o archívala con el botón de abajo.",
+        "assignTechnicianFailed": "No se pudo asignar el técnico. Intenta de nuevo.",
         "confirmDeleteLocation": "¿Eliminar \"{name}\"? Esto no se puede deshacer.",
         "chooseDifferentDestination": "Elige una ubicación destino distinta."
       }

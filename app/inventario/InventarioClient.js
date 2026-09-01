@@ -13,7 +13,7 @@ const TYPE_ICON = {
   bin: "🗃️",
 };
 
-export default function InventarioClient({ locations: initialLocations, locationStock: initialStock, products: initialProducts, locationStockUnits: initialUnits }) {
+export default function InventarioClient({ locations: initialLocations, locationStock: initialStock, products: initialProducts, locationStockUnits: initialUnits, technicians = [] }) {
   const t = useTranslations("inventario.client");
   const locale = useLocale();
   const dateLocale = locale === "en" ? "en-US" : "es-PR";
@@ -91,6 +91,12 @@ export default function InventarioClient({ locations: initialLocations, location
     for (const l of locations) map[l.id] = l;
     return map;
   }, [locations]);
+
+  const technicianById = useMemo(() => {
+    const map = {};
+    for (const tech of technicians) map[tech.id] = tech;
+    return map;
+  }, [technicians]);
 
   function pathTo(id) {
     const parts = [];
@@ -247,6 +253,20 @@ export default function InventarioClient({ locations: initialLocations, location
     setLocations(prev => prev.map(l => l.id === loc.id ? { ...l, is_active } : l));
   }
 
+  // Asignar el técnico de una van. Es lo único que hace la asignación: el Crew
+  // App abre el tab de Inventario ya parado en su van. No limita nada — el
+  // técnico sigue viendo y ajustando cualquier ubicación (ver la migración
+  // 2026-09-01b-van-technician.sql).
+  async function assignTechnician(loc, technicianId) {
+    const technician_id = technicianId || null;
+    const { error } = await supabase.from("locations").update({ technician_id }).eq("id", loc.id);
+    if (error) {
+      alert(t("alerts.assignTechnicianFailed"));
+      return;
+    }
+    setLocations(prev => prev.map(l => l.id === loc.id ? { ...l, technician_id } : l));
+  }
+
   async function deleteLocation(loc) {
     if (!confirm(t("alerts.confirmDeleteLocation", { name: loc.name }))) return;
     const { error } = await supabase.from("locations").delete().eq("id", loc.id);
@@ -369,7 +389,8 @@ export default function InventarioClient({ locations: initialLocations, location
     return (
       <div className="hover-row" onClick={() => setSelectedId(l.id)}
         style={{ padding: "8px 10px", borderRadius: 8, cursor: "pointer", background: selectedId === l.id ? "var(--surface-2)" : "transparent", opacity: l.is_active ? 1 : 0.5 }}>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>{TYPE_META[l.type]?.icon} {l.name} {l.code && <span style={{ fontSize: 11, color: "var(--muted)", fontFamily: "monospace" }}>{l.code}</span>}</div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{TYPE_META[l.type]?.icon} {l.name} {l.code && <span style={{ fontSize: 11, color: "var(--muted)", fontFamily: "monospace" }}>{l.code}</span>}
+          {l.type === "van" && l.technician_id && <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}> · 🧑‍🔧 {technicianById[l.technician_id]?.name}</span>}</div>
         <div style={{ fontSize: 11, color: "var(--muted)" }}>{path.map(p => p.name).join(" › ")}</div>
       </div>
     );
@@ -440,6 +461,17 @@ export default function InventarioClient({ locations: initialLocations, location
                   <button className="btn btn-ghost" onClick={() => deleteLocation(selected)} style={{ fontSize: 12, color: "var(--warn)" }}>{t("detail.delete")}</button>
                 </div>
               </div>
+
+              {selected.type === "van" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>{t("detail.assignedTechnician")}</span>
+                  <select value={selected.technician_id ?? ""} onChange={e => assignTechnician(selected, e.target.value)}
+                    style={{ ...inputStyle, width: "auto", minWidth: 200 }}>
+                    <option value="">{t("detail.noTechnician")}</option>
+                    {technicians.map(tech => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
+                  </select>
+                </div>
+              )}
 
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                 <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => setShowAdjustModal(true)}>{t("detail.adjustStock")}</button>

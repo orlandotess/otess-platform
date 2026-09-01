@@ -12,6 +12,18 @@ import { useJobChecklist } from '../../lib/useJobChecklist';
 import { useTranslations, useLocale } from 'next-intl';
 
 const ORANGE = '#E05C2A';
+
+// Movimientos de stock del Crew App. El orden es el de uso real en campo:
+// cargar la van desde el almacén, gastar material en un trabajo, devolver lo
+// que sobró, y de último recibir compras (lo único que sube el total global).
+const INV_MOVEMENT_MODES = [
+  { mode: 'transfer_in', icon: '📥' },
+  { mode: 'use', icon: '🔧' },
+  { mode: 'transfer_out', icon: '📤' },
+  { mode: 'receive', icon: '🧾' },
+];
+
+const INV_MODAL_INPUT = { width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 };
 const AMBER = '#e0972c';
 const BG = '#EAEEF2';
 // Same status color/icon language as the office Sidebar/badges — a technician and an
@@ -414,7 +426,7 @@ export default function FieldApp() {
   const [invStockSearch, setInvStockSearch] = useState('');
   const [invUnitSearch, setInvUnitSearch] = useState('');
   const [showInvAdjust, setShowInvAdjust] = useState(false);
-  const [invAdjustForm, setInvAdjustForm] = useState({ catalog_item_id: '', delta: '', reason: '' });
+  const [invAdjustForm, setInvAdjustForm] = useState({ mode: 'transfer_in', catalog_item_id: '', quantity: '', other_location_id: '', reason: '' });
   const [invSaving, setInvSaving] = useState(false);
 
   // Inventario: equipo serializado (foto + serial por unidad, no por cantidad)
@@ -1325,8 +1337,29 @@ export default function FieldApp() {
     if (invLocationId) localStorage.setItem('otess-crew-inv-location', invLocationId);
   }, [invLocationId]);
 
+  // La van asignada a este técnico desde /inventario (locations.technician_id).
+  // Es solo un atajo: el técnico sigue viendo el inventario global completo,
+  // igual que antes de que existiera la asignación.
+  const invMyVan = invLocations.find(l => l.type === 'van' && l.technician_id === techId) ?? null;
+
+  // Arranca el tab en su van cuando no hay ubicación elegida. La última que él
+  // escogió a mano (localStorage, arriba) manda; el botón "Mi Van" lo trae de
+  // vuelta en un toque. Efecto aparte del que carga el inventario porque techId
+  // se resuelve async al montar y puede llegar después de abrir el tab.
+  //
+  // El ref lo limita a una sola vez por carga: sin él, tocar la ✕ del buscador
+  // volvería a meter la van de inmediato y el técnico no podría llegar a la
+  // lista de ubicaciones para ver el resto del inventario.
+  const invDefaultedRef = useRef(false);
+  useEffect(() => {
+    if (invDefaultedRef.current || !invLoaded || invLocationId || !invMyVan) return;
+    invDefaultedRef.current = true;
+    setInvLocationId(invMyVan.id);
+  }, [invLoaded, invLocationId, invMyVan]);
+
   const invLocById = Object.fromEntries(invLocations.map(l => [l.id, l]));
   const INV_TYPE_ICON = { warehouse: '🏢', site: '📍', van: '🚐', zone: '🗂️', shelf: '📚', bin: '🗃️' };
+  const invAdjustNeedsOtherLocation = invAdjustForm.mode === 'transfer_in' || invAdjustForm.mode === 'transfer_out';
   function invPathLabel(loc) {
     const parts = [];
     let cur = loc;
@@ -1476,29 +1509,59 @@ export default function FieldApp() {
     closeInvAddUnitModal();
   }
 
+  // Mueve una cantidad dentro del estado local de stock, para no tener que
+  // recargar todo el inventario después de cada movimiento. Un traslado toca
+  // dos ubicaciones, así que se llama dos veces.
+  function invApplyStockDelta(rows, locationId, catalogItemId, delta) {
+    const idx = rows.findIndex(r => r.location_id === locationId && r.catalog_item_id === catalogItemId);
+    if (idx === -1) {
+      const prod = invProducts.find(p => p.id === catalogItemId);
+      return [...rows, {
+        id: `tmp-${locationId}-${catalogItemId}`, location_id: locationId, catalog_item_id: catalogItemId, quantity: delta,
+        catalog_items: prod ? { item_code: prod.item_code, name: prod.name, description: prod.description, photo_url: prod.photo_url } : null,
+      }];
+    }
+    return rows.map((r, i) => i === idx ? { ...r, quantity: r.quantity + delta } : r);
+  }
+
+  // Cuatro movimientos explícitos en vez de un delta con signo. Un traslado
+  // entre ubicaciones va por transfer_stock, que redistribuye sin tocar el
+  // agregado global; solo lo que entra o sale de verdad del inventario pasa por
+  // adjust_catalog_stock. Con el "ajuste" suelto de antes, cargar la van desde
+  // el almacén sumaba al total global y contaba el producto dos veces.
   async function invAdjustStock() {
-    const delta = parseFloat(invAdjustForm.delta);
-    if (!invAdjustForm.catalog_item_id || !delta || !invLocationId) return;
+    const { mode, catalog_item_id, other_location_id } = invAdjustForm;
+    const qty = parseFloat(invAdjustForm.quantity);
+    if (!catalog_item_id || !qty || qty <= 0 || !invLocationId) return;
+    const isTransfer = mode === 'transfer_in' || mode === 'transfer_out';
+    if (isTransfer && !other_location_id) return;
     setInvSaving(true);
-    const { error } = await supabase.rpc('adjust_catalog_stock', {
-      p_catalog_item_id: invAdjustForm.catalog_item_id,
-      p_delta: delta,
-      p_invoice_id: null,
-      p_reason: invAdjustForm.reason.trim() || 'ajuste_tecnico',
-      p_location_id: invLocationId,
-    });
+    const reason = invAdjustForm.reason.trim() || `crew_${mode}`;
+    const { error } = isTransfer
+      ? await supabase.rpc('transfer_stock', {
+        p_catalog_item_id: catalog_item_id,
+        p_from_location_id: mode === 'transfer_in' ? other_location_id : invLocationId,
+        p_to_location_id: mode === 'transfer_in' ? invLocationId : other_location_id,
+        p_quantity: qty,
+        p_reason: reason,
+      })
+      : await supabase.rpc('adjust_catalog_stock', {
+        p_catalog_item_id: catalog_item_id,
+        p_delta: mode === 'receive' ? qty : -qty,
+        p_invoice_id: null,
+        p_reason: reason,
+        p_location_id: invLocationId,
+      });
     setInvSaving(false);
     if (error) { alert(t('alerts.errorWithMessage', { message: error.message })); return; }
+    const here = mode === 'receive' || mode === 'transfer_in' ? qty : -qty;
     setInvStock(prev => {
-      const idx = prev.findIndex(s => s.location_id === invLocationId && s.catalog_item_id === invAdjustForm.catalog_item_id);
-      if (idx === -1) {
-        const prod = invProducts.find(p => p.id === invAdjustForm.catalog_item_id);
-        return [...prev, { id: `tmp-${Date.now()}`, location_id: invLocationId, catalog_item_id: invAdjustForm.catalog_item_id, quantity: delta, catalog_items: prod ? { item_code: prod.item_code, name: prod.name, description: prod.description, photo_url: prod.photo_url } : null }];
-      }
-      return prev.map((s, i) => i === idx ? { ...s, quantity: s.quantity + delta } : s);
+      let rows = invApplyStockDelta(prev, invLocationId, catalog_item_id, here);
+      if (isTransfer) rows = invApplyStockDelta(rows, other_location_id, catalog_item_id, -here);
+      return rows;
     });
     setShowInvAdjust(false);
-    setInvAdjustForm({ catalog_item_id: '', delta: '', reason: '' });
+    setInvAdjustForm({ mode: 'transfer_in', catalog_item_id: '', quantity: '', other_location_id: '', reason: '' });
   }
 
   const fmtE = s => String(Math.floor(s / 3600)).padStart(2, '0') + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
@@ -2107,6 +2170,12 @@ export default function FieldApp() {
                   </>
                 )}
               </div>
+              {invMyVan && invLocationId !== invMyVan.id && (
+                <button onClick={() => selectInvLocation(invMyVan)}
+                  style={{ marginTop: 8, background: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 700, color: ORANGE, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', cursor: 'pointer' }}>
+                  🚐 {t('inventario.myVan')}
+                </button>
+              )}
             </div>
 
             {!invLoaded ? (
@@ -2117,7 +2186,7 @@ export default function FieldApp() {
               <div style={card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#888' }}>{t('inventario.stock')} ({invSelectedStock.length})</div>
-                  <button onClick={() => setShowInvAdjust(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ {t('inventario.adjust')}</button>
+                  <button onClick={() => setShowInvAdjust(true)} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ {t('inventario.movement')}</button>
                 </div>
                 <input
                   value={invStockSearch}
@@ -3377,22 +3446,42 @@ export default function FieldApp() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setShowInvAdjust(false)}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>📦 {t('inventario.adjustStockModalTitle', { location: invLocById[invLocationId]?.name })}</div>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>📦 {t('inventario.movementModalTitle', { location: invLocById[invLocationId]?.name })}</div>
               <button onClick={() => setShowInvAdjust(false)} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
+            {/* El tipo de movimiento decide la RPC: traslado = transfer_stock (no
+                cambia el total global), recibido/usado = adjust_catalog_stock. */}
+            <div style={{ display: 'grid', gap: 6, marginBottom: 12 }}>
+              {INV_MOVEMENT_MODES.map(m => (
+                <button key={m.mode} onClick={() => setInvAdjustForm(f => ({ ...f, mode: m.mode, other_location_id: '' }))}
+                  style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                    border: invAdjustForm.mode === m.mode ? `1.5px solid ${ORANGE}` : '1.5px solid #dde1e7',
+                    background: invAdjustForm.mode === m.mode ? '#fff5ef' : '#fff', color: '#16223d' }}>
+                  {m.icon} {t(`inventario.movementModes.${m.mode}`)}
+                </button>
+              ))}
+            </div>
             <select value={invAdjustForm.catalog_item_id} onChange={e => setInvAdjustForm(f => ({ ...f, catalog_item_id: e.target.value }))}
-              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }}>
+              style={INV_MODAL_INPUT}>
               <option value="">{t('inventario.selectProductOption')}</option>
               {invProducts.map(p => <option key={p.id} value={p.id}>{p.item_code} — {p.name || p.description}</option>)}
             </select>
-            <input type="number" value={invAdjustForm.delta} onChange={e => setInvAdjustForm(f => ({ ...f, delta: e.target.value }))} placeholder={t('inventario.quantityPlaceholder')}
-              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
+            {invAdjustNeedsOtherLocation && (
+              <select value={invAdjustForm.other_location_id} onChange={e => setInvAdjustForm(f => ({ ...f, other_location_id: e.target.value }))}
+                style={INV_MODAL_INPUT}>
+                <option value="">{invAdjustForm.mode === 'transfer_in' ? t('inventario.selectOriginOption') : t('inventario.selectDestinationOption')}</option>
+                {invLocOptions.filter(o => o.id !== invLocationId).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            )}
+            <input type="number" min="0" value={invAdjustForm.quantity} onChange={e => setInvAdjustForm(f => ({ ...f, quantity: e.target.value }))} placeholder={t('inventario.quantityPlaceholder')}
+              style={INV_MODAL_INPUT} />
             <input value={invAdjustForm.reason} onChange={e => setInvAdjustForm(f => ({ ...f, reason: e.target.value }))} placeholder={t('inventario.reasonPlaceholder')}
-              style={{ width: '100%', padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16 }} />
+              style={{ ...INV_MODAL_INPUT, marginBottom: 16 }} />
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setShowInvAdjust(false)} style={{ flex: 1, padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
-              <button onClick={invAdjustStock} disabled={invSaving || !invAdjustForm.catalog_item_id || !invAdjustForm.delta} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                {invSaving ? t('common.saving') : t('inventario.adjust')}
+              <button onClick={invAdjustStock} disabled={invSaving || !invAdjustForm.catalog_item_id || !(parseFloat(invAdjustForm.quantity) > 0) || (invAdjustNeedsOtherLocation && !invAdjustForm.other_location_id)}
+                style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
+                {invSaving ? t('common.saving') : t('inventario.registerMovement')}
               </button>
             </div>
           </div>

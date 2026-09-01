@@ -3459,10 +3459,20 @@
       "inventario": {
         "title": "Inventory",
         "location": "Location",
+        "myVan": "My Van",
         "searchLocationPlaceholder": "Search location...",
         "chooseLocation": "Choose a location to see its stock.",
         "stock": "STOCK",
-        "adjust": "Adjust",
+        "movement": "Movement",
+        "registerMovement": "Record",
+        "movementModes": {
+          "transfer_in": "Bring from another location",
+          "use": "Used on a job",
+          "transfer_out": "Return to another location",
+          "receive": "Newly received (purchase)"
+        },
+        "selectOriginOption": "Where is it coming from?",
+        "selectDestinationOption": "Where is it going?",
         "searchProductPlaceholder": "Search product...",
         "noProductsHere": "No products at this location.",
         "equipo": "EQUIPMENT",
@@ -3479,7 +3489,7 @@
         "selectProductOption": "Select a product...",
         "quantityPlaceholder": "Quantity (negative to subtract)",
         "reasonPlaceholder": "Reason (optional) — e.g. used on job",
-        "adjustStockModalTitle": "Adjust stock — {location}",
+        "movementModalTitle": "Movement — {location}",
         "addEquipoModalTitle": "Add equipment — {location}",
         "createNewProductLink": "Not on the list? Create a new product",
         "newProduct": "New product",
@@ -5261,6 +5271,8 @@
         "archive": "📥 Archive",
         "reactivate": "📤 Reactivate",
         "delete": "🗑 Delete",
+        "assignedTechnician": "ASSIGNED TECHNICIAN",
+        "noTechnician": "Unassigned",
         "adjustStock": "+ Adjust Stock",
         "transfer": "⇄ Transfer",
         "history": "🕒 History",
@@ -5349,6 +5361,7 @@
         "genericError": "Error: {message}",
         "renamePrompt": "Rename \"{name}\":",
         "cannotDeleteLocation": "This location cannot be deleted: it has sub-locations or assigned stock. Move them first, or archive it with the button below.",
+        "assignTechnicianFailed": "Could not assign the technician. Try again.",
         "confirmDeleteLocation": "Delete \"{name}\"? This cannot be undone.",
         "chooseDifferentDestination": "Choose a different destination location."
       }
