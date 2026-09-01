@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { getResend } from '../../../lib/resend';
+import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import PropuestaPublicClient from './public-client';
 import { getTranslations, getLocale } from 'next-intl/server';
 
@@ -47,6 +49,37 @@ export default async function PropuestaPublicPage(props) {
   // Marcar como vista (solo la primera vez)
   if (!proposal.viewed_at) {
     await supabase.from('proposals').update({ viewed_at: new Date().toISOString(), status: proposal.status === 'enviada' ? 'vista' : proposal.status }).eq('id', proposal.id);
+  }
+
+  // Trackear vista + notificar por email — nunca debe impedir que el cliente
+  // vea su propuesta, así que cualquier fallo (incluyendo Resend sin
+  // configurar, o proposal_views antes de correr su migración) se ignora.
+  // A diferencia de `viewed_at` arriba, esto corre en cada apertura: igual que
+  // estimados y facturas, la bandeja lleva el historial completo de vistas.
+  await supabase.from('proposal_views').insert([{ proposal_id: proposal.id }]);
+  await supabase.from('inbox_notifications').insert([{
+    type: 'proposal_viewed',
+    title: `👁️ Propuesta ${proposal.proposal_number} fue abierta`,
+    body: `${proposal.clients?.name ?? 'Un cliente'} abrió la propuesta.`,
+    link: `/propuestas/${proposal.id}`,
+  }]);
+
+  try {
+    const { error: sendError } = await getResend().emails.send({
+      from: 'OTESS <info@otesspr.com>',
+      to: 'services@otesspr.com',
+      subject: `👁️ Propuesta ${proposal.proposal_number} fue abierta`,
+      html: `
+        <div style="font-family:Arial,sans-serif;padding:20px">
+          <p style="font-size:15px;color:#16223d"><strong>${proposal.clients?.name ?? 'Un cliente'}</strong> abrió la propuesta <strong>${proposal.proposal_number}</strong>.</p>
+          <p style="font-size:13px;color:#888">Fecha: ${formatDateTimePR(new Date(), { dateStyle: 'medium', timeStyle: 'short' })}</p>
+          <a href="https://app.otesspr.com/propuestas/${proposal.id}" style="color:#e0972c;font-size:13px">Ver propuesta en el dashboard →</a>
+        </div>
+      `,
+    });
+    if (sendError) console.error('Error notificando vista:', sendError.message);
+  } catch (err) {
+    console.error('Error notificando vista:', err);
   }
 
   const options = await Promise.all(
