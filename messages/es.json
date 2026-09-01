@@ -3565,8 +3565,7 @@
         "amountPlaceholder": "Monto",
         "receipt": "Recibo",
         "noExpensesForJob": "No hay gastos registrados para este trabajo.",
-        "generalExpense": "Gasto general",
-        "selectJobOrGeneral": "Selecciona el trabajo o registra un gasto general:"
+        "generalExpense": "Gasto general"
       },
       "reports": {
         "forClient": "Reportes para el cliente",
@@ -3623,14 +3622,6 @@
         "officePanel": "Panel de oficina",
         "logout": "Salir"
       },
-      "fab": {
-        "addNote": "Agregar nota",
-        "addPhoto": "Agregar foto",
-        "addExpense": "Agregar gasto",
-        "clockInToJob": "Marcar entrada a un trabajo",
-        "selectJob": "Selecciona el trabajo:",
-        "takeOrChoosePhoto": "Tomar foto o elegir de galería"
-      },
       "newClientModal": {
         "title": "Nuevo cliente",
         "namePlaceholder": "Nombre *",
@@ -3641,17 +3632,6 @@
         "addressPlaceholder": "Dirección (opcional)",
         "cityPlaceholder": "Ciudad",
         "zipPlaceholder": "Código postal"
-      },
-      "jobClockModal": {
-        "title": "Marcar entrada a un trabajo",
-        "noActiveJobs": "No hay trabajos activos."
-      },
-      "jobNoteModal": {
-        "title": "Agregar nota",
-        "notePlaceholder": "Escribe tu nota..."
-      },
-      "jobPhotoModal": {
-        "title": "Agregar foto"
       },
       "emailReportModal": {
         "title": "Enviar reporte por email",
@@ -3667,7 +3647,6 @@
         "duplicate": "Duplicar",
         "delete": "Eliminar",
         "close": "Cerrar",
-        "change": "Cambiar",
         "loading": "Cargando...",
         "searching": "Buscando...",
         "saving": "Guardando...",
@@ -3694,8 +3673,6 @@
         "uploadPhotoFailedRetry": "No se pudo subir la foto. Intenta de nuevo.",
         "serialExists": "Ese serial number ya existe en el sistema.",
         "nameRequired": "El nombre es requerido",
-        "photoUploaded": "Foto subida",
-        "uploadFileFailedRetry": "No se pudo subir el archivo. Verifica tu conexión e intenta de nuevo.",
         "expenseSaved": "Gasto guardado",
         "notePhotosUploadFailed": "No se pudo subir: {files}. La nota se guardó, intenta subir el archivo de nuevo."
       },

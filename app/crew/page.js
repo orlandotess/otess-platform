@@ -129,21 +129,9 @@ export default function FieldApp() {
   const [profileId, setProfileId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
-  const [showFab, setShowFab] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [showJobClock, setShowJobClock] = useState(false);
-  const [showJobNote, setShowJobNote] = useState(false);
-  const [showJobPhoto, setShowJobPhoto] = useState(false);
-  const [fabSelectedJob, setFabSelectedJob] = useState(null);
-  const [fabNoteText, setFabNoteText] = useState('');
-  const [savingFabNote, setSavingFabNote] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [fabUploadProgress, setFabUploadProgress] = useState(0);
-  const [photoError, setPhotoError] = useState('');
-  const [photoSuccess, setPhotoSuccess] = useState('');
   const [allJobs, setAllJobs] = useState([]);
-  const fileRef = useRef();
 
   // Pull-to-refresh — the app shell is position:fixed (no native page scroll), so
   // Safari's native swipe-to-refresh never fires here even installed to homescreen.
@@ -181,9 +169,8 @@ export default function FieldApp() {
     }
   }
 
-  // General/job expense (FAB) — job optional, blank job = gasto general
-  const [showJobExpense, setShowJobExpense] = useState(false);
-  const [expenseJob, setExpenseJob] = useState(undefined); // undefined = choosing target, null = general, job = job-tied
+  // General expense (menu) — never tied to a job; job expenses live in the job's 💸 tab
+  const [showGeneralExpense, setShowGeneralExpense] = useState(false);
   const [expenseForm, setExpenseForm] = useState(blankExpenseForm());
   const [expensePhotoFile, setExpensePhotoFile] = useState(null);
   const [expensePhotoPreview, setExpensePhotoPreview] = useState(null);
@@ -813,7 +800,7 @@ export default function FieldApp() {
   async function handleClockIn(jobId) {
     if (!techId) return;
     const blockMessage = getClockBlockMessage();
-    if (blockMessage) { alert(blockMessage); setShowFab(false); setShowJobClock(false); return; }
+    if (blockMessage) { alert(blockMessage); return; }
     // Si ya hay una entrada abierta (mismo job u otro), ciérrala primero — así nunca
     // quedan dos time_entries abiertas a la vez para el mismo técnico (eso dejaba
     // pines fantasma en el Dispatch Board que "Clock Out" no lograba limpiar).
@@ -824,7 +811,6 @@ export default function FieldApp() {
       .insert([{ technician_id: techId, job_id: jobId || null, clocked_in_at: new Date().toISOString() }])
       .select().single();
     if (data) { setClockedIn(true); setActiveEntry(data); setElapsed(0); }
-    setShowFab(false); setShowJobClock(false);
   }
 
   async function handleClockOut() {
@@ -1027,36 +1013,8 @@ export default function FieldApp() {
     if (activeEntry?.id === entry.id) { setClockedIn(false); setActiveEntry(null); setElapsed(0); }
   }
 
-  async function saveFabNote(e) {
-    e.preventDefault();
-    if (!fabSelectedJob || !fabNoteText.trim()) return;
-    setSavingFabNote(true);
-    await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, note: fabNoteText.trim(), created_by: profileId }]);
-    setSavingFabNote(false); setFabNoteText(''); setShowJobNote(false); setShowFab(false); setFabSelectedJob(null);
-  }
-
-  async function uploadFabPhoto(e) {
-    const file = e.target.files?.[0];
-    if (!file || file.type.startsWith('video/') || !fabSelectedJob) return;
-    setUploadingPhoto(true);
-    setPhotoError('');
-    setFabUploadProgress(0);
-    const ext = file.name.split('.').pop();
-    const path = fabSelectedJob.id + '/' + Date.now() + '.' + ext;
-    const { path: finalPath, error } = await uploadJobPhoto(path, file, { onProgress: setFabUploadProgress });
-    setUploadingPhoto(false);
-    if (!error) {
-      await supabase.from('job_notes').insert([{ job_id: fabSelectedJob.id, photo_url: finalPath, created_by: profileId }]);
-      setPhotoSuccess(t('alerts.photoUploaded'));
-      setTimeout(() => { setPhotoSuccess(''); setShowJobPhoto(false); setShowFab(false); setFabSelectedJob(null); }, 2000);
-    } else {
-      setPhotoError(t('alerts.uploadFileFailedRetry'));
-    }
-  }
-
   function closeExpenseModal() {
-    setShowJobExpense(false);
-    setExpenseJob(undefined);
+    setShowGeneralExpense(false);
     setExpenseSuccess('');
     setExpenseForm(blankExpenseForm());
     setExpensePhotoFile(null);
@@ -1076,12 +1034,11 @@ export default function FieldApp() {
     let receiptPath = null;
     if (expensePhotoFile) {
       const ext = expensePhotoFile.name.split('.').pop();
-      const path = expenseJob ? `${expenseJob.id}/expenses/${Date.now()}.${ext}` : `general/expenses/${Date.now()}.${ext}`;
-      const { path: finalPath, error: upErr } = await uploadJobPhoto(path, expensePhotoFile);
+      const { path: finalPath, error: upErr } = await uploadJobPhoto(`general/expenses/${Date.now()}.${ext}`, expensePhotoFile);
       if (!upErr) receiptPath = finalPath;
     }
     await supabase.from('expenses').insert([{
-      job_id: expenseJob ? expenseJob.id : null,
+      job_id: null,
       category: expenseForm.category,
       description: expenseForm.description.trim(),
       vendor: expenseForm.vendor.trim() || null,
@@ -1321,7 +1278,6 @@ export default function FieldApp() {
       }]);
     }
     setSavingNewClient(false);
-    setShowFab(false);
     closeNewClientModal();
     setClientSearch('');
     setClientResults(prev => [client, ...prev]);
@@ -1595,8 +1551,6 @@ export default function FieldApp() {
 
   const fmtE = s => String(Math.floor(s / 3600)).padStart(2, '0') + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
   const fmtH = es => (es.reduce((a, e) => a + (e.clocked_out_at ? computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours : 0), 0)).toFixed(1) + 'h';
-  // Job the technician is currently clocked into, used to skip the "select job" step in the FAB
-  const activeJob = clockedIn && activeEntry?.job_id ? allJobs.find(j => j.id === activeEntry.job_id) ?? null : null;
   const now = new Date();
   const todayHeaderLabel = now.toLocaleDateString(dateLocale, { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase();
   const greeting = now.getHours() < 12 ? t('home.goodMorning') : now.getHours() < 18 ? t('home.goodAfternoon') : t('home.goodEvening');
@@ -1605,10 +1559,9 @@ export default function FieldApp() {
   const card = { margin: '0 14px 12px', background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' };
   const navBtn = a => ({ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '10px 0 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 600, color: a ? ORANGE : '#aaa' });
   const ftab = a => ({ padding: '8px 16px', borderRadius: 50, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: a ? 'none' : '1.5px solid #dde1e7', background: a ? '#1a1a1a' : '#fff', color: a ? '#fff' : '#333' });
-  const fmi = c => ({ background: c || ORANGE, color: '#fff', border: 'none', borderRadius: 50, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 8 });
   const menuItem = { display: 'block', width: '100%', textAlign: 'left', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid #eee', fontSize: 14, fontWeight: 600, color: '#333', cursor: 'pointer' };
   const NavI = ({ tab: navTab, icon, label }) => (
-    <button style={navBtn(tab === navTab)} onClick={() => { setTab(navTab); setShowFab(false); }}>
+    <button style={navBtn(tab === navTab)} onClick={() => setTab(navTab)}>
       <FieldIcon name={icon} />{label}
     </button>
   );
@@ -3308,8 +3261,8 @@ export default function FieldApp() {
         </div>
       )}
 
-      {/* Dropdown menu — replaces the standalone + FAB in the same bottom-right spot, houses
-          Nuevo, Clientes, Actualizar and Salir so nothing floats loose near the tab bar. */}
+      {/* Dropdown menu in the bottom-right spot, houses Nuevo (a new client, from any tab),
+          Clientes, Inventario, Actualizar and Salir so nothing floats loose near the tab bar. */}
       <button aria-label={t('menu.menu')} style={{ position: 'fixed', bottom: 96, right: 20, width: 52, height: 52, background: showMenu ? '#333' : ORANGE, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(224,92,42,0.4)', zIndex: 99, fontSize: 22, color: '#fff' }}
         onClick={() => setShowMenu(v => !v)}>
         {showMenu ? '✕' : '☰'}
@@ -3319,24 +3272,13 @@ export default function FieldApp() {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowMenu(false)} />
           <div style={{ position: 'fixed', bottom: 156, right: 20, zIndex: 99, background: '#fff', borderRadius: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.18)', overflow: 'hidden', minWidth: 190 }}>
-            <button style={menuItem} onClick={() => { setShowMenu(false); if (tab === 'clientes') { setShowNewClient(true); } else { setShowFab(true); } }}>➕ {t('menu.newItem')}</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setShowNewClient(true); }}>➕ {t('menu.newItem')}</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setTab('clientes'); }}>👥 {t('clientes.title')}</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setTab('inventario'); }}>📦 {t('inventario.title')}</button>
+            <button style={menuItem} onClick={() => { setShowMenu(false); setShowGeneralExpense(true); }}>💸 {t('expenses.generalExpense')}</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); setRefreshing(true); window.location.reload(); }}>🔄 {t('menu.refresh')}</button>
             <button style={menuItem} onClick={() => { setShowMenu(false); window.location.href = '/'; }}>🏢 {t('menu.officePanel')}</button>
             <button style={{ ...menuItem, borderBottom: 'none', color: '#b52a2a' }} onClick={() => { setShowMenu(false); handleLogout(); }}>🚪 {t('menu.logout')}</button>
-          </div>
-        </>
-      )}
-
-      {showFab && tab !== 'clientes' && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 97 }} onClick={() => setShowFab(false)} />
-          <div style={{ position: 'fixed', bottom: 140, right: 20, zIndex: 98, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-            <button style={fmi('#2a4cb5')} onClick={() => { setFabSelectedJob(activeJob); setShowJobNote(true); setShowFab(false); }}><FieldIcon name="note" />{t('fab.addNote')}</button>
-            <button style={fmi('#1a7a4a')} onClick={() => { setFabSelectedJob(activeJob); setShowJobPhoto(true); setShowFab(false); }}><FieldIcon name="camera" />{t('fab.addPhoto')}</button>
-            <button style={fmi('#7a4cb5')} onClick={() => { setExpenseJob(activeJob ?? undefined); setShowJobExpense(true); setShowFab(false); }}><FieldIcon name="cash" />{t('fab.addExpense')}</button>
-            <button style={fmi(ORANGE)} onClick={() => { setShowJobClock(true); setShowFab(false); }}><FieldIcon name="time" />{t('fab.clockInToJob')}</button>
           </div>
         </>
       )}
@@ -3384,89 +3326,6 @@ export default function FieldApp() {
                 <button type="button" onClick={closeNewClientModal} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {showJobClock && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => setShowJobClock(false)}>
-          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>⏱ {t('jobClockModal.title')}</div>
-              <button onClick={() => setShowJobClock(false)} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
-            </div>
-            {allJobs.length === 0 ? <p style={{ color: '#888' }}>{t('jobClockModal.noActiveJobs')}</p>
-              : allJobs.map(j => {
-                const isActive = activeEntry?.job_id === j.id;
-                return (
-                  <div key={j.id} onClick={() => { setShowJobClock(false); isActive ? handleClockOut() : handleClockIn(j.id); }} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
-                    <div><div style={{ fontWeight: 600 }}>{j.title}{isActive ? ' ✅' : ''}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div>
-                    <span style={{ color: isActive ? '#1a7a4a' : ORANGE, fontWeight: 700 }}>{isActive ? t('home.clockOut') : '→'}</span>
-                  </div>
-                );
-              })}
-            <button onClick={() => setShowJobClock(false)} style={{ marginTop: 16, width: '100%', padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
-          </div>
-        </div>
-      )}
-
-      {showJobNote && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => { setShowJobNote(false); setFabSelectedJob(null); }}>
-          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>📝 {t('jobNoteModal.title')}</div>
-              <button onClick={() => { setShowJobNote(false); setFabSelectedJob(null); }} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
-            </div>
-            {!fabSelectedJob
-              ? <>{<p style={{ color: '#888', marginBottom: 12 }}>{t('fab.selectJob')}</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
-              : <form onSubmit={saveFabNote}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ fontWeight: 600, color: ORANGE }}>{fabSelectedJob.title}</div>
-                  <button type="button" onClick={() => setFabSelectedJob(null)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>{t('common.change')}</button>
-                </div>
-                <textarea value={fabNoteText} onChange={e => setFabNoteText(e.target.value)} placeholder={t('jobNoteModal.notePlaceholder')} style={{ width: '100%', minHeight: 100, padding: 12, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none' }} />
-                <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                  <button type="submit" disabled={savingFabNote} style={{ flex: 1, padding: 12, background: ORANGE, color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>{savingFabNote ? t('common.saving') : t('common.save')}</button>
-                  <button type="button" onClick={() => { setFabSelectedJob(null); setShowJobNote(false); }} style={{ padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
-                </div>
-              </form>
-            }
-          </div>
-        </div>
-      )}
-
-      {showJobPhoto && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={() => { setShowJobPhoto(false); setFabSelectedJob(null); }}>
-          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430 }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>📸 {t('jobPhotoModal.title')}</div>
-              <button onClick={() => { setShowJobPhoto(false); setFabSelectedJob(null); }} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
-            </div>
-            {photoSuccess ? <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#1a7a4a', fontWeight: 700 }}>{photoSuccess} ✅</div>
-              : !fabSelectedJob
-                ? <>{<p style={{ color: '#888', marginBottom: 12 }}>{t('fab.selectJob')}</p>}{allJobs.map(j => <div key={j.id} onClick={() => setFabSelectedJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}><div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div><span style={{ color: ORANGE }}>→</span></div>)}</>
-                : <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <div style={{ fontWeight: 600, color: ORANGE }}>{fabSelectedJob.title}</div>
-                    <button type="button" onClick={() => setFabSelectedJob(null)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>{t('common.change')}</button>
-                  </div>
-                  {photoError && (
-                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 8, padding: '8px 10px', fontSize: 12, marginBottom: 12 }}>
-                      ⚠️ {photoError}
-                    </div>
-                  )}
-                  <input ref={fileRef} type="file" accept="image/*,application/pdf" onChange={uploadFabPhoto} style={{ display: 'none' }} />
-                  <button onClick={() => fileRef.current?.click()} disabled={uploadingPhoto} style={{ width: '100%', padding: 16, background: '#f0f0f0', border: '2px dashed #dde1e7', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', color: '#555' }}>
-                    {uploadingPhoto ? `📤 ${t('common.uploading')} ${fabUploadProgress}%` : `📷 ${t('fab.takeOrChoosePhoto')}`}
-                  </button>
-                  {uploadingPhoto && (
-                    <div style={{ background: '#e5e7eb', borderRadius: 20, height: 8, overflow: 'hidden', marginTop: 10 }}>
-                      <div style={{ background: ORANGE, height: '100%', width: `${fabUploadProgress}%`, transition: 'width 0.2s' }} />
-                    </div>
-                  )}
-                  <button onClick={() => { setFabSelectedJob(null); setShowJobPhoto(false); }} style={{ marginTop: 10, width: '100%', padding: 12, background: 'none', border: 'none', color: '#888', fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
-                </div>
-            }
           </div>
         </div>
       )}
@@ -3621,36 +3480,17 @@ export default function FieldApp() {
         </div>
       )}
 
-      {showJobExpense && (
+      {showGeneralExpense && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }} onClick={closeExpenseModal}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 430, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>💸 {t('expenses.addExpense')}</div>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>💸 {t('expenses.generalExpense')}</div>
               <button onClick={closeExpenseModal} aria-label={t('common.close')} style={{ background: '#f0f0f0', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#555', cursor: 'pointer' }}>✕</button>
             </div>
             {expenseSuccess ? (
               <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 18, color: '#1a7a4a', fontWeight: 700 }}>{expenseSuccess} ✅</div>
-            ) : expenseJob === undefined ? (
-              <>
-                <p style={{ color: '#888', marginBottom: 12 }}>{t('expenses.selectJobOrGeneral')}</p>
-                <div onClick={() => setExpenseJob(null)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 700, color: '#7a4cb5' }}>💼 {t('expenses.generalExpense')}</div>
-                  <span style={{ color: ORANGE }}>→</span>
-                </div>
-                {allJobs.map(j => (
-                  <div key={j.id} onClick={() => setExpenseJob(j)} style={{ padding: '12px 0', borderBottom: '1px solid #eee', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
-                    <div><div style={{ fontWeight: 600 }}>{j.title}</div><div style={{ fontSize: 13, color: '#888' }}>{j.clients?.name}</div></div>
-                    <span style={{ color: ORANGE }}>→</span>
-                  </div>
-                ))}
-                <button onClick={closeExpenseModal} style={{ marginTop: 16, width: '100%', padding: 12, background: '#f0f0f0', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('common.cancel')}</button>
-              </>
             ) : (
               <form onSubmit={saveExpense}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ fontWeight: 600, color: ORANGE }}>{expenseJob ? expenseJob.title : t('expenses.generalExpense')}</div>
-                  <button type="button" onClick={() => setExpenseJob(undefined)} style={{ background: 'none', border: 'none', color: '#888', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}>{t('common.change')}</button>
-                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                   <select value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}
                     style={{ padding: 10, border: '1.5px solid #dde1e7', borderRadius: 10, fontSize: 14, fontFamily: 'inherit' }}>

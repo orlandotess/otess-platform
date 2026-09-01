@@ -3565,8 +3565,7 @@
         "amountPlaceholder": "Amount",
         "receipt": "Receipt",
         "noExpensesForJob": "No expenses recorded for this job.",
-        "generalExpense": "General expense",
-        "selectJobOrGeneral": "Select a job or log a general expense:"
+        "generalExpense": "General expense"
       },
       "reports": {
         "forClient": "Reports for the client",
@@ -3623,14 +3622,6 @@
         "officePanel": "Office panel",
         "logout": "Log out"
       },
-      "fab": {
-        "addNote": "Add note",
-        "addPhoto": "Add photo",
-        "addExpense": "Add expense",
-        "clockInToJob": "Clock in to a job",
-        "selectJob": "Select the job:",
-        "takeOrChoosePhoto": "Take a photo or choose from gallery"
-      },
       "newClientModal": {
         "title": "New client",
         "namePlaceholder": "Name *",
@@ -3641,17 +3632,6 @@
         "addressPlaceholder": "Address (optional)",
         "cityPlaceholder": "City",
         "zipPlaceholder": "ZIP code"
-      },
-      "jobClockModal": {
-        "title": "Clock in to a job",
-        "noActiveJobs": "No active jobs."
-      },
-      "jobNoteModal": {
-        "title": "Add note",
-        "notePlaceholder": "Write your note..."
-      },
-      "jobPhotoModal": {
-        "title": "Add photo"
       },
       "emailReportModal": {
         "title": "Send report by email",
@@ -3667,7 +3647,6 @@
         "duplicate": "Duplicate",
         "delete": "Delete",
         "close": "Close",
-        "change": "Change",
         "loading": "Loading...",
         "searching": "Searching...",
         "saving": "Saving...",
@@ -3694,8 +3673,6 @@
         "uploadPhotoFailedRetry": "Couldn't upload the photo. Try again.",
         "serialExists": "That serial number already exists in the system.",
         "nameRequired": "Name is required",
-        "photoUploaded": "Photo uploaded",
-        "uploadFileFailedRetry": "Couldn't upload the file. Check your connection and try again.",
         "expenseSaved": "Expense saved",
         "notePhotosUploadFailed": "Couldn't upload: {files}. The note was saved — try uploading the file again."
       },
