@@ -21,6 +21,8 @@ const LOCATION_ICONS = { warehouse: "🏢", site: "📍", van: "🚐", zone: "�
 // solo UPDATE — el punto medio entre sus dos vecinos.
 const ORDER_GAP = 1000;
 
+const COLLAPSED_KEY = "otess_catalogo_carpetas_plegadas";
+
 // Un ítem sin `sort_order` —lo crea "guardar al catálogo" desde un estimado—
 // va arriba, que es donde antes caía por ser lo más reciente.
 function byManualOrder(a, b) {
@@ -34,9 +36,13 @@ function arrowStyle(disabled) {
   return { background: "none", border: "none", padding: 0, fontSize: 9, lineHeight: 1, color: "var(--muted)", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.25 : 1 };
 }
 
-export default function CatalogoClient({ items: initial, locations = [], locationStock = [], locationReels = [] }) {
+export default function CatalogoClient({ items: initial, folders: initialFolders = [], locations = [], locationStock = [], locationReels = [] }) {
   const t = useTranslations("catalogo.client");
   const [items, setItems] = useState(initial);
+  const [folders, setFolders] = useState(initialFolders);
+  const [editingFolderId, setEditingFolderId] = useState(null);
+  const [folderName, setFolderName] = useState("");
+  const [collapsed, setCollapsed] = useState({});
   const [reels, setReels] = useState(locationReels);
   const [reelsModalItem, setReelsModalItem] = useState(null);
   const [newReel, setNewReel] = useState({ location_id: "", code: "", total_footage: "" });
@@ -49,18 +55,20 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   const [editPhotoFile, setEditPhotoFile] = useState(null);
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [newItem, setNewItem] = useState({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "" });
+  const [newItem, setNewItem] = useState({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "", folder_id: "" });
   const [feeView, setFeeView] = useCatalogView("list");
   const [newPhotoFile, setNewPhotoFile] = useState(null);
   const [newPhotoPreview, setNewPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [dragId, setDragId] = useState(null);
+  const [dragFolderId, setDragFolderId] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
   const [signedUrls, setSignedUrls] = useState({});
   const fileRef = useRef();
   const newPhotoRef = useRef();
   const editPhotoRef = useRef();
+  const cancelRename = useRef(false);
 
   const dataType = tab === "catalog_view" ? "product" : tab;
   const isCardView = tab === "catalog_view";
@@ -86,6 +94,25 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     mensual: t("recurrencia.mensual"),
     anual: t("recurrencia.anual"),
   }), [t]);
+
+  // Qué carpetas están plegadas, recordado entre sesiones igual que la
+  // preferencia de vista (ver ViewToggle).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(COLLAPSED_KEY);
+      if (saved) setCollapsed(JSON.parse(saved));
+    } catch { /* localStorage bloqueado: se abren todas, sin más */ }
+  }, []);
+
+  function toggleFolder(folderId) {
+    setCollapsed(prev => {
+      const next = { ...prev, [folderId]: !prev[folderId] };
+      try { window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next)); } catch { /* idem */ }
+      return next;
+    });
+  }
+
+  const isCollapsed = folder => !!(folder && collapsed[folder.id]);
 
   const locationsById = useMemo(() => {
     const map = {};
@@ -206,6 +233,29 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   const isPlainList = tab === "labor" || tab === "product";
   const canReorder = isPlainList && !search.trim() && editingId === null;
 
+  const folderList = useMemo(
+    () => folders.filter(f => f.type === dataType).sort(byManualOrder),
+    [folders, dataType]
+  );
+  const folderById = useMemo(() => Object.fromEntries(folders.map(f => [f.id, f])), [folders]);
+
+  // Con búsqueda la lista se aplana: buscar tiene que encontrar el ítem esté en
+  // la carpeta que esté, y cada resultado enseña de cuál viene.
+  const groups = useMemo(() => {
+    if (!isPlainList || search.trim()) return null;
+    const byFolder = new Map(folderList.map(f => [f.id, []]));
+    const loose = [];
+    for (const item of filtered) {
+      const bucket = item.folder_id && byFolder.has(item.folder_id) ? byFolder.get(item.folder_id) : loose;
+      bucket.push(item);
+    }
+    return [...folderList.map(f => ({ folder: f, items: byFolder.get(f.id) })), { folder: null, items: loose }];
+  }, [isPlainList, search, folderList, filtered]);
+
+  function itemsInFolder(folderId) {
+    return items.filter(i => i.type === dataType && (i.folder_id ?? null) === (folderId ?? null)).sort(byManualOrder);
+  }
+
   // Genera signed URLs para las fotos de los ítems visibles
   useEffect(() => {
     const missing = filtered.filter(i => i.photo_url && !signedUrls[i.photo_url]);
@@ -226,58 +276,120 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     return Math.min(0, ...orders) - offset * ORDER_GAP;
   }
 
-  // Coloca `id` donde está `targetId`: antes si sube, después si baja. Se
-  // escribe el punto medio entre los dos vecinos; si ya no queda hueco (o algún
-  // vecino aún no tiene orden) se renumera la pestaña con huecos limpios.
-  async function moveItem(id, targetId) {
-    const list = filtered;
-    const from = list.findIndex(i => i.id === id);
-    const to = list.findIndex(i => i.id === targetId);
-    if (from === -1 || to === -1 || from === to) return;
-
-    const rest = list.filter(i => i.id !== id);
-    const at = rest.findIndex(i => i.id === targetId) + (to > from ? 1 : 0);
+  // Núcleo del orden manual, compartido por ítems y carpetas: se escribe el
+  // punto medio entre los dos vecinos, así que mover una fila es un solo
+  // UPDATE. Solo cuando el hueco se agota (o algún vecino no tiene orden
+  // todavía) se renumera la lista entera con huecos limpios.
+  function orderUpdates(list, moved, targetId) {
+    const rest = list.filter(i => i.id !== moved.id);
+    const from = list.findIndex(i => i.id === moved.id);
+    // Sin destino, al final de la lista.
+    let at = rest.length;
+    if (targetId) {
+      const idx = rest.findIndex(i => i.id === targetId);
+      if (idx === -1) return [];
+      const to = list.findIndex(i => i.id === targetId);
+      // Colocar antes del destino si sube, después si baja. Lo que viene de
+      // otra carpeta (`from === -1`) siempre entra antes.
+      at = idx + (from !== -1 && to > from ? 1 : 0);
+    }
     const before = rest[at - 1];
     const after = rest[at];
 
-    let updates;
-    if ((before && before.sort_order == null) || (after && after.sort_order == null)
-      || (before && after && after.sort_order - before.sort_order < 2)) {
-      const reordered = [...rest.slice(0, at), list[from], ...rest.slice(at)];
-      updates = reordered
+    const noGap = (before && before.sort_order == null) || (after && after.sort_order == null)
+      || (before && after && after.sort_order - before.sort_order < 2);
+    if (noGap) {
+      return [...rest.slice(0, at), moved, ...rest.slice(at)]
         .map((it, idx) => ({ id: it.id, sort_order: (idx + 1) * ORDER_GAP }))
-        .filter(u => list.find(i => i.id === u.id).sort_order !== u.sort_order);
-    } else {
-      const value = !before ? after.sort_order - ORDER_GAP
-        : !after ? before.sort_order + ORDER_GAP
-        : Math.floor((before.sort_order + after.sort_order) / 2);
-      updates = [{ id, sort_order: value }];
+        .filter(u => list.find(i => i.id === u.id)?.sort_order !== u.sort_order);
     }
-    if (updates.length === 0) return;
+    const value = !before && !after ? ORDER_GAP
+      : !before ? after.sort_order - ORDER_GAP
+      : !after ? before.sort_order + ORDER_GAP
+      : Math.floor((before.sort_order + after.sort_order) / 2);
+    return moved.sort_order === value ? [] : [{ id: moved.id, sort_order: value }];
+  }
 
-    const snapshot = items;
-    const orderById = new Map(updates.map(u => [u.id, u.sort_order]));
-    setItems(prev => prev.map(i => (orderById.has(i.id) ? { ...i, sort_order: orderById.get(i.id) } : i)));
-
-    const results = await Promise.all(updates.map(u =>
-      supabase.from("catalog_items").update({ sort_order: u.sort_order }).eq("id", u.id)));
+  // Guardado optimista: la lista se mueve al instante y, si Supabase falla,
+  // vuelve a como estaba con el error a la vista.
+  async function persist(table, patches, setRows, snapshot, messageKey = "errorReorderAlert") {
+    setRows(prev => prev.map(r => (patches.has(r.id) ? { ...r, ...patches.get(r.id) } : r)));
+    const results = await Promise.all([...patches].map(([id, patch]) =>
+      supabase.from(table).update(patch).eq("id", id)));
     const failed = results.find(r => r.error);
     if (failed) {
-      setItems(snapshot);
-      alert(t("errorReorderAlert", { message: failed.error.message }));
+      setRows(snapshot);
+      alert(t(messageKey, { message: failed.error.message }));
     }
+  }
+
+  // Coloca el ítem en `folderId` —null es "Sin carpeta"— justo donde está
+  // `targetId`, o al final de esa carpeta si no hay destino.
+  async function placeItem(id, folderId, targetId) {
+    const moved = items.find(i => i.id === id);
+    if (!moved) return;
+    const folder = folderId ?? null;
+    const sameFolder = (moved.folder_id ?? null) === folder;
+    if (sameFolder && (!targetId || targetId === id)) return;
+
+    const patches = new Map(orderUpdates(itemsInFolder(folder), moved, targetId)
+      .map(u => [u.id, { sort_order: u.sort_order }]));
+    if (!sameFolder) patches.set(id, { ...(patches.get(id) ?? {}), folder_id: folder });
+    if (patches.size === 0) return;
+    await persist("catalog_items", patches, setItems, items);
+  }
+
+  async function moveFolder(id, targetId) {
+    const moved = folders.find(f => f.id === id);
+    if (!moved || id === targetId) return;
+    const updates = orderUpdates(folderList, moved, targetId);
+    if (updates.length === 0) return;
+    await persist("catalog_folders", new Map(updates.map(u => [u.id, { sort_order: u.sort_order }])), setFolders, folders);
   }
 
   // Alternativa táctil al arrastre: el drag es HTML5 nativo y en iPad/iPhone no
   // dispara nada.
-  function moveBy(item, delta) {
-    const target = filtered[filtered.findIndex(i => i.id === item.id) + delta];
-    if (target) moveItem(item.id, target.id);
+  function moveBy(item, delta, list) {
+    const target = list[list.findIndex(i => i.id === item.id) + delta];
+    if (target) placeItem(item.id, item.folder_id ?? null, target.id);
+  }
+
+  function moveFolderBy(folder, delta) {
+    const target = folderList[folderList.findIndex(f => f.id === folder.id) + delta];
+    if (target) moveFolder(folder.id, target.id);
+  }
+
+  async function addFolder() {
+    const orders = folderList.map(f => f.sort_order).filter(v => v != null);
+    const { data, error } = await supabase.from("catalog_folders")
+      .insert([{ type: dataType, name: t("newFolderName"), sort_order: Math.min(0, ...orders) - ORDER_GAP }])
+      .select().single();
+    if (error) { alert(t("errorSavingAlert", { message: error.message })); return; }
+    setFolders(prev => [...prev, data]);
+    // Recién creada entra en modo renombrar: crearla y bautizarla es un gesto.
+    setEditingFolderId(data.id);
+    setFolderName(data.name);
+  }
+
+  async function saveFolderName(folder) {
+    const name = folderName.trim();
+    setEditingFolderId(null);
+    if (!name || name === folder.name) return;
+    await persist("catalog_folders", new Map([[folder.id, { name }]]), setFolders, folders, "errorSavingAlert");
+  }
+
+  async function deleteFolder(folder) {
+    if (!confirm(t("confirmDeleteFolder", { name: folder.name }))) return;
+    const { error } = await supabase.from("catalog_folders").delete().eq("id", folder.id);
+    if (error) { alert(t("errorAlert", { message: error.message })); return; }
+    setFolders(prev => prev.filter(f => f.id !== folder.id));
+    // La FK es `on delete set null`: los ítems no se borran, salen de la carpeta.
+    setItems(prev => prev.map(i => (i.folder_id === folder.id ? { ...i, folder_id: null } : i)));
   }
 
   function startEdit(item) {
     setEditingId(item.id);
-    setEditForm({ item_code: item.item_code, name: item.name ?? "", description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", markup_pct: item.markup_pct ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "", internal_only: item.internal_only ?? false, tax_category: item.tax_category ?? "labor", costo: item.costo ?? "", recurrencia: item.recurrencia ?? "unica", termino_meses: item.termino_meses ?? "" });
+    setEditForm({ folder_id: item.folder_id ?? "", item_code: item.item_code, name: item.name ?? "", description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", markup_pct: item.markup_pct ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "", internal_only: item.internal_only ?? false, tax_category: item.tax_category ?? "labor", costo: item.costo ?? "", recurrencia: item.recurrencia ?? "unica", termino_meses: item.termino_meses ?? "" });
     setEditPhotoFile(null);
     setEditPhotoPreview(item.photo_url ? signedUrls[item.photo_url] ?? null : null);
   }
@@ -305,6 +417,16 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       // Producto siguen gravando 1:1 con su propio tipo, igual que hoy.
       tax_category: dataType === "fee" ? (editForm.tax_category || "labor") : dataType,
     };
+    if (isPlainList) {
+      payload.folder_id = editForm.folder_id || null;
+      // Su posición vieja pertenece a la lista de la otra carpeta y aquí caería
+      // en cualquier sitio, así que entra al final de la nueva.
+      const current = items.find(i => i.id === id);
+      if ((current?.folder_id ?? null) !== payload.folder_id) {
+        const destination = itemsInFolder(payload.folder_id);
+        payload.sort_order = (destination[destination.length - 1]?.sort_order ?? 0) + ORDER_GAP;
+      }
+    }
     if (dataType === "product") {
       payload.stock_quantity = editForm.stock_quantity !== "" ? parseFloat(editForm.stock_quantity) : null;
       payload.default_location_id = editForm.default_location_id || null;
@@ -351,6 +473,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       // Lo recién creado entra arriba del todo, como cuando la lista salía por
       // fecha: si cayera al final parecería no haberse guardado.
       sort_order: topOrderFor(dataType),
+      folder_id: isPlainList ? (newItem.folder_id || null) : null,
       item_code: newItem.item_code.trim(),
       name: newItem.name.trim(),
       description: newItem.description.trim(),
@@ -374,7 +497,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       return;
     }
     if (data) setItems(prev => [...prev, data]);
-    setNewItem({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "" });
+    setNewItem({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "", folder_id: "" });
     setNewPhotoFile(null);
     setNewPhotoPreview(null);
     setAdding(false);
@@ -382,8 +505,8 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   }
 
   function exportCSV() {
-    const rows = filtered.map(i => [i.item_code, i.name ?? "", i.description, i.price, i.msrp ?? "", i.supplier_price ?? "", i.markup_pct ?? "", i.vendor ?? "", i.stock_quantity ?? "", i.costo ?? "", i.recurrencia ?? "", i.termino_meses ?? "", i.tax_category ?? "", i.type]);
-    const csvContent = [["Item Code", "Nombre", "Descripcion", "Precio", "MSRP", "Costo Suplidor", "Markup %", "Vendor", "Stock", "Costo", "Recurrencia", "Termino Meses", "Categoria Fiscal", "Tipo"], ...rows]
+    const rows = filtered.map(i => [i.item_code, i.name ?? "", i.description, i.price, i.msrp ?? "", i.supplier_price ?? "", i.markup_pct ?? "", i.vendor ?? "", i.stock_quantity ?? "", i.costo ?? "", i.recurrencia ?? "", i.termino_meses ?? "", i.tax_category ?? "", i.type, folderById[i.folder_id]?.name ?? ""]);
+    const csvContent = [["Item Code", "Nombre", "Descripcion", "Precio", "MSRP", "Costo Suplidor", "Markup %", "Vendor", "Stock", "Costo", "Recurrencia", "Termino Meses", "Categoria Fiscal", "Tipo", "Carpeta"], ...rows]
       .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
       .join("\n");
     const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
@@ -451,6 +574,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
         recurrencia: type === "fee" && cols[10] ? cols[10] : "unica",
         termino_meses: type === "fee" && cols[11] ? parseInt(cols[11], 10) : null,
         tax_category: type === "fee" ? (cols[12] || "labor") : type,
+        folderName: (cols[14] || "").trim(),
       };
     }).filter(i => i.item_code && i.name && i.description);
 
@@ -471,6 +595,24 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     if (lookupError) { setSaving(false); alert(t("errorAlert", { message: lookupError.message })); return; }
     const existingIdByCode = new Map((existing || []).map(r => [r.item_code, r.id]));
 
+    // Columna "Carpeta": las que no existan se crean, si no cada importación
+    // desharía la organización. Vacía significa "déjalo donde está".
+    const folderKey = (type, name) => `${type}|${name.toLowerCase()}`;
+    const folderIdByKey = new Map(folders.map(f => [folderKey(f.type, f.name), f.id]));
+    const missingFolders = [];
+    for (const i of uniqueRows) {
+      if (!i.folderName || (i.type !== "labor" && i.type !== "product")) continue;
+      const key = folderKey(i.type, i.folderName);
+      if (folderIdByKey.has(key) || missingFolders.some(m => folderKey(m.type, m.name) === key)) continue;
+      missingFolders.push({ type: i.type, name: i.folderName });
+    }
+    if (missingFolders.length > 0) {
+      const { data: created, error: folderError } = await supabase.from("catalog_folders").insert(missingFolders).select();
+      if (folderError) { setSaving(false); alert(t("errorAlert", { message: folderError.message })); return; }
+      setFolders(prev => [...prev, ...created]);
+      for (const f of created) folderIdByKey.set(folderKey(f.type, f.name), f.id);
+    }
+
     // Las filas nuevas entran arriba en el orden del CSV; las que ya existen
     // repiten su posición actual — mandarlas sin `sort_order` la borraría, y
     // re-importar un CSV editado en Excel no debe barajar el catálogo.
@@ -478,10 +620,12 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     for (const i of uniqueRows) {
       if (!existingIdByCode.has(i.item_code)) pendingByType[i.type] = (pendingByType[i.type] ?? 0) + 1;
     }
-    const toUpsert = uniqueRows.map(i => {
-      const id = existingIdByCode.get(i.item_code);
-      if (id) return { ...i, id, sort_order: items.find(x => x.id === id)?.sort_order ?? null };
-      return { ...i, sort_order: topOrderFor(i.type, pendingByType[i.type]--) };
+    const toUpsert = uniqueRows.map(({ folderName, ...row }) => {
+      const id = existingIdByCode.get(row.item_code);
+      const current = id ? items.find(x => x.id === id) : null;
+      const folder_id = folderName ? (folderIdByKey.get(folderKey(row.type, folderName)) ?? null) : (current?.folder_id ?? null);
+      if (id) return { ...row, id, sort_order: current?.sort_order ?? null, folder_id };
+      return { ...row, sort_order: topOrderFor(row.type, pendingByType[row.type]--), folder_id };
     });
     const updatedCount = toUpsert.filter(i => i.id).length;
 
@@ -503,6 +647,205 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
 
   const fmt = n => n == null ? null : `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const vendorOptions = [...new Set(items.map(i => i.vendor).filter(Boolean))];
+
+  // Encabezado de carpeta: nombre editable, cuenta, plegar, y la zona donde se
+  // suelta un ítem para meterlo dentro. El propio encabezado se arrastra para
+  // ordenar las carpetas entre sí.
+  function folderHeader(group) {
+    const folder = group.folder;
+    const headerStyle = {
+      display: "flex", alignItems: "center", gap: 10, padding: "10px 18px",
+      background: "var(--surface-2)", borderBottom: "1px solid var(--border)",
+      opacity: dragFolderId === folder?.id ? 0.4 : 1,
+    };
+    const onDrop = e => {
+      e.preventDefault();
+      if (dragFolderId && folder) moveFolder(dragFolderId, folder.id);
+      else if (dragId) placeItem(dragId, folder?.id ?? null, group.items[0]?.id ?? null);
+      setDragId(null);
+      setDragFolderId(null);
+    };
+
+    // "Sin carpeta" solo se anuncia cuando hay carpetas; si no, la lista se ve
+    // igual que siempre.
+    if (!folder) {
+      if (folderList.length === 0 || group.items.length === 0) return null;
+      return (
+        <div onDragOver={canReorder ? (e => e.preventDefault()) : undefined} onDrop={canReorder ? onDrop : undefined} style={headerStyle}>
+          <span style={{ fontWeight: 700, fontSize: 13, color: "var(--muted)" }}>{t("noFolderHeader")}</span>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>({group.items.length})</span>
+        </div>
+      );
+    }
+
+    const editing = editingFolderId === folder.id;
+    const idx = folderList.findIndex(f => f.id === folder.id);
+    return (
+      <div
+        draggable={canReorder && !editing}
+        onDragStart={canReorder && !editing ? (() => setDragFolderId(folder.id)) : undefined}
+        onDragEnd={() => setDragFolderId(null)}
+        onDragOver={canReorder ? (e => e.preventDefault()) : undefined}
+        onDrop={canReorder ? onDrop : undefined}
+        style={headerStyle}>
+        <button onClick={() => toggleFolder(folder.id)} aria-label={folder.name}
+          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--muted)", padding: 0 }}>
+          {isCollapsed(folder) ? "▸" : "▾"}
+        </button>
+        <span aria-hidden>🗂️</span>
+        {editing ? (
+          <input autoFocus value={folderName} onChange={e => setFolderName(e.target.value)}
+            onBlur={() => { if (cancelRename.current) { cancelRename.current = false; return; } saveFolderName(folder); }}
+            onKeyDown={e => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              if (e.key === "Escape") { cancelRename.current = true; setEditingFolderId(null); }
+            }}
+            maxLength={60}
+            style={{ padding: "4px 8px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, width: 220 }} />
+        ) : (
+          <span onClick={() => { setEditingFolderId(folder.id); setFolderName(folder.name); }}
+            title={t("renameFolderTitle")} style={{ fontWeight: 700, fontSize: 13, cursor: "text" }}>{folder.name}</span>
+        )}
+        <span style={{ fontSize: 12, color: "var(--muted)" }}>({group.items.length})</span>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          {canReorder && (
+            <>
+              <button onClick={() => moveFolderBy(folder, -1)} disabled={idx === 0} title={t("moveUpTitle")} aria-label={t("moveUpTitle")} style={arrowStyle(idx === 0)}>▲</button>
+              <button onClick={() => moveFolderBy(folder, 1)} disabled={idx === folderList.length - 1} title={t("moveDownTitle")} aria-label={t("moveDownTitle")} style={arrowStyle(idx === folderList.length - 1)}>▼</button>
+            </>
+          )}
+          <button onClick={() => deleteFolder(folder)} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 8px", color: "var(--warn)" }} title={t("deleteFolderTitle")}>🗑</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Una fila de la lista. Vive aparte porque se pinta desde dos sitios:
+  // agrupada por carpeta, y plana cuando hay una búsqueda.
+  function itemRow(item, idx, list) {
+    return (
+      <div key={item.id}
+        draggable={canReorder}
+        onDragStart={canReorder ? (() => setDragId(item.id)) : undefined}
+        onDragEnd={canReorder ? (() => setDragId(null)) : undefined}
+        onDragOver={canReorder ? (e => e.preventDefault()) : undefined}
+        onDrop={canReorder ? (e => { e.preventDefault(); if (dragId) placeItem(dragId, item.folder_id ?? null, item.id); setDragId(null); setDragFolderId(null); }) : undefined}
+        style={{ padding: "14px 18px", borderBottom: idx < list.length - 1 ? "1px solid var(--border)" : "none", opacity: dragId === item.id ? 0.4 : 1 }}>
+        {editingId === item.id ? (
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <label style={{ cursor: "pointer", flexShrink: 0 }}>
+              {editPhotoPreview ? (
+                <img src={editPhotoPreview} style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 8, background: "var(--surface-2)" }} />
+              ) : (
+                <div style={{ width: 56, height: 56, borderRadius: 8, background: "var(--surface-2)", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "var(--muted)" }}>📷</div>
+              )}
+              <input ref={editPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                const f = e.target.files?.[0];
+                if (f) { setEditPhotoFile(f); setEditPhotoPreview(URL.createObjectURL(f)); }
+              }} />
+            </label>
+            <div style={{ flex: 1, display: "grid", gap: 6 }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} placeholder={t("itemCodePlaceholder")} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace", width: 140 }} />
+                <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder={t("namePlaceholder")} maxLength={150} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700, flex: 1 }} />
+              </div>
+              <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder={t("descriptionPlaceholder")} maxLength={200} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, width: "100%" }} />
+              {isPlainList && (
+                <select value={editForm.folder_id ?? ""} onChange={e => setEditForm(f => ({ ...f, folder_id: e.target.value }))} style={{ padding: "6px 8px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 200 }} title={t("folderTitle")}>
+                  <option value="">{t("noFolderOption")}</option>
+                  {folderList.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+              )}
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted)", cursor: "pointer" }} title={t("internalOnlyTitle")}>
+                <input type="checkbox" checked={!!editForm.internal_only} onChange={e => setEditForm(f => ({ ...f, internal_only: e.target.checked }))} />
+                {t("internalOnlyLabel")}
+              </label>
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>{t("saveButton")}</button>
+                <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>{t("cancelWithIconButton")}</button>
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0, width: 100 }}>
+              {item.type === "product" && (
+                <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder={t("msrpPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)", textAlign: "right", width: "100%", marginBottom: 3 }} />
+              )}
+              <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder={t("priceShortPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: "right", width: "100%", marginBottom: 3 }} title={t("priceTitle")} />
+              {item.type === "product" && (
+                <input type="number" value={editForm.supplier_price} onChange={e => applyMarkup(setEditForm, { supplier_price: e.target.value })} placeholder={t("costPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)", textAlign: "right", width: "100%", marginBottom: 3 }} />
+              )}
+              {item.type === "product" && (
+                <input type="number" value={editForm.markup_pct} onChange={e => applyMarkup(setEditForm, { markup_pct: e.target.value })} placeholder={t("markupPlaceholder")} step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} title={t("markupTitle")} />
+              )}
+              {item.type === "product" && (
+                <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder={t("vendorPlaceholder")} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} />
+              )}
+              {item.type === "product" && (
+                <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder={t("stockPlaceholder")} step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)", textAlign: "right", width: "100%", marginTop: 3 }} title={t("stockTitle")} />
+              )}
+              {item.type === "product" && (
+                <select value={editForm.default_location_id} onChange={e => setEditForm(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, width: "100%", marginTop: 3 }} title={t("locationTitle")}>
+                  <option value="">{t("noLocationOption")}</option>
+                  {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+            {canReorder && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                <button onClick={() => moveBy(item, -1, list)} disabled={idx === 0} title={t("moveUpTitle")} aria-label={t("moveUpTitle")} style={arrowStyle(idx === 0)}>▲</button>
+                <span title={t("reorderHandleTitle")} style={{ cursor: "grab", fontSize: 13, lineHeight: 1, color: "var(--muted)" }}>⠿</span>
+                <button onClick={() => moveBy(item, 1, list)} disabled={idx === list.length - 1} title={t("moveDownTitle")} aria-label={t("moveDownTitle")} style={arrowStyle(idx === list.length - 1)}>▼</button>
+              </div>
+            )}
+            <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 8, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, overflow: "hidden" }}>
+              {item.photo_url && signedUrls[item.photo_url] ? (
+                <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              ) : (
+                typeMeta[item.type]?.icon ?? "📦"
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("internalOnlyBadgeTitle")}>{t("internalOnlyBadge")}</span>}</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
+              {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)" }}>{item.description}</div>}
+              {item.type === "product" && item.vendor && <div style={{ fontSize: 11, color: "var(--muted)" }}>🏪 {item.vendor}</div>}
+              {search.trim() && folderById[item.folder_id] && (
+                <div style={{ fontSize: 11, color: "var(--muted)" }}>🗂️ {folderById[item.folder_id].name}</div>
+              )}
+              {item.type === "product" && item.stock_quantity != null && (
+                <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700 }}>{t("stockLabel", { qty: item.stock_quantity })}</div>
+              )}
+              {item.type === "product" && locationBreakdown(item.id).length > 0 && (
+                <div style={{ fontSize: 10, color: "var(--muted)" }}>
+                  {locationBreakdown(item.id).map(s => `${LOCATION_ICONS[locationsById[s.location_id]?.type] ?? "📍"} ${locationsById[s.location_id]?.name ?? "?"}: ${s.quantity}`).join(" · ")}
+                </div>
+              )}
+              {item.type === "product" && reelsForItem(item.id).length > 0 && (
+                <div style={{ fontSize: 10, color: "var(--muted)" }}>
+                  {t("reelsSummary", { count: reelsForItem(item.id).length, feet: reelsForItem(item.id).reduce((a, r) => a + r.remaining_footage, 0) })}
+                </div>
+              )}
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0, width: 110 }}>
+              {item.type === "product" && item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>{t("msrpLabel", { value: fmt(item.msrp) })}</div>}
+              <div style={{ fontWeight: 800, fontSize: 16, color: "var(--navy)" }}>{fmt(item.price)}</div>
+              {item.type === "product" && item.supplier_price != null && <div style={{ fontSize: 11, color: "var(--warn)" }}>{t("columnCost")}: {fmt(item.supplier_price)}</div>}
+              {item.type === "product" && item.markup_pct != null && <div style={{ fontSize: 11, color: "var(--muted)" }} title={t("markupUsedTitle")}>{t("markupLabel", { pct: item.markup_pct })}</div>}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 12px" }}>{t("editButton")}</button>
+              {item.type === "product" && (
+                <button onClick={() => openReelsModal(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }} title={t("reelsButtonTitle")}>🧵</button>
+              )}
+              <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", color: "var(--warn)" }}>🗑</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -554,6 +897,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
             </>
           )}
           <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} style={{ display: "none" }} />
+          {isPlainList && <button className="btn btn-ghost" onClick={addFolder}>{t("newFolderButton")}</button>}
           <button className="btn btn-amber" onClick={() => setAdding(true)}>{t("newButton")}</button>
         </div>
       </div>
@@ -619,6 +963,12 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                   <input type="number" value={newItem.termino_meses} onChange={e => setNewItem(f => ({ ...f, termino_meses: e.target.value }))} placeholder={t("termMonthsPlaceholder")} step="1" style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 130 }} title={t("termMonthsTitle")} />
                 )}
               </div>
+              {isPlainList && folderList.length > 0 && (
+                <select value={newItem.folder_id} onChange={e => setNewItem(f => ({ ...f, folder_id: e.target.value }))} style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, width: 200 }} title={t("folderTitle")}>
+                  <option value="">{t("noFolderOption")}</option>
+                  {folderList.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+              )}
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", cursor: "pointer" }} title={t("internalOnlyTitle")}>
                 <input type="checkbox" checked={newItem.internal_only} onChange={e => setNewItem(f => ({ ...f, internal_only: e.target.checked }))} />
                 {t("internalOnlyLabel")}
@@ -722,7 +1072,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
             </div>
           )}
         />
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && !(isPlainList && folderList.length > 0) ? (
         <div className="empty"><p>{dataType === "labor" ? t("emptyItemsLabor") : t("emptyItemsProduct")}</p></div>
       ) : isCardView ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
@@ -830,119 +1180,17 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
         </div>
       ) : (
         <div style={{ background: "var(--surface)", borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
-          {filtered.map((item, idx) => (
-            <div key={item.id}
-              draggable={canReorder}
-              onDragStart={canReorder ? (() => setDragId(item.id)) : undefined}
-              onDragEnd={canReorder ? (() => setDragId(null)) : undefined}
-              onDragOver={canReorder ? (e => e.preventDefault()) : undefined}
-              onDrop={canReorder ? (e => { e.preventDefault(); if (dragId) moveItem(dragId, item.id); setDragId(null); }) : undefined}
-              style={{ padding: "14px 18px", borderBottom: idx < filtered.length - 1 ? "1px solid var(--border)" : "none", opacity: dragId === item.id ? 0.4 : 1 }}>
-              {editingId === item.id ? (
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <label style={{ cursor: "pointer", flexShrink: 0 }}>
-                    {editPhotoPreview ? (
-                      <img src={editPhotoPreview} style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 8, background: "var(--surface-2)" }} />
-                    ) : (
-                      <div style={{ width: 56, height: 56, borderRadius: 8, background: "var(--surface-2)", border: "1.5px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "var(--muted)" }}>📷</div>
-                    )}
-                    <input ref={editPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
-                      const f = e.target.files?.[0];
-                      if (f) { setEditPhotoFile(f); setEditPhotoPreview(URL.createObjectURL(f)); }
-                    }} />
-                  </label>
-                  <div style={{ flex: 1, display: "grid", gap: 6 }}>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <input value={editForm.item_code} onChange={e => setEditForm(f => ({ ...f, item_code: e.target.value }))} placeholder={t("itemCodePlaceholder")} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 12, fontFamily: "monospace", width: 140 }} />
-                      <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder={t("namePlaceholder")} maxLength={150} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, fontWeight: 700, flex: 1 }} />
-                    </div>
-                    <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder={t("descriptionPlaceholder")} maxLength={200} style={{ padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 13, width: "100%" }} />
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted)", cursor: "pointer" }} title={t("internalOnlyTitle")}>
-                      <input type="checkbox" checked={!!editForm.internal_only} onChange={e => setEditForm(f => ({ ...f, internal_only: e.target.checked }))} />
-                      {t("internalOnlyLabel")}
-                    </label>
-                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                      <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>{t("saveButton")}</button>
-                      <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>{t("cancelWithIconButton")}</button>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0, width: 100 }}>
-                    {item.type === "product" && (
-                      <input type="number" value={editForm.msrp} onChange={e => setEditForm(f => ({ ...f, msrp: e.target.value }))} placeholder={t("msrpPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--muted)", textAlign: "right", width: "100%", marginBottom: 3 }} />
-                    )}
-                    <input type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder={t("priceShortPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--amber)", borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: "right", width: "100%", marginBottom: 3 }} title={t("priceTitle")} />
-                    {item.type === "product" && (
-                      <input type="number" value={editForm.supplier_price} onChange={e => applyMarkup(setEditForm, { supplier_price: e.target.value })} placeholder={t("costPlaceholder")} step="0.01" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--warn)", textAlign: "right", width: "100%", marginBottom: 3 }} />
-                    )}
-                    {item.type === "product" && (
-                      <input type="number" value={editForm.markup_pct} onChange={e => applyMarkup(setEditForm, { markup_pct: e.target.value })} placeholder={t("markupPlaceholder")} step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} title={t("markupTitle")} />
-                    )}
-                    {item.type === "product" && (
-                      <input list="vendor-options" value={editForm.vendor} onChange={e => setEditForm(f => ({ ...f, vendor: e.target.value }))} placeholder={t("vendorPlaceholder")} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, textAlign: "right", width: "100%" }} />
-                    )}
-                    {item.type === "product" && (
-                      <input type="number" value={editForm.stock_quantity} onChange={e => setEditForm(f => ({ ...f, stock_quantity: e.target.value }))} placeholder={t("stockPlaceholder")} step="1" style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--navy)", textAlign: "right", width: "100%", marginTop: 3 }} title={t("stockTitle")} />
-                    )}
-                    {item.type === "product" && (
-                      <select value={editForm.default_location_id} onChange={e => setEditForm(f => ({ ...f, default_location_id: e.target.value }))} style={{ padding: "4px 6px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: 11, width: "100%", marginTop: 3 }} title={t("locationTitle")}>
-                        <option value="">{t("noLocationOption")}</option>
-                        {flatLocationOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-                      </select>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                  {canReorder && (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flexShrink: 0 }}>
-                      <button onClick={() => moveBy(item, -1)} disabled={idx === 0} title={t("moveUpTitle")} aria-label={t("moveUpTitle")} style={arrowStyle(idx === 0)}>▲</button>
-                      <span title={t("reorderHandleTitle")} style={{ cursor: "grab", fontSize: 13, lineHeight: 1, color: "var(--muted)" }}>⠿</span>
-                      <button onClick={() => moveBy(item, 1)} disabled={idx === filtered.length - 1} title={t("moveDownTitle")} aria-label={t("moveDownTitle")} style={arrowStyle(idx === filtered.length - 1)}>▼</button>
-                    </div>
-                  )}
-                  <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 8, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, overflow: "hidden" }}>
-                    {item.photo_url && signedUrls[item.photo_url] ? (
-                      <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                    ) : (
-                      typeMeta[item.type]?.icon ?? "📦"
-                    )}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("internalOnlyBadgeTitle")}>{t("internalOnlyBadge")}</span>}</div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
-                    {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)" }}>{item.description}</div>}
-                    {item.type === "product" && item.vendor && <div style={{ fontSize: 11, color: "var(--muted)" }}>🏪 {item.vendor}</div>}
-                    {item.type === "product" && item.stock_quantity != null && (
-                      <div style={{ fontSize: 11, color: item.stock_quantity <= 0 ? "var(--warn)" : "var(--navy)", fontWeight: 700 }}>{t("stockLabel", { qty: item.stock_quantity })}</div>
-                    )}
-                    {item.type === "product" && locationBreakdown(item.id).length > 0 && (
-                      <div style={{ fontSize: 10, color: "var(--muted)" }}>
-                        {locationBreakdown(item.id).map(s => `${LOCATION_ICONS[locationsById[s.location_id]?.type] ?? "📍"} ${locationsById[s.location_id]?.name ?? "?"}: ${s.quantity}`).join(" · ")}
-                      </div>
-                    )}
-                    {item.type === "product" && reelsForItem(item.id).length > 0 && (
-                      <div style={{ fontSize: 10, color: "var(--muted)" }}>
-                        {t("reelsSummary", { count: reelsForItem(item.id).length, feet: reelsForItem(item.id).reduce((a, r) => a + r.remaining_footage, 0) })}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0, width: 110 }}>
-                    {item.type === "product" && item.msrp != null && <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>{t("msrpLabel", { value: fmt(item.msrp) })}</div>}
-                    <div style={{ fontWeight: 800, fontSize: 16, color: "var(--navy)" }}>{fmt(item.price)}</div>
-                    {item.type === "product" && item.supplier_price != null && <div style={{ fontSize: 11, color: "var(--warn)" }}>{t("columnCost")}: {fmt(item.supplier_price)}</div>}
-                    {item.type === "product" && item.markup_pct != null && <div style={{ fontSize: 11, color: "var(--muted)" }} title={t("markupUsedTitle")}>{t("markupLabel", { pct: item.markup_pct })}</div>}
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => startEdit(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 12px" }}>{t("editButton")}</button>
-                    {item.type === "product" && (
-                      <button onClick={() => openReelsModal(item)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px" }} title={t("reelsButtonTitle")}>🧵</button>
-                    )}
-                    <button onClick={() => deleteItem(item.id)} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 10px", color: "var(--warn)" }}>🗑</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+          {groups
+            ? groups.map(group => (
+              <div key={group.folder?.id ?? "__sin_carpeta__"}>
+                {folderHeader(group)}
+                {!isCollapsed(group.folder) && group.items.map((item, idx) => itemRow(item, idx, group.items))}
+                {group.folder && !isCollapsed(group.folder) && group.items.length === 0 && (
+                  <div style={{ padding: "14px 18px", fontSize: 12, color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{t("emptyFolder")}</div>
+                )}
+              </div>
+            ))
+            : filtered.map((item, idx) => itemRow(item, idx, filtered))}
         </div>
       )}
 
