@@ -4519,7 +4519,8 @@
         "newTypeNamePlaceholder": "New type name (e.g. Cat6 Cable Blue)",
         "newType": "+ New type",
         "creating": "Creating...",
-        "feetPerBox": "Feet per box"
+        "feetPerBox": "Feet per box",
+        "nameRequired": "Name the cable to enable the button."
       },
       "layersPanel": {
         "hint": "Click a layer to make it the active layer — new equipment and cables are placed on it. Use the eye icon to show/hide (this session only).",
@@ -4563,7 +4564,8 @@
         "cable": "Cable",
         "noCableType": "No cable",
         "feetPlaceholder": "ft",
-        "cableTotalTitle": "Total for this equipment (per unit × quantity)"
+        "cableTotalTitle": "Total for this equipment (per unit × quantity)",
+        "newCableType": "Create a new cable type"
       },
       "cablePanel": {
         "noScale": "No scale defined",

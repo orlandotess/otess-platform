@@ -103,6 +103,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [newCableTypeColor, setNewCableTypeColor] = useState('#2a4cb5');
   const [newCableTypeWidth, setNewCableTypeWidth] = useState(1);
   const [newCableTypeDash, setNewCableTypeDash] = useState('solid');
+  const [newCableTypeFeetPerBox, setNewCableTypeFeetPerBox] = useState(1000);
   const [savingCableType, setSavingCableType] = useState(false);
   const [customIconsState, setCustomIconsState] = useState(customIcons);
   const [imageUrlState, setImageUrlState] = useState(imageUrl);
@@ -946,6 +947,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const { data, error } = await supabase.from('cable_types').insert([{
       name: newCableTypeName.trim(), color: newCableTypeColor,
       line_width: newCableTypeWidth, dash_style: newCableTypeDash,
+      feet_per_box: newCableTypeFeetPerBox || 1000,
     }]).select().single();
     setSavingCableType(false);
     if (error) { alert(t('errors.createCableTypeFailed', { error: error.message })); return; }
@@ -955,6 +957,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     setNewCableTypeColor('#2a4cb5');
     setNewCableTypeWidth(1);
     setNewCableTypeDash('solid');
+    setNewCableTypeFeetPerBox(1000);
   }
 
   function updateCableTypeName(id, name) {
@@ -1488,9 +1491,23 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 <option value="dotted">{t('cableTypesPanel.dashDotted')}</option>
               </select>
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{t('cableTypesPanel.feetPerBox')}</span>
+              <input
+                type="number" min="1" step="1" inputMode="numeric"
+                value={newCableTypeFeetPerBox}
+                onChange={e => setNewCableTypeFeetPerBox(parseInt(e.target.value, 10))}
+                style={{ width: 90, fontSize: 11, padding: '2px 6px' }}
+              />
+            </div>
             <button type="submit" className="btn btn-primary" disabled={savingCableType || !newCableTypeName.trim()}>
               {savingCableType ? t('cableTypesPanel.creating') : t('cableTypesPanel.newType')}
             </button>
+            {/* The disabled button says nothing on its own, and a name typed
+                nowhere is exactly how you fail to create a cable type. */}
+            {!newCableTypeName.trim() && (
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: -4 }}>{t('cableTypesPanel.nameRequired')}</p>
+            )}
           </form>
         </div>
       )}
@@ -2099,6 +2116,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                       <option value="">{t('markerPanel.noCableType')}</option>
                       {cableTypesState.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
                     </select>
+                    <button
+                      type="button" title={t('markerPanel.newCableType')}
+                      onClick={() => setShowCableTypesPanel(true)}
+                      className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '2px 8px' }}
+                    >+</button>
                     <input
                       type="number" min="0" step="1" inputMode="decimal"
                       value={feet ?? ''}

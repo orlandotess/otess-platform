@@ -4519,7 +4519,8 @@
         "newTypeNamePlaceholder": "Nombre del nuevo tipo (ej: Cat6 Cable Blue)",
         "newType": "+ Nuevo tipo",
         "creating": "Creando...",
-        "feetPerBox": "Pies por caja"
+        "feetPerBox": "Pies por caja",
+        "nameRequired": "Escribe el nombre del cable para activar el botón."
       },
       "layersPanel": {
         "hint": "Clic en una capa para hacerla la capa activa — los nuevos equipos y cables se colocan en ella. Usa el ojo para mostrar/ocultar (solo en esta sesión).",
@@ -4563,7 +4564,8 @@
         "cable": "Cable",
         "noCableType": "Sin cable",
         "feetPlaceholder": "pies",
-        "cableTotalTitle": "Total para este equipo (por unidad × cantidad)"
+        "cableTotalTitle": "Total para este equipo (por unidad × cantidad)",
+        "newCableType": "Crear un tipo de cable nuevo"
       },
       "cablePanel": {
         "noScale": "Sin escala definida",
