@@ -46,7 +46,7 @@ export default function AddElementPanel({ elementTypes, customIcons, onSelectEle
         style={{
           display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
           background: 'none', border: 'none', cursor: 'pointer', padding: '6px 4px', borderRadius: 6,
-          fontSize: 13, fontWeight: 700,
+          fontSize: 13, fontWeight: 700, color: 'var(--text)',
         }}
       >
         {color && <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />}
@@ -88,7 +88,7 @@ export default function AddElementPanel({ elementTypes, customIcons, onSelectEle
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                         padding: '8px 4px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)',
-                        cursor: 'pointer', fontSize: 10.5, textAlign: 'center', lineHeight: 1.2,
+                        color: 'var(--text)', cursor: 'pointer', fontSize: 10.5, textAlign: 'center', lineHeight: 1.2,
                       }}
                     >
                       {el.is_path_tool ? <span style={{ fontSize: 20, lineHeight: 1 }}>🔗</span> : <ElementIcon element={el} size={20} />}
@@ -116,7 +116,7 @@ export default function AddElementPanel({ elementTypes, customIcons, onSelectEle
                     style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                       padding: '8px 4px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)',
-                      cursor: 'pointer', fontSize: 10.5, textAlign: 'center', lineHeight: 1.2,
+                      color: 'var(--text)', cursor: 'pointer', fontSize: 10.5, textAlign: 'center', lineHeight: 1.2,
                     }}
                   >
                     {ic.url && <img src={ic.url} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />}
