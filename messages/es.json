@@ -1469,7 +1469,8 @@
       "noScaleDefined": "Sin escala definida",
       "cableDefaultLabel": "Cable {number}",
       "totalFootage": "TOTAL PIETAJE",
-      "filenameSuffix": "Equipos"
+      "filenameSuffix": "Equipos",
+      "accessories": "ACCESORIOS / MATERIALES"
     },
     "propuestaDataCsv": {
       "columnOption": "Opcion",
@@ -4536,7 +4537,15 @@
         "notesPlaceholder": "Notas",
         "cableButton": "Cable",
         "radiusFeet": "{count} ft",
-        "radiusUnits": "{count} u"
+        "radiusUnits": "{count} u",
+        "accessories": "Accesorios",
+        "addAccessory": "Accesorio",
+        "cancelAccessory": "Cancelar",
+        "removeAccessory": "Eliminar accesorio",
+        "accessorySearchPlaceholder": "Busca en el catálogo o escribe un nombre",
+        "accessoryMostUsed": "Más usados",
+        "accessoryUseFreeText": "Usar “{name}”",
+        "accessoryTotalTitle": "Total para este equipo (por unidad × cantidad)"
       },
       "cablePanel": {
         "noScale": "Sin escala definida",
@@ -4555,7 +4564,8 @@
         "totalFootage": "Pietaje total",
         "scaleDefined": "Escala definida ✓",
         "deleteScale": "Borrar",
-        "scaleUndefined": "Sin escala — el pietaje de los cables no se puede calcular. Usa el botón 📏 Escala."
+        "scaleUndefined": "Sin escala — el pietaje de los cables no se puede calcular. Usa el botón 📏 Escala.",
+        "accessories": "Accesorios / materiales"
       },
       "unitFeet": "{count} pies",
       "zoomFit": "Ajustar",
@@ -4606,7 +4616,9 @@
         "changeCableTypeFailed": "No se pudo cambiar el tipo de cable, se revirtió: {error}",
         "uploadIconFailed": "No se pudo subir el ícono: {error}",
         "saveIconFailed": "No se pudo guardar el ícono: {error}",
-        "deletePlanFailed": "No se pudo eliminar el plano: {error}"
+        "deletePlanFailed": "No se pudo eliminar el plano: {error}",
+        "addAccessoryFailed": "No se pudo añadir el accesorio: {error}",
+        "deleteAccessoryFailed": "No se pudo eliminar el accesorio, se restauró: {error}"
       }
     }
   },

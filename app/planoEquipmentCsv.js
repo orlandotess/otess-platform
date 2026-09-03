@@ -3,8 +3,11 @@ import { getEquipmentType } from './equipmentIcons';
 // Counts placed floor-plan markers by Add Element category / element,
 // summing each marker's `quantity` (a marker can represent more than one
 // physical unit), and cable runs with footage (if the plan has a scale
-// defined), then downloads a CSV.
-export function exportEquipmentListCSV(markers, elementTypes, customIcons, cables, feetPerPixel, cableLengthFeet, planName, t, tEquipmentTypes) {
+// defined), then downloads a CSV. Accessories attached to those markers
+// (a faceplate insert on a jack, see migrations/2026-09-02-marker-accessories.sql)
+// are totalled in their own block instead of counting as equipment; their
+// quantity is per unit of the marker, so it multiplies by the marker's own.
+export function exportEquipmentListCSV(markers, elementTypes, customIcons, cables, feetPerPixel, cableLengthFeet, planName, t, tEquipmentTypes, accessories = []) {
   if (!markers?.length) { alert(t('noEquipmentAlert')); return; }
 
   // system_name -> (element name -> quantity)
@@ -45,6 +48,21 @@ export function exportEquipmentListCSV(markers, elementTypes, customIcons, cable
 
   const total = markers.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
   const csvRows = [[t('columnType'), t('columnQuantity')], ...rows, ['', ''], [t('totalEquipment'), total]];
+
+  const accessoryTally = new Map();
+  for (const m of markers) {
+    const markerQty = m.quantity ?? 1;
+    for (const a of accessories.filter(ac => ac.marker_id === m.id)) {
+      const key = a.catalog_item_id || a.name.toLowerCase();
+      if (!accessoryTally.has(key)) accessoryTally.set(key, { label: a.name, qty: 0 });
+      accessoryTally.get(key).qty += (a.quantity ?? 1) * markerQty;
+    }
+  }
+  if (accessoryTally.size > 0) {
+    csvRows.push(['', '']);
+    csvRows.push([t('accessories'), '']);
+    for (const { label, qty } of accessoryTally.values()) csvRows.push([`  ${label}`, qty]);
+  }
 
   if (cables?.length) {
     csvRows.push(['', '']);

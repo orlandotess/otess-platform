@@ -53,7 +53,7 @@ function getAOC(marker, elementTypes) {
   };
 }
 
-export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialCables, initialLayers, initialCableTypes, initialElementTypes, customIcons, currentRole, allClients = [] }) {
+export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialAccessories = [], initialCables, initialLayers, initialCableTypes, initialElementTypes, customIcons, currentRole, allClients = [] }) {
   const router = useRouter();
   const t = useTranslations('planos.editor');
   const tEquipmentCsv = useTranslations('shared.planoEquipmentCsv');
@@ -78,6 +78,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
   const [planState, setPlanState] = useState(plan);
   const [markers, setMarkers] = useState(initialMarkers);
+  const [accessories, setAccessories] = useState(initialAccessories);
+  const [addingAccessory, setAddingAccessory] = useState(false);
+  const [accessorySearch, setAccessorySearch] = useState('');
+  const [accessoryOptions, setAccessoryOptions] = useState(null); // lazy: { catalog, recent } | null
+  const [savingAccessory, setSavingAccessory] = useState(false);
   const [cables, setCables] = useState(initialCables);
   const [layers, setLayers] = useState(initialLayers);
   const [activeLayerId, setActiveLayerId] = useState(null);
@@ -157,6 +162,9 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }, []);
 
   useEffect(() => { customIconsRef.current = customIconsState; }, [customIconsState]);
+
+  // Don't carry a half-typed accessory over to the next equipment selected.
+  useEffect(() => { setAddingAccessory(false); setAccessorySearch(''); }, [selectedMarkerId]);
 
   useEffect(() => {
     if (!linkClientId) { setLinkJobs([]); return; }
@@ -473,6 +481,16 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       return;
     }
     setMarkers(prev => prev.map(m => m.id === tempId ? data : m));
+    const sourceAccessories = markerAccessories(id);
+    if (sourceAccessories.length) {
+      const { data: cloned } = await supabase.from('floor_plan_marker_accessories').insert(
+        sourceAccessories.map(a => ({
+          marker_id: data.id, catalog_item_id: a.catalog_item_id, name: a.name,
+          quantity: a.quantity, notes: a.notes, sort_order: a.sort_order,
+        }))
+      ).select();
+      if (cloned?.length) setAccessories(prev => [...prev, ...cloned]);
+    }
     setSelectedMarkerId(data.id);
   }
 
@@ -480,13 +498,16 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     if (!confirm(t('confirms.deleteMarker'))) return;
     const removedMarker = markers.find(m => m.id === id);
     const removedCables = cables.filter(c => c.from_marker_id === id || c.to_marker_id === id);
+    const removedAccessories = accessories.filter(a => a.marker_id === id); // deleted in the DB by the FK cascade
     setMarkers(prev => prev.filter(m => m.id !== id));
     setCables(prev => prev.filter(c => c.from_marker_id !== id && c.to_marker_id !== id));
+    setAccessories(prev => prev.filter(a => a.marker_id !== id));
     setSelectedMarkerId(null);
     const { error } = await supabase.from('floor_plan_markers').delete().eq('id', id);
     if (error) {
       if (removedMarker) setMarkers(prev => [...prev, removedMarker]);
       if (removedCables.length) setCables(prev => [...prev, ...removedCables]);
+      if (removedAccessories.length) setAccessories(prev => [...prev, ...removedAccessories]);
       alert(t('errors.deleteMarkerFailed', { error: error.message }));
     }
   }
@@ -576,6 +597,78 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         alert(t('errors.saveQuantityFailed', { error: error.message }));
       }
     });
+  }
+
+  // ── Accessories (migrations/2026-09-02-marker-accessories.sql) ──────────
+  // Child rows of a marker: the two-port faceplate a Network Jack needs, the
+  // junction box a camera needs. Their quantity is per unit of the parent
+  // marker, so the totals below multiply by the marker's own quantity.
+  const markerAccessories = markerId => accessories.filter(a => a.marker_id === markerId).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+  // Loaded the first time the "+ accessory" form opens: the product catalog to
+  // search, plus the accessory names already used on other plans, which is what
+  // the tech reaches for most of the time.
+  async function loadAccessoryOptions() {
+    if (accessoryOptions) return;
+    const [{ data: catalog }, { data: used }] = await Promise.all([
+      supabase.from('catalog_items').select('id, item_code, name').eq('type', 'product').order('item_code'),
+      supabase.from('floor_plan_marker_accessories').select('name, catalog_item_id').order('created_at', { ascending: false }).limit(200),
+    ]);
+    const tally = new Map();
+    for (const a of used ?? []) {
+      const key = a.catalog_item_id || a.name;
+      if (!tally.has(key)) tally.set(key, { name: a.name, catalog_item_id: a.catalog_item_id, count: 0 });
+      tally.get(key).count += 1;
+    }
+    const recent = [...tally.values()].sort((a, b) => b.count - a.count).slice(0, 5);
+    setAccessoryOptions({ catalog: catalog ?? [], recent });
+  }
+
+  function openAccessoryForm() {
+    setAddingAccessory(true);
+    setAccessorySearch('');
+    loadAccessoryOptions();
+  }
+
+  async function addAccessory(markerId, { name, catalogItemId = null }) {
+    const clean = (name || '').trim();
+    if (!clean || savingAccessory) return;
+    setSavingAccessory(true);
+    const sortOrder = markerAccessories(markerId).length;
+    const { data, error } = await supabase.from('floor_plan_marker_accessories').insert([{
+      marker_id: markerId, catalog_item_id: catalogItemId, name: clean, quantity: 1, sort_order: sortOrder,
+    }]).select().single();
+    setSavingAccessory(false);
+    if (error) { alert(t('errors.addAccessoryFailed', { error: error.message })); return; }
+    setAccessories(prev => [...prev, data]);
+    setAccessorySearch('');
+    setAddingAccessory(false);
+    setAccessoryOptions(null); // so the "most used" list picks this one up next time
+  }
+
+  function adjustAccessoryQuantity(id, delta) {
+    const accessory = accessories.find(a => a.id === id);
+    if (!accessory) return;
+    const current = accessory.quantity ?? 1;
+    const next = Math.max(1, current + delta);
+    if (next === current) return;
+    setAccessories(prev => prev.map(a => a.id === id ? { ...a, quantity: next } : a));
+    supabase.from('floor_plan_marker_accessories').update({ quantity: next }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setAccessories(prev => prev.map(a => a.id === id ? { ...a, quantity: current } : a));
+        alert(t('errors.saveQuantityFailed', { error: error.message }));
+      }
+    });
+  }
+
+  async function deleteAccessory(id) {
+    const removed = accessories.find(a => a.id === id);
+    setAccessories(prev => prev.filter(a => a.id !== id));
+    const { error } = await supabase.from('floor_plan_marker_accessories').delete().eq('id', id);
+    if (error) {
+      if (removed) setAccessories(prev => [...prev, removed]);
+      alert(t('errors.deleteAccessoryFailed', { error: error.message }));
+    }
   }
 
   async function handleMarkerPhotoUpload(markerId, file) {
@@ -938,6 +1031,20 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const totalEquipment = visibleMarkers.length;
   const totalCables = visibleCables.length;
 
+  // Accessories are materials, not devices: they get their own block in the
+  // summary and never count toward "Total equipment". Each accessory's
+  // quantity is per unit of its marker, hence the multiplication.
+  const accessoryTally = new Map();
+  for (const m of visibleMarkers) {
+    const markerQty = m.quantity ?? 1;
+    for (const a of markerAccessories(m.id)) {
+      const key = a.catalog_item_id || a.name.toLowerCase();
+      if (!accessoryTally.has(key)) accessoryTally.set(key, { key, label: a.name, count: 0 });
+      accessoryTally.get(key).count += (a.quantity ?? 1) * markerQty;
+    }
+  }
+  const accessoryCounts = [...accessoryTally.values()];
+
   const cableColor = cable => cableTypesState.find(ct => ct.id === cable.cable_type_id)?.color || '#2a4cb5';
   const cableWidth = cable => cableTypesState.find(ct => ct.id === cable.cable_type_id)?.line_width || 1;
   const cableDashArray = cable => {
@@ -982,7 +1089,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">{t('header.viewOriginal')}</a>}
-          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes)}>⬇️ {t('header.exportList')}</button>
+          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes, accessories)}>⬇️ {t('header.exportList')}</button>
           {canDeletePlan && <button className="btn btn-ghost" disabled={deleting} onClick={handleDeletePlan} style={{ color: 'var(--warn)' }}>{t('header.deletePlan')}</button>}
           <Link href={currentRole === 'tecnico' ? '/crew' : '/planos'} className="btn btn-ghost">← {t('header.back')}</Link>
         </div>
@@ -1626,6 +1733,92 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 <button className="btn btn-ghost" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px' }}
                   onClick={() => adjustMarkerQuantity(selectedMarker.id, 1)}>+</button>
               </div>
+              {(() => {
+                const markerQty = selectedMarker.quantity ?? 1;
+                const rows = markerAccessories(selectedMarker.id);
+                const query = accessorySearch.trim().toLowerCase();
+                const catalogMatches = query
+                  ? (accessoryOptions?.catalog ?? []).filter(ci =>
+                      ci.name.toLowerCase().includes(query) || (ci.item_code || '').toLowerCase().includes(query)
+                    ).slice(0, 6)
+                  : [];
+                return (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('markerPanel.accessories')}</span>
+                      <button
+                        className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 'auto' }}
+                        onClick={() => (addingAccessory ? setAddingAccessory(false) : openAccessoryForm())}
+                      >
+                        {addingAccessory ? t('markerPanel.cancelAccessory') : `+ ${t('markerPanel.addAccessory')}`}
+                      </button>
+                    </div>
+                    {rows.map(a => (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, marginBottom: 4 }}>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={a.name}>{a.name}</span>
+                        <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                          disabled={(a.quantity ?? 1) <= 1}
+                          onClick={() => adjustAccessoryQuantity(a.id, -1)}>−</button>
+                        <span style={{ fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{a.quantity ?? 1}</span>
+                        <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                          onClick={() => adjustAccessoryQuantity(a.id, 1)}>+</button>
+                        {markerQty > 1 && (
+                          <span style={{ color: 'var(--muted)', fontSize: 11 }} title={t('markerPanel.accessoryTotalTitle')}>
+                            ={(a.quantity ?? 1) * markerQty}
+                          </span>
+                        )}
+                        <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 6px', color: 'var(--warn)' }}
+                          title={t('markerPanel.removeAccessory')}
+                          onClick={() => deleteAccessory(a.id)}>🗑</button>
+                      </div>
+                    ))}
+                    {addingAccessory && (
+                      <div style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 6, marginTop: 4 }}>
+                        <input
+                          autoFocus
+                          value={accessorySearch}
+                          onChange={e => setAccessorySearch(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') addAccessory(selectedMarker.id, { name: accessorySearch }); }}
+                          placeholder={t('markerPanel.accessorySearchPlaceholder')}
+                          style={{ width: '100%', fontSize: 12, padding: '6px 8px' }}
+                        />
+                        {!query && (accessoryOptions?.recent?.length ?? 0) > 0 && (
+                          <>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', margin: '6px 0 2px' }}>{t('markerPanel.accessoryMostUsed')}</p>
+                            {accessoryOptions.recent.map(r => (
+                              <button
+                                key={`${r.catalog_item_id || r.name}`} type="button" disabled={savingAccessory}
+                                onClick={() => addAccessory(selectedMarker.id, { name: r.name, catalogItemId: r.catalog_item_id })}
+                                style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 12, padding: '4px 2px' }}
+                              >
+                                {r.name}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                        {query && catalogMatches.map(ci => (
+                          <button
+                            key={ci.id} type="button" disabled={savingAccessory}
+                            onClick={() => addAccessory(selectedMarker.id, { name: ci.name, catalogItemId: ci.id })}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 12, padding: '4px 2px' }}
+                          >
+                            <span style={{ color: 'var(--muted)' }}>{ci.item_code}</span> {ci.name}
+                          </button>
+                        ))}
+                        {query && (
+                          <button
+                            type="button" disabled={savingAccessory}
+                            onClick={() => addAccessory(selectedMarker.id, { name: accessorySearch })}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', color: 'var(--amber)', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: '4px 2px' }}
+                          >
+                            {t('markerPanel.accessoryUseFreeText', { name: accessorySearch.trim() })}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {photoUrls[selectedMarker.id] ? (
                 <div style={{ marginBottom: 8 }}>
                   <img
@@ -1748,6 +1941,19 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             <span>{t('summary.totalEquipment')}</span>
             <span>{totalEquipment}</span>
           </div>
+          {accessoryCounts.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{t('summary.accessories')}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {accessoryCounts.map(a => (
+                  <div key={a.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
+                    <span style={{ flex: 1 }}>{a.label}</span>
+                    <span style={{ fontWeight: 700 }}>{a.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
             <span>{t('summary.cablesTraced')}</span>
             <span>{totalCables}</span>

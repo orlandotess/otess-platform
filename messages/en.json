@@ -1469,7 +1469,8 @@
       "noScaleDefined": "No scale defined",
       "cableDefaultLabel": "Cable {number}",
       "totalFootage": "TOTAL FOOTAGE",
-      "filenameSuffix": "Equipment"
+      "filenameSuffix": "Equipment",
+      "accessories": "ACCESSORIES / MATERIALS"
     },
     "propuestaDataCsv": {
       "columnOption": "Option",
@@ -4536,7 +4537,15 @@
         "notesPlaceholder": "Notes",
         "cableButton": "Cable",
         "radiusFeet": "{count} ft",
-        "radiusUnits": "{count} u"
+        "radiusUnits": "{count} u",
+        "accessories": "Accessories",
+        "addAccessory": "Accessory",
+        "cancelAccessory": "Cancel",
+        "removeAccessory": "Remove accessory",
+        "accessorySearchPlaceholder": "Search the catalog or type a name",
+        "accessoryMostUsed": "Most used",
+        "accessoryUseFreeText": "Use “{name}”",
+        "accessoryTotalTitle": "Total for this equipment (per unit × quantity)"
       },
       "cablePanel": {
         "noScale": "No scale defined",
@@ -4555,7 +4564,8 @@
         "totalFootage": "Total footage",
         "scaleDefined": "Scale defined ✓",
         "deleteScale": "Delete",
-        "scaleUndefined": "No scale — cable footage can't be calculated. Use the 📏 Scale button."
+        "scaleUndefined": "No scale — cable footage can't be calculated. Use the 📏 Scale button.",
+        "accessories": "Accessories / materials"
       },
       "unitFeet": "{count} ft",
       "zoomFit": "Fit",
@@ -4606,7 +4616,9 @@
         "changeCableTypeFailed": "Could not change the cable type, it was reverted: {error}",
         "uploadIconFailed": "Could not upload the icon: {error}",
         "saveIconFailed": "Could not save the icon: {error}",
-        "deletePlanFailed": "Could not delete the plan: {error}"
+        "deletePlanFailed": "Could not delete the plan: {error}",
+        "addAccessoryFailed": "Could not add the accessory: {error}",
+        "deleteAccessoryFailed": "Could not delete the accessory, it was restored: {error}"
       }
     }
   },

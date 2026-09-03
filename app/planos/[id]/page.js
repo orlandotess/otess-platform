@@ -38,6 +38,13 @@ export default async function PlanoDetail(props) {
     </div>
   );
 
+  // Accessories hang off the markers (migrations/2026-09-02-marker-accessories.sql),
+  // so they can only be fetched once the plan's marker ids are known.
+  const markerIds = (markers ?? []).map(m => m.id);
+  const { data: accessories } = markerIds.length
+    ? await supabase.from('floor_plan_marker_accessories').select('*').in('marker_id', markerIds).order('sort_order')
+    : { data: [] };
+
   const { data: imageSigned } = await supabase.storage.from('floor-plans').createSignedUrl(plan.rendered_image_path, 3600);
   const { data: sourceSigned } = await supabase.storage.from('floor-plans').createSignedUrl(plan.source_path, 3600);
 
@@ -55,6 +62,7 @@ export default async function PlanoDetail(props) {
           imageUrl={imageSigned?.signedUrl ?? null}
           sourceUrl={sourceSigned?.signedUrl ?? null}
           initialMarkers={markers ?? []}
+          initialAccessories={accessories ?? []}
           initialCables={cables ?? []}
           initialLayers={layers ?? []}
           initialCableTypes={cableTypes ?? []}
