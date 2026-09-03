@@ -16,6 +16,24 @@ const TYPE_META_BASE = {
 
 const LOCATION_ICONS = { warehouse: "🏢", site: "📍", van: "🚐", zone: "🗂️", shelf: "📚", bin: "🗃️" };
 
+// Orden manual (ver migrations/2026-09-02c-catalog-sort-order.sql): las
+// posiciones se guardan con huecos, así que mover una fila es normalmente un
+// solo UPDATE — el punto medio entre sus dos vecinos.
+const ORDER_GAP = 1000;
+
+// Un ítem sin `sort_order` —lo crea "guardar al catálogo" desde un estimado—
+// va arriba, que es donde antes caía por ser lo más reciente.
+function byManualOrder(a, b) {
+  const ao = a.sort_order ?? -Infinity;
+  const bo = b.sort_order ?? -Infinity;
+  if (ao !== bo) return ao < bo ? -1 : 1;
+  return String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""));
+}
+
+function arrowStyle(disabled) {
+  return { background: "none", border: "none", padding: 0, fontSize: 9, lineHeight: 1, color: "var(--muted)", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.25 : 1 };
+}
+
 export default function CatalogoClient({ items: initial, locations = [], locationStock = [], locationReels = [] }) {
   const t = useTranslations("catalogo.client");
   const [items, setItems] = useState(initial);
@@ -37,6 +55,7 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   const [newPhotoPreview, setNewPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [dragId, setDragId] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
   const [signedUrls, setSignedUrls] = useState({});
   const fileRef = useRef();
@@ -175,7 +194,17 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
   // Mismo matcher que los buscadores de propuestas/facturas: por palabras y
   // tolerante a campos nulos — `i.description.toLowerCase()` lanzaba si la
   // columna venía vacía, y bastaba una fila así para tumbar la página entera.
-  const filtered = items.filter(i => i.type === dataType && matchesCatalogQuery(i, search));
+  const filtered = useMemo(
+    () => items.filter(i => i.type === dataType && matchesCatalogQuery(i, search)).sort(byManualOrder),
+    [items, dataType, search]
+  );
+
+  // Reordenar solo tiene sentido sobre la lista completa: dentro de una
+  // búsqueda la posición de destino no existe en el catálogo real. Las
+  // pestañas de Fees y Catálogo comparten este orden pero se reordenan desde
+  // Labor/Producto, que son las listas donde el orden se trabaja.
+  const isPlainList = tab === "labor" || tab === "product";
+  const canReorder = isPlainList && !search.trim() && editingId === null;
 
   // Genera signed URLs para las fotos de los ítems visibles
   useEffect(() => {
@@ -190,6 +219,61 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       if (Object.keys(updates).length) setSignedUrls(prev => ({ ...prev, ...updates }));
     })();
   }, [filtered]);
+
+  // Posición libre por encima de todo lo que ya existe en esa pestaña.
+  function topOrderFor(type, offset = 1) {
+    const orders = items.filter(i => i.type === type).map(i => i.sort_order).filter(v => v != null);
+    return Math.min(0, ...orders) - offset * ORDER_GAP;
+  }
+
+  // Coloca `id` donde está `targetId`: antes si sube, después si baja. Se
+  // escribe el punto medio entre los dos vecinos; si ya no queda hueco (o algún
+  // vecino aún no tiene orden) se renumera la pestaña con huecos limpios.
+  async function moveItem(id, targetId) {
+    const list = filtered;
+    const from = list.findIndex(i => i.id === id);
+    const to = list.findIndex(i => i.id === targetId);
+    if (from === -1 || to === -1 || from === to) return;
+
+    const rest = list.filter(i => i.id !== id);
+    const at = rest.findIndex(i => i.id === targetId) + (to > from ? 1 : 0);
+    const before = rest[at - 1];
+    const after = rest[at];
+
+    let updates;
+    if ((before && before.sort_order == null) || (after && after.sort_order == null)
+      || (before && after && after.sort_order - before.sort_order < 2)) {
+      const reordered = [...rest.slice(0, at), list[from], ...rest.slice(at)];
+      updates = reordered
+        .map((it, idx) => ({ id: it.id, sort_order: (idx + 1) * ORDER_GAP }))
+        .filter(u => list.find(i => i.id === u.id).sort_order !== u.sort_order);
+    } else {
+      const value = !before ? after.sort_order - ORDER_GAP
+        : !after ? before.sort_order + ORDER_GAP
+        : Math.floor((before.sort_order + after.sort_order) / 2);
+      updates = [{ id, sort_order: value }];
+    }
+    if (updates.length === 0) return;
+
+    const snapshot = items;
+    const orderById = new Map(updates.map(u => [u.id, u.sort_order]));
+    setItems(prev => prev.map(i => (orderById.has(i.id) ? { ...i, sort_order: orderById.get(i.id) } : i)));
+
+    const results = await Promise.all(updates.map(u =>
+      supabase.from("catalog_items").update({ sort_order: u.sort_order }).eq("id", u.id)));
+    const failed = results.find(r => r.error);
+    if (failed) {
+      setItems(snapshot);
+      alert(t("errorReorderAlert", { message: failed.error.message }));
+    }
+  }
+
+  // Alternativa táctil al arrastre: el drag es HTML5 nativo y en iPad/iPhone no
+  // dispara nada.
+  function moveBy(item, delta) {
+    const target = filtered[filtered.findIndex(i => i.id === item.id) + delta];
+    if (target) moveItem(item.id, target.id);
+  }
 
   function startEdit(item) {
     setEditingId(item.id);
@@ -264,6 +348,9 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     if (newPhotoFile) photo_url = await uploadPhoto(newPhotoFile);
     const { data, error } = await supabase.from("catalog_items").insert([{
       type: dataType,
+      // Lo recién creado entra arriba del todo, como cuando la lista salía por
+      // fecha: si cayera al final parecería no haberse guardado.
+      sort_order: topOrderFor(dataType),
       item_code: newItem.item_code.trim(),
       name: newItem.name.trim(),
       description: newItem.description.trim(),
@@ -384,9 +471,17 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
     if (lookupError) { setSaving(false); alert(t("errorAlert", { message: lookupError.message })); return; }
     const existingIdByCode = new Map((existing || []).map(r => [r.item_code, r.id]));
 
+    // Las filas nuevas entran arriba en el orden del CSV; las que ya existen
+    // repiten su posición actual — mandarlas sin `sort_order` la borraría, y
+    // re-importar un CSV editado en Excel no debe barajar el catálogo.
+    const pendingByType = {};
+    for (const i of uniqueRows) {
+      if (!existingIdByCode.has(i.item_code)) pendingByType[i.type] = (pendingByType[i.type] ?? 0) + 1;
+    }
     const toUpsert = uniqueRows.map(i => {
       const id = existingIdByCode.get(i.item_code);
-      return id ? { ...i, id } : i;
+      if (id) return { ...i, id, sort_order: items.find(x => x.id === id)?.sort_order ?? null };
+      return { ...i, sort_order: topOrderFor(i.type, pendingByType[i.type]--) };
     });
     const updatedCount = toUpsert.filter(i => i.id).length;
 
@@ -442,6 +537,9 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <p style={{ fontWeight: 700, fontSize: 15, color: "var(--navy)" }}>
           {typeMeta[tab].icon} {typeMeta[tab].label} ({filtered.length})
+          {isPlainList && search.trim() && (
+            <span style={{ fontWeight: 400, fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>{t("reorderSearchHint")}</span>
+          )}
         </p>
         <div style={{ display: "flex", gap: 8, position: "relative" }}>
           {tab === "fee" && <ViewToggle view={feeView} onChange={setFeeView} />}
@@ -733,7 +831,13 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
       ) : (
         <div style={{ background: "var(--surface)", borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
           {filtered.map((item, idx) => (
-            <div key={item.id} style={{ padding: "14px 18px", borderBottom: idx < filtered.length - 1 ? "1px solid var(--border)" : "none" }}>
+            <div key={item.id}
+              draggable={canReorder}
+              onDragStart={canReorder ? (() => setDragId(item.id)) : undefined}
+              onDragEnd={canReorder ? (() => setDragId(null)) : undefined}
+              onDragOver={canReorder ? (e => e.preventDefault()) : undefined}
+              onDrop={canReorder ? (e => { e.preventDefault(); if (dragId) moveItem(dragId, item.id); setDragId(null); }) : undefined}
+              style={{ padding: "14px 18px", borderBottom: idx < filtered.length - 1 ? "1px solid var(--border)" : "none", opacity: dragId === item.id ? 0.4 : 1 }}>
               {editingId === item.id ? (
                 <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                   <label style={{ cursor: "pointer", flexShrink: 0 }}>
@@ -789,6 +893,13 @@ export default function CatalogoClient({ items: initial, locations = [], locatio
                 </div>
               ) : (
                 <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                  {canReorder && (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                      <button onClick={() => moveBy(item, -1)} disabled={idx === 0} title={t("moveUpTitle")} aria-label={t("moveUpTitle")} style={arrowStyle(idx === 0)}>▲</button>
+                      <span title={t("reorderHandleTitle")} style={{ cursor: "grab", fontSize: 13, lineHeight: 1, color: "var(--muted)" }}>⠿</span>
+                      <button onClick={() => moveBy(item, 1)} disabled={idx === filtered.length - 1} title={t("moveDownTitle")} aria-label={t("moveDownTitle")} style={arrowStyle(idx === filtered.length - 1)}>▼</button>
+                    </div>
+                  )}
                   <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 8, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, overflow: "hidden" }}>
                     {item.photo_url && signedUrls[item.photo_url] ? (
                       <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
