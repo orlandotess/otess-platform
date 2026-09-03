@@ -66,6 +66,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const serialOriginRef = useRef(null);
   const notesOriginRef = useRef(null);
   const cableFeetOriginRef = useRef(null);
+  const panelDragRef = useRef(null);
   const layerNameOriginRef = useRef(null);
   const cableTypeNameOriginRef = useRef(null);
   const cableLabelOriginRef = useRef(null);
@@ -89,6 +90,8 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [pickingPlaceProduct, setPickingPlaceProduct] = useState(false);
   const [pickingMarkerProduct, setPickingMarkerProduct] = useState(false);
   const [pickingPlaceCable, setPickingPlaceCable] = useState(false);
+  const [panelPos, setPanelPos] = useState(null); // {x, y} inside the canvas; null = default corner
+  const [panelMinimized, setPanelMinimized] = useState(false);
   const [cables, setCables] = useState(initialCables);
   const [layers, setLayers] = useState(initialLayers);
   const [activeLayerId, setActiveLayerId] = useState(null);
@@ -653,6 +656,56 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, catalog_item_id: original } : m));
       alert(t('errors.saveProductFailed', { error: error.message }));
     }
+  }
+
+  // ── Marker panel position ───────────────────────────────────────────────
+  // With dozens of markers on one plan the panel sits on top of the very area
+  // being worked on, so it drags by its title bar and stays where it was left:
+  // move it once to a clear corner and every marker opens there. The position
+  // is a per-person workspace preference, not plan data, hence localStorage.
+  const PANEL_POS_KEY = 'planos.markerPanelPos';
+  const PANEL_DEFAULT_POS = { x: 10, y: 10 };
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(PANEL_POS_KEY) || 'null');
+      if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) setPanelPos(saved);
+    } catch {
+      // a browser with storage blocked just gets the default corner
+    }
+  }, []);
+
+  function startPanelDrag(e, currentPos) {
+    if (e.target.closest('button')) return; // the header's own buttons keep working
+    e.stopPropagation();
+    panelDragRef.current = { startX: e.clientX, startY: e.clientY, origin: currentPos, latest: currentPos };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+
+  function movePanelDrag(e) {
+    const drag = panelDragRef.current;
+    if (!drag) return;
+    e.stopPropagation();
+    const next = { x: drag.origin.x + (e.clientX - drag.startX), y: drag.origin.y + (e.clientY - drag.startY) };
+    drag.latest = next;
+    setPanelPos(next);
+  }
+
+  function endPanelDrag(e) {
+    const drag = panelDragRef.current;
+    if (!drag) return;
+    e.stopPropagation();
+    panelDragRef.current = null;
+    try {
+      window.localStorage.setItem(PANEL_POS_KEY, JSON.stringify(drag.latest));
+    } catch {
+      // not being able to remember the spot is no reason to lose the drag
+    }
+  }
+
+  function resetPanelPos() {
+    setPanelPos(null);
+    try { window.localStorage.removeItem(PANEL_POS_KEY); } catch { /* nothing to forget */ }
   }
 
   // ── Cable estimated per equipment (migrations/2026-09-02c-marker-cable.sql) ──
@@ -1836,22 +1889,36 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             // so it never overflows on a narrow or short viewport.
             const panelWidth = Math.min(260, Math.max(200, rectSize.width - 20));
             const panelMaxHeight = Math.max(200, rectSize.height - 20);
+            // Clamped on every render, so a panel left near an edge never ends
+            // up off-screen after a resize, a zoom, or a smaller display.
+            const wanted = panelPos ?? PANEL_DEFAULT_POS;
+            const panelX = Math.max(0, Math.min(wanted.x, Math.max(0, rectSize.width - panelWidth)));
+            const panelY = Math.max(0, Math.min(wanted.y, Math.max(0, rectSize.height - 40)));
             return (
             <div
               onPointerDown={e => e.stopPropagation()}
               onClick={e => e.stopPropagation()}
               onWheel={e => e.stopPropagation()}
               style={{
-                position: 'absolute', left: 10, top: 10, zIndex: 6,
+                position: 'absolute', left: panelX, top: panelY, zIndex: 6,
                 background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
                 boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
                 width: panelWidth, maxHeight: panelMaxHeight, overflowY: 'auto',
               }}
             >
-              <div style={{
-                position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', gap: 8,
-                background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '6px 8px',
-              }}>
+              <div
+                onPointerDown={e => startPanelDrag(e, { x: panelX, y: panelY })}
+                onPointerMove={movePanelDrag}
+                onPointerUp={endPanelDrag}
+                onPointerCancel={endPanelDrag}
+                onDoubleClick={resetPanelPos}
+                title={t('markerPanel.dragHint')}
+                style={{
+                  position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '6px 8px',
+                  cursor: 'move', touchAction: 'none',
+                }}
+              >
                 {getMarkerElement(selectedMarker, elementTypes) && (
                   <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: getMarkerElement(selectedMarker, elementTypes).system_color, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
                     {getMarkerElement(selectedMarker, elementTypes).system_abbr}
@@ -1901,6 +1968,13 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   🗑
                 </button>
                 <button
+                  type="button" title={panelMinimized ? t('markerPanel.expand') : t('markerPanel.minimize')}
+                  onClick={() => setPanelMinimized(v => !v)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
+                >
+                  {panelMinimized ? '▢' : '—'}
+                </button>
+                <button
                   type="button" title={t('markerPanel.close')} onClick={() => setSelectedMarkerId(null)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, fontWeight: 700, padding: '0 2px', flexShrink: 0 }}
                 >
@@ -1908,7 +1982,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 </button>
               </div>
 
-              <div style={{ padding: 10 }}>
+              <div style={{ padding: 10, display: panelMinimized ? 'none' : undefined }}>
               <input
                 value={selectedMarker.label || ''}
                 onFocus={() => { labelOriginRef.current = selectedMarker.label || ''; }}

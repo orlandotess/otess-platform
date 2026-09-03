@@ -4565,7 +4565,10 @@
         "noCableType": "Sin cable",
         "feetPlaceholder": "pies",
         "cableTotalTitle": "Total para este equipo (por unidad × cantidad)",
-        "newCableType": "Crear un tipo de cable nuevo"
+        "newCableType": "Crear un tipo de cable nuevo",
+        "minimize": "Minimizar",
+        "expand": "Expandir",
+        "dragHint": "Arrastra para mover · doble clic para devolverlo"
       },
       "cablePanel": {
         "noScale": "Sin escala definida",

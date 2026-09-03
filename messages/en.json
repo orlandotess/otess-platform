@@ -4565,7 +4565,10 @@
         "noCableType": "No cable",
         "feetPlaceholder": "ft",
         "cableTotalTitle": "Total for this equipment (per unit × quantity)",
-        "newCableType": "Create a new cable type"
+        "newCableType": "Create a new cable type",
+        "minimize": "Minimize",
+        "expand": "Expand",
+        "dragHint": "Drag to move · double-click to reset"
       },
       "cablePanel": {
         "noScale": "No scale defined",
