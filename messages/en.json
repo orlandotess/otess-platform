@@ -1472,7 +1472,11 @@
       "filenameSuffix": "Equipment",
       "accessories": "ACCESSORIES / MATERIALS",
       "columnCode": "Code",
-      "noProduct": "No product"
+      "noProduct": "No product",
+      "cableEstimated": "estimated on equipment",
+      "cableTraced": "traced on the plan",
+      "boxesOf": "boxes of {size} ft",
+      "tracedRuns": "Traced runs"
     },
     "propuestaDataCsv": {
       "columnOption": "Option",
@@ -4480,7 +4484,10 @@
         "layers": "Layers",
         "scale": "Scale",
         "product": "Product",
-        "clearProduct": "Remove the product"
+        "clearProduct": "Remove the product",
+        "cableEstimate": "Cable",
+        "clearCable": "Remove the cable",
+        "doneCable": "Done"
       },
       "cableHint": {
         "start": "Click the equipment where the cable starts.",
@@ -4511,7 +4518,8 @@
         "dashDotted": "Dotted",
         "newTypeNamePlaceholder": "New type name (e.g. Cat6 Cable Blue)",
         "newType": "+ New type",
-        "creating": "Creating..."
+        "creating": "Creating...",
+        "feetPerBox": "Feet per box"
       },
       "layersPanel": {
         "hint": "Click a layer to make it the active layer — new equipment and cables are placed on it. Use the eye icon to show/hide (this session only).",
@@ -4551,7 +4559,11 @@
         "accessoryUseFreeText": "Use “{name}”",
         "accessoryTotalTitle": "Total for this equipment (per unit × quantity)",
         "addProduct": "Catalog product",
-        "clearProduct": "Unlink the product"
+        "clearProduct": "Unlink the product",
+        "cable": "Cable",
+        "noCableType": "No cable",
+        "feetPlaceholder": "ft",
+        "cableTotalTitle": "Total for this equipment (per unit × quantity)"
       },
       "cablePanel": {
         "noScale": "No scale defined",
@@ -4572,7 +4584,11 @@
         "deleteScale": "Delete",
         "scaleUndefined": "No scale — cable footage can't be calculated. Use the 📏 Scale button.",
         "accessories": "Accessories / materials",
-        "noProduct": "No product"
+        "noProduct": "No product",
+        "cabling": "Cabling",
+        "boxes": "{count} box(es) of {size} ft",
+        "leftover": "{count} ft left over",
+        "cableSources": "estimated {estimated} · traced {traced}"
       },
       "unitFeet": "{count} ft",
       "zoomFit": "Fit",
@@ -4626,7 +4642,10 @@
         "deletePlanFailed": "Could not delete the plan: {error}",
         "addAccessoryFailed": "Could not add the accessory: {error}",
         "deleteAccessoryFailed": "Could not delete the accessory, it was restored: {error}",
-        "saveProductFailed": "Could not save the product, it was reverted: {error}"
+        "saveProductFailed": "Could not save the product, it was reverted: {error}",
+        "saveCableTypeFailed": "Could not save the cable type, it was reverted: {error}",
+        "saveCableFeetFailed": "Could not save the footage, it was reverted: {error}",
+        "saveFeetPerBoxFailed": "Could not save the feet per box, it was reverted: {error}"
       },
       "catalogPicker": {
         "searchPlaceholder": "Search the catalog by code or name",

@@ -65,6 +65,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const modelOriginRef = useRef(null);
   const serialOriginRef = useRef(null);
   const notesOriginRef = useRef(null);
+  const cableFeetOriginRef = useRef(null);
   const layerNameOriginRef = useRef(null);
   const cableTypeNameOriginRef = useRef(null);
   const cableLabelOriginRef = useRef(null);
@@ -87,6 +88,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [productSuggestions, setProductSuggestions] = useState(null); // lazy: elementId -> catalog item ids, most used first
   const [pickingPlaceProduct, setPickingPlaceProduct] = useState(false);
   const [pickingMarkerProduct, setPickingMarkerProduct] = useState(false);
+  const [pickingPlaceCable, setPickingPlaceCable] = useState(false);
   const [cables, setCables] = useState(initialCables);
   const [layers, setLayers] = useState(initialLayers);
   const [activeLayerId, setActiveLayerId] = useState(null);
@@ -337,6 +339,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       id: tempId, floor_plan_id: plan.id, element_id: mode.elementId || null,
       custom_icon_id: mode.customIconId || null, label: null, layer_id: activeLayerId,
       catalog_item_id: mode.catalogItemId || null,
+      cable_type_id: mode.cableTypeId || null, cable_feet: mode.cableFeet || null,
       pos_x: point.x, pos_y: point.y, sort_order: markers.length, quantity: 1,
     };
     setMarkers(prev => [...prev, optimistic]);
@@ -345,6 +348,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       custom_icon_id: mode.customIconId || null, pos_x: point.x, pos_y: point.y,
       sort_order: markers.length, layer_id: activeLayerId,
       catalog_item_id: mode.catalogItemId || null,
+      cable_type_id: mode.cableTypeId || null, cable_feet: mode.cableFeet || null,
     }]).select().single();
     if (error) {
       setMarkers(prev => prev.filter(m => m.id !== tempId));
@@ -473,6 +477,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       element_id: marker.element_id, custom_icon_id: marker.custom_icon_id, equipment_type: marker.equipment_type,
       model: marker.model, serial_number: marker.serial_number, notes: marker.notes, quantity: marker.quantity,
       catalog_item_id: marker.catalog_item_id,
+      cable_type_id: marker.cable_type_id, cable_feet: marker.cable_feet,
       layer_id: marker.layer_id, icon_scale: marker.icon_scale, custom_color: marker.custom_color,
       aoc_visible: marker.aoc_visible, aoc_direction: marker.aoc_direction, aoc_angle: marker.aoc_angle,
       aoc_radius: marker.aoc_radius, aoc_color: marker.aoc_color, aoc_opacity: marker.aoc_opacity,
@@ -646,6 +651,37 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     if (error) {
       setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, catalog_item_id: original } : m));
       alert(t('errors.saveProductFailed', { error: error.message }));
+    }
+  }
+
+  // ── Cable estimated per equipment (migrations/2026-09-02c-marker-cable.sql) ──
+  // Feet are per unit of the marker, so the totals multiply by its quantity.
+  const cableTypeById = id => (id ? cableTypesState.find(ct => ct.id === id) : null);
+
+  function updateMarkerCableType(id, cableTypeId) {
+    const original = markerById(id)?.cable_type_id ?? null;
+    const next = cableTypeId || null;
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, cable_type_id: next } : m));
+    supabase.from('floor_plan_markers').update({ cable_type_id: next }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setMarkers(prev => prev.map(m => m.id === id ? { ...m, cable_type_id: original } : m));
+        alert(t('errors.saveCableTypeFailed', { error: error.message }));
+      }
+    });
+  }
+
+  function updateMarkerCableFeet(id, cableFeet) {
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, cable_feet: cableFeet } : m));
+  }
+  async function commitMarkerCableFeet(id, cableFeet) {
+    const original = cableFeetOriginRef.current;
+    const parsed = cableFeet === '' || cableFeet == null ? null : parseFloat(cableFeet);
+    const next = parsed != null && parsed > 0 ? parsed : null;
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, cable_feet: next } : m));
+    const { error } = await supabase.from('floor_plan_markers').update({ cable_feet: next }).eq('id', id);
+    if (error) {
+      setMarkers(prev => prev.map(m => m.id === id ? { ...m, cable_feet: original ?? null } : m));
+      alert(t('errors.saveCableFeetFailed', { error: error.message }));
     }
   }
 
@@ -948,6 +984,18 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     });
   }
 
+  function updateCableTypeFeetPerBox(id, feetPerBox) {
+    if (!feetPerBox || feetPerBox < 1) return;
+    const original = cableTypesState.find(ct => ct.id === id)?.feet_per_box;
+    setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, feet_per_box: feetPerBox } : ct));
+    supabase.from('cable_types').update({ feet_per_box: feetPerBox }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, feet_per_box: original } : ct));
+        alert(t('errors.saveFeetPerBoxFailed', { error: error.message }));
+      }
+    });
+  }
+
   function updateCableTypeWidth(id, lineWidth) {
     const original = cableTypesState.find(ct => ct.id === id)?.line_width;
     setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, line_width: lineWidth } : ct));
@@ -1111,6 +1159,34 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }
   const accessoryCounts = [...accessoryTally.values()];
 
+  // Cable per type: what the equipment estimates plus what was traced on the
+  // plan (only measurable with a scale), and the boxes to order for the sum —
+  // rounded up, because 2.8 boxes of Cat6 is three boxes.
+  const cableTotals = new Map();
+  const cableEntry = ct => {
+    if (!cableTotals.has(ct.id)) {
+      cableTotals.set(ct.id, { key: ct.id, name: ct.name, color: ct.color, feetPerBox: ct.feet_per_box || 1000, estimated: 0, traced: 0 });
+    }
+    return cableTotals.get(ct.id);
+  };
+  for (const m of visibleMarkers) {
+    const ct = cableTypeById(m.cable_type_id);
+    if (!ct || !m.cable_feet) continue;
+    cableEntry(ct).estimated += m.cable_feet * (m.quantity ?? 1);
+  }
+  if (feetPerPixel) {
+    for (const c of visibleCables) {
+      const ct = cableTypeById(c.cable_type_id);
+      if (!ct) continue;
+      cableEntry(ct).traced += cableLengthFeet(c) || 0;
+    }
+  }
+  const cableFootage = [...cableTotals.values()].map(entry => {
+    const total = entry.estimated + entry.traced;
+    const boxes = Math.ceil(total / entry.feetPerBox);
+    return { ...entry, total, boxes, leftover: boxes * entry.feetPerBox - total };
+  });
+
   const cableColor = cable => cableTypesState.find(ct => ct.id === cable.cable_type_id)?.color || '#2a4cb5';
   const cableWidth = cable => cableTypesState.find(ct => ct.id === cable.cable_type_id)?.line_width || 1;
   const cableDashArray = cable => {
@@ -1155,7 +1231,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">{t('header.viewOriginal')}</a>}
-          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes, accessories, catalogProducts)}>⬇️ {t('header.exportList')}</button>
+          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes, accessories, catalogProducts, cableTypesState)}>⬇️ {t('header.exportList')}</button>
           {canDeletePlan && <button className="btn btn-ghost" disabled={deleting} onClick={handleDeletePlan} style={{ color: 'var(--warn)' }}>{t('header.deletePlan')}</button>}
           <Link href={currentRole === 'tecnico' ? '/crew' : '/planos'} className="btn btn-ghost">← {t('header.back')}</Link>
         </div>
@@ -1223,7 +1299,25 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 + {t('toolbar.product')}
               </button>
             )}
-            <button type="button" onClick={() => { setMode('select'); setPickingPlaceProduct(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0, lineHeight: 1 }}>×</button>
+            {mode.cableTypeId ? (
+              <>
+                <span style={{ fontWeight: 700 }}>· {cableTypeById(mode.cableTypeId)?.name}{mode.cableFeet ? ` ${t('unitFeet', { count: mode.cableFeet })}` : ''}</span>
+                <button
+                  type="button" title={t('toolbar.clearCable')}
+                  onClick={() => { setMode(m => ({ ...m, cableTypeId: null, cableFeet: null })); setPickingPlaceCable(false); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: 'var(--muted)' }}
+                >✕</button>
+              </>
+            ) : cableTypesState.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setPickingPlaceCable(true)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: 'var(--navy)', fontWeight: 700, fontSize: 12 }}
+              >
+                + {t('toolbar.cableEstimate')}
+              </button>
+            )}
+            <button type="button" onClick={() => { setMode('select'); setPickingPlaceProduct(false); setPickingPlaceCable(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0, lineHeight: 1 }}>×</button>
           </span>
         )}
         <button
@@ -1354,6 +1448,15 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                     <option value="dotted">{t('cableTypesPanel.dashDotted')}</option>
                   </select>
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 30 }} onClick={e => e.stopPropagation()}>
+                  <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{t('cableTypesPanel.feetPerBox')}</span>
+                  <input
+                    type="number" min="1" step="1" inputMode="numeric"
+                    value={ct.feet_per_box ?? 1000}
+                    onChange={e => updateCableTypeFeetPerBox(ct.id, parseInt(e.target.value, 10))}
+                    style={{ width: 90, fontSize: 11, padding: '2px 6px' }}
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -1468,6 +1571,32 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             onPick={item => { setMode(m => ({ ...m, catalogItemId: item.id })); setPickingPlaceProduct(false); }}
             onCancel={() => setPickingPlaceProduct(false)}
           />
+        </div>
+      )}
+
+      {/* Stays open after the type is picked: the footage is typed right after,
+          and unmounting the bar on the first choice left no way to enter it. */}
+      {mode !== 'select' && mode.type === 'place' && pickingPlaceCable && (
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{t('toolbar.cableEstimate')}</span>
+          <select
+            value={mode.cableTypeId || ''}
+            onChange={e => setMode(m => ({ ...m, cableTypeId: e.target.value || null }))}
+            style={{ fontSize: 12, padding: '4px 6px', width: 'auto' }}
+          >
+            <option value="">{t('markerPanel.noCableType')}</option>
+            {cableTypesState.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+          </select>
+          <input
+            type="number" min="0" step="1" inputMode="decimal"
+            value={mode.cableFeet ?? ''}
+            onChange={e => setMode(m => ({ ...m, cableFeet: e.target.value ? parseFloat(e.target.value) : null }))}
+            placeholder={t('markerPanel.feetPlaceholder')}
+            style={{ width: 90, fontSize: 12, padding: '4px 6px' }}
+          />
+          <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setPickingPlaceCable(false)}>
+            {t('toolbar.doneCable')}
+          </button>
         </div>
       )}
 
@@ -1956,6 +2085,37 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   </div>
                 );
               })()}
+              {(() => {
+                const markerQty = selectedMarker.quantity ?? 1;
+                const feet = selectedMarker.cable_feet;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>{t('markerPanel.cable')}</span>
+                    <select
+                      value={selectedMarker.cable_type_id || ''}
+                      onChange={e => updateMarkerCableType(selectedMarker.id, e.target.value)}
+                      style={{ flex: 1, fontSize: 12, padding: '4px 6px', minWidth: 0 }}
+                    >
+                      <option value="">{t('markerPanel.noCableType')}</option>
+                      {cableTypesState.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                    </select>
+                    <input
+                      type="number" min="0" step="1" inputMode="decimal"
+                      value={feet ?? ''}
+                      onFocus={() => { cableFeetOriginRef.current = feet ?? null; }}
+                      onChange={e => updateMarkerCableFeet(selectedMarker.id, e.target.value)}
+                      onBlur={e => commitMarkerCableFeet(selectedMarker.id, e.target.value)}
+                      placeholder={t('markerPanel.feetPlaceholder')}
+                      style={{ width: 62, fontSize: 12, padding: '4px 6px' }}
+                    />
+                    {markerQty > 1 && feet > 0 && (
+                      <span style={{ color: 'var(--muted)', fontSize: 11 }} title={t('markerPanel.cableTotalTitle')}>
+                        ={feet * markerQty}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
               {photoUrls[selectedMarker.id] ? (
                 <div style={{ marginBottom: 8 }}>
                   <img
@@ -2097,6 +2257,29 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+          {cableFootage.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{t('summary.cabling')}</p>
+              {cableFootage.map(c => (
+                <div key={c.key} style={{ marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                    <span style={{ fontWeight: 700 }}>{t('unitFeet', { count: Math.round(c.total).toLocaleString() })}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', paddingLeft: 14 }}>
+                    {t('summary.boxes', { count: c.boxes, size: c.feetPerBox.toLocaleString() })}
+                    {c.leftover > 0 && ` · ${t('summary.leftover', { count: Math.round(c.leftover).toLocaleString() })}`}
+                  </div>
+                  {c.estimated > 0 && c.traced > 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)', paddingLeft: 14 }}>
+                      {t('summary.cableSources', { estimated: Math.round(c.estimated).toLocaleString(), traced: Math.round(c.traced).toLocaleString() })}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>

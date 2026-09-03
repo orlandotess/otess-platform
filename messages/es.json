@@ -1472,7 +1472,11 @@
       "filenameSuffix": "Equipos",
       "accessories": "ACCESORIOS / MATERIALES",
       "columnCode": "Código",
-      "noProduct": "Sin producto"
+      "noProduct": "Sin producto",
+      "cableEstimated": "estimado en equipos",
+      "cableTraced": "trazado en el plano",
+      "boxesOf": "cajas de {size} pies",
+      "tracedRuns": "Cables trazados"
     },
     "propuestaDataCsv": {
       "columnOption": "Opcion",
@@ -4480,7 +4484,10 @@
         "layers": "Capas",
         "scale": "Escala",
         "product": "Producto",
-        "clearProduct": "Quitar el producto"
+        "clearProduct": "Quitar el producto",
+        "cableEstimate": "Cable",
+        "clearCable": "Quitar el cable",
+        "doneCable": "Listo"
       },
       "cableHint": {
         "start": "Clic en el equipo donde inicia el cable.",
@@ -4511,7 +4518,8 @@
         "dashDotted": "Punteado",
         "newTypeNamePlaceholder": "Nombre del nuevo tipo (ej: Cat6 Cable Blue)",
         "newType": "+ Nuevo tipo",
-        "creating": "Creando..."
+        "creating": "Creando...",
+        "feetPerBox": "Pies por caja"
       },
       "layersPanel": {
         "hint": "Clic en una capa para hacerla la capa activa — los nuevos equipos y cables se colocan en ella. Usa el ojo para mostrar/ocultar (solo en esta sesión).",
@@ -4551,7 +4559,11 @@
         "accessoryUseFreeText": "Usar “{name}”",
         "accessoryTotalTitle": "Total para este equipo (por unidad × cantidad)",
         "addProduct": "Producto del catálogo",
-        "clearProduct": "Desenlazar el producto"
+        "clearProduct": "Desenlazar el producto",
+        "cable": "Cable",
+        "noCableType": "Sin cable",
+        "feetPlaceholder": "pies",
+        "cableTotalTitle": "Total para este equipo (por unidad × cantidad)"
       },
       "cablePanel": {
         "noScale": "Sin escala definida",
@@ -4572,7 +4584,11 @@
         "deleteScale": "Borrar",
         "scaleUndefined": "Sin escala — el pietaje de los cables no se puede calcular. Usa el botón 📏 Escala.",
         "accessories": "Accesorios / materiales",
-        "noProduct": "Sin producto"
+        "noProduct": "Sin producto",
+        "cabling": "Cableado",
+        "boxes": "{count} caja(s) de {size} pies",
+        "leftover": "sobran {count} pies",
+        "cableSources": "estimado {estimated} · trazado {traced}"
       },
       "unitFeet": "{count} pies",
       "zoomFit": "Ajustar",
@@ -4626,7 +4642,10 @@
         "deletePlanFailed": "No se pudo eliminar el plano: {error}",
         "addAccessoryFailed": "No se pudo añadir el accesorio: {error}",
         "deleteAccessoryFailed": "No se pudo eliminar el accesorio, se restauró: {error}",
-        "saveProductFailed": "No se pudo guardar el producto, se revirtió: {error}"
+        "saveProductFailed": "No se pudo guardar el producto, se revirtió: {error}",
+        "saveCableTypeFailed": "No se pudo guardar el tipo de cable, se revirtió: {error}",
+        "saveCableFeetFailed": "No se pudo guardar el pietaje, se revirtió: {error}",
+        "saveFeetPerBoxFailed": "No se pudieron guardar los pies por caja, se revirtió: {error}"
       },
       "catalogPicker": {
         "searchPlaceholder": "Busca en el catálogo por código o nombre",

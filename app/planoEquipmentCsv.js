@@ -7,7 +7,7 @@ import { getEquipmentType } from './equipmentIcons';
 // (a faceplate insert on a jack, see migrations/2026-09-02-marker-accessories.sql)
 // are totalled in their own block instead of counting as equipment; their
 // quantity is per unit of the marker, so it multiplies by the marker's own.
-export function exportEquipmentListCSV(markers, elementTypes, customIcons, cables, feetPerPixel, cableLengthFeet, planName, t, tEquipmentTypes, accessories = [], catalogProducts = []) {
+export function exportEquipmentListCSV(markers, elementTypes, customIcons, cables, feetPerPixel, cableLengthFeet, planName, t, tEquipmentTypes, accessories = [], catalogProducts = [], cableTypes = []) {
   if (!markers?.length) { alert(t('noEquipmentAlert')); return; }
 
   const productById = id => (id ? catalogProducts.find(p => p.id === id) : null);
@@ -84,9 +84,45 @@ export function exportEquipmentListCSV(markers, elementTypes, customIcons, cable
     for (const { label, code, qty } of accessoryTally.values()) csvRows.push([`  ${label}`, code, qty]);
   }
 
+  // Cable per type: the feet each equipment estimates plus whatever was traced
+  // on the plan, and the boxes to order for the sum — rounded up, because 2.8
+  // boxes of Cat6 is three boxes.
+  const cableTotals = new Map();
+  const cableEntry = ct => {
+    if (!cableTotals.has(ct.id)) {
+      cableTotals.set(ct.id, { name: ct.name, feetPerBox: ct.feet_per_box || 1000, estimated: 0, traced: 0 });
+    }
+    return cableTotals.get(ct.id);
+  };
+  for (const m of markers) {
+    const ct = m.cable_type_id ? cableTypes.find(x => x.id === m.cable_type_id) : null;
+    if (!ct || !m.cable_feet) continue;
+    cableEntry(ct).estimated += m.cable_feet * (m.quantity ?? 1);
+  }
+  if (feetPerPixel) {
+    for (const c of cables ?? []) {
+      const ct = c.cable_type_id ? cableTypes.find(x => x.id === c.cable_type_id) : null;
+      if (!ct) continue;
+      cableEntry(ct).traced += cableLengthFeet(c) || 0;
+    }
+  }
+  if (cableTotals.size > 0) {
+    csvRows.push(['', '', '']);
+    csvRows.push([t('cabling'), '', t('feet')]);
+    for (const { name, feetPerBox, estimated, traced } of cableTotals.values()) {
+      const total = estimated + traced;
+      csvRows.push([`  ${name}`, '', Math.round(total)]);
+      if (estimated > 0 && traced > 0) {
+        csvRows.push([`    ${t('cableEstimated')}`, '', Math.round(estimated)]);
+        csvRows.push([`    ${t('cableTraced')}`, '', Math.round(traced)]);
+      }
+      csvRows.push([`    ${t('boxesOf', { size: feetPerBox })}`, '', Math.ceil(total / feetPerBox)]);
+    }
+  }
+
   if (cables?.length) {
     csvRows.push(['', '', '']);
-    csvRows.push([t('cabling'), '', feetPerPixel ? t('feet') : t('noScaleDefined')]);
+    csvRows.push([t('tracedRuns'), '', feetPerPixel ? t('feet') : t('noScaleDefined')]);
     let totalFeet = 0;
     cables.forEach((c, i) => {
       const feet = feetPerPixel ? cableLengthFeet(c) : null;
