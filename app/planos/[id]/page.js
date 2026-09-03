@@ -12,7 +12,7 @@ export default async function PlanoDetail(props) {
   const { id } = params;
   const t = await getTranslations('planos.detail');
 
-  const [{ data: plan }, { data: markers }, { data: cables }, { data: layers }, { data: cableTypes }, { data: elementTypes }, { data: customIcons }, { data: allClients }, currentRole] = await Promise.all([
+  const [{ data: plan }, { data: markers }, { data: cables }, { data: layers }, { data: cableTypes }, { data: elementTypes }, { data: customIcons }, { data: catalogProducts }, { data: allClients }, currentRole] = await Promise.all([
     supabase.from('floor_plans').select('*, clients(name), jobs(title)').eq('id', id).single(),
     supabase.from('floor_plan_markers').select('*').eq('floor_plan_id', id).order('sort_order'),
     supabase.from('floor_plan_cables').select('*').eq('floor_plan_id', id),
@@ -20,6 +20,7 @@ export default async function PlanoDetail(props) {
     supabase.from('cable_types').select('*').order('name'),
     supabase.from('element_types').select('*').eq('is_active', true).order('sort_order'),
     supabase.from('custom_equipment_icons').select('*').order('name'),
+    supabase.from('catalog_items').select('id, item_code, name').eq('type', 'product').order('item_code'),
     supabase.from('clients').select('id, name').order('name'),
     getCurrentRole(),
   ]);
@@ -68,6 +69,7 @@ export default async function PlanoDetail(props) {
           initialCableTypes={cableTypes ?? []}
           initialElementTypes={elementTypes ?? []}
           customIcons={customIconsWithUrls}
+          catalogProducts={catalogProducts ?? []}
           currentRole={currentRole}
           allClients={allClients ?? []}
         />

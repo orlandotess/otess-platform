@@ -1470,7 +1470,9 @@
       "cableDefaultLabel": "Cable {number}",
       "totalFootage": "TOTAL PIETAJE",
       "filenameSuffix": "Equipos",
-      "accessories": "ACCESORIOS / MATERIALES"
+      "accessories": "ACCESORIOS / MATERIALES",
+      "columnCode": "Código",
+      "noProduct": "Sin producto"
     },
     "propuestaDataCsv": {
       "columnOption": "Opcion",
@@ -4476,7 +4478,9 @@
         "cableTypes": "Tipos de cable",
         "importIcon": "Importar ícono",
         "layers": "Capas",
-        "scale": "Escala"
+        "scale": "Escala",
+        "product": "Producto",
+        "clearProduct": "Quitar el producto"
       },
       "cableHint": {
         "start": "Clic en el equipo donde inicia el cable.",
@@ -4545,7 +4549,9 @@
         "accessorySearchPlaceholder": "Busca en el catálogo o escribe un nombre",
         "accessoryMostUsed": "Más usados",
         "accessoryUseFreeText": "Usar “{name}”",
-        "accessoryTotalTitle": "Total para este equipo (por unidad × cantidad)"
+        "accessoryTotalTitle": "Total para este equipo (por unidad × cantidad)",
+        "addProduct": "Producto del catálogo",
+        "clearProduct": "Desenlazar el producto"
       },
       "cablePanel": {
         "noScale": "Sin escala definida",
@@ -4565,7 +4571,8 @@
         "scaleDefined": "Escala definida ✓",
         "deleteScale": "Borrar",
         "scaleUndefined": "Sin escala — el pietaje de los cables no se puede calcular. Usa el botón 📏 Escala.",
-        "accessories": "Accesorios / materiales"
+        "accessories": "Accesorios / materiales",
+        "noProduct": "Sin producto"
       },
       "unitFeet": "{count} pies",
       "zoomFit": "Ajustar",
@@ -4618,7 +4625,13 @@
         "saveIconFailed": "No se pudo guardar el ícono: {error}",
         "deletePlanFailed": "No se pudo eliminar el plano: {error}",
         "addAccessoryFailed": "No se pudo añadir el accesorio: {error}",
-        "deleteAccessoryFailed": "No se pudo eliminar el accesorio, se restauró: {error}"
+        "deleteAccessoryFailed": "No se pudo eliminar el accesorio, se restauró: {error}",
+        "saveProductFailed": "No se pudo guardar el producto, se revirtió: {error}"
+      },
+      "catalogPicker": {
+        "searchPlaceholder": "Busca en el catálogo por código o nombre",
+        "mostUsed": "Más usados",
+        "noMatches": "Nada en el catálogo coincide"
       }
     }
   },

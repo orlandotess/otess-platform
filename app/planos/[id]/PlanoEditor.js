@@ -10,6 +10,7 @@ import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 import AOCCone from './AOCCone';
 import AOCPanel from './AOCPanel';
 import AddElementPanel from './AddElementPanel';
+import CatalogItemPicker, { catalogItemLabel } from './CatalogItemPicker';
 
 const FALLBACK_W = 1600;
 const FALLBACK_H = 1200;
@@ -53,7 +54,7 @@ function getAOC(marker, elementTypes) {
   };
 }
 
-export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialAccessories = [], initialCables, initialLayers, initialCableTypes, initialElementTypes, customIcons, currentRole, allClients = [] }) {
+export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialAccessories = [], initialCables, initialLayers, initialCableTypes, initialElementTypes, customIcons, catalogProducts = [], currentRole, allClients = [] }) {
   const router = useRouter();
   const t = useTranslations('planos.editor');
   const tEquipmentCsv = useTranslations('shared.planoEquipmentCsv');
@@ -83,6 +84,9 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [accessorySearch, setAccessorySearch] = useState('');
   const [accessoryOptions, setAccessoryOptions] = useState(null); // lazy: { catalog, recent } | null
   const [savingAccessory, setSavingAccessory] = useState(false);
+  const [productSuggestions, setProductSuggestions] = useState(null); // lazy: elementId -> catalog item ids, most used first
+  const [pickingPlaceProduct, setPickingPlaceProduct] = useState(false);
+  const [pickingMarkerProduct, setPickingMarkerProduct] = useState(false);
   const [cables, setCables] = useState(initialCables);
   const [layers, setLayers] = useState(initialLayers);
   const [activeLayerId, setActiveLayerId] = useState(null);
@@ -164,7 +168,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   useEffect(() => { customIconsRef.current = customIconsState; }, [customIconsState]);
 
   // Don't carry a half-typed accessory over to the next equipment selected.
-  useEffect(() => { setAddingAccessory(false); setAccessorySearch(''); }, [selectedMarkerId]);
+  useEffect(() => { setAddingAccessory(false); setAccessorySearch(''); setPickingMarkerProduct(false); }, [selectedMarkerId]);
 
   useEffect(() => {
     if (!linkClientId) { setLinkJobs([]); return; }
@@ -332,6 +336,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const optimistic = {
       id: tempId, floor_plan_id: plan.id, element_id: mode.elementId || null,
       custom_icon_id: mode.customIconId || null, label: null, layer_id: activeLayerId,
+      catalog_item_id: mode.catalogItemId || null,
       pos_x: point.x, pos_y: point.y, sort_order: markers.length, quantity: 1,
     };
     setMarkers(prev => [...prev, optimistic]);
@@ -339,6 +344,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       floor_plan_id: plan.id, element_id: mode.elementId || null,
       custom_icon_id: mode.customIconId || null, pos_x: point.x, pos_y: point.y,
       sort_order: markers.length, layer_id: activeLayerId,
+      catalog_item_id: mode.catalogItemId || null,
     }]).select().single();
     if (error) {
       setMarkers(prev => prev.filter(m => m.id !== tempId));
@@ -466,6 +472,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const clonedFields = {
       element_id: marker.element_id, custom_icon_id: marker.custom_icon_id, equipment_type: marker.equipment_type,
       model: marker.model, serial_number: marker.serial_number, notes: marker.notes, quantity: marker.quantity,
+      catalog_item_id: marker.catalog_item_id,
       layer_id: marker.layer_id, icon_scale: marker.icon_scale, custom_color: marker.custom_color,
       aoc_visible: marker.aoc_visible, aoc_direction: marker.aoc_direction, aoc_angle: marker.aoc_angle,
       aoc_radius: marker.aoc_radius, aoc_color: marker.aoc_color, aoc_opacity: marker.aoc_opacity,
@@ -599,6 +606,49 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     });
   }
 
+  // ── Catalog product on a marker (migrations/2026-09-02b-marker-catalog-item.sql) ──
+  const productById = id => (id ? catalogProducts.find(p => p.id === id) : null);
+
+  // Which products people actually put on this kind of element, most used
+  // first, read once from the markers already placed across every plan.
+  async function loadProductSuggestions() {
+    if (productSuggestions) return;
+    const { data } = await supabase.from('floor_plan_markers')
+      .select('element_id, catalog_item_id').not('catalog_item_id', 'is', null).limit(500);
+    const byElement = new Map();
+    for (const row of data ?? []) {
+      if (!row.element_id) continue;
+      if (!byElement.has(row.element_id)) byElement.set(row.element_id, new Map());
+      const tally = byElement.get(row.element_id);
+      tally.set(row.catalog_item_id, (tally.get(row.catalog_item_id) || 0) + 1);
+    }
+    setProductSuggestions(byElement);
+  }
+
+  function productSuggestionsFor(elementId) {
+    const tally = elementId ? productSuggestions?.get(elementId) : null;
+    if (!tally) return [];
+    return [...tally.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([id]) => productById(id))
+      .filter(Boolean)
+      .slice(0, 5);
+  }
+
+  async function setMarkerProduct(markerId, item) {
+    const marker = markerById(markerId);
+    const original = marker?.catalog_item_id ?? null;
+    const next = item?.id ?? null;
+    setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, catalog_item_id: next } : m));
+    setPickingMarkerProduct(false);
+    setProductSuggestions(null); // so "most used" picks this product up next time
+    const { error } = await supabase.from('floor_plan_markers').update({ catalog_item_id: next }).eq('id', markerId);
+    if (error) {
+      setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, catalog_item_id: original } : m));
+      alert(t('errors.saveProductFailed', { error: error.message }));
+    }
+  }
+
   // ── Accessories (migrations/2026-09-02-marker-accessories.sql) ──────────
   // Child rows of a marker: the two-port faceplate a Network Jack needs, the
   // junction box a camera needs. Their quantity is per unit of the parent
@@ -610,10 +660,8 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   // the tech reaches for most of the time.
   async function loadAccessoryOptions() {
     if (accessoryOptions) return;
-    const [{ data: catalog }, { data: used }] = await Promise.all([
-      supabase.from('catalog_items').select('id, item_code, name').eq('type', 'product').order('item_code'),
-      supabase.from('floor_plan_marker_accessories').select('name, catalog_item_id').order('created_at', { ascending: false }).limit(200),
-    ]);
+    const { data: used } = await supabase.from('floor_plan_marker_accessories')
+      .select('name, catalog_item_id').order('created_at', { ascending: false }).limit(200);
     const tally = new Map();
     for (const a of used ?? []) {
       const key = a.catalog_item_id || a.name;
@@ -621,7 +669,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       tally.get(key).count += 1;
     }
     const recent = [...tally.values()].sort((a, b) => b.count - a.count).slice(0, 5);
-    setAccessoryOptions({ catalog: catalog ?? [], recent });
+    setAccessoryOptions({ catalog: catalogProducts, recent });
   }
 
   function openAccessoryForm() {
@@ -1006,19 +1054,37 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const visibleCables = cables.filter(c => isLayerVisible(c.layer_id));
 
   const counts = [];
-  const elementQtyById = new Map();
+  const elementQtyById = new Map(); // elementId -> { total, byProduct: Map(catalogItemId|null -> qty) }
   const legacyQtyByKey = new Map();
   for (const m of visibleMarkers) {
     const qty = m.quantity ?? 1;
     if (m.element_id) {
-      elementQtyById.set(m.element_id, (elementQtyById.get(m.element_id) || 0) + qty);
+      if (!elementQtyById.has(m.element_id)) elementQtyById.set(m.element_id, { total: 0, byProduct: new Map() });
+      const entry = elementQtyById.get(m.element_id);
+      entry.total += qty;
+      const productKey = m.catalog_item_id || null;
+      entry.byProduct.set(productKey, (entry.byProduct.get(productKey) || 0) + qty);
     } else if (m.equipment_type) {
       legacyQtyByKey.set(m.equipment_type, (legacyQtyByKey.get(m.equipment_type) || 0) + qty);
     }
   }
-  for (const [elementId, qty] of elementQtyById) {
+  for (const [elementId, entry] of elementQtyById) {
     const el = elementTypes.find(et => et.id === elementId);
-    if (el) counts.push({ key: `el-${elementId}`, label: el.name, count: qty });
+    if (!el) continue;
+    // Only break the element down when at least one of its markers names a
+    // product — otherwise the extra line would just repeat the element.
+    const hasProduct = [...entry.byProduct.keys()].some(Boolean);
+    const products = hasProduct
+      ? [...entry.byProduct.entries()].map(([productId, qty]) => {
+          const product = productById(productId);
+          return {
+            key: `el-${elementId}-${productId || 'none'}`,
+            label: product ? `${product.item_code} ${catalogItemLabel(product)}` : t('summary.noProduct'),
+            count: qty,
+          };
+        })
+      : [];
+    counts.push({ key: `el-${elementId}`, label: el.name, count: entry.total, products });
   }
   for (const [key, qty] of legacyQtyByKey) {
     const eqType = getEquipmentType(key);
@@ -1089,7 +1155,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">{t('header.viewOriginal')}</a>}
-          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes, accessories)}>⬇️ {t('header.exportList')}</button>
+          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes, accessories, catalogProducts)}>⬇️ {t('header.exportList')}</button>
           {canDeletePlan && <button className="btn btn-ghost" disabled={deleting} onClick={handleDeletePlan} style={{ color: 'var(--warn)' }}>{t('header.deletePlan')}</button>}
           <Link href={currentRole === 'tecnico' ? '/crew' : '/planos'} className="btn btn-ghost">← {t('header.back')}</Link>
         </div>
@@ -1137,7 +1203,27 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             {t('toolbar.placing', { name: mode.customIconId
               ? customIconsState.find(ic => ic.id === mode.customIconId)?.name
               : elementTypes.find(et => et.id === mode.elementId)?.name })}
-            <button type="button" onClick={() => setMode('select')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0, lineHeight: 1 }}>×</button>
+            {/* The product stays armed for the whole run, so placing a dozen
+                identical jacks only costs one trip to the catalog. */}
+            {mode.catalogItemId ? (
+              <>
+                <span style={{ fontWeight: 700 }}>· {productById(mode.catalogItemId)?.item_code || catalogItemLabel(productById(mode.catalogItemId))}</span>
+                <button
+                  type="button" title={t('toolbar.clearProduct')}
+                  onClick={() => setMode(m => ({ ...m, catalogItemId: null }))}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: 'var(--muted)' }}
+                >✕</button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setPickingPlaceProduct(v => !v); loadProductSuggestions(); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: 'var(--navy)', fontWeight: 700, fontSize: 12 }}
+              >
+                + {t('toolbar.product')}
+              </button>
+            )}
+            <button type="button" onClick={() => { setMode('select'); setPickingPlaceProduct(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0, lineHeight: 1 }}>×</button>
           </span>
         )}
         <button
@@ -1373,6 +1459,17 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         </div>
       )}
       </div>
+
+      {mode !== 'select' && mode.type === 'place' && pickingPlaceProduct && !mode.catalogItemId && (
+        <div className="card" style={{ padding: 10, maxWidth: 360 }}>
+          <CatalogItemPicker
+            products={catalogProducts}
+            suggestions={productSuggestionsFor(mode.elementId)}
+            onPick={item => { setMode(m => ({ ...m, catalogItemId: item.id })); setPickingPlaceProduct(false); }}
+            onCancel={() => setPickingPlaceProduct(false)}
+          />
+        </div>
+      )}
 
       {mode !== 'select' && mode.type === 'cable' && (
         <div className="card" style={{ padding: '8px 14px', fontSize: 13, background: 'var(--amber-tint)' }}>
@@ -1674,6 +1771,42 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 placeholder={t('markerPanel.labelPlaceholder')}
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               />
+              {(() => {
+                const product = productById(selectedMarker.catalog_item_id);
+                if (product) {
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 12, background: 'var(--info-tint)', borderRadius: 6, padding: '6px 8px' }}>
+                      <span style={{ fontWeight: 700 }}>{product.item_code}</span>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{catalogItemLabel(product)}</span>
+                      <button
+                        type="button" title={t('markerPanel.clearProduct')}
+                        onClick={() => setMarkerProduct(selectedMarker.id, null)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700, padding: 0 }}
+                      >✕</button>
+                    </div>
+                  );
+                }
+                if (pickingMarkerProduct) {
+                  return (
+                    <div style={{ marginBottom: 8 }}>
+                      <CatalogItemPicker
+                        products={catalogProducts}
+                        suggestions={productSuggestionsFor(selectedMarker.element_id)}
+                        onPick={item => setMarkerProduct(selectedMarker.id, item)}
+                        onCancel={() => setPickingMarkerProduct(false)}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 10px', display: 'block', width: '100%', textAlign: 'center', marginBottom: 8 }}
+                    onClick={() => { setPickingMarkerProduct(true); loadProductSuggestions(); }}
+                  >
+                    + {t('markerPanel.addProduct')}
+                  </button>
+                );
+              })()}
               <input
                 value={selectedMarker.model || ''}
                 onFocus={() => { modelOriginRef.current = selectedMarker.model || ''; }}
@@ -1933,9 +2066,17 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
               {counts.map(c => (
-                <div key={c.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span>{c.label}</span>
-                  <span style={{ fontWeight: 700 }}>{c.count}</span>
+                <div key={c.key}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span>{c.label}</span>
+                    <span style={{ fontWeight: 700 }}>{c.count}</span>
+                  </div>
+                  {(c.products ?? []).map(p => (
+                    <div key={p.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12, color: 'var(--muted)', paddingLeft: 10 }}>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</span>
+                      <span style={{ fontWeight: 700 }}>{p.count}</span>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>

@@ -1470,7 +1470,9 @@
       "cableDefaultLabel": "Cable {number}",
       "totalFootage": "TOTAL FOOTAGE",
       "filenameSuffix": "Equipment",
-      "accessories": "ACCESSORIES / MATERIALS"
+      "accessories": "ACCESSORIES / MATERIALS",
+      "columnCode": "Code",
+      "noProduct": "No product"
     },
     "propuestaDataCsv": {
       "columnOption": "Option",
@@ -4476,7 +4478,9 @@
         "cableTypes": "Cable types",
         "importIcon": "Import icon",
         "layers": "Layers",
-        "scale": "Scale"
+        "scale": "Scale",
+        "product": "Product",
+        "clearProduct": "Remove the product"
       },
       "cableHint": {
         "start": "Click the equipment where the cable starts.",
@@ -4545,7 +4549,9 @@
         "accessorySearchPlaceholder": "Search the catalog or type a name",
         "accessoryMostUsed": "Most used",
         "accessoryUseFreeText": "Use “{name}”",
-        "accessoryTotalTitle": "Total for this equipment (per unit × quantity)"
+        "accessoryTotalTitle": "Total for this equipment (per unit × quantity)",
+        "addProduct": "Catalog product",
+        "clearProduct": "Unlink the product"
       },
       "cablePanel": {
         "noScale": "No scale defined",
@@ -4565,7 +4571,8 @@
         "scaleDefined": "Scale defined ✓",
         "deleteScale": "Delete",
         "scaleUndefined": "No scale — cable footage can't be calculated. Use the 📏 Scale button.",
-        "accessories": "Accessories / materials"
+        "accessories": "Accessories / materials",
+        "noProduct": "No product"
       },
       "unitFeet": "{count} ft",
       "zoomFit": "Fit",
@@ -4618,7 +4625,13 @@
         "saveIconFailed": "Could not save the icon: {error}",
         "deletePlanFailed": "Could not delete the plan: {error}",
         "addAccessoryFailed": "Could not add the accessory: {error}",
-        "deleteAccessoryFailed": "Could not delete the accessory, it was restored: {error}"
+        "deleteAccessoryFailed": "Could not delete the accessory, it was restored: {error}",
+        "saveProductFailed": "Could not save the product, it was reverted: {error}"
+      },
+      "catalogPicker": {
+        "searchPlaceholder": "Search the catalog by code or name",
+        "mostUsed": "Most used",
+        "noMatches": "Nothing in the catalog matches"
       }
     }
   },
