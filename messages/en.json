@@ -2976,6 +2976,7 @@
         "description": "Description",
         "vendor": "Vendor",
         "job": "Job",
+        "receipt": "Receipt",
         "amount": "Amount"
       },
       "generalLabel": "— General —",
@@ -2992,7 +2993,9 @@
         "equipos": "Equipment",
         "meals": "Meals",
         "otro": "Other"
-      }
+      },
+      "viewReceipt": "Open receipt",
+      "receiptAlt": "Expense receipt"
     },
     "recurringExpensesClient": {
       "addButton": "+ New recurring expense",

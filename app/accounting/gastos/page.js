@@ -28,6 +28,31 @@ function getWeekRange(offset = 0) {
 
 const nowPR = () => new Date(Date.now() - 4 * 60 * 60 * 1000);
 
+const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
+// El bucket Job-photos es privado: sin URL firmada el <img> del recibo queda
+// roto. Se firma también una versión reducida para la tabla, que solo enseña
+// una miniatura de 40px — bajar el recibo entero por fila era traer megas de
+// más para nada.
+const RECEIPT_THUMB_WIDTH = 200;
+
+async function signReceipt(rawPath, thumbWidth = null) {
+  if (!rawPath) return null;
+  try {
+    let filePath = rawPath;
+    if (rawPath.startsWith("http")) {
+      filePath = new URL(rawPath).pathname.split("/Job-photos/")[1];
+      if (!filePath) return null;
+    }
+    const opts = thumbWidth && IMAGE_PATH.test(filePath)
+      ? { transform: { width: thumbWidth, height: thumbWidth, resize: "contain" } }
+      : undefined;
+    const { data } = await supabase.storage.from("Job-photos").createSignedUrl(filePath, 3600, opts);
+    return data?.signedUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function GastosPage(props) {
   const searchParams = await props.searchParams;
   const t = await getTranslations("accounting.gastos");
@@ -91,6 +116,13 @@ export default async function GastosPage(props) {
     const key = e.category ?? "otro";
     byCategory[key] = (byCategory[key] ?? 0) + Number(e.amount ?? 0);
   });
+
+  const rowsWithReceipts = await Promise.all(rows.map(async r => {
+    if (!r.receipt_url) return r;
+    const full = await signReceipt(r.receipt_url);
+    if (!full) return r;
+    return { ...r, receipt_signed_url: full, receipt_thumb_url: await signReceipt(r.receipt_url, RECEIPT_THUMB_WIDTH) ?? full };
+  }));
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const { weekStart, weekEnd } = getWeekRange(weekOffset);
@@ -204,7 +236,12 @@ export default async function GastosPage(props) {
           </div>
         )}
 
-        <GastosClient expenses={rows} jobs={jobs ?? []} periodLabel={periodLabel} categoryLabels={CATEGORY_LABELS} />
+        {/* La tabla vive en estado del cliente (se edita y se borra en sitio), y
+            useState solo siembra ese estado al montar: al cambiar de periodo con
+            los enlaces de arriba, Next reusa la misma instancia y la lista se
+            quedaba en el periodo anterior mientras los totales sí cambiaban. La
+            key fuerza un montaje nuevo por periodo. */}
+        <GastosClient key={`${view}-${dateStart}-${dateEnd}`} expenses={rowsWithReceipts} jobs={jobs ?? []} periodLabel={periodLabel} categoryLabels={CATEGORY_LABELS} />
       </main>
     </div>
   );

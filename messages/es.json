@@ -2976,6 +2976,7 @@
         "description": "Descripción",
         "vendor": "Suplidor",
         "job": "Trabajo",
+        "receipt": "Recibo",
         "amount": "Monto"
       },
       "generalLabel": "— General —",
@@ -2992,7 +2993,9 @@
         "equipos": "Equipos",
         "meals": "Meals",
         "otro": "Otro"
-      }
+      },
+      "viewReceipt": "Abrir recibo",
+      "receiptAlt": "Recibo del gasto"
     },
     "recurringExpensesClient": {
       "addButton": "+ Nuevo gasto recurrente",

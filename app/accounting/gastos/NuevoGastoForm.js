@@ -68,7 +68,19 @@ export default function NuevoGastoForm({ jobs = [], onSaved, onCancel }) {
       receipt_url: receiptPath,
     }]).select('*, jobs(title, job_number)').single();
     setSaving(false);
-    if (data && onSaved) onSaved(data);
+    // La tabla enseña el recibo con URLs firmadas que arma el servidor; la fila
+    // recién insertada no pasa por ahí, así que se firman aquí para que la
+    // miniatura salga sin recargar la página.
+    let row = data;
+    if (row && receiptPath) {
+      const sign = (opts) => supabase.storage.from('Job-photos').createSignedUrl(receiptPath, 3600, opts);
+      const [{ data: full }, { data: thumb }] = await Promise.all([
+        sign(undefined),
+        sign({ transform: { width: 200, height: 200, resize: 'contain' } }),
+      ]);
+      row = { ...row, receipt_signed_url: full?.signedUrl ?? null, receipt_thumb_url: thumb?.signedUrl ?? full?.signedUrl ?? null };
+    }
+    if (row && onSaved) onSaved(row);
   }
 
   return (

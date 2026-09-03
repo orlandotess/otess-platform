@@ -30,6 +30,22 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  // El recibo llega ya firmado desde el servidor (el bucket es privado). La
+  // miniatura abre el original en otra pestaña; un gasto sin foto — o con una
+  // ruta que ya no existe en storage — enseña el guion como el resto de las
+  // columnas vacías.
+  function receiptCell(r) {
+    if (!r.receipt_thumb_url && !r.receipt_signed_url) {
+      return <span style={{ color: 'var(--muted)', fontSize: 13 }}>—</span>;
+    }
+    return (
+      <a href={r.receipt_signed_url ?? r.receipt_thumb_url} target="_blank" rel="noreferrer" title={t('viewReceipt')}>
+        <img src={r.receipt_thumb_url ?? r.receipt_signed_url} alt={t('receiptAlt')}
+          style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, display: 'block' }} />
+      </a>
+    );
+  }
+
   function handleSaved(newRow) {
     setRows(prev => [newRow, ...prev]);
     setShowForm(false);
@@ -63,7 +79,12 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
     };
     const { data } = await supabase.from('expenses').update(payload).eq('id', id).select('*, jobs(title, job_number)').single();
     setSaving(false);
-    if (data) setRows(prev => prev.map(r => r.id === id ? data : r));
+    // El update trae la fila limpia de la base de datos, sin las URLs firmadas
+    // que añadió el servidor, así que se reponen o la miniatura desaparecería
+    // al guardar una edición.
+    if (data) setRows(prev => prev.map(r => r.id === id
+      ? { ...data, receipt_signed_url: r.receipt_signed_url, receipt_thumb_url: r.receipt_thumb_url }
+      : r));
     setEditingId(null);
     setEditData(null);
   }
@@ -107,6 +128,7 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
                   <th>{t('columns.description')}</th>
                   <th>{t('columns.vendor')}</th>
                   <th>{t('columns.job')}</th>
+                  <th>{t('columns.receipt')}</th>
                   <th style={{ textAlign: 'right' }}>{t('columns.amount')}</th>
                   <th></th>
                 </tr>
@@ -125,6 +147,7 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
                         <td><input value={editData.description} onChange={e => setEditData(d => ({ ...d, description: e.target.value }))} style={{ fontSize: 12, width: '100%' }} /></td>
                         <td><input value={editData.vendor} onChange={e => setEditData(d => ({ ...d, vendor: e.target.value }))} style={{ fontSize: 12, width: 100 }} /></td>
                         <td style={{ color: 'var(--muted)', fontSize: 12 }}>{r.jobs ? (r.jobs.job_number ?? r.jobs.title) : t('generalLabel')}</td>
+                        <td>{receiptCell(r)}</td>
                         <td><input type="number" step="0.01" value={editData.amount} onChange={e => setEditData(d => ({ ...d, amount: e.target.value }))} style={{ width: 90, fontSize: 12, textAlign: 'right' }} /></td>
                         <td style={{ display: 'flex', gap: 6 }}>
                           <button onClick={() => saveEdit(r.id)} disabled={saving} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: 11 }}>💾</button>
@@ -144,6 +167,7 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
                       <td style={{ fontSize: 13 }}>
                         {r.job_id ? <Link href={`/trabajos/${r.job_id}`} style={{ color: 'var(--navy)', fontWeight: 600 }}>{r.jobs?.job_number ?? r.jobs?.title ?? t('viewJob')}</Link> : <span style={{ color: 'var(--muted)' }}>{t('generalLabel')}</span>}
                       </td>
+                      <td>{receiptCell(r)}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(r.amount)}</td>
                       <td style={{ display: 'flex', gap: 4 }}>
                         <button onClick={() => startEdit(r)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>✏️</button>
@@ -155,7 +179,7 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'right', fontWeight: 700, color: 'var(--muted)' }}>
+                  <td colSpan={6} style={{ textAlign: 'right', fontWeight: 700, color: 'var(--muted)' }}>
                     {query ? t('totalMatches', { count: visibleRows.length }) : t('total')}
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(visibleTotal)}</td>
