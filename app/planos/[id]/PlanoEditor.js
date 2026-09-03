@@ -1737,9 +1737,13 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 const markerQty = selectedMarker.quantity ?? 1;
                 const rows = markerAccessories(selectedMarker.id);
                 const query = accessorySearch.trim().toLowerCase();
+                // Some catalog_items still have a null name (see
+                // migrations/2026-08-17-catalog-item-name-backfill.sql), so both the
+                // search and the label fall back to the item code.
+                const catalogLabel = ci => ci.name || ci.item_code || '';
                 const catalogMatches = query
                   ? (accessoryOptions?.catalog ?? []).filter(ci =>
-                      ci.name.toLowerCase().includes(query) || (ci.item_code || '').toLowerCase().includes(query)
+                      catalogLabel(ci).toLowerCase().includes(query) || (ci.item_code || '').toLowerCase().includes(query)
                     ).slice(0, 6)
                   : [];
                 return (
@@ -1799,10 +1803,10 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                         {query && catalogMatches.map(ci => (
                           <button
                             key={ci.id} type="button" disabled={savingAccessory}
-                            onClick={() => addAccessory(selectedMarker.id, { name: ci.name, catalogItemId: ci.id })}
+                            onClick={() => addAccessory(selectedMarker.id, { name: catalogLabel(ci), catalogItemId: ci.id })}
                             style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 12, padding: '4px 2px' }}
                           >
-                            <span style={{ color: 'var(--muted)' }}>{ci.item_code}</span> {ci.name}
+                            <span style={{ color: 'var(--muted)' }}>{ci.item_code}</span> {ci.name || ''}
                           </button>
                         ))}
                         {query && (
