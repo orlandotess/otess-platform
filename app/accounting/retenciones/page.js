@@ -160,7 +160,7 @@ export default async function RetencionesPage(props) {
               <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("filters.view")}</label>
               <div style={{ display: "flex", gap: 6 }}>
                 {[["week", t("filters.weekly")], ["month", t("filters.monthly")], ["year", t("filters.yearly")]].map(([v, l]) => (
-                  <Link key={v} href={`/accounting/retenciones?view=${v}&year=${year}&month=${month ?? ""}`}
+                  <Link key={v} href={`/accounting/retenciones?tab=periodo&view=${v}&year=${year}&month=${month ?? ""}`}
                     className={`btn ${v === view ? "btn-primary" : "btn-ghost"}`} style={{ padding: "6px 14px", fontSize: 13 }}>
                     {l}
                   </Link>
@@ -172,9 +172,9 @@ export default async function RetencionesPage(props) {
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("filters.week")}</label>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <Link href={`/accounting/retenciones?view=week&week=${weekOffset - 1}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>← {t("filters.previous")}</Link>
-                  {weekOffset !== 0 && <Link href="/accounting/retenciones?view=week" className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>{t("filters.current")}</Link>}
-                  {weekOffset < 0 && <Link href={`/accounting/retenciones?view=week&week=${weekOffset + 1}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>{t("filters.next")} →</Link>}
+                  <Link href={`/accounting/retenciones?tab=periodo&view=week&week=${weekOffset - 1}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>← {t("filters.previous")}</Link>
+                  {weekOffset !== 0 && <Link href="/accounting/retenciones?tab=periodo&view=week" className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>{t("filters.current")}</Link>}
+                  {weekOffset < 0 && <Link href={`/accounting/retenciones?tab=periodo&view=week&week=${weekOffset + 1}`} className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 13 }}>{t("filters.next")} →</Link>}
                 </div>
               </div>
             )}
@@ -184,7 +184,7 @@ export default async function RetencionesPage(props) {
                 <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("filters.year")}</label>
                 <div style={{ display: "flex", gap: 6 }}>
                   {years.map(y => (
-                    <Link key={y} href={`/accounting/retenciones?view=${view}&year=${y}&month=${month ?? ""}`}
+                    <Link key={y} href={`/accounting/retenciones?tab=periodo&view=${view}&year=${y}&month=${month ?? ""}`}
                       className={`btn ${y === year ? "btn-primary" : "btn-ghost"}`} style={{ padding: "6px 14px", fontSize: 13 }}>
                       {y}
                     </Link>
@@ -197,11 +197,11 @@ export default async function RetencionesPage(props) {
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("filters.month")}</label>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  <Link href={`/accounting/retenciones?view=year&year=${year}`} className="btn btn-ghost" style={{ padding: "6px 14px", fontSize: 13 }}>
+                  <Link href={`/accounting/retenciones?tab=periodo&view=year&year=${year}`} className="btn btn-ghost" style={{ padding: "6px 14px", fontSize: 13 }}>
                     {t("filters.wholeYear")}
                   </Link>
                   {months.map((m, i) => (
-                    <Link key={i} href={`/accounting/retenciones?view=month&year=${year}&month=${i}`}
+                    <Link key={i} href={`/accounting/retenciones?tab=periodo&view=month&year=${year}&month=${i}`}
                       className={`btn ${month === i ? "btn-primary" : "btn-ghost"}`} style={{ padding: "6px 10px", fontSize: 12 }}>
                       {m.slice(0, 3)}
                     </Link>

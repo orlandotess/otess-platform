@@ -247,7 +247,10 @@ export default async function AccountingIVU(props) {
         />
 
         <div style={{ marginTop: 20 }}>
-          <IVUPaymentTracker year={year} payments={ivuPayments ?? []} />
+          {/* Los pagos se consultan por año (.eq('year', year)) y el tracker los
+              guarda en estado; sin key, al cambiar de año se quedaría con los
+              del año anterior y todos los meses saldrían en blanco. */}
+          <IVUPaymentTracker key={year} year={year} payments={ivuPayments ?? []} />
         </div>
       </main>
     </div>
