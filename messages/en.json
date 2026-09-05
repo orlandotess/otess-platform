@@ -4533,6 +4533,7 @@
         "showAOC": "Show coverage area",
         "hideAOC": "Hide coverage area",
         "duplicate": "Duplicate equipment",
+        "renumber": "Renumber “{prefix}” from 1",
         "delete": "Delete equipment",
         "close": "Close",
         "labelPlaceholder": "Label (e.g. Cam 3 - Entrance)",
@@ -4600,6 +4601,7 @@
       "confirms": {
         "clearScale": "Delete the scale defined for this plan?",
         "deleteMarker": "Delete this equipment from the plan? Its cables will also be deleted.",
+        "renumber": "Renumber the {count} “{prefix}” markers from 1 to {count}?",
         "removePhoto": "Remove this equipment's photo?",
         "deleteCable": "Delete this cable?",
         "deleteLayer": "Delete the layer \"{name}\"? Its equipment and cables will be left without a layer.",
@@ -4614,6 +4616,7 @@
         "createCableFailed": "Could not draw the cable: {error}",
         "savePositionFailed": "Could not save the new position, it was reverted: {error}",
         "duplicateMarkerFailed": "Could not duplicate the equipment: {error}",
+        "renumberFailed": "Could not renumber the series: {error}",
         "deleteMarkerFailed": "Could not delete the equipment, it was restored: {error}",
         "saveLabelFailed": "Could not save the label, it was reverted: {error}",
         "saveSizeFailed": "Could not save the size, it was reverted: {error}",

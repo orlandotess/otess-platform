@@ -4533,6 +4533,7 @@
         "showAOC": "Mostrar área de cobertura",
         "hideAOC": "Ocultar área de cobertura",
         "duplicate": "Duplicar equipo",
+        "renumber": "Renumerar «{prefix}» desde 1",
         "delete": "Eliminar equipo",
         "close": "Cerrar",
         "labelPlaceholder": "Etiqueta (ej: Cam 3 - Entrada)",
@@ -4600,6 +4601,7 @@
       "confirms": {
         "clearScale": "¿Borrar la escala definida para este plano?",
         "deleteMarker": "¿Eliminar este equipo del plano? También se eliminarán sus cables.",
+        "renumber": "¿Renumerar los {count} equipos «{prefix}» del 1 al {count}?",
         "removePhoto": "¿Quitar la foto de este equipo?",
         "deleteCable": "¿Eliminar este cable?",
         "deleteLayer": "¿Eliminar la capa \"{name}\"? Sus equipos y cables quedarán sin capa.",
@@ -4614,6 +4616,7 @@
         "createCableFailed": "No se pudo trazar el cable: {error}",
         "savePositionFailed": "No se pudo guardar la nueva posición, se revirtió: {error}",
         "duplicateMarkerFailed": "No se pudo duplicar el equipo: {error}",
+        "renumberFailed": "No se pudo renumerar la serie: {error}",
         "deleteMarkerFailed": "No se pudo eliminar el equipo, se restauró: {error}",
         "saveLabelFailed": "No se pudo guardar la etiqueta, se revirtió: {error}",
         "saveSizeFailed": "No se pudo guardar el tamaño, se revirtió: {error}",

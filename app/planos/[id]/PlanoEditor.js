@@ -54,6 +54,41 @@ function getAOC(marker, elementTypes) {
   };
 }
 
+// A marker's label carries its own series: "Drop 7" is the 7th drop. Splitting
+// one into prefix + separator + number is what lets a duplicate continue that
+// series ("Drop 8") instead of coming out blank, and what draws the number
+// badge on the plan. A label that doesn't end in a number ("Cam 3 - Entrada")
+// is all prefix, so its first copy opens a new series at 1.
+function splitLabel(label) {
+  const raw = (label || '').trim();
+  if (!raw) return null;
+  const m = raw.match(/^(.*?)([\s_·-]*)(\d+)$/);
+  if (!m) return { prefix: raw, sep: ' ', number: null };
+  return { prefix: m[1].trim(), sep: m[2].replace(/\s+/g, ' ') || ' ', number: Number(m[3]) };
+}
+
+function labelNumber(label) {
+  return splitLabel(label)?.number ?? null;
+}
+
+function joinLabel(prefix, number, sep = ' ') {
+  return prefix ? `${prefix}${sep}${number}` : String(number);
+}
+
+// Every numbered marker of one series (prefix matched case-insensitively, so
+// "drop 8" stays in the same series as "Drop 7"), in numeric order.
+function labelSeries(markers, prefix) {
+  return markers
+    .map(m => ({ marker: m, parts: splitLabel(m.label) }))
+    .filter(({ parts }) => parts && parts.number !== null && parts.prefix.toLowerCase() === prefix.toLowerCase())
+    .sort((a, b) => a.parts.number - b.parts.number);
+}
+
+function nextLabelNumber(markers, prefix) {
+  const series = labelSeries(markers, prefix);
+  return series.length ? series[series.length - 1].parts.number + 1 : 1;
+}
+
 export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialAccessories = [], initialCables, initialLayers, initialCableTypes, initialElementTypes, customIcons, catalogProducts = [], currentRole, allClients = [] }) {
   const router = useRouter();
   const t = useTranslations('planos.editor');
@@ -339,9 +374,14 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   async function placeMarker(point) {
     if (mode.type !== 'place') return;
     const tempId = `temp-${crypto.randomUUID()}`;
+    // Numbered as it lands, so a plan full of drops reads 1, 2, 3… without
+    // anyone typing a label. Rename one to "Drop 4" and the next ones keep
+    // that series going.
+    const seriesPrefix = markerName({ element_id: mode.elementId || null, custom_icon_id: mode.customIconId || null });
+    const label = seriesPrefix ? joinLabel(seriesPrefix, nextLabelNumber(markers, seriesPrefix)) : null;
     const optimistic = {
       id: tempId, floor_plan_id: plan.id, element_id: mode.elementId || null,
-      custom_icon_id: mode.customIconId || null, label: null, layer_id: activeLayerId,
+      custom_icon_id: mode.customIconId || null, label, layer_id: activeLayerId,
       catalog_item_id: mode.catalogItemId || null,
       cable_type_id: mode.cableTypeId || null, cable_feet: mode.cableFeet || null,
       pos_x: point.x, pos_y: point.y, sort_order: markers.length, quantity: 1,
@@ -349,7 +389,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     setMarkers(prev => [...prev, optimistic]);
     const { data, error } = await supabase.from('floor_plan_markers').insert([{
       floor_plan_id: plan.id, element_id: mode.elementId || null,
-      custom_icon_id: mode.customIconId || null, pos_x: point.x, pos_y: point.y,
+      custom_icon_id: mode.customIconId || null, label, pos_x: point.x, pos_y: point.y,
       sort_order: markers.length, layer_id: activeLayerId,
       catalog_item_id: mode.catalogItemId || null,
       cable_type_id: mode.cableTypeId || null, cable_feet: mode.cableFeet || null,
@@ -477,8 +517,15 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const offset = 0.02;
     const newPos = { x: Math.min(0.98, marker.pos_x + offset), y: Math.min(0.98, marker.pos_y + offset) };
     const tempId = `temp-${crypto.randomUUID()}`;
+    // The copy continues the original's series: "Drop 7" duplicates into the
+    // next free number of the "Drop" series, not into a blank label.
+    const source = splitLabel(marker.label);
+    const seriesPrefix = source ? source.prefix : markerName(marker);
+    const label = seriesPrefix
+      ? joinLabel(seriesPrefix, nextLabelNumber(markers, seriesPrefix), source ? source.sep : ' ')
+      : null;
     const clonedFields = {
-      element_id: marker.element_id, custom_icon_id: marker.custom_icon_id, equipment_type: marker.equipment_type,
+      label, element_id: marker.element_id, custom_icon_id: marker.custom_icon_id, equipment_type: marker.equipment_type,
       model: marker.model, serial_number: marker.serial_number, notes: marker.notes, quantity: marker.quantity,
       catalog_item_id: marker.catalog_item_id,
       cable_type_id: marker.cable_type_id, cable_feet: marker.cable_feet,
@@ -486,7 +533,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       aoc_visible: marker.aoc_visible, aoc_direction: marker.aoc_direction, aoc_angle: marker.aoc_angle,
       aoc_radius: marker.aoc_radius, aoc_color: marker.aoc_color, aoc_opacity: marker.aoc_opacity,
     };
-    const optimistic = { ...marker, ...clonedFields, id: tempId, pos_x: newPos.x, pos_y: newPos.y, label: null, sort_order: markers.length };
+    const optimistic = { ...marker, ...clonedFields, id: tempId, pos_x: newPos.x, pos_y: newPos.y, sort_order: markers.length };
     setMarkers(prev => [...prev, optimistic]);
     const { data, error } = await supabase.from('floor_plan_markers').insert([{
       floor_plan_id: plan.id, pos_x: newPos.x, pos_y: newPos.y, sort_order: markers.length, ...clonedFields,
@@ -537,6 +584,29 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     if (error) {
       setMarkers(prev => prev.map(m => m.id === id ? { ...m, label: original ?? null } : m));
       alert(t('errors.saveLabelFailed', { error: error.message }));
+    }
+  }
+  // Closes the gaps a few deletions leave behind: "Drop 1, 2, 5, 9" becomes
+  // "Drop 1, 2, 3, 4". It keeps the order the numbers already imply instead of
+  // renumbering by position on the plan, so a drop the tech already labeled in
+  // the field doesn't jump to another number. Only offered when there IS a gap.
+  async function renumberSeries(prefix, sep) {
+    const series = labelSeries(markers, prefix);
+    const renumbered = series
+      .map(({ marker }, i) => ({ marker, label: joinLabel(prefix, i + 1, sep) }))
+      .filter(({ marker, label }) => marker.label !== label && !String(marker.id).startsWith('temp-'));
+    if (!renumbered.length) return;
+    if (!confirm(t('confirms.renumber', { prefix, count: series.length }))) return;
+    const labelById = new Map(renumbered.map(({ marker, label }) => [marker.id, label]));
+    const originalById = new Map(renumbered.map(({ marker }) => [marker.id, marker.label]));
+    setMarkers(prev => prev.map(m => labelById.has(m.id) ? { ...m, label: labelById.get(m.id) } : m));
+    const results = await Promise.all(renumbered.map(({ marker, label }) =>
+      supabase.from('floor_plan_markers').update({ label }).eq('id', marker.id)
+    ));
+    const failed = results.find(r => r.error);
+    if (failed) {
+      setMarkers(prev => prev.map(m => originalById.has(m.id) ? { ...m, label: originalById.get(m.id) } : m));
+      alert(t('errors.renumberFailed', { error: failed.error.message }));
     }
   }
 
@@ -1149,6 +1219,14 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }
 
   const markerById = id => markers.find(m => m.id === id);
+  // The name shown for a marker, falling through the same chain the panel
+  // header uses: its own label, the custom icon, the element, the legacy
+  // equipment type. Also works on a not-yet-placed marker (the place mode's
+  // element/icon), which is how a fresh marker gets its series prefix.
+  const markerName = marker => marker.label
+    || customIconsState.find(ic => ic.id === marker.custom_icon_id)?.name
+    || getMarkerElement(marker, elementTypes)?.name
+    || (getEquipmentType(marker.equipment_type) ? tEquipmentTypes(getEquipmentType(marker.equipment_type).key) : '');
   const selectedMarker = selectedMarkerId ? markerById(selectedMarkerId) : null;
   const selectedCable = selectedCableId ? cables.find(c => c.id === selectedCableId) : null;
   const selectedMarkerAOC = selectedMarker && supportsAOC(selectedMarker, elementTypes) ? getAOC(selectedMarker, elementTypes) : null;
@@ -1852,6 +1930,24 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                       {getEquipmentType(m.equipment_type)?.icon}
                     </svg>
                   )}
+                  {/* The label's number, on the icon itself — otherwise the
+                      numbering only exists inside the marker panel, which is
+                      half of what it's for. The pill widens with the digits. */}
+                  {(() => {
+                    const number = labelNumber(m.label);
+                    if (number === null) return null;
+                    const bh = size * 0.55;
+                    const bw = bh * (0.75 + 0.42 * String(number).length);
+                    const bx = size * 0.34, by = -size * 0.98;
+                    return (
+                      <g style={{ pointerEvents: 'none' }}>
+                        <rect x={bx} y={by} width={bw} height={bh} rx={bh / 2}
+                          fill={m.custom_color || getMarkerColor(m, elementTypes)} stroke="#fff" strokeWidth={size * 0.05} />
+                        <text x={bx + bw / 2} y={by + bh / 2} textAnchor="middle" dominantBaseline="central"
+                          fontSize={bh * 0.72} fontWeight="700" fill="#fff">{number}</text>
+                      </g>
+                    );
+                  })()}
                 </g>
               );
             })}
@@ -1894,6 +1990,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             const wanted = panelPos ?? PANEL_DEFAULT_POS;
             const panelX = Math.max(0, Math.min(wanted.x, Math.max(0, rectSize.width - panelWidth)));
             const panelY = Math.max(0, Math.min(wanted.y, Math.max(0, rectSize.height - 40)));
+            // The renumber button only appears when this marker's series has
+            // an actual gap — nothing to fix, nothing to click.
+            const selectedParts = splitLabel(selectedMarker.label);
+            const selectedSeries = selectedParts && selectedParts.number !== null ? labelSeries(markers, selectedParts.prefix) : [];
+            const seriesHasGap = selectedSeries.length > 1 && selectedSeries.some((s, i) => s.parts.number !== i + 1);
             return (
             <div
               onPointerDown={e => e.stopPropagation()}
@@ -1925,10 +2026,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   </span>
                 )}
                 <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {selectedMarker.label
-                    || customIconsState.find(ic => ic.id === selectedMarker.custom_icon_id)?.name
-                    || getMarkerElement(selectedMarker, elementTypes)?.name
-                    || (getEquipmentType(selectedMarker.equipment_type) && tEquipmentTypes(getEquipmentType(selectedMarker.equipment_type).key))}
+                  {markerName(selectedMarker)}
                 </span>
 
                 {selectedMarkerAOC && (
@@ -1955,6 +2053,15 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 )}
 
                 <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', flexShrink: 0 }} />
+                {seriesHasGap && (
+                  <button
+                    type="button" title={t('markerPanel.renumber', { prefix: selectedParts.prefix })}
+                    onClick={() => renumberSeries(selectedParts.prefix, selectedParts.sep)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
+                  >
+                    🔢
+                  </button>
+                )}
                 <button
                   type="button" title={t('markerPanel.duplicate')} onClick={() => duplicateMarker(selectedMarker.id)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}
