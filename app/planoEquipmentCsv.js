@@ -6,8 +6,11 @@ import { getEquipmentType } from './equipmentIcons';
 // defined), then downloads a CSV. Accessories attached to those markers
 // (a faceplate insert on a jack, see migrations/2026-09-02-marker-accessories.sql)
 // are totalled in their own block instead of counting as equipment; their
-// quantity is per unit of the marker, so it multiplies by the marker's own.
-export function exportEquipmentListCSV(markers, elementTypes, customIcons, cables, feetPerPixel, cableLengthFeet, planName, t, tEquipmentTypes, accessories = [], catalogProducts = [], cableTypes = []) {
+// quantity is per unit of the marker, so it multiplies by the marker's own,
+// and each one is broken down by the element it came from. Plan-level
+// materials (a rack, ties — migrations/2026-09-06-plan-materials-and-idf.sql)
+// and the derived telecom room get blocks of their own.
+export function exportEquipmentListCSV(markers, elementTypes, customIcons, cables, feetPerPixel, cableLengthFeet, planName, t, tEquipmentTypes, accessories = [], catalogProducts = [], cableTypes = [], planMaterials = [], telecomRoom = null) {
   if (!markers?.length) { alert(t('noEquipmentAlert')); return; }
 
   const productById = id => (id ? catalogProducts.find(p => p.id === id) : null);
@@ -67,21 +70,73 @@ export function exportEquipmentListCSV(markers, elementTypes, customIcons, cable
   const total = markers.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
   const csvRows = [[t('columnType'), t('columnCode'), t('columnQuantity')], ...rows, ['', '', ''], [t('totalEquipment'), '', total]];
 
+  // Which element each material's units came from, so the purchase list can be
+  // checked against the plan: "52 faceplates = 41 Network Jack + 11 Camera".
+  const sourceLabel = m => {
+    if (m.custom_icon_id) return customIcons.find(ic => ic.id === m.custom_icon_id)?.name || t('uncategorized');
+    const el = m.element_id ? elementTypes.find(et => et.id === m.element_id) : null;
+    if (el) return el.name;
+    const eqType = m.equipment_type ? getEquipmentType(m.equipment_type) : null;
+    return eqType ? tEquipmentTypes(eqType.key) : t('uncategorized');
+  };
+
   const accessoryTally = new Map();
   for (const m of markers) {
     const markerQty = m.quantity ?? 1;
+    const source = sourceLabel(m);
     for (const a of accessories.filter(ac => ac.marker_id === m.id)) {
       const key = a.catalog_item_id || a.name.toLowerCase();
       if (!accessoryTally.has(key)) {
-        accessoryTally.set(key, { label: a.name, code: productById(a.catalog_item_id)?.item_code || '', qty: 0 });
+        accessoryTally.set(key, { label: a.name, code: productById(a.catalog_item_id)?.item_code || '', qty: 0, sources: new Map() });
       }
-      accessoryTally.get(key).qty += (a.quantity ?? 1) * markerQty;
+      const entry = accessoryTally.get(key);
+      const units = (a.quantity ?? 1) * markerQty;
+      entry.qty += units;
+      entry.sources.set(source, (entry.sources.get(source) || 0) + units);
     }
   }
   if (accessoryTally.size > 0) {
     csvRows.push(['', '', '']);
     csvRows.push([t('accessories'), '', '']);
-    for (const { label, code, qty } of accessoryTally.values()) csvRows.push([`  ${label}`, code, qty]);
+    for (const { label, code, qty, sources } of accessoryTally.values()) {
+      csvRows.push([`  ${label}`, code, qty]);
+      // One source is no breakdown — the line above already says it.
+      if (sources.size < 2) continue;
+      for (const [source, units] of [...sources.entries()].sort((a, b) => b[1] - a[1])) {
+        csvRows.push([`    ${source}`, '', units]);
+      }
+    }
+  }
+
+  if (planMaterials.length > 0) {
+    csvRows.push(['', '', '']);
+    csvRows.push([t('extraMaterials'), '', '']);
+    let materialUnits = 0;
+    let materialCost = 0;
+    let pricedLines = 0;
+    for (const mat of planMaterials) {
+      const product = productById(mat.catalog_item_id);
+      const qty = mat.quantity ?? 1;
+      materialUnits += qty;
+      // A free-typed material has no catalog price; the count of what was
+      // priced rides along with the total so it can't read as the whole list.
+      if (product?.price != null) { materialCost += Number(product.price) * qty; pricedLines += 1; }
+      csvRows.push([`  ${mat.name}`, product?.item_code || '', qty]);
+    }
+    csvRows.push([t('extraMaterialsTotal', { lines: planMaterials.length }), '', materialUnits]);
+    if (pricedLines > 0) {
+      csvRows.push([t('extraMaterialsCost', { priced: pricedLines, lines: planMaterials.length }), '', materialCost.toFixed(2)]);
+    }
+  }
+
+  if (telecomRoom && telecomRoom.dropCount > 0) {
+    csvRows.push(['', '', '']);
+    csvRows.push([t('telecomRoom'), '', '']);
+    csvRows.push([`  ${t('keystoneJacks')}`, '', telecomRoom.dropCount]);
+    csvRows.push([`  ${t('patchPanels', { ports: telecomRoom.ports })}`, '', telecomRoom.panels]);
+    csvRows.push([`  ${t('switches', { ports: telecomRoom.switchPorts })}`, '', telecomRoom.switches]);
+    csvRows.push([`  ${t('cableManagers')}`, '', telecomRoom.managers]);
+    csvRows.push([`    ${t('patchPanelSpare', { spare: telecomRoom.spare, units: telecomRoom.rackUnits })}`, '', '']);
   }
 
   // Cable per type: the feet each equipment estimates plus whatever was traced

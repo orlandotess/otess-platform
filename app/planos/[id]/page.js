@@ -20,7 +20,7 @@ export default async function PlanoDetail(props) {
     supabase.from('cable_types').select('*').order('name'),
     supabase.from('element_types').select('*').eq('is_active', true).order('sort_order'),
     supabase.from('custom_equipment_icons').select('*').order('name'),
-    supabase.from('catalog_items').select('id, item_code, name').eq('type', 'product').order('item_code'),
+    supabase.from('catalog_items').select('id, item_code, name, price').eq('type', 'product').order('item_code'),
     supabase.from('clients').select('id, name').order('name'),
     getCurrentRole(),
   ]);
@@ -46,6 +46,11 @@ export default async function PlanoDetail(props) {
     ? await supabase.from('floor_plan_marker_accessories').select('*').in('marker_id', markerIds).order('sort_order')
     : { data: [] };
 
+  // Plan-level materials (migrations/2026-09-06-plan-materials-and-idf.sql):
+  // what the job needs but no marker owns — a rack, ties, hardware.
+  const { data: planMaterials } = await supabase.from('floor_plan_materials')
+    .select('*').eq('floor_plan_id', id).order('sort_order');
+
   const { data: imageSigned } = await supabase.storage.from('floor-plans').createSignedUrl(plan.rendered_image_path, 3600);
   const { data: sourceSigned } = await supabase.storage.from('floor-plans').createSignedUrl(plan.source_path, 3600);
 
@@ -64,6 +69,7 @@ export default async function PlanoDetail(props) {
           sourceUrl={sourceSigned?.signedUrl ?? null}
           initialMarkers={markers ?? []}
           initialAccessories={accessories ?? []}
+          initialPlanMaterials={planMaterials ?? []}
           initialCables={cables ?? []}
           initialLayers={layers ?? []}
           initialCableTypes={cableTypes ?? []}

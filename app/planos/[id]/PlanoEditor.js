@@ -24,6 +24,10 @@ const WHEEL_ZOOM_INTENSITY = 0.0018;
 
 const LAYER_COLORS = ['#2a4cb5', '#1a7a4a', '#e0972c', '#8e44ad', '#c0392b', '#0891b2', '#4b5563'];
 const NO_LAYER = '__none__';
+// Telecom room: the switch this shop racks (48 ports), and the panel size that
+// pairs with it — two 24s sandwiching one switch, so no cable manager is needed.
+const SWITCH_PORTS = 48;
+const DEFAULT_PATCH_PANEL_PORTS = 24;
 
 // Markers placed before the "Add Element" catalog existed (migrations/2026-07-16b-element-catalog.sql)
 // have no element_id — this is the fallback set for gating their AOC cone.
@@ -89,7 +93,7 @@ function nextLabelNumber(markers, prefix) {
   return series.length ? series[series.length - 1].parts.number + 1 : 1;
 }
 
-export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialAccessories = [], initialCables, initialLayers, initialCableTypes, initialElementTypes, customIcons, catalogProducts = [], currentRole, allClients = [] }) {
+export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialAccessories = [], initialPlanMaterials = [], initialCables, initialLayers, initialCableTypes, initialElementTypes, customIcons, catalogProducts = [], currentRole, allClients = [] }) {
   const router = useRouter();
   const t = useTranslations('planos.editor');
   const tEquipmentCsv = useTranslations('shared.planoEquipmentCsv');
@@ -121,6 +125,12 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [accessorySearch, setAccessorySearch] = useState('');
   const [accessoryOptions, setAccessoryOptions] = useState(null); // lazy: { catalog, recent } | null
   const [savingAccessory, setSavingAccessory] = useState(false);
+  const [expandedAccessoryKeys, setExpandedAccessoryKeys] = useState(() => new Set()); // which summary material lines show where they come from
+  const [planMaterials, setPlanMaterials] = useState(initialPlanMaterials);
+  const [addingMaterial, setAddingMaterial] = useState(false);
+  const [materialSearch, setMaterialSearch] = useState('');
+  const [savingMaterial, setSavingMaterial] = useState(false);
+  const [savingPatchPanel, setSavingPatchPanel] = useState(false);
   const [productSuggestions, setProductSuggestions] = useState(null); // lazy: elementId -> catalog item ids, most used first
   const [pickingPlaceProduct, setPickingPlaceProduct] = useState(false);
   const [pickingMarkerProduct, setPickingMarkerProduct] = useState(false);
@@ -879,6 +889,76 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     }
   }
 
+  // ── Plan materials (migrations/2026-09-06-plan-materials-and-idf.sql) ───
+  // Material the job needs that no marker owns: a rack, ties, hardware. Unlike
+  // an accessory, its quantity is absolute — there is no parent to multiply by.
+  async function addPlanMaterial({ name, catalogItemId = null }) {
+    const clean = (name || '').trim();
+    if (!clean || savingMaterial) return;
+    setSavingMaterial(true);
+    const { data, error } = await supabase.from('floor_plan_materials').insert([{
+      floor_plan_id: plan.id, catalog_item_id: catalogItemId, name: clean, quantity: 1, sort_order: planMaterials.length,
+    }]).select().single();
+    setSavingMaterial(false);
+    if (error) { alert(t('errors.addMaterialFailed', { error: error.message })); return; }
+    setPlanMaterials(prev => [...prev, data]);
+    setMaterialSearch('');
+    setAddingMaterial(false);
+  }
+
+  function adjustPlanMaterialQuantity(id, delta) {
+    const material = planMaterials.find(m => m.id === id);
+    if (!material) return;
+    const current = material.quantity ?? 1;
+    const next = Math.max(1, current + delta);
+    if (next === current) return;
+    setPlanMaterials(prev => prev.map(m => m.id === id ? { ...m, quantity: next } : m));
+    supabase.from('floor_plan_materials').update({ quantity: next }).eq('id', id).then(({ error }) => {
+      if (error) {
+        setPlanMaterials(prev => prev.map(m => m.id === id ? { ...m, quantity: current } : m));
+        alert(t('errors.saveQuantityFailed', { error: error.message }));
+      }
+    });
+  }
+
+  async function deletePlanMaterial(id) {
+    const removed = planMaterials.find(m => m.id === id);
+    setPlanMaterials(prev => prev.filter(m => m.id !== id));
+    const { error } = await supabase.from('floor_plan_materials').delete().eq('id', id);
+    if (error) {
+      if (removed) setPlanMaterials(prev => [...prev, removed]);
+      alert(t('errors.deleteMaterialFailed', { error: error.message }));
+    }
+  }
+
+  // ── Telecom room ────────────────────────────────────────────────────────
+  // The panel size is the only part of the room that is a decision; everything
+  // else is derived from the plan on every render.
+  // How many cable managers go in depends on the rack the installer draws, so
+  // the derived number is only a starting point: null goes back to it.
+  async function saveCableManagers(next) {
+    const previous = planState.cable_managers ?? null;
+    setPlanState(prev => ({ ...prev, cable_managers: next }));
+    const { error } = await supabase.from('floor_plans').update({ cable_managers: next }).eq('id', plan.id);
+    if (error) {
+      setPlanState(prev => ({ ...prev, cable_managers: previous }));
+      alert(t('errors.saveCableManagersFailed', { error: error.message }));
+    }
+  }
+
+  async function choosePatchPanelPorts(ports) {
+    const previous = planState.patch_panel_ports ?? null;
+    const next = previous === ports ? null : ports; // clicking the current size goes back to the recommendation
+    setPlanState(prev => ({ ...prev, patch_panel_ports: next }));
+    setSavingPatchPanel(true);
+    const { error } = await supabase.from('floor_plans').update({ patch_panel_ports: next }).eq('id', plan.id);
+    setSavingPatchPanel(false);
+    if (error) {
+      setPlanState(prev => ({ ...prev, patch_panel_ports: previous }));
+      alert(t('errors.savePatchPanelFailed', { error: error.message }));
+    }
+  }
+
   async function handleMarkerPhotoUpload(markerId, file) {
     if (!file) return;
     setUploadingPhoto(true);
@@ -1282,16 +1362,71 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   // Accessories are materials, not devices: they get their own block in the
   // summary and never count toward "Total equipment". Each accessory's
   // quantity is per unit of its marker, hence the multiplication.
+  // Which element a material's units came from, so a line like "52 faceplates"
+  // can be opened up into "41 Network Jack · 11 Fixed Camera".
+  // Same chain as markerName, minus the marker's own label — a per-marker label
+  // ("Jack 14") would put every unit in a group of its own.
+  const markerSourceLabel = m => customIconsState.find(ic => ic.id === m.custom_icon_id)?.name
+    || getMarkerElement(m, elementTypes)?.name
+    || (getEquipmentType(m.equipment_type) ? tEquipmentTypes(getEquipmentType(m.equipment_type).key) : t('summary.unknownSource'));
+
   const accessoryTally = new Map();
   for (const m of visibleMarkers) {
     const markerQty = m.quantity ?? 1;
+    const source = markerSourceLabel(m);
     for (const a of markerAccessories(m.id)) {
       const key = a.catalog_item_id || a.name.toLowerCase();
-      if (!accessoryTally.has(key)) accessoryTally.set(key, { key, label: a.name, count: 0 });
-      accessoryTally.get(key).count += (a.quantity ?? 1) * markerQty;
+      if (!accessoryTally.has(key)) accessoryTally.set(key, { key, label: a.name, count: 0, sources: new Map() });
+      const entry = accessoryTally.get(key);
+      const units = (a.quantity ?? 1) * markerQty;
+      entry.count += units;
+      entry.sources.set(source, (entry.sources.get(source) || 0) + units);
     }
   }
-  const accessoryCounts = [...accessoryTally.values()];
+  const accessoryCounts = [...accessoryTally.values()].map(entry => ({
+    ...entry,
+    sources: [...entry.sources.entries()].sort((a, b) => b[1] - a[1]).map(([label, count]) => ({ label, count })),
+  }));
+
+  // ── Cuarto de telecomunicaciones ────────────────────────────────────────
+  // Every drop lands twice: the keystone at the outlet (already counted as the
+  // equipment itself) and one at the patch panel in the room — so the room
+  // needs exactly one keystone and one panel port per drop. A drop is a piece
+  // of equipment with a cable run assigned; on a plan where nobody assigned
+  // cable yet, the whole equipment count is the number the tech would have
+  // used by hand, so that is the fallback.
+  const equipmentUnits = visibleMarkers.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
+  const cabledUnits = visibleMarkers.reduce((sum, m) => sum + (m.cable_type_id ? (m.quantity ?? 1) : 0), 0);
+  const dropCount = cabledUnits > 0 ? cabledUnits : equipmentUnits;
+  // The rack layout this shop builds: a 24-port panel, a 48-port switch under
+  // it, and a second 24-port panel right below the switch. Every patch cord
+  // then crosses a single rack unit, so the sandwich needs no horizontal cable
+  // manager — which is why 24 is the default here. Sizing the panels at 48
+  // breaks the sandwich and puts a manager back between each panel and its
+  // switch. The size is the installer's call; the rest of the kit follows it.
+  const patchPanelOptions = [24, 48].map(ports => {
+    const panels = Math.ceil(dropCount / ports);
+    const switches = Math.ceil(dropCount / SWITCH_PORTS);
+    const managers = ports * 2 === SWITCH_PORTS ? 0 : panels;
+    return {
+      ports, panels, switches, managers,
+      spare: panels * ports - dropCount,
+      rackUnits: panels * (ports > 24 ? 2 : 1) + switches + managers,
+    };
+  });
+  const chosenPorts = planState.patch_panel_ports ?? DEFAULT_PATCH_PANEL_PORTS;
+  const patchPanel = patchPanelOptions.find(o => o.ports === chosenPorts) ?? patchPanelOptions[0];
+  const planMaterialUnits = planMaterials.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
+  // Sale price (catalog_items.price), not what the shop pays for it. Only the
+  // materials picked from the catalog carry one; a free-typed one never will,
+  // so the count of what was priced travels with the total instead of letting
+  // it read as the whole list.
+  const pricedMaterials = planMaterials.filter(m => productById(m.catalog_item_id)?.price != null);
+  const planMaterialCost = pricedMaterials.reduce(
+    (sum, m) => sum + Number(productById(m.catalog_item_id).price) * (m.quantity ?? 1), 0);
+  const managersOverridden = planState.cable_managers != null;
+  const cableManagerCount = managersOverridden ? planState.cable_managers : patchPanel.managers;
+  const telecomRackUnits = patchPanel.rackUnits - patchPanel.managers + cableManagerCount;
 
   // Cable per type: what the equipment estimates plus what was traced on the
   // plan (only measurable with a scale), and the boxes to order for the sum —
@@ -1365,7 +1500,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">{t('header.viewOriginal')}</a>}
-          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes, accessories, catalogProducts, cableTypesState)}>⬇️ {t('header.exportList')}</button>
+          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes, accessories, catalogProducts, cableTypesState, planMaterials, { dropCount, switchPorts: SWITCH_PORTS, ...patchPanel, managers: cableManagerCount, rackUnits: telecomRackUnits })}>⬇️ {t('header.exportList')}</button>
           {canDeletePlan && <button className="btn btn-ghost" disabled={deleting} onClick={handleDeletePlan} style={{ color: 'var(--warn)' }}>{t('header.deletePlan')}</button>}
           <Link href={currentRole === 'tecnico' ? '/crew' : '/planos'} className="btn btn-ghost">← {t('header.back')}</Link>
         </div>
@@ -2453,13 +2588,195 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             <div style={{ marginTop: 8 }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{t('summary.accessories')}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {accessoryCounts.map(a => (
-                  <div key={a.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
-                    <span style={{ flex: 1 }}>{a.label}</span>
-                    <span style={{ fontWeight: 700 }}>{a.count}</span>
-                  </div>
+                {accessoryCounts.map(a => {
+                  // One source is no breakdown — the line already says it.
+                  const expandable = a.sources.length > 1;
+                  const open = expandedAccessoryKeys.has(a.key);
+                  const rowStyle = {
+                    display: 'flex', justifyContent: 'space-between', gap: 6, width: '100%', fontSize: 12,
+                    color: 'var(--muted)', background: 'none', border: 'none', padding: 0, textAlign: 'left', font: 'inherit',
+                  };
+                  const row = (
+                    <>
+                      <span style={{ flex: 1 }}>{expandable && (open ? '▾ ' : '▸ ')}{a.label}</span>
+                      <span style={{ fontWeight: 700 }}>{a.count}</span>
+                    </>
+                  );
+                  return (
+                    <div key={a.key}>
+                      {/* Only a line with more than one source is worth a button:
+                          the rest have nothing to open. */}
+                      {expandable ? (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedAccessoryKeys(prev => {
+                            const next = new Set(prev);
+                            if (next.has(a.key)) next.delete(a.key); else next.add(a.key);
+                            return next;
+                          })}
+                          title={t('summary.accessorySourcesHint')}
+                          style={{ ...rowStyle, cursor: 'pointer' }}
+                        >
+                          {row}
+                        </button>
+                      ) : (
+                        <div style={rowStyle}>{row}</div>
+                      )}
+                      {expandable && open && a.sources.map(src => (
+                        <div key={src.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 11, color: 'var(--muted)', paddingLeft: 14, opacity: 0.85 }}>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{src.label}</span>
+                          <span style={{ fontWeight: 700 }}>{src.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Materials the job needs that no marker owns: a rack, ties, hardware. */}
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>{t('summary.extraMaterials')}</p>
+              <button
+                className="btn btn-ghost" style={{ fontSize: 11, padding: '2px 8px', marginLeft: 'auto' }}
+                onClick={() => { setAddingMaterial(v => !v); setMaterialSearch(''); }}
+              >
+                {addingMaterial ? t('summary.cancelMaterial') : `+ ${t('summary.addMaterial')}`}
+              </button>
+            </div>
+            {planMaterials.length === 0 && !addingMaterial && (
+              <p style={{ fontSize: 11, color: 'var(--muted)', opacity: 0.8 }}>{t('summary.extraMaterialsEmpty')}</p>
+            )}
+            {planMaterials.map(mat => (
+              <div key={mat.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, marginBottom: 4 }}>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mat.name}>{mat.name}</span>
+                <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                  disabled={(mat.quantity ?? 1) <= 1}
+                  onClick={() => adjustPlanMaterialQuantity(mat.id, -1)}>−</button>
+                <span style={{ fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{mat.quantity ?? 1}</span>
+                <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                  onClick={() => adjustPlanMaterialQuantity(mat.id, 1)}>+</button>
+                <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 6px', color: 'var(--warn)' }}
+                  title={t('summary.removeMaterial')}
+                  onClick={() => deletePlanMaterial(mat.id)}>🗑</button>
+              </div>
+            ))}
+            {planMaterials.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12, fontWeight: 700, borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 2 }}>
+                <span>{t('summary.extraMaterialsTotal', { lines: planMaterials.length })}</span>
+                <span>{planMaterialUnits}</span>
+              </div>
+            )}
+            {planMaterials.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 11, color: 'var(--muted)' }}>
+                {pricedMaterials.length === 0 ? (
+                  <span>{t('summary.extraMaterialsNoPrices')}</span>
+                ) : (
+                  <>
+                    <span>{pricedMaterials.length === planMaterials.length
+                      ? t('summary.extraMaterialsCostAll')
+                      : t('summary.extraMaterialsCost', { priced: pricedMaterials.length, lines: planMaterials.length })}</span>
+                    <span style={{ fontWeight: 700 }}>${planMaterialCost.toFixed(2)}</span>
+                  </>
+                )}
+              </div>
+            )}
+            {addingMaterial && (() => {
+              const query = materialSearch.trim().toLowerCase();
+              const matches = query
+                ? catalogProducts.filter(ci =>
+                    catalogItemLabel(ci).toLowerCase().includes(query) || (ci.item_code || '').toLowerCase().includes(query)
+                  ).slice(0, 6)
+                : [];
+              const rowStyle = {
+                display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                color: 'var(--text)', cursor: 'pointer', fontSize: 12, padding: '4px 2px',
+              };
+              return (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 6, marginTop: 4 }}>
+                  <input
+                    autoFocus
+                    value={materialSearch}
+                    onChange={e => setMaterialSearch(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addPlanMaterial({ name: materialSearch }); }}
+                    placeholder={t('summary.materialSearchPlaceholder')}
+                    style={{ width: '100%', fontSize: 12, padding: '6px 8px' }}
+                  />
+                  {matches.map(ci => (
+                    <button key={ci.id} type="button" disabled={savingMaterial}
+                      onClick={() => addPlanMaterial({ name: catalogItemLabel(ci), catalogItemId: ci.id })}
+                      style={rowStyle}>
+                      <span style={{ color: 'var(--muted)' }}>{ci.item_code}</span> {catalogItemLabel(ci)}
+                    </button>
+                  ))}
+                  {query && (
+                    <button type="button" disabled={savingMaterial}
+                      onClick={() => addPlanMaterial({ name: materialSearch })}
+                      style={{ ...rowStyle, color: 'var(--amber)', fontWeight: 600 }}>
+                      {t('summary.materialUseFreeText', { name: materialSearch.trim() })}
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Telecom room: derived from the plan, one keystone and one panel
+              port per drop. Only the panel size is a decision. */}
+          {dropCount > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{t('summary.telecomRoom')}</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+                <span style={{ flex: 1 }}>{t('summary.keystoneJacks')}</span>
+                <span style={{ fontWeight: 700 }}>{dropCount}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+                <span style={{ flex: 1 }}>{t('summary.patchPanels', { ports: patchPanel.ports })}</span>
+                <span style={{ fontWeight: 700 }}>{patchPanel.panels}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+                <span style={{ flex: 1 }}>{t('summary.switches', { ports: SWITCH_PORTS })}</span>
+                <span style={{ fontWeight: 700 }}>{patchPanel.switches}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                <span style={{ flex: 1, color: cableManagerCount === 0 ? 'var(--muted)' : undefined }}>{t('summary.cableManagers')}</span>
+                {managersOverridden && (
+                  <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 5px' }}
+                    title={t('summary.cableManagersAutoTitle', { count: patchPanel.managers })}
+                    onClick={() => saveCableManagers(null)}>↺</button>
+                )}
+                <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                  disabled={cableManagerCount <= 0}
+                  onClick={() => saveCableManagers(Math.max(0, cableManagerCount - 1))}>−</button>
+                <span style={{ fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{cableManagerCount}</span>
+                <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                  onClick={() => saveCableManagers(cableManagerCount + 1)}>+</button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                {patchPanelOptions.map(opt => (
+                  <button
+                    key={opt.ports} type="button" disabled={savingPatchPanel}
+                    onClick={() => choosePatchPanelPorts(opt.ports)}
+                    title={t('summary.patchPanelOptionTitle', { panels: opt.panels, spare: opt.spare, units: opt.rackUnits, switches: opt.switches, managers: opt.managers })}
+                    style={{
+                      flex: 1, fontSize: 11, padding: '3px 6px', borderRadius: 6, cursor: 'pointer',
+                      border: opt.ports === chosenPorts ? '1.5px solid var(--navy)' : '1px solid var(--border)',
+                      background: opt.ports === chosenPorts ? 'var(--info-tint)' : 'transparent',
+                      fontWeight: opt.ports === chosenPorts ? 700 : 500, color: 'var(--text)',
+                    }}
+                  >
+                    {t('summary.patchPanelSize', { ports: opt.ports, panels: opt.panels })}
+                  </button>
                 ))}
               </div>
+              <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
+                {t('summary.patchPanelSpare', { spare: patchPanel.spare, units: telecomRackUnits })}
+                {cableManagerCount === 0 && patchPanel.managers === 0 && ` · ${t('summary.noManagersNeeded')}`}
+                {' · '}
+                {cabledUnits > 0 ? t('summary.dropsFromCable', { count: dropCount }) : t('summary.dropsFromEquipment', { count: dropCount })}
+              </p>
             </div>
           )}
           {cableFootage.length > 0 && (
