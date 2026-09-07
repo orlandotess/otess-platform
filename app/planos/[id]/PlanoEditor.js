@@ -24,10 +24,12 @@ const WHEEL_ZOOM_INTENSITY = 0.0018;
 
 const LAYER_COLORS = ['#2a4cb5', '#1a7a4a', '#e0972c', '#8e44ad', '#c0392b', '#0891b2', '#4b5563'];
 const NO_LAYER = '__none__';
-// Telecom room: the switch this shop racks (48 ports), and the panel size that
-// pairs with it — two 24s sandwiching one switch, so no cable manager is needed.
+// Telecom room: the switch this shop racks (48 ports) and the panel size a room
+// starts at. 24s sandwich a switch between two panels and save the horizontal
+// cable managers, but 48 is the size this shop specs by default; the toggle
+// switches a plan over.
 const SWITCH_PORTS = 48;
-const DEFAULT_PATCH_PANEL_PORTS = 24;
+const DEFAULT_PATCH_PANEL_PORTS = 48;
 
 // Markers placed before the "Add Element" catalog existed (migrations/2026-07-16b-element-catalog.sql)
 // have no element_id — this is the fallback set for gating their AOC cone.
@@ -1398,12 +1400,12 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const equipmentUnits = visibleMarkers.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
   const cabledUnits = visibleMarkers.reduce((sum, m) => sum + (m.cable_type_id ? (m.quantity ?? 1) : 0), 0);
   const dropCount = cabledUnits > 0 ? cabledUnits : equipmentUnits;
-  // The rack layout this shop builds: a 24-port panel, a 48-port switch under
-  // it, and a second 24-port panel right below the switch. Every patch cord
-  // then crosses a single rack unit, so the sandwich needs no horizontal cable
-  // manager — which is why 24 is the default here. Sizing the panels at 48
-  // breaks the sandwich and puts a manager back between each panel and its
-  // switch. The size is the installer's call; the rest of the kit follows it.
+  // Panels sized at 24 can sandwich a 48-port switch — one above, one below —
+  // so every patch cord crosses a single rack unit and the pair needs no
+  // horizontal cable manager. At 48 the sandwich breaks and a manager goes back
+  // between each panel and its switch. The size is the installer's call; the
+  // rest of the kit follows it, and the manager count is only a starting
+  // number (see saveCableManagers).
   const patchPanelOptions = [24, 48].map(ports => {
     const panels = Math.ceil(dropCount / ports);
     const switches = Math.ceil(dropCount / SWITCH_PORTS);

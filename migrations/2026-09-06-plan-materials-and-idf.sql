@@ -13,9 +13,9 @@
 -- 2) floor_plans.patch_panel_ports — 24 or 48, the panel size the telecom-room
 --    block sizes against. The room itself is derived from the plan (one
 --    keystone and one patch-panel port per drop, one 48-port switch per 48
---    drops), so only this choice needs storing; null means the default 24,
---    which is the size that sandwiches a 48-port switch between two panels and
---    saves the horizontal cable managers.
+--    drops), so only this choice needs storing; null means the default, 48.
+--    (24 is the size that sandwiches a 48-port switch between two panels and
+--    saves the horizontal cable managers — the toggle switches a plan to it.)
 --
 -- 3) floor_plans.cable_managers — how many horizontal cable managers the room
 --    needs. The sandwich layout needs none and any other one needs a manager
@@ -69,4 +69,4 @@ alter table floor_plans add constraint floor_plans_cable_managers_check
 
 comment on column floor_plans.cable_managers is 'Cable managers horizontales del cuarto; null = usar el número derivado del layout (0 en panel/switch/panel, 1 por panel en los demás).';
 
-comment on column floor_plans.patch_panel_ports is 'Tamaño de patch panel elegido para el cuarto de telecomunicaciones (24 o 48). null = 24 (panel / switch de 48 / panel, sin cable managers).';
+comment on column floor_plans.patch_panel_ports is 'Tamaño de patch panel elegido para el cuarto de telecomunicaciones (24 o 48). null = 48 (el default); 24 arma panel / switch de 48 / panel y ahorra los cable managers.';
