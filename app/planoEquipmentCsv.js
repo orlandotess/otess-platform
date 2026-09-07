@@ -135,10 +135,19 @@ export function exportEquipmentListCSV(markers, elementTypes, customIcons, cable
     if (room.drops === 0 && room.items.length === 0) continue;
     csvRows.push(['', '', '']);
     csvRows.push([room.name ? t('telecomRoomNamed', { name: room.name }) : t('telecomRoomUnassigned'), '', '']);
-    csvRows.push([`  ${t('keystoneJacks')}`, '', room.drops]);
-    csvRows.push([`  ${t('patchPanels', { ports: room.ports })}`, '', room.panels]);
-    csvRows.push([`  ${t('switches', { ports: room.switchPorts })}`, '', room.switches]);
-    csvRows.push([`  ${t('cableManagers')}`, '', room.managers]);
+    // A line the rack doesn't need was excluded on purpose; leaving it out of
+    // the purchase list is the whole point of excluding it.
+    const shows = line => !(room.hidden || []).includes(line);
+    if (shows('keystones')) {
+      csvRows.push([`  ${t('keystoneJacks')}`, '', room.drops]);
+      // Named from the drops themselves, so the room and the floor can't drift.
+      for (const k of room.keystones || []) {
+        csvRows.push([`    ${k.label || t('noProduct')}`, '', k.count]);
+      }
+    }
+    if (shows('panels')) csvRows.push([`  ${t('patchPanels', { ports: room.ports })}`, room.panelCode, room.panels]);
+    if (shows('switches')) csvRows.push([`  ${t('switches', { ports: room.switchPorts })}`, room.switchCode, room.switches]);
+    if (shows('managers')) csvRows.push([`  ${t('cableManagers')}`, '', room.managers]);
     for (const item of room.items) csvRows.push([`  ${item.name}`, item.code, item.quantity]);
     csvRows.push([`    ${t('patchPanelSpare', { spare: room.spare, units: room.rackUnits })}`, '', '']);
   }

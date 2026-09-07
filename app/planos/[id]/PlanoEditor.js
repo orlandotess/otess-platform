@@ -96,6 +96,38 @@ function nextLabelNumber(markers, prefix) {
   return series.length ? series[series.length - 1].parts.number + 1 : 1;
 }
 
+// The 🗑 on a room line. Hiding a derived line is not deleting it — the plan
+// recomputes it — so the button asks first and the line can be restored.
+function LineHide({ onHide, title }) {
+  return (
+    <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 6px', color: 'var(--warn)' }}
+      title={title} onClick={onHide}>🗑</button>
+  );
+}
+
+// The catalog product a room line is ordered as, or the invitation to pick one.
+function RoomProductLine({ product, onPick, onClear, pickLabel, clearLabel }) {
+  if (!product) {
+    return (
+      <button type="button" onClick={onPick}
+        style={{ background: 'none', border: 'none', padding: '0 0 0 10px', color: 'var(--navy)', fontWeight: 600, cursor: 'pointer', fontSize: 11 }}>
+        + {pickLabel}
+      </button>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--muted)', paddingLeft: 10 }}>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={catalogItemLabel(product)}>
+        {product.item_code} {catalogItemLabel(product)}
+      </span>
+      <button type="button" onClick={onPick} title={pickLabel}
+        style={{ background: 'none', border: 'none', padding: 0, color: 'var(--navy)', cursor: 'pointer', fontSize: 11 }}>✏️</button>
+      <button type="button" onClick={onClear} title={clearLabel}
+        style={{ background: 'none', border: 'none', padding: 0, color: 'var(--muted)', cursor: 'pointer', fontSize: 11 }}>✕</button>
+    </div>
+  );
+}
+
 export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers, initialAccessories = [], initialPlanMaterials = [], initialCables, initialLayers, initialCableTypes, initialElementTypes, customIcons, catalogProducts = [], currentRole, allClients = [] }) {
   const router = useRouter();
   const t = useTranslations('planos.editor');
@@ -134,6 +166,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [materialSearch, setMaterialSearch] = useState('');
   const [savingMaterial, setSavingMaterial] = useState(false);
   const [materialTarget, setMaterialTarget] = useState(''); // '' = the plan itself, otherwise a rack marker id
+  const [pickingRackProduct, setPickingRackProduct] = useState(null); // { rackId, column } | null
   const [productSuggestions, setProductSuggestions] = useState(null); // lazy: elementId -> catalog item ids, most used first
   const [pickingPlaceProduct, setPickingPlaceProduct] = useState(false);
   const [pickingMarkerProduct, setPickingMarkerProduct] = useState(false);
@@ -397,10 +430,22 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     // never terminates at another rack.
     const placingRack = !!elementTypes.find(et => et.id === mode.elementId)?.is_rack;
     const rackMarkerId = placingRack ? null : (mode.rackMarkerId || nearestRackId(point));
+    // A second rack on the same job is built out of the same gear as the first,
+    // so it starts with it instead of an empty pair of lines.
+    const gear = placingRack
+      ? (() => {
+          const sibling = [...rackMarkers].reverse().find(r => r.rack_patch_panel_item_id || r.rack_switch_item_id);
+          return sibling ? {
+            rack_patch_panel_item_id: sibling.rack_patch_panel_item_id ?? null,
+            rack_switch_item_id: sibling.rack_switch_item_id ?? null,
+            rack_patch_panel_ports: sibling.rack_patch_panel_ports ?? null,
+          } : {};
+        })()
+      : {};
     const optimistic = {
       id: tempId, floor_plan_id: plan.id, element_id: mode.elementId || null,
       custom_icon_id: mode.customIconId || null, label, layer_id: activeLayerId,
-      catalog_item_id: mode.catalogItemId || null, rack_marker_id: rackMarkerId,
+      catalog_item_id: mode.catalogItemId || null, rack_marker_id: rackMarkerId, ...gear,
       cable_type_id: mode.cableTypeId || null, cable_feet: mode.cableFeet || null,
       pos_x: point.x, pos_y: point.y, sort_order: markers.length, quantity: 1,
     };
@@ -409,7 +454,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       floor_plan_id: plan.id, element_id: mode.elementId || null,
       custom_icon_id: mode.customIconId || null, label, pos_x: point.x, pos_y: point.y,
       sort_order: markers.length, layer_id: activeLayerId,
-      catalog_item_id: mode.catalogItemId || null, rack_marker_id: rackMarkerId,
+      catalog_item_id: mode.catalogItemId || null, rack_marker_id: rackMarkerId, ...gear,
       cable_type_id: mode.cableTypeId || null, cable_feet: mode.cableFeet || null,
     }]).select().single();
     if (error) {
@@ -889,6 +934,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
   async function deleteAccessory(id) {
     const removed = accessories.find(a => a.id === id);
+    if (removed && !confirm(t('confirms.deleteItem', { name: removed.name }))) return;
     setAccessories(prev => prev.filter(a => a.id !== id));
     const { error } = await supabase.from('floor_plan_marker_accessories').delete().eq('id', id);
     if (error) {
@@ -944,6 +990,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
   async function deletePlanMaterial(id) {
     const removed = planMaterials.find(m => m.id === id);
+    if (removed && !confirm(t('confirms.deleteItem', { name: removed.name }))) return;
     setPlanMaterials(prev => prev.filter(m => m.id !== id));
     const { error } = await supabase.from('floor_plan_materials').delete().eq('id', id);
     if (error) {
@@ -985,6 +1032,52 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const choosePatchPanelPorts = (room, ports) =>
     saveRoomSetting(room, 'rack_patch_panel_ports', room.ports === ports && (room.marker ? room.marker.rack_patch_panel_ports != null : planState.patch_panel_ports != null) ? null : ports);
   const saveCableManagers = (room, next) => saveRoomSetting(room, 'rack_cable_managers', next);
+
+  // What the panels and switches of one rack are ordered as. Per rack, because
+  // two rooms on one floor can be built out of different gear.
+  async function saveRackProduct(rack, column, itemId) {
+    const previous = rack[column] ?? null;
+    const next = itemId || null;
+    setMarkers(prev => prev.map(m => m.id === rack.id ? { ...m, [column]: next } : m));
+    setPickingRackProduct(null);
+    const { error } = await supabase.from('floor_plan_markers').update({ [column]: next }).eq('id', rack.id);
+    if (error) {
+      setMarkers(prev => prev.map(m => m.id === rack.id ? { ...m, [column]: previous } : m));
+      alert(t('errors.saveRackProductFailed', { error: error.message }));
+    }
+  }
+
+  // A derived line can't be deleted — the plan recomputes it on the next
+  // render — so a rack that doesn't need one excludes it, and can take it back.
+  async function setRoomLineHidden(room, line, hidden) {
+    if (!room.marker) return;
+    if (hidden && !confirm(t('confirms.hideRoomLine'))) return;
+    const previous = room.marker.rack_hidden_lines ?? [];
+    const next = hidden ? [...new Set([...previous, line])] : previous.filter(l => l !== line);
+    const id = room.marker.id;
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, rack_hidden_lines: next } : m));
+    const { error } = await supabase.from('floor_plan_markers').update({ rack_hidden_lines: next }).eq('id', id);
+    if (error) {
+      setMarkers(prev => prev.map(m => m.id === id ? { ...m, rack_hidden_lines: previous } : m));
+      alert(t('errors.saveRoomSettingFailed', { error: error.message }));
+    }
+  }
+
+  // 24 or 48 read off the product's own code or name. Only used to tell the
+  // installer that the product and the sizing disagree — never to change the
+  // sizing, which stays the toggle's call.
+  // What this plan's other racks are already ordered as — the first suggestion
+  // in the picker, since one job is normally built out of one kind of gear.
+  const rackProductSuggestions = column => {
+    const ids = [...new Set(rackMarkers.map(r => r[column]).filter(Boolean))];
+    return ids.map(productById).filter(Boolean);
+  };
+
+  const productPorts = product => {
+    if (!product) return null;
+    const match = `${product.item_code || ''} ${catalogItemLabel(product)}`.match(/\b(24|48)\b/);
+    return match ? Number(match[1]) : null;
+  };
 
   // Which rack a drop terminates at. Straight-line distance is not the cable
   // path, but it picks the right rack nearly every time and the panel can
@@ -1517,9 +1610,11 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const dropsByRack = new Map();
   for (const m of dropMarkers) {
     const key = m.rack_marker_id || NO_RACK;
-    dropsByRack.set(key, (dropsByRack.get(key) || 0) + (m.quantity ?? 1));
+    if (!dropsByRack.has(key)) dropsByRack.set(key, []);
+    dropsByRack.get(key).push(m);
   }
-  const buildRoom = (key, marker, drops) => {
+  const buildRoom = (key, marker, rackDrops) => {
+    const drops = rackDrops.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
     const ports = marker?.rack_patch_panel_ports ?? planPorts;
     const options = [24, 48].map(p => sizeRoom(drops, p));
     const derived = options.find(o => o.ports === ports) ?? options[0];
@@ -1527,14 +1622,30 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     const managers = overridden
       ? (marker ? marker.rack_cable_managers : planState.cable_managers)
       : derived.managers;
+    // The keystones in the room are the ones on the floor — read off the drops
+    // themselves rather than picked again here, which is the only way the two
+    // ends can't drift apart. Two keystones on one rack stay two lines.
+    const keystoneTally = new Map();
+    for (const m of rackDrops) {
+      const product = productById(m.catalog_item_id);
+      const label = product ? `${product.item_code} ${catalogItemLabel(product)}` : null;
+      const k = product?.id || '__none__';
+      if (!keystoneTally.has(k)) keystoneTally.set(k, { key: k, label, count: 0 });
+      keystoneTally.get(k).count += m.quantity ?? 1;
+    }
+    const keystones = [...keystoneTally.values()].sort((a, b) => b.count - a.count);
+    const hidden = new Set(marker?.rack_hidden_lines ?? []);
     return {
       key, marker, drops, options, ...derived, managers, managersOverridden: overridden,
+      keystones, hidden,
+      panelItem: productById(marker?.rack_patch_panel_item_id),
+      switchItem: productById(marker?.rack_switch_item_id),
       rackUnits: derived.rackUnits - derived.managers + managers,
     };
   };
   const rooms = rackMarkers
-    .map(rack => buildRoom(rack.id, rack, dropsByRack.get(rack.id) || 0))
-    .concat(dropsByRack.get(NO_RACK) ? [buildRoom(NO_RACK, null, dropsByRack.get(NO_RACK))] : []);
+    .map(rack => buildRoom(rack.id, rack, dropsByRack.get(rack.id) || []))
+    .concat(dropsByRack.has(NO_RACK) ? [buildRoom(NO_RACK, null, dropsByRack.get(NO_RACK))] : []);
   const dropCount = dropMarkers.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
   const planMaterialUnits = planMaterials.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
   // Sale price (catalog_items.price), not what the shop pays for it. Only the
@@ -1621,6 +1732,10 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             name: room.marker ? rackName(room.marker, i) : null,
             drops: room.drops, ports: room.ports, panels: room.panels, switches: room.switches,
             managers: room.managers, spare: room.spare, rackUnits: room.rackUnits, switchPorts: SWITCH_PORTS,
+            hidden: [...room.hidden],
+            keystones: room.keystones,
+            panelCode: room.panelItem?.item_code || '',
+            switchCode: room.switchItem?.item_code || '',
             items: room.marker ? markerAccessories(room.marker.id).map(a => ({
               name: a.name,
               code: productById(a.catalog_item_id)?.item_code || '',
@@ -2911,32 +3026,100 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('summary.rackNoDrops')}</p>
                 )}
                 {room.drops > 0 && (<>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
-                  <span style={{ flex: 1 }}>{t('summary.keystoneJacks')}</span>
-                  <span style={{ fontWeight: 700 }}>{room.drops}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
-                  <span style={{ flex: 1 }}>{t('summary.patchPanels', { ports: room.ports })}</span>
-                  <span style={{ fontWeight: 700 }}>{room.panels}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
-                  <span style={{ flex: 1 }}>{t('summary.switches', { ports: SWITCH_PORTS })}</span>
-                  <span style={{ fontWeight: 700 }}>{room.switches}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                  <span style={{ flex: 1, color: room.managers === 0 ? 'var(--muted)' : undefined }}>{t('summary.cableManagers')}</span>
-                  {room.managersOverridden && (
-                    <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 5px' }}
-                      title={t('summary.cableManagersAutoTitle', { count: room.options.find(o => o.ports === room.ports)?.managers ?? 0 })}
-                      onClick={() => saveCableManagers(room, null)}>↺</button>
-                  )}
-                  <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
-                    disabled={room.managers <= 0}
-                    onClick={() => saveCableManagers(room, Math.max(0, room.managers - 1))}>−</button>
-                  <span style={{ fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{room.managers}</span>
-                  <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
-                    onClick={() => saveCableManagers(room, room.managers + 1)}>+</button>
-                </div>
+                {/* Keystones read off the drops themselves, so both ends of the
+                    run are always the same product. */}
+                {!room.hidden.has('keystones') && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                      <span style={{ flex: 1 }}>{t('summary.keystoneJacks')}</span>
+                      <span style={{ fontWeight: 700 }}>{room.drops}</span>
+                      {room.marker && <LineHide onHide={() => setRoomLineHidden(room, 'keystones', true)} title={t('summary.hideLine')} />}
+                    </div>
+                    {room.keystones.map(k => (
+                      <div key={k.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 11, color: 'var(--muted)', paddingLeft: 10 }}>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.label || t('summary.noProduct')}</span>
+                        <span style={{ fontWeight: 700 }}>{k.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!room.hidden.has('panels') && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                      <span style={{ flex: 1 }}>{t('summary.patchPanels', { ports: room.ports })}</span>
+                      <span style={{ fontWeight: 700 }}>{room.panels}</span>
+                      {room.marker && <LineHide onHide={() => setRoomLineHidden(room, 'panels', true)} title={t('summary.hideLine')} />}
+                    </div>
+                    {room.marker && (
+                      <RoomProductLine
+                        product={room.panelItem}
+                        onPick={() => setPickingRackProduct({ rackId: room.marker.id, column: 'rack_patch_panel_item_id' })}
+                        onClear={() => saveRackProduct(room.marker, 'rack_patch_panel_item_id', null)}
+                        pickLabel={t('summary.pickProduct')} clearLabel={t('summary.clearProduct')}
+                      />
+                    )}
+                    {/* The toggle sizes the room; the product only says what to
+                        buy. When the two disagree, say so instead of guessing. */}
+                    {productPorts(room.panelItem) && productPorts(room.panelItem) !== room.ports && (
+                      <p style={{ fontSize: 10, color: 'var(--warn)', paddingLeft: 10, lineHeight: 1.4 }}>
+                        {t('summary.portsMismatch', { product: productPorts(room.panelItem), sizing: room.ports })}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {!room.hidden.has('switches') && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                      <span style={{ flex: 1 }}>{t('summary.switches', { ports: SWITCH_PORTS })}</span>
+                      <span style={{ fontWeight: 700 }}>{room.switches}</span>
+                      {room.marker && <LineHide onHide={() => setRoomLineHidden(room, 'switches', true)} title={t('summary.hideLine')} />}
+                    </div>
+                    {room.marker && (
+                      <RoomProductLine
+                        product={room.switchItem}
+                        onPick={() => setPickingRackProduct({ rackId: room.marker.id, column: 'rack_switch_item_id' })}
+                        onClear={() => saveRackProduct(room.marker, 'rack_switch_item_id', null)}
+                        pickLabel={t('summary.pickProduct')} clearLabel={t('summary.clearProduct')}
+                      />
+                    )}
+                  </div>
+                )}
+                {!room.hidden.has('managers') && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                    <span style={{ flex: 1, color: room.managers === 0 ? 'var(--muted)' : undefined }}>{t('summary.cableManagers')}</span>
+                    {room.managersOverridden && (
+                      <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 5px' }}
+                        title={t('summary.cableManagersAutoTitle', { count: room.options.find(o => o.ports === room.ports)?.managers ?? 0 })}
+                        onClick={() => saveCableManagers(room, null)}>↺</button>
+                    )}
+                    <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                      disabled={room.managers <= 0}
+                      onClick={() => saveCableManagers(room, Math.max(0, room.managers - 1))}>−</button>
+                    <span style={{ fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{room.managers}</span>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                      onClick={() => saveCableManagers(room, room.managers + 1)}>+</button>
+                    {room.marker && <LineHide onHide={() => setRoomLineHidden(room, 'managers', true)} title={t('summary.hideLine')} />}
+                  </div>
+                )}
+                {room.marker && pickingRackProduct?.rackId === room.marker.id && (
+                  <CatalogItemPicker
+                    products={catalogProducts}
+                    suggestions={rackProductSuggestions(pickingRackProduct.column)}
+                    onPick={p => saveRackProduct(room.marker, pickingRackProduct.column, p.id)}
+                    onCancel={() => setPickingRackProduct(null)}
+                  />
+                )}
+                {room.hidden.size > 0 && (
+                  <p style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.4 }}>
+                    {t('summary.hiddenLines')}{' '}
+                    {[...room.hidden].map(line => (
+                      <button key={line} type="button" onClick={() => setRoomLineHidden(room, line, false)}
+                        style={{ background: 'none', border: 'none', padding: '0 4px 0 0', color: 'var(--navy)', fontWeight: 700, cursor: 'pointer', font: 'inherit' }}>
+                        {t(`summary.line.${line}`)} ↺
+                      </button>
+                    ))}
+                  </p>
+                )}
                 </>)}
                 {items.map(item => (
                   <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>

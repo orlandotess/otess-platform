@@ -4643,7 +4643,18 @@
         "assignAllToNearest": "asignar al rack más cercano",
         "assignAllConfirm": "¿Asignar {count} toma(s) sin asignar al rack más cercano? Después puedes cambiar cualquiera una por una.",
         "materialTargetPlan": "Al plano (rack, ties, tornillería)",
-        "materialTargetRack": "A {name}"
+        "materialTargetRack": "A {name}",
+        "pickProduct": "producto",
+        "clearProduct": "Desenlazar el producto",
+        "hideLine": "Quitar esta línea del rack",
+        "hiddenLines": "Quitadas:",
+        "portsMismatch": "⚠ El producto es de {product} puertos y el cuarto está dimensionado a {sizing}. Manda el dimensionamiento — cambia el toggle o el producto.",
+        "line": {
+          "keystones": "Keystones",
+          "panels": "Patch panels",
+          "switches": "Switches",
+          "managers": "Cable managers"
+        }
       },
       "unitFeet": "{count} pies",
       "zoomFit": "Ajustar",
@@ -4655,7 +4666,9 @@
         "deleteCable": "¿Eliminar este cable?",
         "deleteLayer": "¿Eliminar la capa \"{name}\"? Sus equipos y cables quedarán sin capa.",
         "deleteCableType": "¿Eliminar el tipo de cable \"{name}\"? Sus cables quedarán sin tipo.",
-        "deletePlan": "¿Eliminar el plano \"{name}\"? Esta acción no se puede deshacer."
+        "deletePlan": "¿Eliminar el plano \"{name}\"? Esta acción no se puede deshacer.",
+        "hideRoomLine": "¿Quitar esta línea del rack? Deja de contar, y la puedes restaurar desde el resumen.",
+        "deleteItem": "¿Borrar “{name}” por completo?"
       },
       "errors": {
         "saveLinkFailed": "No se pudo guardar: {error}",

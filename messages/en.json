@@ -4643,7 +4643,18 @@
         "assignAllToNearest": "assign to the nearest rack",
         "assignAllConfirm": "Assign {count} unassigned drop(s) to their nearest rack? You can change any of them one by one afterwards.",
         "materialTargetPlan": "To the plan (rack, ties, hardware)",
-        "materialTargetRack": "To {name}"
+        "materialTargetRack": "To {name}",
+        "pickProduct": "product",
+        "clearProduct": "Unlink the product",
+        "hideLine": "Remove this line from the rack",
+        "hiddenLines": "Removed:",
+        "portsMismatch": "⚠ The product is {product} ports and the room is sized at {sizing}. The sizing wins — change the toggle or the product.",
+        "line": {
+          "keystones": "Keystones",
+          "panels": "Patch panels",
+          "switches": "Switches",
+          "managers": "Cable managers"
+        }
       },
       "unitFeet": "{count} ft",
       "zoomFit": "Fit",
@@ -4655,7 +4666,9 @@
         "deleteCable": "Delete this cable?",
         "deleteLayer": "Delete the layer \"{name}\"? Its equipment and cables will be left without a layer.",
         "deleteCableType": "Delete the cable type \"{name}\"? Its cables will be left without a type.",
-        "deletePlan": "Delete the plan \"{name}\"? This action cannot be undone."
+        "deletePlan": "Delete the plan \"{name}\"? This action cannot be undone.",
+        "hideRoomLine": "Remove this line from the rack? It stops counting, and you can restore it from the summary.",
+        "deleteItem": "Delete “{name}” completely?"
       },
       "errors": {
         "saveLinkFailed": "Could not save: {error}",
