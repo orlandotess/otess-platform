@@ -133,6 +133,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [addingMaterial, setAddingMaterial] = useState(false);
   const [materialSearch, setMaterialSearch] = useState('');
   const [savingMaterial, setSavingMaterial] = useState(false);
+  const [materialTarget, setMaterialTarget] = useState(''); // '' = the plan itself, otherwise a rack marker id
   const [productSuggestions, setProductSuggestions] = useState(null); // lazy: elementId -> catalog item ids, most used first
   const [pickingPlaceProduct, setPickingPlaceProduct] = useState(false);
   const [pickingMarkerProduct, setPickingMarkerProduct] = useState(false);
@@ -911,6 +912,19 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     setPlanMaterials(prev => [...prev, data]);
     setMaterialSearch('');
     setAddingMaterial(false);
+  }
+
+  // The destination decides where the row lands: the plan's own material list,
+  // or the rack's — which is the same list its "+ accesorio" writes to, so a
+  // room's items are one list no matter which button added them.
+  async function addMaterial({ name, catalogItemId = null }) {
+    if (materialTarget) {
+      await addAccessory(materialTarget, { name, catalogItemId });
+      setMaterialSearch('');
+      setAddingMaterial(false);
+      return;
+    }
+    await addPlanMaterial({ name, catalogItemId });
   }
 
   function adjustPlanMaterialQuantity(id, delta) {
@@ -2835,24 +2849,39 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               };
               return (
                 <div style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 6, marginTop: 4 }}>
+                  {/* One button, one question: where does this land. Material
+                      sent to a rack is an item of that rack's room, and lands
+                      in the same list its "+ accesorio" writes to. */}
+                  {rackMarkers.length > 0 && (
+                    <select
+                      value={materialTarget}
+                      onChange={e => setMaterialTarget(e.target.value)}
+                      style={{ width: '100%', fontSize: 12, padding: '4px 6px', marginBottom: 4 }}
+                    >
+                      <option value="">{t('summary.materialTargetPlan')}</option>
+                      {rackMarkers.map((rack, i) => (
+                        <option key={rack.id} value={rack.id}>{t('summary.materialTargetRack', { name: rackName(rack, i) })}</option>
+                      ))}
+                    </select>
+                  )}
                   <input
                     autoFocus
                     value={materialSearch}
                     onChange={e => setMaterialSearch(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') addPlanMaterial({ name: materialSearch }); }}
+                    onKeyDown={e => { if (e.key === 'Enter') addMaterial({ name: materialSearch }); }}
                     placeholder={t('summary.materialSearchPlaceholder')}
                     style={{ width: '100%', fontSize: 12, padding: '6px 8px' }}
                   />
                   {matches.map(ci => (
                     <button key={ci.id} type="button" disabled={savingMaterial}
-                      onClick={() => addPlanMaterial({ name: catalogItemLabel(ci), catalogItemId: ci.id })}
+                      onClick={() => addMaterial({ name: catalogItemLabel(ci), catalogItemId: ci.id })}
                       style={rowStyle}>
                       <span style={{ color: 'var(--muted)' }}>{ci.item_code}</span> {catalogItemLabel(ci)}
                     </button>
                   ))}
                   {query && (
                     <button type="button" disabled={savingMaterial}
-                      onClick={() => addPlanMaterial({ name: materialSearch })}
+                      onClick={() => addMaterial({ name: materialSearch })}
                       style={{ ...rowStyle, color: 'var(--amber)', fontWeight: 600 }}>
                       {t('summary.materialUseFreeText', { name: materialSearch.trim() })}
                     </button>
@@ -2910,9 +2939,17 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 </div>
                 </>)}
                 {items.map(item => (
-                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>{item.name}</span>
-                    <span style={{ fontWeight: 700 }}>{(item.quantity ?? 1) * (room.marker.quantity ?? 1)}</span>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                      disabled={(item.quantity ?? 1) <= 1}
+                      onClick={() => adjustAccessoryQuantity(item.id, -1)}>−</button>
+                    <span style={{ fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{(item.quantity ?? 1) * (room.marker.quantity ?? 1)}</span>
+                    <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                      onClick={() => adjustAccessoryQuantity(item.id, 1)}>+</button>
+                    <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 6px', color: 'var(--warn)' }}
+                      title={t('summary.removeMaterial')}
+                      onClick={() => deleteAccessory(item.id)}>🗑</button>
                   </div>
                 ))}
                 {room.drops > 0 && (

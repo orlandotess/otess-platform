@@ -4641,7 +4641,9 @@
         "addRoomItem": "agregar items",
         "rackNoDrops": "Sin tomas asignadas todavía",
         "assignAllToNearest": "asignar al rack más cercano",
-        "assignAllConfirm": "¿Asignar {count} toma(s) sin asignar al rack más cercano? Después puedes cambiar cualquiera una por una."
+        "assignAllConfirm": "¿Asignar {count} toma(s) sin asignar al rack más cercano? Después puedes cambiar cualquiera una por una.",
+        "materialTargetPlan": "Al plano (rack, ties, tornillería)",
+        "materialTargetRack": "A {name}"
       },
       "unitFeet": "{count} pies",
       "zoomFit": "Ajustar",

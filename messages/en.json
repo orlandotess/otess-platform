@@ -4641,7 +4641,9 @@
         "addRoomItem": "add items",
         "rackNoDrops": "No drops assigned yet",
         "assignAllToNearest": "assign to the nearest rack",
-        "assignAllConfirm": "Assign {count} unassigned drop(s) to their nearest rack? You can change any of them one by one afterwards."
+        "assignAllConfirm": "Assign {count} unassigned drop(s) to their nearest rack? You can change any of them one by one afterwards.",
+        "materialTargetPlan": "To the plan (rack, ties, hardware)",
+        "materialTargetRack": "To {name}"
       },
       "unitFeet": "{count} ft",
       "zoomFit": "Fit",
