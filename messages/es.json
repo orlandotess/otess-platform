@@ -1485,7 +1485,9 @@
       "switches": "Switch {ports} puertos",
       "cableManagers": "Cable managers",
       "extraMaterialsTotal": "TOTAL MATERIALES ADICIONALES ({lines, plural, one {# línea} other {# líneas}})",
-      "extraMaterialsCost": "PRECIO DE VENTA ({priced} de {lines} con precio)"
+      "extraMaterialsCost": "PRECIO DE VENTA ({priced} de {lines} con precio)",
+      "telecomRoomNamed": "CUARTO DE TELECOMUNICACIONES · {name}",
+      "telecomRoomUnassigned": "CUARTO DE TELECOMUNICACIONES · TOMAS SIN ASIGNAR"
     },
     "propuestaDataCsv": {
       "columnOption": "Opcion",
@@ -4496,7 +4498,9 @@
         "clearProduct": "Quitar el producto",
         "cableEstimate": "Cable",
         "clearCable": "Quitar el cable",
-        "doneCable": "Listo"
+        "doneCable": "Listo",
+        "nearestRack": "Rack más cercano",
+        "rackTitle": "Rack donde termina esta corrida"
       },
       "cableHint": {
         "start": "Clic en el equipo donde inicia el cable.",
@@ -4578,7 +4582,9 @@
         "newCableType": "Crear un tipo de cable nuevo",
         "minimize": "Minimizar",
         "expand": "Expandir",
-        "dragHint": "Arrastra para mover · doble clic para devolverlo"
+        "dragHint": "Arrastra para mover · doble clic para devolverlo",
+        "rack": "Rack",
+        "noRack": "Sin rack"
       },
       "cablePanel": {
         "noScale": "Sin escala definida",
@@ -4628,7 +4634,14 @@
         "extraMaterialsTotal": "Total ({lines, plural, one {# línea} other {# líneas}})",
         "extraMaterialsCost": "Precio de venta ({priced} de {lines} con precio)",
         "extraMaterialsNoPrices": "Estos materiales no tienen precio en el catálogo",
-        "extraMaterialsCostAll": "Precio de venta"
+        "extraMaterialsCostAll": "Precio de venta",
+        "telecomRoomNamed": "Cuarto de telecomunicaciones · {name}",
+        "telecomRoomUnassigned": "Cuarto de telecomunicaciones · tomas sin asignar",
+        "rackFallbackName": "Rack {number}",
+        "addRoomItem": "agregar items",
+        "rackNoDrops": "Sin tomas asignadas todavía",
+        "assignAllToNearest": "asignar al rack más cercano",
+        "assignAllConfirm": "¿Asignar {count} toma(s) sin asignar al rack más cercano? Después puedes cambiar cualquiera una por una."
       },
       "unitFeet": "{count} pies",
       "zoomFit": "Ajustar",
@@ -4691,7 +4704,9 @@
         "addMaterialFailed": "No se pudo agregar el material: {error}",
         "deleteMaterialFailed": "No se pudo eliminar el material, se restauró: {error}",
         "savePatchPanelFailed": "No se pudo guardar el tamaño del patch panel, se revirtió: {error}",
-        "saveCableManagersFailed": "No se pudieron guardar los cable managers, se revirtió: {error}"
+        "saveCableManagersFailed": "No se pudieron guardar los cable managers, se revirtió: {error}",
+        "saveRoomSettingFailed": "No se pudo guardar el ajuste del cuarto, se revirtió: {error}",
+        "saveRackFailed": "No se pudo guardar el rack, se revirtió: {error}"
       },
       "catalogPicker": {
         "searchPlaceholder": "Busca en el catálogo por código o nombre",

@@ -10,7 +10,7 @@ import { getEquipmentType } from './equipmentIcons';
 // and each one is broken down by the element it came from. Plan-level
 // materials (a rack, ties — migrations/2026-09-06-plan-materials-and-idf.sql)
 // and the derived telecom room get blocks of their own.
-export function exportEquipmentListCSV(markers, elementTypes, customIcons, cables, feetPerPixel, cableLengthFeet, planName, t, tEquipmentTypes, accessories = [], catalogProducts = [], cableTypes = [], planMaterials = [], telecomRoom = null) {
+export function exportEquipmentListCSV(markers, elementTypes, customIcons, cables, feetPerPixel, cableLengthFeet, planName, t, tEquipmentTypes, accessories = [], catalogProducts = [], cableTypes = [], planMaterials = [], telecomRooms = []) {
   if (!markers?.length) { alert(t('noEquipmentAlert')); return; }
 
   const productById = id => (id ? catalogProducts.find(p => p.id === id) : null);
@@ -129,14 +129,18 @@ export function exportEquipmentListCSV(markers, elementTypes, customIcons, cable
     }
   }
 
-  if (telecomRoom && telecomRoom.dropCount > 0) {
+  // One block per rack: each one terminates its own drops and is sized on its
+  // own, so the list can be pulled rack by rack in the field.
+  for (const room of telecomRooms) {
+    if (room.drops === 0 && room.items.length === 0) continue;
     csvRows.push(['', '', '']);
-    csvRows.push([t('telecomRoom'), '', '']);
-    csvRows.push([`  ${t('keystoneJacks')}`, '', telecomRoom.dropCount]);
-    csvRows.push([`  ${t('patchPanels', { ports: telecomRoom.ports })}`, '', telecomRoom.panels]);
-    csvRows.push([`  ${t('switches', { ports: telecomRoom.switchPorts })}`, '', telecomRoom.switches]);
-    csvRows.push([`  ${t('cableManagers')}`, '', telecomRoom.managers]);
-    csvRows.push([`    ${t('patchPanelSpare', { spare: telecomRoom.spare, units: telecomRoom.rackUnits })}`, '', '']);
+    csvRows.push([room.name ? t('telecomRoomNamed', { name: room.name }) : t('telecomRoomUnassigned'), '', '']);
+    csvRows.push([`  ${t('keystoneJacks')}`, '', room.drops]);
+    csvRows.push([`  ${t('patchPanels', { ports: room.ports })}`, '', room.panels]);
+    csvRows.push([`  ${t('switches', { ports: room.switchPorts })}`, '', room.switches]);
+    csvRows.push([`  ${t('cableManagers')}`, '', room.managers]);
+    for (const item of room.items) csvRows.push([`  ${item.name}`, item.code, item.quantity]);
+    csvRows.push([`    ${t('patchPanelSpare', { spare: room.spare, units: room.rackUnits })}`, '', '']);
   }
 
   // Cable per type: the feet each equipment estimates plus whatever was traced

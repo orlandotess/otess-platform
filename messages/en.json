@@ -1485,7 +1485,9 @@
       "switches": "Switch {ports} ports",
       "cableManagers": "Cable managers",
       "extraMaterialsTotal": "TOTAL EXTRA MATERIALS ({lines, plural, one {# line} other {# lines}})",
-      "extraMaterialsCost": "SALE PRICE ({priced} of {lines} priced)"
+      "extraMaterialsCost": "SALE PRICE ({priced} of {lines} priced)",
+      "telecomRoomNamed": "TELECOM ROOM · {name}",
+      "telecomRoomUnassigned": "TELECOM ROOM · UNASSIGNED DROPS"
     },
     "propuestaDataCsv": {
       "columnOption": "Option",
@@ -4496,7 +4498,9 @@
         "clearProduct": "Remove the product",
         "cableEstimate": "Cable",
         "clearCable": "Remove the cable",
-        "doneCable": "Done"
+        "doneCable": "Done",
+        "nearestRack": "Nearest rack",
+        "rackTitle": "Rack this run terminates at"
       },
       "cableHint": {
         "start": "Click the equipment where the cable starts.",
@@ -4578,7 +4582,9 @@
         "newCableType": "Create a new cable type",
         "minimize": "Minimize",
         "expand": "Expand",
-        "dragHint": "Drag to move · double-click to reset"
+        "dragHint": "Drag to move · double-click to reset",
+        "rack": "Rack",
+        "noRack": "No rack"
       },
       "cablePanel": {
         "noScale": "No scale defined",
@@ -4628,7 +4634,14 @@
         "extraMaterialsTotal": "Total ({lines, plural, one {# line} other {# lines}})",
         "extraMaterialsCost": "Sale price ({priced} of {lines} priced)",
         "extraMaterialsNoPrices": "No catalog prices on these materials",
-        "extraMaterialsCostAll": "Sale price"
+        "extraMaterialsCostAll": "Sale price",
+        "telecomRoomNamed": "Telecom room · {name}",
+        "telecomRoomUnassigned": "Telecom room · unassigned drops",
+        "rackFallbackName": "Rack {number}",
+        "addRoomItem": "add items",
+        "rackNoDrops": "No drops assigned yet",
+        "assignAllToNearest": "assign to the nearest rack",
+        "assignAllConfirm": "Assign {count} unassigned drop(s) to their nearest rack? You can change any of them one by one afterwards."
       },
       "unitFeet": "{count} ft",
       "zoomFit": "Fit",
@@ -4691,7 +4704,9 @@
         "addMaterialFailed": "Could not add the material: {error}",
         "deleteMaterialFailed": "Could not delete the material, it was restored: {error}",
         "savePatchPanelFailed": "Could not save the patch panel size, it was reverted: {error}",
-        "saveCableManagersFailed": "Could not save the cable managers, it was reverted: {error}"
+        "saveCableManagersFailed": "Could not save the cable managers, it was reverted: {error}",
+        "saveRoomSettingFailed": "Could not save the room setting, it was reverted: {error}",
+        "saveRackFailed": "Could not save the rack, it was reverted: {error}"
       },
       "catalogPicker": {
         "searchPlaceholder": "Search the catalog by code or name",

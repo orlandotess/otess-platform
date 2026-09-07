@@ -24,6 +24,7 @@ const WHEEL_ZOOM_INTENSITY = 0.0018;
 
 const LAYER_COLORS = ['#2a4cb5', '#1a7a4a', '#e0972c', '#8e44ad', '#c0392b', '#0891b2', '#4b5563'];
 const NO_LAYER = '__none__';
+const NO_RACK = '__norack__';
 // Telecom room: the switch this shop racks (48 ports) and the panel size a room
 // starts at. 24s sandwich a switch between two panels and save the horizontal
 // cable managers, but 48 is the size this shop specs by default; the toggle
@@ -132,7 +133,6 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [addingMaterial, setAddingMaterial] = useState(false);
   const [materialSearch, setMaterialSearch] = useState('');
   const [savingMaterial, setSavingMaterial] = useState(false);
-  const [savingPatchPanel, setSavingPatchPanel] = useState(false);
   const [productSuggestions, setProductSuggestions] = useState(null); // lazy: elementId -> catalog item ids, most used first
   const [pickingPlaceProduct, setPickingPlaceProduct] = useState(false);
   const [pickingMarkerProduct, setPickingMarkerProduct] = useState(false);
@@ -391,10 +391,15 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     // that series going.
     const seriesPrefix = markerName({ element_id: mode.elementId || null, custom_icon_id: mode.customIconId || null });
     const label = seriesPrefix ? joinLabel(seriesPrefix, nextLabelNumber(markers, seriesPrefix)) : null;
+    // The rack armed in the toolbar carries the whole run; without one the drop
+    // takes the nearest rack, which beats leaving it unassigned. A rack itself
+    // never terminates at another rack.
+    const placingRack = !!elementTypes.find(et => et.id === mode.elementId)?.is_rack;
+    const rackMarkerId = placingRack ? null : (mode.rackMarkerId || nearestRackId(point));
     const optimistic = {
       id: tempId, floor_plan_id: plan.id, element_id: mode.elementId || null,
       custom_icon_id: mode.customIconId || null, label, layer_id: activeLayerId,
-      catalog_item_id: mode.catalogItemId || null,
+      catalog_item_id: mode.catalogItemId || null, rack_marker_id: rackMarkerId,
       cable_type_id: mode.cableTypeId || null, cable_feet: mode.cableFeet || null,
       pos_x: point.x, pos_y: point.y, sort_order: markers.length, quantity: 1,
     };
@@ -403,7 +408,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       floor_plan_id: plan.id, element_id: mode.elementId || null,
       custom_icon_id: mode.customIconId || null, label, pos_x: point.x, pos_y: point.y,
       sort_order: markers.length, layer_id: activeLayerId,
-      catalog_item_id: mode.catalogItemId || null,
+      catalog_item_id: mode.catalogItemId || null, rack_marker_id: rackMarkerId,
       cable_type_id: mode.cableTypeId || null, cable_feet: mode.cableFeet || null,
     }]).select().single();
     if (error) {
@@ -937,27 +942,88 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   // The panel size is the only part of the room that is a decision; everything
   // else is derived from the plan on every render.
   // How many cable managers go in depends on the rack the installer draws, so
-  // the derived number is only a starting point: null goes back to it.
-  async function saveCableManagers(next) {
-    const previous = planState.cable_managers ?? null;
-    setPlanState(prev => ({ ...prev, cable_managers: next }));
-    const { error } = await supabase.from('floor_plans').update({ cable_managers: next }).eq('id', plan.id);
+  // the derived number is only a starting point: null goes back to it. Both
+  // settings live on the rack marker, falling back to the plan-wide default for
+  // the drops that no rack has claimed yet.
+  async function saveRoomSetting(room, column, next) {
+    const planColumn = column === 'rack_cable_managers' ? 'cable_managers' : 'patch_panel_ports';
+    if (!room.marker) {
+      const previous = planState[planColumn] ?? null;
+      setPlanState(prev => ({ ...prev, [planColumn]: next }));
+      const { error } = await supabase.from('floor_plans').update({ [planColumn]: next }).eq('id', plan.id);
+      if (error) {
+        setPlanState(prev => ({ ...prev, [planColumn]: previous }));
+        alert(t('errors.saveRoomSettingFailed', { error: error.message }));
+      }
+      return;
+    }
+    const id = room.marker.id;
+    const previous = room.marker[column] ?? null;
+    setMarkers(prev => prev.map(m => m.id === id ? { ...m, [column]: next } : m));
+    const { error } = await supabase.from('floor_plan_markers').update({ [column]: next }).eq('id', id);
     if (error) {
-      setPlanState(prev => ({ ...prev, cable_managers: previous }));
-      alert(t('errors.saveCableManagersFailed', { error: error.message }));
+      setMarkers(prev => prev.map(m => m.id === id ? { ...m, [column]: previous } : m));
+      alert(t('errors.saveRoomSettingFailed', { error: error.message }));
     }
   }
 
-  async function choosePatchPanelPorts(ports) {
-    const previous = planState.patch_panel_ports ?? null;
-    const next = previous === ports ? null : ports; // clicking the current size goes back to the recommendation
-    setPlanState(prev => ({ ...prev, patch_panel_ports: next }));
-    setSavingPatchPanel(true);
-    const { error } = await supabase.from('floor_plans').update({ patch_panel_ports: next }).eq('id', plan.id);
-    setSavingPatchPanel(false);
+  // Clicking the size a room already uses goes back to the plan-wide default.
+  const choosePatchPanelPorts = (room, ports) =>
+    saveRoomSetting(room, 'rack_patch_panel_ports', room.ports === ports && (room.marker ? room.marker.rack_patch_panel_ports != null : planState.patch_panel_ports != null) ? null : ports);
+  const saveCableManagers = (room, next) => saveRoomSetting(room, 'rack_cable_managers', next);
+
+  // Which rack a drop terminates at. Straight-line distance is not the cable
+  // path, but it picks the right rack nearly every time and the panel can
+  // change it — far better than leaving a run unassigned.
+  function nearestRackId(pos) {
+    if (rackMarkers.length === 0) return null;
+    let best = null;
+    let bestDist = Infinity;
+    for (const rack of rackMarkers) {
+      const d = (rack.pos_x - pos.x) ** 2 + (rack.pos_y - pos.y) ** 2;
+      if (d < bestDist) { bestDist = d; best = rack.id; }
+    }
+    return best;
+  }
+
+  // Assigning 113 existing drops one by one is not a thing anyone will do, so
+  // the unassigned block can hand them all to their nearest rack at once.
+  async function assignAllToNearestRack() {
+    const targets = dropMarkers.filter(m => !m.rack_marker_id);
+    if (!targets.length || rackMarkers.length === 0) return;
+    if (!confirm(t('summary.assignAllConfirm', { count: targets.length }))) return;
+    const byRack = new Map();
+    for (const m of targets) {
+      const rackId = nearestRackId({ x: m.pos_x, y: m.pos_y });
+      if (!rackId) continue;
+      if (!byRack.has(rackId)) byRack.set(rackId, []);
+      byRack.get(rackId).push(m.id);
+    }
+    const previous = markers;
+    setMarkers(prev => prev.map(m => {
+      for (const [rackId, ids] of byRack) if (ids.includes(m.id)) return { ...m, rack_marker_id: rackId };
+      return m;
+    }));
+    for (const [rackId, ids] of byRack) {
+      const { error } = await supabase.from('floor_plan_markers').update({ rack_marker_id: rackId }).in('id', ids);
+      if (error) {
+        setMarkers(previous);
+        alert(t('errors.saveRackFailed', { error: error.message }));
+        return;
+      }
+    }
+  }
+
+  async function assignMarkerRack(markerId, rackId) {
+    const marker = markerById(markerId);
+    const previous = marker?.rack_marker_id ?? null;
+    const next = rackId || null;
+    if (previous === next) return;
+    setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, rack_marker_id: next } : m));
+    const { error } = await supabase.from('floor_plan_markers').update({ rack_marker_id: next }).eq('id', markerId);
     if (error) {
-      setPlanState(prev => ({ ...prev, patch_panel_ports: previous }));
-      alert(t('errors.savePatchPanelFailed', { error: error.message }));
+      setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, rack_marker_id: previous } : m));
+      alert(t('errors.saveRackFailed', { error: error.message }));
     }
   }
 
@@ -1315,6 +1381,12 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
   const isLayerVisible = layerId => !hiddenLayerIds.has(layerId || NO_LAYER);
   const visibleMarkers = markers.filter(m => isLayerVisible(m.layer_id));
+  // A rack is the telecom room itself: it terminates drops and sizes its own
+  // kit (migrations/2026-09-07-racks-per-plan.sql). It still counts as
+  // equipment — it is equipment you install — but never as a drop.
+  const isRackMarker = m => !!getMarkerElement(m, elementTypes)?.is_rack;
+  const rackMarkers = visibleMarkers.filter(isRackMarker);
+  const rackName = (rack, index) => rack.label || t('summary.rackFallbackName', { number: index + 1 });
   const visibleCables = cables.filter(c => isLayerVisible(c.layer_id));
 
   const counts = [];
@@ -1374,6 +1446,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
   const accessoryTally = new Map();
   for (const m of visibleMarkers) {
+    if (isRackMarker(m)) continue; // a rack's accessories are its room's items
     const markerQty = m.quantity ?? 1;
     const source = markerSourceLabel(m);
     for (const a of markerAccessories(m.id)) {
@@ -1397,27 +1470,58 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   // of equipment with a cable run assigned; on a plan where nobody assigned
   // cable yet, the whole equipment count is the number the tech would have
   // used by hand, so that is the fallback.
-  const equipmentUnits = visibleMarkers.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
-  const cabledUnits = visibleMarkers.reduce((sum, m) => sum + (m.cable_type_id ? (m.quantity ?? 1) : 0), 0);
-  const dropCount = cabledUnits > 0 ? cabledUnits : equipmentUnits;
+  // A drop is equipment with a cable run assigned; a rack terminates drops, it
+  // never is one. On a plan where nobody assigned cable yet, every piece of
+  // equipment is the number the tech would have counted by hand, so that is the
+  // fallback.
+  const dropCandidates = visibleMarkers.filter(m => !isRackMarker(m));
+  const cabledDrops = dropCandidates.filter(m => m.cable_type_id);
+  const dropMarkers = cabledDrops.length > 0 ? cabledDrops : dropCandidates;
+  const dropsFromCable = cabledDrops.length > 0;
+
   // Panels sized at 24 can sandwich a 48-port switch — one above, one below —
   // so every patch cord crosses a single rack unit and the pair needs no
   // horizontal cable manager. At 48 the sandwich breaks and a manager goes back
   // between each panel and its switch. The size is the installer's call; the
   // rest of the kit follows it, and the manager count is only a starting
-  // number (see saveCableManagers).
-  const patchPanelOptions = [24, 48].map(ports => {
-    const panels = Math.ceil(dropCount / ports);
-    const switches = Math.ceil(dropCount / SWITCH_PORTS);
+  // number (see saveRackCableManagers).
+  const sizeRoom = (drops, ports) => {
+    const panels = Math.ceil(drops / ports);
+    const switches = Math.ceil(drops / SWITCH_PORTS);
     const managers = ports * 2 === SWITCH_PORTS ? 0 : panels;
     return {
       ports, panels, switches, managers,
-      spare: panels * ports - dropCount,
+      spare: panels * ports - drops,
       rackUnits: panels * (ports > 24 ? 2 : 1) + switches + managers,
     };
-  });
-  const chosenPorts = planState.patch_panel_ports ?? DEFAULT_PATCH_PANEL_PORTS;
-  const patchPanel = patchPanelOptions.find(o => o.ports === chosenPorts) ?? patchPanelOptions[0];
+  };
+
+  // One room per rack: a rack with 38 drops is one 48-port panel, not a slice
+  // of a plan-wide total. Drops nobody assigned get a room of their own rather
+  // than falling off the purchase list.
+  const planPorts = planState.patch_panel_ports ?? DEFAULT_PATCH_PANEL_PORTS;
+  const dropsByRack = new Map();
+  for (const m of dropMarkers) {
+    const key = m.rack_marker_id || NO_RACK;
+    dropsByRack.set(key, (dropsByRack.get(key) || 0) + (m.quantity ?? 1));
+  }
+  const buildRoom = (key, marker, drops) => {
+    const ports = marker?.rack_patch_panel_ports ?? planPorts;
+    const options = [24, 48].map(p => sizeRoom(drops, p));
+    const derived = options.find(o => o.ports === ports) ?? options[0];
+    const overridden = marker ? marker.rack_cable_managers != null : planState.cable_managers != null;
+    const managers = overridden
+      ? (marker ? marker.rack_cable_managers : planState.cable_managers)
+      : derived.managers;
+    return {
+      key, marker, drops, options, ...derived, managers, managersOverridden: overridden,
+      rackUnits: derived.rackUnits - derived.managers + managers,
+    };
+  };
+  const rooms = rackMarkers
+    .map(rack => buildRoom(rack.id, rack, dropsByRack.get(rack.id) || 0))
+    .concat(dropsByRack.get(NO_RACK) ? [buildRoom(NO_RACK, null, dropsByRack.get(NO_RACK))] : []);
+  const dropCount = dropMarkers.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
   const planMaterialUnits = planMaterials.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
   // Sale price (catalog_items.price), not what the shop pays for it. Only the
   // materials picked from the catalog carry one; a free-typed one never will,
@@ -1426,9 +1530,6 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const pricedMaterials = planMaterials.filter(m => productById(m.catalog_item_id)?.price != null);
   const planMaterialCost = pricedMaterials.reduce(
     (sum, m) => sum + Number(productById(m.catalog_item_id).price) * (m.quantity ?? 1), 0);
-  const managersOverridden = planState.cable_managers != null;
-  const cableManagerCount = managersOverridden ? planState.cable_managers : patchPanel.managers;
-  const telecomRackUnits = patchPanel.rackUnits - patchPanel.managers + cableManagerCount;
 
   // Cable per type: what the equipment estimates plus what was traced on the
   // plan (only measurable with a scale), and the boxes to order for the sum —
@@ -1502,7 +1603,16 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">{t('header.viewOriginal')}</a>}
-          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes, accessories, catalogProducts, cableTypesState, planMaterials, { dropCount, switchPorts: SWITCH_PORTS, ...patchPanel, managers: cableManagerCount, rackUnits: telecomRackUnits })}>⬇️ {t('header.exportList')}</button>
+          <button className="btn btn-ghost" onClick={() => exportEquipmentListCSV(markers, elementTypes, customIconsState, cables, feetPerPixel, cableLengthFeet, plan.name, tEquipmentCsv, tEquipmentTypes, accessories, catalogProducts, cableTypesState, planMaterials, rooms.map((room, i) => ({
+            name: room.marker ? rackName(room.marker, i) : null,
+            drops: room.drops, ports: room.ports, panels: room.panels, switches: room.switches,
+            managers: room.managers, spare: room.spare, rackUnits: room.rackUnits, switchPorts: SWITCH_PORTS,
+            items: room.marker ? markerAccessories(room.marker.id).map(a => ({
+              name: a.name,
+              code: productById(a.catalog_item_id)?.item_code || '',
+              quantity: (a.quantity ?? 1) * (room.marker.quantity ?? 1),
+            })) : [],
+          })))}>⬇️ {t('header.exportList')}</button>
           {canDeletePlan && <button className="btn btn-ghost" disabled={deleting} onClick={handleDeletePlan} style={{ color: 'var(--warn)' }}>{t('header.deletePlan')}</button>}
           <Link href={currentRole === 'tecnico' ? '/crew' : '/planos'} className="btn btn-ghost">← {t('header.back')}</Link>
         </div>
@@ -1587,6 +1697,19 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
               >
                 + {t('toolbar.cableEstimate')}
               </button>
+            )}
+            {/* Which rack this run terminates at. Armed once, it carries the
+                whole run; left on "nearest", each drop takes the closest rack. */}
+            {rackMarkers.length > 0 && !elementTypes.find(et => et.id === mode.elementId)?.is_rack && (
+              <select
+                value={mode.rackMarkerId || ''}
+                onChange={e => setMode(m => ({ ...m, rackMarkerId: e.target.value || null }))}
+                title={t('toolbar.rackTitle')}
+                style={{ fontSize: 11, padding: '2px 4px', maxWidth: 150 }}
+              >
+                <option value="">{t('toolbar.nearestRack')}</option>
+                {rackMarkers.map((rack, i) => <option key={rack.id} value={rack.id}>{rackName(rack, i)}</option>)}
+              </select>
             )}
             <button type="button" onClick={() => { setMode('select'); setPickingPlaceProduct(false); setPickingPlaceCable(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0, lineHeight: 1 }}>×</button>
           </span>
@@ -2420,6 +2543,20 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   </div>
                 );
               })()}
+              {/* Where this drop terminates. A rack has no rack of its own. */}
+              {rackMarkers.length > 0 && !isRackMarker(selectedMarker) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>{t('markerPanel.rack')}</span>
+                  <select
+                    value={selectedMarker.rack_marker_id || ''}
+                    onChange={e => assignMarkerRack(selectedMarker.id, e.target.value)}
+                    style={{ flex: 1, fontSize: 12, padding: '4px 6px', minWidth: 0 }}
+                  >
+                    <option value="">{t('markerPanel.noRack')}</option>
+                    {rackMarkers.map((rack, i) => <option key={rack.id} value={rack.id}>{rackName(rack, i)}</option>)}
+                  </select>
+                </div>
+              )}
               {(() => {
                 const markerQty = selectedMarker.quantity ?? 1;
                 const feet = selectedMarker.cable_feet;
@@ -2727,59 +2864,101 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
           {/* Telecom room: derived from the plan, one keystone and one panel
               port per drop. Only the panel size is a decision. */}
-          {dropCount > 0 && (
-            <div style={{ marginTop: 8 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{t('summary.telecomRoom')}</p>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
-                <span style={{ flex: 1 }}>{t('summary.keystoneJacks')}</span>
-                <span style={{ fontWeight: 700 }}>{dropCount}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
-                <span style={{ flex: 1 }}>{t('summary.patchPanels', { ports: patchPanel.ports })}</span>
-                <span style={{ fontWeight: 700 }}>{patchPanel.panels}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
-                <span style={{ flex: 1 }}>{t('summary.switches', { ports: SWITCH_PORTS })}</span>
-                <span style={{ fontWeight: 700 }}>{patchPanel.switches}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                <span style={{ flex: 1, color: cableManagerCount === 0 ? 'var(--muted)' : undefined }}>{t('summary.cableManagers')}</span>
-                {managersOverridden && (
-                  <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 5px' }}
-                    title={t('summary.cableManagersAutoTitle', { count: patchPanel.managers })}
-                    onClick={() => saveCableManagers(null)}>↺</button>
+          {rooms.map((room, roomIndex) => {
+            // Loose items the installer added to the rack itself — patch cords,
+            // a ground bar — ride on the rack marker as accessories, the same
+            // way a faceplate rides on a jack.
+            const items = room.marker ? markerAccessories(room.marker.id) : [];
+            return (
+              <div key={room.key} style={{ marginTop: 8 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>
+                  {room.marker
+                    ? t('summary.telecomRoomNamed', { name: rackName(room.marker, roomIndex) })
+                    : t('summary.telecomRoomUnassigned')}
+                </p>
+                {/* A rack nobody has pointed a drop at yet is all zeros; say so
+                    once instead of printing a column of them. */}
+                {room.drops === 0 && (
+                  <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{t('summary.rackNoDrops')}</p>
                 )}
-                <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
-                  disabled={cableManagerCount <= 0}
-                  onClick={() => saveCableManagers(Math.max(0, cableManagerCount - 1))}>−</button>
-                <span style={{ fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{cableManagerCount}</span>
-                <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
-                  onClick={() => saveCableManagers(cableManagerCount + 1)}>+</button>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                {patchPanelOptions.map(opt => (
-                  <button
-                    key={opt.ports} type="button" disabled={savingPatchPanel}
-                    onClick={() => choosePatchPanelPorts(opt.ports)}
-                    title={t('summary.patchPanelOptionTitle', { panels: opt.panels, spare: opt.spare, units: opt.rackUnits, switches: opt.switches, managers: opt.managers })}
-                    style={{
-                      flex: 1, fontSize: 11, padding: '3px 6px', borderRadius: 6, cursor: 'pointer',
-                      border: opt.ports === chosenPorts ? '1.5px solid var(--navy)' : '1px solid var(--border)',
-                      background: opt.ports === chosenPorts ? 'var(--info-tint)' : 'transparent',
-                      fontWeight: opt.ports === chosenPorts ? 700 : 500, color: 'var(--text)',
-                    }}
-                  >
-                    {t('summary.patchPanelSize', { ports: opt.ports, panels: opt.panels })}
-                  </button>
+                {room.drops > 0 && (<>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+                  <span style={{ flex: 1 }}>{t('summary.keystoneJacks')}</span>
+                  <span style={{ fontWeight: 700 }}>{room.drops}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+                  <span style={{ flex: 1 }}>{t('summary.patchPanels', { ports: room.ports })}</span>
+                  <span style={{ fontWeight: 700 }}>{room.panels}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+                  <span style={{ flex: 1 }}>{t('summary.switches', { ports: SWITCH_PORTS })}</span>
+                  <span style={{ fontWeight: 700 }}>{room.switches}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <span style={{ flex: 1, color: room.managers === 0 ? 'var(--muted)' : undefined }}>{t('summary.cableManagers')}</span>
+                  {room.managersOverridden && (
+                    <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 5px' }}
+                      title={t('summary.cableManagersAutoTitle', { count: room.options.find(o => o.ports === room.ports)?.managers ?? 0 })}
+                      onClick={() => saveCableManagers(room, null)}>↺</button>
+                  )}
+                  <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                    disabled={room.managers <= 0}
+                    onClick={() => saveCableManagers(room, Math.max(0, room.managers - 1))}>−</button>
+                  <span style={{ fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{room.managers}</span>
+                  <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                    onClick={() => saveCableManagers(room, room.managers + 1)}>+</button>
+                </div>
+                </>)}
+                {items.map(item => (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 12 }}>
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>{item.name}</span>
+                    <span style={{ fontWeight: 700 }}>{(item.quantity ?? 1) * (room.marker.quantity ?? 1)}</span>
+                  </div>
                 ))}
+                {room.drops > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                  {room.options.map(opt => (
+                    <button
+                      key={opt.ports} type="button"
+                      onClick={() => choosePatchPanelPorts(room, opt.ports)}
+                      title={t('summary.patchPanelOptionTitle', { panels: opt.panels, spare: opt.spare, units: opt.rackUnits, switches: opt.switches, managers: opt.managers })}
+                      style={{
+                        flex: 1, fontSize: 11, padding: '3px 6px', borderRadius: 6, cursor: 'pointer',
+                        border: opt.ports === room.ports ? '1.5px solid var(--navy)' : '1px solid var(--border)',
+                        background: opt.ports === room.ports ? 'var(--info-tint)' : 'transparent',
+                        fontWeight: opt.ports === room.ports ? 700 : 500, color: 'var(--text)',
+                      }}
+                    >
+                      {t('summary.patchPanelSize', { ports: opt.ports, panels: opt.panels })}
+                    </button>
+                  ))}
+                </div>
+                )}
+                <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
+                  {room.drops > 0 && (<>
+                    {t('summary.patchPanelSpare', { spare: room.spare, units: room.rackUnits })}
+                    {room.managers === 0 && ` · ${t('summary.noManagersNeeded')}`}
+                    {' · '}
+                  </>)}
+                  {room.marker ? (
+                    <button type="button" onClick={() => setSelectedMarkerId(room.marker.id)}
+                      style={{ background: 'none', border: 'none', padding: 0, color: 'var(--navy)', fontWeight: 700, cursor: 'pointer', font: 'inherit' }}>
+                      {t('summary.addRoomItem')}
+                    </button>
+                  ) : rackMarkers.length > 0 && (
+                    <button type="button" onClick={assignAllToNearestRack}
+                      style={{ background: 'none', border: 'none', padding: 0, color: 'var(--navy)', fontWeight: 700, cursor: 'pointer', font: 'inherit' }}>
+                      {t('summary.assignAllToNearest')}
+                    </button>
+                  )}
+                </p>
               </div>
-              <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
-                {t('summary.patchPanelSpare', { spare: patchPanel.spare, units: telecomRackUnits })}
-                {cableManagerCount === 0 && patchPanel.managers === 0 && ` · ${t('summary.noManagersNeeded')}`}
-                {' · '}
-                {cabledUnits > 0 ? t('summary.dropsFromCable', { count: dropCount }) : t('summary.dropsFromEquipment', { count: dropCount })}
-              </p>
-            </div>
+            );
+          })}
+          {rooms.length > 0 && (
+            <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
+              {dropsFromCable ? t('summary.dropsFromCable', { count: dropCount }) : t('summary.dropsFromEquipment', { count: dropCount })}
+            </p>
           )}
           {cableFootage.length > 0 && (
             <div style={{ marginTop: 8 }}>
