@@ -7,6 +7,7 @@ import ClientCombobox from '../facturas/nueva/ClientCombobox';
 import LineItemRow from '../LineItemRow';
 import LineItemPicker from '../LineItemPicker';
 import CableCalculator from '../CableCalculator';
+import PlanImportModal from '../PlanImportModal';
 import TaxBreakdown from '../TaxBreakdown';
 import { calcularIVU, tasaParaLinea, aplicarDescuento } from '../../lib/tax';
 import { useTranslations } from 'next-intl';
@@ -108,6 +109,7 @@ export default function EstimateForm({ initialData = null }) {
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — item currently being dragged
   const [dragArea, setDragArea] = useState(null); // areaKey — area currently being dragged, for reordering areas
   const [cableCalcTarget, setCableCalcTarget] = useState(null); // { areaKey } — which area the calculator adds into, or null when closed
+  const [planImportTarget, setPlanImportTarget] = useState(null); // { areaKey } — which area a floor plan's list lands in, or null when closed
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -898,6 +900,7 @@ export default function EstimateForm({ initialData = null }) {
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key, { type: 'product', tax_category: 'product' })}>{t('addProduct')}</button>
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key)}>{t('addLabor')}</button>
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ areaKey: area.key })}>{t('calculateCable')}</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setPlanImportTarget({ areaKey: area.key })}>{t('importFromPlan')}</button>
                   </div>
                 </div>
               ))}
@@ -969,6 +972,17 @@ export default function EstimateForm({ initialData = null }) {
             catalogItems={catalogItems}
             onAdd={item => { addPrefilledItem(cableCalcTarget.areaKey, item); setCableCalcTarget(null); }}
             onClose={() => setCableCalcTarget(null)}
+          />
+        )}
+        {/* A floor plan's item list, landing as one line per article. Same
+            onAdd the calculator uses, so nothing here had to learn a new shape. */}
+        {planImportTarget && (
+          <PlanImportModal
+            catalogItems={catalogItems}
+            clientId={form.client_id || null}
+            jobId={form.job_id || null}
+            onAdd={item => addPrefilledItem(planImportTarget.areaKey, item)}
+            onClose={() => setPlanImportTarget(null)}
           />
         )}
       </main>

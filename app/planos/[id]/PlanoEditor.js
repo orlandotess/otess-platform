@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { supabase } from '../../../lib/supabase';
 import { getEquipmentType, getElementIcon } from '../../equipmentIcons';
 import { exportEquipmentListCSV } from '../../planoEquipmentCsv';
+import { buildRooms, buildCableTotals, isRackMarker as markerIsRack, markerProductId, SWITCH_PORTS } from '../../planoItems';
 import ClientCombobox from '../../facturas/nueva/ClientCombobox';
 import AOCCone from './AOCCone';
 import AOCPanel from './AOCPanel';
@@ -24,13 +25,6 @@ const WHEEL_ZOOM_INTENSITY = 0.0018;
 
 const LAYER_COLORS = ['#2a4cb5', '#1a7a4a', '#e0972c', '#8e44ad', '#c0392b', '#0891b2', '#4b5563'];
 const NO_LAYER = '__none__';
-const NO_RACK = '__norack__';
-// Telecom room: the switch this shop racks (48 ports) and the panel size a room
-// starts at. 24s sandwich a switch between two panels and save the horizontal
-// cable managers, but 48 is the size this shop specs by default; the toggle
-// switches a plan over.
-const SWITCH_PORTS = 48;
-const DEFAULT_PATCH_PANEL_PORTS = 48;
 
 // Markers placed before the "Add Element" catalog existed (migrations/2026-07-16b-element-catalog.sql)
 // have no element_id — this is the fallback set for gating their AOC cone.
@@ -167,6 +161,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const [savingMaterial, setSavingMaterial] = useState(false);
   const [materialTarget, setMaterialTarget] = useState(''); // '' = the plan itself, otherwise a rack marker id
   const [pickingRackProduct, setPickingRackProduct] = useState(null); // { rackId, column } | null
+  const [pickingCableProduct, setPickingCableProduct] = useState(null); // cable type id | null
   const [productSuggestions, setProductSuggestions] = useState(null); // lazy: elementId -> catalog item ids, most used first
   const [pickingPlaceProduct, setPickingPlaceProduct] = useState(false);
   const [pickingMarkerProduct, setPickingMarkerProduct] = useState(false);
@@ -758,7 +753,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   // puts a code on the hundred jacks nobody went through one by one.
   const elementDefaultProduct = elementId =>
     productById(elementTypes.find(et => et.id === elementId)?.default_catalog_item_id);
-  const markerProduct = m => productById(m.catalog_item_id) || elementDefaultProduct(m.element_id);
+  const markerProduct = m => productById(markerProductId(m, elementTypes));
 
   // Ordering an element by a product is a purchasing call, not the draftsman's:
   // element_types is OFFICE3-writable and técnico never sees the button.
@@ -1388,6 +1383,21 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     });
   }
 
+  // The product a type of cable is bought as, so its boxes can be ordered by
+  // code and priced like everything else on the list
+  // (migrations/2026-09-07d-cable-catalog-item.sql).
+  async function saveCableTypeProduct(id, itemId) {
+    const previous = cableTypesState.find(ct => ct.id === id)?.catalog_item_id ?? null;
+    const next = itemId || null;
+    setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, catalog_item_id: next } : ct));
+    setPickingCableProduct(null);
+    const { error } = await supabase.from('cable_types').update({ catalog_item_id: next }).eq('id', id);
+    if (error) {
+      setCableTypesState(prev => prev.map(ct => ct.id === id ? { ...ct, catalog_item_id: previous } : ct));
+      alert(t('errors.saveCableProductFailed', { error: error.message }));
+    }
+  }
+
   function updateCableTypeFeetPerBox(id, feetPerBox) {
     if (!feetPerBox || feetPerBox < 1) return;
     const original = cableTypesState.find(ct => ct.id === id)?.feet_per_box;
@@ -1514,7 +1524,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   // A rack is the telecom room itself: it terminates drops and sizes its own
   // kit (migrations/2026-09-07-racks-per-plan.sql). It still counts as
   // equipment — it is equipment you install — but never as a drop.
-  const isRackMarker = m => !!getMarkerElement(m, elementTypes)?.is_rack;
+  const isRackMarker = m => markerIsRack(m, elementTypes);
   const rackMarkers = visibleMarkers.filter(isRackMarker);
   const rackName = (rack, index) => rack.label || t('summary.rackFallbackName', { number: index + 1 });
   const visibleCables = cables.filter(c => isLayerVisible(c.layer_id));
@@ -1594,82 +1604,25 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   }));
 
   // ── Cuarto de telecomunicaciones ────────────────────────────────────────
-  // Every drop lands twice: the keystone at the outlet (already counted as the
-  // equipment itself) and one at the patch panel in the room — so the room
-  // needs exactly one keystone and one panel port per drop. A drop is a piece
-  // of equipment with a cable run assigned; on a plan where nobody assigned
-  // cable yet, the whole equipment count is the number the tech would have
-  // used by hand, so that is the fallback.
-  // A drop is equipment with a cable run assigned; a rack terminates drops, it
-  // never is one. On a plan where nobody assigned cable yet, every piece of
-  // equipment is the number the tech would have counted by hand, so that is the
-  // fallback.
+  // Sized in app/planoItems.js, which the CSV and the estimate importer read
+  // too — a room sized in three places is a room that eventually disagrees
+  // with itself. Everything below only dresses that data for the screen.
   const dropCandidates = visibleMarkers.filter(m => !isRackMarker(m));
   const cabledDrops = dropCandidates.filter(m => m.cable_type_id);
   const dropMarkers = cabledDrops.length > 0 ? cabledDrops : dropCandidates;
   const dropsFromCable = cabledDrops.length > 0;
 
-  // Panels sized at 24 can sandwich a 48-port switch — one above, one below —
-  // so every patch cord crosses a single rack unit and the pair needs no
-  // horizontal cable manager. At 48 the sandwich breaks and a manager goes back
-  // between each panel and its switch. The size is the installer's call; the
-  // rest of the kit follows it, and the manager count is only a starting
-  // number (see saveRackCableManagers).
-  const sizeRoom = (drops, ports) => {
-    const panels = Math.ceil(drops / ports);
-    const switches = Math.ceil(drops / SWITCH_PORTS);
-    const managers = ports * 2 === SWITCH_PORTS ? 0 : panels;
-    return {
-      ports, panels, switches, managers,
-      spare: panels * ports - drops,
-      rackUnits: panels * (ports > 24 ? 2 : 1) + switches + managers,
-    };
-  };
-
-  // One room per rack: a rack with 38 drops is one 48-port panel, not a slice
-  // of a plan-wide total. Drops nobody assigned get a room of their own rather
-  // than falling off the purchase list.
-  const planPorts = planState.patch_panel_ports ?? DEFAULT_PATCH_PANEL_PORTS;
-  const dropsByRack = new Map();
-  for (const m of dropMarkers) {
-    const key = m.rack_marker_id || NO_RACK;
-    if (!dropsByRack.has(key)) dropsByRack.set(key, []);
-    dropsByRack.get(key).push(m);
-  }
-  const buildRoom = (key, marker, rackDrops) => {
-    const drops = rackDrops.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
-    const ports = marker?.rack_patch_panel_ports ?? planPorts;
-    const options = [24, 48].map(p => sizeRoom(drops, p));
-    const derived = options.find(o => o.ports === ports) ?? options[0];
-    const overridden = marker ? marker.rack_cable_managers != null : planState.cable_managers != null;
-    const managers = overridden
-      ? (marker ? marker.rack_cable_managers : planState.cable_managers)
-      : derived.managers;
-    // The keystones in the room are the ones on the floor — read off the drops
-    // themselves rather than picked again here, which is the only way the two
-    // ends can't drift apart. Two keystones on one rack stay two lines.
-    const keystoneTally = new Map();
-    for (const m of rackDrops) {
-      const product = markerProduct(m);
-      const label = product ? `${product.item_code} ${catalogItemLabel(product)}` : null;
-      const k = product?.id || '__none__';
-      if (!keystoneTally.has(k)) keystoneTally.set(k, { key: k, productId: product?.id ?? null, label, count: 0 });
-      keystoneTally.get(k).count += m.quantity ?? 1;
-    }
-    const keystones = [...keystoneTally.values()].sort((a, b) => b.count - a.count);
-    const hidden = new Set(marker?.rack_hidden_lines ?? []);
-    return {
-      key, marker, drops, options, ...derived, managers, managersOverridden: overridden,
-      keystones, hidden,
-      panelItem: productById(marker?.rack_patch_panel_item_id),
-      switchItem: productById(marker?.rack_switch_item_id),
-      managerItem: productById(marker?.rack_cable_manager_item_id),
-      rackUnits: derived.rackUnits - derived.managers + managers,
-    };
-  };
-  const rooms = rackMarkers
-    .map(rack => buildRoom(rack.id, rack, dropsByRack.get(rack.id) || []))
-    .concat(dropsByRack.has(NO_RACK) ? [buildRoom(NO_RACK, null, dropsByRack.get(NO_RACK))] : []);
+  const rooms = buildRooms({ plan: planState, markers: visibleMarkers, elementTypes }).map(room => ({
+    ...room,
+    keystones: room.keystones.map(k => {
+      const product = productById(k.productId);
+      return { ...k, label: product ? `${product.item_code} ${catalogItemLabel(product)}` : null };
+    }),
+    hidden: new Set(room.hidden),
+    panelItem: productById(room.panelItemId),
+    switchItem: productById(room.switchItemId),
+    managerItem: productById(room.managerItemId),
+  }));
   const dropCount = dropMarkers.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
   const planMaterialUnits = planMaterials.reduce((sum, m) => sum + (m.quantity ?? 1), 0);
   // Sale price (catalog_items.price), not what the shop pays for it. Only the
@@ -1681,31 +1634,10 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     (sum, m) => sum + Number(productById(m.catalog_item_id).price) * (m.quantity ?? 1), 0);
 
   // Cable per type: what the equipment estimates plus what was traced on the
-  // plan (only measurable with a scale), and the boxes to order for the sum —
-  // rounded up, because 2.8 boxes of Cat6 is three boxes.
-  const cableTotals = new Map();
-  const cableEntry = ct => {
-    if (!cableTotals.has(ct.id)) {
-      cableTotals.set(ct.id, { key: ct.id, name: ct.name, color: ct.color, feetPerBox: ct.feet_per_box || 1000, estimated: 0, traced: 0 });
-    }
-    return cableTotals.get(ct.id);
-  };
-  for (const m of visibleMarkers) {
-    const ct = cableTypeById(m.cable_type_id);
-    if (!ct || !m.cable_feet) continue;
-    cableEntry(ct).estimated += m.cable_feet * (m.quantity ?? 1);
-  }
-  if (feetPerPixel) {
-    for (const c of visibleCables) {
-      const ct = cableTypeById(c.cable_type_id);
-      if (!ct) continue;
-      cableEntry(ct).traced += cableLengthFeet(c) || 0;
-    }
-  }
-  const cableFootage = [...cableTotals.values()].map(entry => {
-    const total = entry.estimated + entry.traced;
-    const boxes = Math.ceil(total / entry.feetPerBox);
-    return { ...entry, total, boxes, leftover: boxes * entry.feetPerBox - total };
+  // plan (only measurable with a scale), and the boxes to order for the sum.
+  // Same function the CSV and the estimate importer call (app/planoItems.js).
+  const cableFootage = buildCableTotals({
+    markers: visibleMarkers, cables: visibleCables, cableTypes: cableTypesState, cableLengthFeet, feetPerPixel,
   });
 
   const cableColor = cable => cableTypesState.find(ct => ct.id === cable.cable_type_id)?.color || '#2a4cb5';
@@ -2005,6 +1937,23 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                     onChange={e => updateCableTypeFeetPerBox(ct.id, parseInt(e.target.value, 10))}
                     style={{ width: 90, fontSize: 11, padding: '2px 6px' }}
                   />
+                </div>
+                {/* What the boxes are bought as. Without it the cable is the
+                    only thing on the list with no code and no price. */}
+                <div style={{ paddingLeft: 30 }} onClick={e => e.stopPropagation()}>
+                  <RoomProductLine
+                    product={productById(ct.catalog_item_id)}
+                    onPick={() => setPickingCableProduct(ct.id)}
+                    onClear={() => saveCableTypeProduct(ct.id, null)}
+                    pickLabel={t('cableTypesPanel.pickProduct')} clearLabel={t('cableTypesPanel.clearProduct')}
+                  />
+                  {pickingCableProduct === ct.id && (
+                    <CatalogItemPicker
+                      products={catalogProducts}
+                      onPick={p => saveCableTypeProduct(ct.id, p.id)}
+                      onCancel={() => setPickingCableProduct(null)}
+                    />
+                  )}
                 </div>
               </div>
             ))}
