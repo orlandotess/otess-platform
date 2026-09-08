@@ -20,7 +20,7 @@ export default async function PlanoDetail(props) {
     supabase.from('cable_types').select('*').order('name'),
     supabase.from('element_types').select('*').eq('is_active', true).order('sort_order'),
     supabase.from('custom_equipment_icons').select('*').order('name'),
-    supabase.from('catalog_items').select('id, item_code, name, price').eq('type', 'product').order('item_code'),
+    supabase.from('catalog_items').select('id, item_code, name, price, vendor').eq('type', 'product').order('item_code'),
     supabase.from('clients').select('id, name').order('name'),
     getCurrentRole(),
   ]);

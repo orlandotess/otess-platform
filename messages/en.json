@@ -1487,7 +1487,17 @@
       "extraMaterialsTotal": "TOTAL EXTRA MATERIALS ({lines, plural, one {# line} other {# lines}})",
       "extraMaterialsCost": "SALE PRICE ({priced} of {lines} priced)",
       "telecomRoomNamed": "TELECOM ROOM · {name}",
-      "telecomRoomUnassigned": "TELECOM ROOM · UNASSIGNED DROPS"
+      "telecomRoomUnassigned": "TELECOM ROOM · UNASSIGNED DROPS",
+      "purchaseList": "PURCHASE LIST (everything added up by article)",
+      "columnVendor": "Supplier",
+      "columnUnitPrice": "Price",
+      "columnLineTotal": "Total",
+      "noVendor": "No supplier",
+      "vendorSubtotal": "Subtotal {vendor}",
+      "purchaseTotal": "TOTAL ARTICLES ({lines, plural, one {# line} other {# lines}})",
+      "purchaseCost": "TOTAL SALE PRICE ({priced} of {lines} priced)",
+      "purchaseNoProduct": "{count, plural, one {# line with no catalog product} other {# lines with no catalog product}} — no code, no supplier, no price",
+      "purchaseCableNote": "Cabling is not in here: it is above, by feet and boxes."
     },
     "propuestaDataCsv": {
       "columnOption": "Option",
@@ -4575,6 +4585,11 @@
         "accessoryTotalTitle": "Total for this equipment (per unit × quantity)",
         "addProduct": "Catalog product",
         "clearProduct": "Unlink the product",
+        "changeProduct": "Change the product",
+        "byDefault": "by default",
+        "defaultFromElement": "Default for “{element}”: this equipment has no product of its own",
+        "setAsDefault": "Use by default for every “{element}”",
+        "clearAsDefault": "Remove the default product for “{element}”",
         "cable": "Cable",
         "noCableType": "No cable",
         "feetPlaceholder": "ft",
@@ -4668,6 +4683,8 @@
         "deleteCableType": "Delete the cable type \"{name}\"? Its cables will be left without a type.",
         "deletePlan": "Delete the plan \"{name}\"? This action cannot be undone.",
         "hideRoomLine": "Remove this line from the rack? It stops counting, and you can restore it from the summary.",
+        "setElementDefault": "Order every “{element}” as “{product}” when the equipment has no product of its own? It applies to this plan and every other one.",
+        "clearElementDefault": "Remove the default product for “{element}”? Equipment with no product of its own goes back to exporting with no code.",
         "deleteItem": "Delete “{name}” completely?"
       },
       "errors": {
@@ -4721,6 +4738,8 @@
         "savePatchPanelFailed": "Could not save the patch panel size, it was reverted: {error}",
         "saveCableManagersFailed": "Could not save the cable managers, it was reverted: {error}",
         "saveRoomSettingFailed": "Could not save the room setting, it was reverted: {error}",
+        "saveRackProductFailed": "Could not save the rack's product, it was reverted: {error}",
+        "saveElementDefaultFailed": "Could not save the default product, it was reverted: {error}",
         "saveRackFailed": "Could not save the rack, it was reverted: {error}"
       },
       "catalogPicker": {

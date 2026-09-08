@@ -147,7 +147,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
   const cableDescriptionOriginRef = useRef(null);
   const customIconsRef = useRef(customIcons);
 
-  const elementTypes = initialElementTypes || [];
+  const [elementTypes, setElementTypes] = useState(initialElementTypes || []);
 
   const W = plan.image_width || FALLBACK_W;
   const H = plan.image_height || FALLBACK_H;
@@ -750,6 +750,29 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
 
   // ── Catalog product on a marker (migrations/2026-09-02b-marker-catalog-item.sql) ──
   const productById = id => (id ? catalogProducts.find(p => p.id === id) : null);
+
+  // What this marker is ordered as: its own product when somebody picked one,
+  // and otherwise the element's default (element_types.default_catalog_item_id,
+  // migrations/2026-09-07c-purchase-list-catalog.sql). The marker always wins —
+  // the default is only what happens when nobody said anything, which is what
+  // puts a code on the hundred jacks nobody went through one by one.
+  const elementDefaultProduct = elementId =>
+    productById(elementTypes.find(et => et.id === elementId)?.default_catalog_item_id);
+  const markerProduct = m => productById(m.catalog_item_id) || elementDefaultProduct(m.element_id);
+
+  // Ordering an element by a product is a purchasing call, not the draftsman's:
+  // element_types is OFFICE3-writable and técnico never sees the button.
+  const canSetElementDefault = currentRole !== 'tecnico';
+  async function setElementDefaultProduct(elementId, itemId) {
+    const previous = elementTypes.find(et => et.id === elementId)?.default_catalog_item_id ?? null;
+    const next = itemId || null;
+    setElementTypes(prev => prev.map(et => et.id === elementId ? { ...et, default_catalog_item_id: next } : et));
+    const { error } = await supabase.from('element_types').update({ default_catalog_item_id: next }).eq('id', elementId);
+    if (error) {
+      setElementTypes(prev => prev.map(et => et.id === elementId ? { ...et, default_catalog_item_id: previous } : et));
+      alert(t('errors.saveElementDefaultFailed', { error: error.message }));
+    }
+  }
 
   // Which products people actually put on this kind of element, most used
   // first, read once from the markers already placed across every plan.
@@ -1505,7 +1528,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       if (!elementQtyById.has(m.element_id)) elementQtyById.set(m.element_id, { total: 0, byProduct: new Map() });
       const entry = elementQtyById.get(m.element_id);
       entry.total += qty;
-      const productKey = m.catalog_item_id || null;
+      const productKey = markerProduct(m)?.id || null;
       entry.byProduct.set(productKey, (entry.byProduct.get(productKey) || 0) + qty);
     } else if (m.equipment_type) {
       legacyQtyByKey.set(m.equipment_type, (legacyQtyByKey.get(m.equipment_type) || 0) + qty);
@@ -1627,10 +1650,10 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
     // ends can't drift apart. Two keystones on one rack stay two lines.
     const keystoneTally = new Map();
     for (const m of rackDrops) {
-      const product = productById(m.catalog_item_id);
+      const product = markerProduct(m);
       const label = product ? `${product.item_code} ${catalogItemLabel(product)}` : null;
       const k = product?.id || '__none__';
-      if (!keystoneTally.has(k)) keystoneTally.set(k, { key: k, label, count: 0 });
+      if (!keystoneTally.has(k)) keystoneTally.set(k, { key: k, productId: product?.id ?? null, label, count: 0 });
       keystoneTally.get(k).count += m.quantity ?? 1;
     }
     const keystones = [...keystoneTally.values()].sort((a, b) => b.count - a.count);
@@ -1640,6 +1663,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
       keystones, hidden,
       panelItem: productById(marker?.rack_patch_panel_item_id),
       switchItem: productById(marker?.rack_switch_item_id),
+      managerItem: productById(marker?.rack_cable_manager_item_id),
       rackUnits: derived.rackUnits - derived.managers + managers,
     };
   };
@@ -1734,11 +1758,13 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
             managers: room.managers, spare: room.spare, rackUnits: room.rackUnits, switchPorts: SWITCH_PORTS,
             hidden: [...room.hidden],
             keystones: room.keystones,
-            panelCode: room.panelItem?.item_code || '',
-            switchCode: room.switchItem?.item_code || '',
+            panelItemId: room.panelItem?.id || null,
+            switchItemId: room.switchItem?.id || null,
+            managerItemId: room.managerItem?.id || null,
             items: room.marker ? markerAccessories(room.marker.id).map(a => ({
               name: a.name,
               code: productById(a.catalog_item_id)?.item_code || '',
+              catalogItemId: a.catalog_item_id || null,
               quantity: (a.quantity ?? 1) * (room.marker.quantity ?? 1),
             })) : [],
           })))}>⬇️ {t('header.exportList')}</button>
@@ -2488,20 +2514,6 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                 style={{ width: '100%', marginBottom: 8, fontSize: 13 }}
               />
               {(() => {
-                const product = productById(selectedMarker.catalog_item_id);
-                if (product) {
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 12, background: 'var(--info-tint)', borderRadius: 6, padding: '6px 8px' }}>
-                      <span style={{ fontWeight: 700 }}>{product.item_code}</span>
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{catalogItemLabel(product)}</span>
-                      <button
-                        type="button" title={t('markerPanel.clearProduct')}
-                        onClick={() => setMarkerProduct(selectedMarker.id, null)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700, padding: 0 }}
-                      >✕</button>
-                    </div>
-                  );
-                }
                 if (pickingMarkerProduct) {
                   return (
                     <div style={{ marginBottom: 8 }}>
@@ -2511,6 +2523,56 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                         onPick={item => setMarkerProduct(selectedMarker.id, item)}
                         onCancel={() => setPickingMarkerProduct(false)}
                       />
+                    </div>
+                  );
+                }
+                // A marker with no product of its own is still ordered as
+                // something: the element's default. Shown here so what the
+                // export will say is never a surprise.
+                const own = productById(selectedMarker.catalog_item_id);
+                const element = elementTypes.find(et => et.id === selectedMarker.element_id);
+                const product = own || elementDefaultProduct(selectedMarker.element_id);
+                if (product) {
+                  const inherited = !own;
+                  const isDefault = element?.default_catalog_item_id === product.id;
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 12, background: inherited ? 'var(--surface)' : 'var(--info-tint)', border: inherited ? '1px dashed var(--border)' : undefined, borderRadius: 6, padding: '6px 8px' }}>
+                      <span style={{ fontWeight: 700, color: inherited ? 'var(--muted)' : undefined }}>{product.item_code}</span>
+                      <span
+                        style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: inherited ? 'var(--muted)' : undefined }}
+                        title={inherited && element ? t('markerPanel.defaultFromElement', { element: element.name }) : catalogItemLabel(product)}
+                      >{catalogItemLabel(product)}{inherited ? ' ·' : ''}{inherited && <span style={{ fontStyle: 'italic' }}> {t('markerPanel.byDefault')}</span>}</span>
+                      {/* Set the element's default, and take it back — a
+                          default nobody can undo from where they set it is a
+                          decision that outlives the reason for it. */}
+                      {canSetElementDefault && element && (
+                        <button
+                          type="button"
+                          title={isDefault
+                            ? t('markerPanel.clearAsDefault', { element: element.name })
+                            : t('markerPanel.setAsDefault', { element: element.name })}
+                          onClick={() => {
+                            if (isDefault) {
+                              if (confirm(t('confirms.clearElementDefault', { element: element.name }))) setElementDefaultProduct(element.id, null);
+                            } else if (confirm(t('confirms.setElementDefault', { element: element.name, product: catalogItemLabel(product) }))) {
+                              setElementDefaultProduct(element.id, product.id);
+                            }
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 12, opacity: isDefault ? 1 : 0.55 }}
+                        >{isDefault ? '★' : '⭐'}</button>
+                      )}
+                      <button
+                        type="button" title={t('markerPanel.changeProduct')}
+                        onClick={() => { setPickingMarkerProduct(true); loadProductSuggestions(); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy)', padding: 0, fontSize: 11 }}
+                      >✏️</button>
+                      {own && (
+                        <button
+                          type="button" title={t('markerPanel.clearProduct')}
+                          onClick={() => setMarkerProduct(selectedMarker.id, null)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontWeight: 700, padding: 0 }}
+                        >✕</button>
+                      )}
                     </div>
                   );
                 }
@@ -3085,20 +3147,32 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
                   </div>
                 )}
                 {!room.hidden.has('managers') && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                    <span style={{ flex: 1, color: room.managers === 0 ? 'var(--muted)' : undefined }}>{t('summary.cableManagers')}</span>
-                    {room.managersOverridden && (
-                      <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 5px' }}
-                        title={t('summary.cableManagersAutoTitle', { count: room.options.find(o => o.ports === room.ports)?.managers ?? 0 })}
-                        onClick={() => saveCableManagers(room, null)}>↺</button>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                      <span style={{ flex: 1, color: room.managers === 0 ? 'var(--muted)' : undefined }}>{t('summary.cableManagers')}</span>
+                      {room.managersOverridden && (
+                        <button className="btn btn-ghost" style={{ fontSize: 11, padding: '0 5px' }}
+                          title={t('summary.cableManagersAutoTitle', { count: room.options.find(o => o.ports === room.ports)?.managers ?? 0 })}
+                          onClick={() => saveCableManagers(room, null)}>↺</button>
+                      )}
+                      <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                        disabled={room.managers <= 0}
+                        onClick={() => saveCableManagers(room, Math.max(0, room.managers - 1))}>−</button>
+                      <span style={{ fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{room.managers}</span>
+                      <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
+                        onClick={() => saveCableManagers(room, room.managers + 1)}>+</button>
+                      {room.marker && <LineHide onHide={() => setRoomLineHidden(room, 'managers', true)} title={t('summary.hideLine')} />}
+                    </div>
+                    {/* The last derived line that could not be ordered by code
+                        (migrations/2026-09-07c-purchase-list-catalog.sql). */}
+                    {room.marker && room.managers > 0 && (
+                      <RoomProductLine
+                        product={room.managerItem}
+                        onPick={() => setPickingRackProduct({ rackId: room.marker.id, column: 'rack_cable_manager_item_id' })}
+                        onClear={() => saveRackProduct(room.marker, 'rack_cable_manager_item_id', null)}
+                        pickLabel={t('summary.pickProduct')} clearLabel={t('summary.clearProduct')}
+                      />
                     )}
-                    <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
-                      disabled={room.managers <= 0}
-                      onClick={() => saveCableManagers(room, Math.max(0, room.managers - 1))}>−</button>
-                    <span style={{ fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{room.managers}</span>
-                    <button className="btn btn-ghost" style={{ fontSize: 13, fontWeight: 700, padding: '0 7px' }}
-                      onClick={() => saveCableManagers(room, room.managers + 1)}>+</button>
-                    {room.marker && <LineHide onHide={() => setRoomLineHidden(room, 'managers', true)} title={t('summary.hideLine')} />}
                   </div>
                 )}
                 {room.marker && pickingRackProduct?.rackId === room.marker.id && (

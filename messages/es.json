@@ -1487,7 +1487,17 @@
       "extraMaterialsTotal": "TOTAL MATERIALES ADICIONALES ({lines, plural, one {# línea} other {# líneas}})",
       "extraMaterialsCost": "PRECIO DE VENTA ({priced} de {lines} con precio)",
       "telecomRoomNamed": "CUARTO DE TELECOMUNICACIONES · {name}",
-      "telecomRoomUnassigned": "CUARTO DE TELECOMUNICACIONES · TOMAS SIN ASIGNAR"
+      "telecomRoomUnassigned": "CUARTO DE TELECOMUNICACIONES · TOMAS SIN ASIGNAR",
+      "purchaseList": "LISTA DE COMPRA (todo sumado por artículo)",
+      "columnVendor": "Suplidor",
+      "columnUnitPrice": "Precio",
+      "columnLineTotal": "Total",
+      "noVendor": "Sin suplidor",
+      "vendorSubtotal": "Subtotal {vendor}",
+      "purchaseTotal": "TOTAL ARTÍCULOS ({lines, plural, one {# línea} other {# líneas}})",
+      "purchaseCost": "TOTAL PRECIO DE VENTA ({priced} de {lines} con precio)",
+      "purchaseNoProduct": "{count, plural, one {# línea sin producto de catálogo} other {# líneas sin producto de catálogo}} — sin código, sin suplidor y sin precio",
+      "purchaseCableNote": "El cableado no entra aquí: va arriba, por pies y cajas."
     },
     "propuestaDataCsv": {
       "columnOption": "Opcion",
@@ -4575,6 +4585,11 @@
         "accessoryTotalTitle": "Total para este equipo (por unidad × cantidad)",
         "addProduct": "Producto del catálogo",
         "clearProduct": "Desenlazar el producto",
+        "changeProduct": "Cambiar el producto",
+        "byDefault": "por defecto",
+        "defaultFromElement": "Por defecto de «{element}»: este equipo no tiene producto propio",
+        "setAsDefault": "Usar por defecto para todos los «{element}»",
+        "clearAsDefault": "Quitar el producto por defecto de «{element}»",
         "cable": "Cable",
         "noCableType": "Sin cable",
         "feetPlaceholder": "pies",
@@ -4668,6 +4683,8 @@
         "deleteCableType": "¿Eliminar el tipo de cable \"{name}\"? Sus cables quedarán sin tipo.",
         "deletePlan": "¿Eliminar el plano \"{name}\"? Esta acción no se puede deshacer.",
         "hideRoomLine": "¿Quitar esta línea del rack? Deja de contar, y la puedes restaurar desde el resumen.",
+        "setElementDefault": "¿Ordenar todos los «{element}» como “{product}” cuando el equipo no tenga producto propio? Aplica a este plano y a todos los demás.",
+        "clearElementDefault": "¿Quitar el producto por defecto de «{element}»? Los equipos sin producto propio vuelven a salir sin código.",
         "deleteItem": "¿Borrar “{name}” por completo?"
       },
       "errors": {
@@ -4721,6 +4738,8 @@
         "savePatchPanelFailed": "No se pudo guardar el tamaño del patch panel, se revirtió: {error}",
         "saveCableManagersFailed": "No se pudieron guardar los cable managers, se revirtió: {error}",
         "saveRoomSettingFailed": "No se pudo guardar el ajuste del cuarto, se revirtió: {error}",
+        "saveRackProductFailed": "No se pudo guardar el producto del rack, se revirtió: {error}",
+        "saveElementDefaultFailed": "No se pudo guardar el producto por defecto, se revirtió: {error}",
         "saveRackFailed": "No se pudo guardar el rack, se revirtió: {error}"
       },
       "catalogPicker": {
