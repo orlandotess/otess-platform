@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
 import LineItemRow from '../LineItemRow';
 import CableCalculator from '../CableCalculator';
+import PlanImportModal from '../PlanImportModal';
 import { useTranslations } from 'next-intl';
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
@@ -21,6 +22,7 @@ function emptyItem(parentKey = null, itemType = 'labor') {
     unit_price: '',
     supplier_price: '',
     exempt: false,
+    catalog_item_id: null,
     saveToCatalog: true,
     discount: '',
     vendor: '',
@@ -70,6 +72,7 @@ function itemsToAreas(items, t) {
       exempt: !!parent.exempt_reason,
       discount: parent.discount_amount ?? '',
       vendor: parent.vendor ?? '',
+      catalog_item_id: parent.catalog_item_id ?? null,
       combinePrice: parent.combine_price !== false,
       from_calculator: !!parent.from_calculator,
       photoFile: null,
@@ -91,6 +94,7 @@ function itemsToAreas(items, t) {
         exempt: !!child.exempt_reason,
         discount: child.discount_amount ?? '',
         vendor: child.vendor ?? '',
+        catalog_item_id: child.catalog_item_id ?? null,
         from_calculator: !!child.from_calculator,
         photoFile: null,
         photoPreview: child.photo_signed_url ?? null,
@@ -154,6 +158,7 @@ export default function PropuestaForm({ initialData = null }) {
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [cableCalcTarget, setCableCalcTarget] = useState(null); // { optKey, areaKey } — which area the calculator adds into, or null when closed
+  const [planImportTarget, setPlanImportTarget] = useState(null); // { optKey, areaKey } — which area a floor plan's list lands in, or null when closed
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — the item group currently being dragged
   const [dragArea, setDragArea] = useState(null); // { optKey, areaKey } — area currently being dragged, for reordering areas
   const [selectedItemKeys, setSelectedItemKeys] = useState(new Set()); // parent item keys selected for bulk actions
@@ -253,6 +258,10 @@ export default function PropuestaForm({ initialData = null }) {
     // A single-material run has nothing to group: it lands as its own line,
     // exactly the way it always did.
     const grouped = groupCount > 1;
+    // The calculator's title names the lot, not any one material, which is why
+    // it has never landed on a line. A caller that sends no groupCount at all
+    // (the floor-plan import) is naming the line itself, so its title stays.
+    const lineTitle = groupCount === undefined ? (title || '') : '';
     if (grouped && groupIndex === 0) calculatorGroupKey.current = Math.random().toString(36).slice(2);
     const parentKey = grouped ? calculatorGroupKey.current : null;
     const lotValue = (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
@@ -272,7 +281,14 @@ export default function PropuestaForm({ initialData = null }) {
               from_calculator: true,
             });
           }
-          items.push({ ...emptyItem(parentKey, 'product'), ...item, from_calculator: true });
+          items.push({
+            ...emptyItem(parentKey, 'product'), ...item,
+            title: lineTitle,
+            // Only a line the catalog does not already own may be turned into
+            // a catalog item on save.
+            saveToCatalog: !item.catalog_item_id,
+            from_calculator: groupCount !== undefined,
+          });
           return { ...a, items: parentKey
             ? items.map(it => it.key === parentKey
                 ? { ...it, unit_price: (parseFloat(it.unit_price) || 0) + lotValue }
@@ -583,13 +599,15 @@ export default function PropuestaForm({ initialData = null }) {
 
     // Ítems marcados "☑ Guardar en catálogo" se crean en catalog_items aquí,
     // mismo criterio que /catalogo e InvoiceForm.js: código = título, nombre
-    // en blanco. Si ya existe un ítem con ese código+tipo se reusa (no-op —
-    // Propuestas no trackea catalog_item_id en su línea, así que no hay
-    // nada que enlazar de vuelta). No bloquea el guardado si falla.
+    // en blanco. Si ya existe un ítem con ese código+tipo se reusa. Una línea
+    // que ya trae catalog_item_id se salta: viene del catálogo, y crearla nuevo
+    // metería el nombre del producto en item_code como duplicado
+    // (migrations/2026-09-07e-line-item-catalog-link.sql). No bloquea el
+    // guardado si falla.
     for (const opt of options) {
       for (const area of opt.areas) {
         for (const it of area.items) {
-          if (!it.saveToCatalog || it.parentKey) continue;
+          if (!it.saveToCatalog || it.catalog_item_id || it.parentKey) continue;
           if (it.item_type !== 'labor' && it.item_type !== 'product') continue;
           const code = (it.title || '').trim();
           if (!code || !it.description.trim()) continue;
@@ -642,6 +660,7 @@ export default function PropuestaForm({ initialData = null }) {
             exempt_reason: it.exempt ? 'Exento' : null,
             discount_amount: it.discount !== '' ? parseFloat(it.discount) : null,
             vendor: it.vendor || null,
+            catalog_item_id: it.catalog_item_id || null,
             combine_price: it.combinePrice !== false,
             from_calculator: !!it.from_calculator,
             photo_url: photoPath,
@@ -671,6 +690,7 @@ export default function PropuestaForm({ initialData = null }) {
             exempt_reason: it.exempt ? 'Exento' : null,
             discount_amount: it.discount !== '' ? parseFloat(it.discount) : null,
             vendor: it.vendor || null,
+            catalog_item_id: it.catalog_item_id || null,
             from_calculator: !!it.from_calculator,
             photo_url: photoPath,
             sort_order: sortOrder++,
@@ -1040,6 +1060,7 @@ export default function PropuestaForm({ initialData = null }) {
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key, 'product')}>{t('addProduct')}</button>
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(opt.key, area.key, 'labor')}>{t('addLabor')}</button>
                     <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ optKey: opt.key, areaKey: area.key })}>{t('calculateCable')}</button>
+                    <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setPlanImportTarget({ optKey: opt.key, areaKey: area.key })}>{t('importFromPlan')}</button>
                   </div>
                 </div>
               ))}
@@ -1120,6 +1141,17 @@ export default function PropuestaForm({ initialData = null }) {
             catalogItems={catalogItems}
             onAdd={item => { addPrefilledItem(cableCalcTarget.optKey, cableCalcTarget.areaKey, item); setCableCalcTarget(null); }}
             onClose={() => setCableCalcTarget(null)}
+          />
+        )}
+        {/* A floor plan's item list, one line per article. It sends no
+            groupCount, which is what tells addPrefilledItem these are lines in
+            their own right and not one lot to be bundled under a header. */}
+        {planImportTarget && (
+          <PlanImportModal
+            catalogItems={catalogItems}
+            clientId={selectedClient?.id || null}
+            onAdd={item => addPrefilledItem(planImportTarget.optKey, planImportTarget.areaKey, item)}
+            onClose={() => setPlanImportTarget(null)}
           />
         )}
       </main>

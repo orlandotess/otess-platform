@@ -25,7 +25,7 @@ import {
  * does not follow — re-importing and reconciling by hand is a decision, not
  * something to do silently to a quote somebody may already have priced.
  */
-export default function PlanImportModal({ catalogItems = [], clientId = null, jobId = null, onAdd, onClose }) {
+export default function PlanImportModal({ catalogItems = [], clientId = null, jobId = null, onAdd, onAddAll, onClose }) {
   const t = useTranslations('shared.planImport');
   const tEquipmentTypes = useTranslations('shared.equipmentTypes');
   const [plans, setPlans] = useState(null);
@@ -162,14 +162,15 @@ export default function PlanImportModal({ catalogItems = [], clientId = null, jo
   }
 
   function addSelected() {
-    for (const line of included) {
+    const payloads = included.map(line => {
       const product = line.catalogItemId ? catalogItems.find(ci => ci.id === line.catalogItemId) : null;
-      onAdd({
+      return {
         // A catalog line carries the catalog's own wording; a free-typed one
         // only ever had the name somebody wrote on the plan. Leaving that
-        // title empty is load-bearing, not lazy: the estimate turns a titled
-        // line with no catalog_item_id into a new catalog item on save, and an
-        // element name ("Fixed Camera") has no business becoming a product.
+        // title empty is load-bearing, not lazy: an estimate or a proposal
+        // turns a titled line with no catalog_item_id into a new catalog item
+        // on save, and an element name ("Fixed Camera") has no business
+        // becoming a product.
         title: product ? (product.name || '') : '',
         description: product ? (product.description || product.name || line.label) : line.label,
         vendor: line.vendor || '',
@@ -178,8 +179,14 @@ export default function PlanImportModal({ catalogItems = [], clientId = null, jo
         supplier_price: line.supplierPrice ?? 0,
         msrp: product?.msrp ?? '',
         catalog_item_id: line.catalogItemId || null,
-      });
-    }
+      };
+    });
+    // A form that merges into local state takes them one at a time, the way it
+    // already takes the calculator's. One that writes straight to the database
+    // (the job tab) takes the batch, so twelve articles are one insert and one
+    // state update instead of twelve that race each other.
+    if (onAddAll) onAddAll(payloads);
+    else for (const payload of payloads) onAdd(payload);
     onClose();
   }
 

@@ -6,6 +6,7 @@ import Sidebar from '../../Sidebar';
 import LineItemRow from '../../LineItemRow';
 import LineItemPicker from '../../LineItemPicker';
 import CableCalculator from '../../CableCalculator';
+import PlanImportModal from '../../PlanImportModal';
 import TaxBreakdown from '../../TaxBreakdown';
 import { calcularIVU } from '../../../lib/tax';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
@@ -22,7 +23,7 @@ function emptyItem(overrides = {}) {
     key: Math.random().toString(36).slice(2),
     parentKey: null, combinePrice: true,
     type: 'labor', tax_category: 'labor', title: '', description: '', note: '', quantity: 1,
-    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '',
+    unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null,
     photoFile: null, photoPreview: null, existingPhotoPath: null,
     ...overrides,
   };
@@ -53,6 +54,7 @@ function NuevoTrabajoForm() {
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
   const [dragItem, setDragItem] = useState(null); // { areaKey, itemKey } — item currently being dragged
   const [cableCalcTarget, setCableCalcTarget] = useState(null); // { areaKey } — which area the calculator adds into, or null when closed
+  const [planImportTarget, setPlanImportTarget] = useState(null); // { areaKey } — which area a floor plan's list lands in, or null when closed
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [quickSuccess, setQuickSuccess] = useState(false);
@@ -369,6 +371,7 @@ function NuevoTrabajoForm() {
               supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
               exempt_reason: i.exempt ? 'Exento' : null,
               area: area.name || null, vendor: i.vendor || null,
+              catalog_item_id: i.catalog_item_id || null,
               combine_price: i.combinePrice !== false,
               photo_url: photoPath,
               sort_order: sortOrder++,
@@ -386,6 +389,7 @@ function NuevoTrabajoForm() {
               supplier_price: i.supplier_price !== '' ? parseFloat(i.supplier_price) : null,
               exempt_reason: i.exempt ? 'Exento' : null,
               area: area.name || null, parent_item_id: keyToId[i.parentKey],
+              catalog_item_id: i.catalog_item_id || null,
               photo_url: photoPath,
               sort_order: sortOrder++,
             }]);
@@ -834,6 +838,7 @@ function NuevoTrabajoForm() {
                         <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key, { type: 'product', tax_category: 'product' })}>{t('addProduct')}</button>
                         <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => addItem(area.key)}>{t('addLabor')}</button>
                         <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget({ areaKey: area.key })}>{t('calculateCable')}</button>
+                        <button type="button" className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setPlanImportTarget({ areaKey: area.key })}>{t('importFromPlan')}</button>
                       </div>
                     </div>
                   ))}
@@ -878,6 +883,16 @@ function NuevoTrabajoForm() {
             catalogItems={catalogItems}
             onAdd={item => { addPrefilledItem(cableCalcTarget.areaKey, item); setCableCalcTarget(null); }}
             onClose={() => setCableCalcTarget(null)}
+          />
+        )}
+        {/* A floor plan's item list, one line per article. The job does not
+            exist yet, so only the client narrows which plans come up first. */}
+        {planImportTarget && (
+          <PlanImportModal
+            catalogItems={catalogItems}
+            clientId={form.client_id || null}
+            onAdd={item => addPrefilledItem(planImportTarget.areaKey, item)}
+            onClose={() => setPlanImportTarget(null)}
           />
         )}
       </main>

@@ -8,6 +8,7 @@ import PhotoAnnotator from '../../PhotoAnnotator';
 import LineItemRow from '../../LineItemRow';
 import LineItemPicker from '../../LineItemPicker';
 import CableCalculator from '../../CableCalculator';
+import PlanImportModal from '../../PlanImportModal';
 import TaxBreakdown from '../../TaxBreakdown';
 import { calcularIVU } from '../../../lib/tax';
 import { exportPurchaseListCSV } from '../../purchaseListCsv';
@@ -428,6 +429,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   const [newLine, setNewLine] = useState({ type: 'labor', tax_category: 'labor', title: '', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', warranty_expires_at: null, photoFile: null, photoPreview: null, existingPhotoPath: null });
   const [catalogItems, setCatalogItems] = useState([]);
   const [cableCalcTarget, setCableCalcTarget] = useState(null); // area name currently targeted, or null
+  const [planImportTarget, setPlanImportTarget] = useState(null); // area name a floor plan's list lands in, or null
   const [showLineMenu, setShowLineMenu] = useState(false);
 
   const derivedAreas = groupLineItemsByArea(lineItems);
@@ -523,6 +525,37 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     setNewLine(l => ({ ...l, type: 'product', tax_category: 'product', ...item }));
     setAddingLineFor(areaName);
   }
+  // A floor plan's list, straight into the job. The other three forms merge a
+  // prefilled line into a draft they will save later; this tab has no draft —
+  // its lines are rows from the moment they are added — so the whole import is
+  // one insert, not twelve that would each race the previous state update.
+  const [importingPlan, setImportingPlan] = useState(false);
+  async function addLinesFromPlan(lines, areaName) {
+    if (lines.length === 0) return;
+    setImportingPlan(true);
+    const { data, error } = await supabase.from('job_line_items').insert(
+      lines.map((line, i) => ({
+        job_id: job.id,
+        type: 'product',
+        tax_category: 'product',
+        title: line.title?.trim() || null,
+        description: line.description.trim(),
+        quantity: parseFloat(line.quantity) || 1,
+        unit_price: parseFloat(line.unit_price) || 0,
+        msrp: line.msrp !== '' && line.msrp != null ? parseFloat(line.msrp) : null,
+        supplier_price: line.supplier_price !== '' && line.supplier_price != null ? parseFloat(line.supplier_price) : null,
+        exempt_reason: null,
+        area: areaName && areaName !== SIN_AREA ? areaName : null,
+        vendor: line.vendor || null,
+        catalog_item_id: line.catalog_item_id || null,
+        sort_order: lineItems.length + i,
+      }))
+    ).select();
+    setImportingPlan(false);
+    if (error) { alert(t('lineItems.importPlanFailed', { error: error.message })); return; }
+    setLineItems(prev => [...prev, ...(data ?? [])]);
+  }
+
   const [savingLine, setSavingLine] = useState(false);
   const [editingLineId, setEditingLineId] = useState(null);
   const [editLineForm, setEditLineForm] = useState({});
@@ -2001,6 +2034,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setAddingLineFor(area.name)}>+ {t('lineItems.addLine')}</button>
                       <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} onClick={() => setCableCalcTarget(area.name)}>🧮 {t('lineItems.calculateCable')}</button>
+                      <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '5px 10px' }} disabled={importingPlan} onClick={() => setPlanImportTarget(area.name)}>{t('lineItems.importFromPlan')}</button>
                     </div>
                   </div>
                 );
@@ -3030,6 +3064,15 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
           catalogItems={catalogItems}
           onAdd={item => { addPrefilledLineItem(item, cableCalcTarget); setCableCalcTarget(null); }}
           onClose={() => setCableCalcTarget(null)}
+        />
+      )}
+      {planImportTarget && (
+        <PlanImportModal
+          catalogItems={catalogItems}
+          clientId={job.client_id || null}
+          jobId={job.id}
+          onAddAll={lines => addLinesFromPlan(lines, planImportTarget)}
+          onClose={() => setPlanImportTarget(null)}
         />
       )}
     </div>
