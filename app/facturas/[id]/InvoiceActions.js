@@ -117,9 +117,17 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       paid_at: payment.paid_at,
     }]);
     // Only flip to paid once this payment covers the remaining balance —
-    // partial payments leave the invoice as-is so more can be registered later.
+    // partial payments keep the invoice open so more can be registered later.
     if (remaining <= 0.01) {
       await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoiceId);
+    } else if (status === 'draft') {
+      // Money came in, so this isn't a draft anymore. It matters because the
+      // accounting stats skip drafts on purpose (see accounting/facturas/
+      // page.js), so a deposit on a draft used to sit there invisible: not in
+      // Facturado, not in Cobrado. A payment that covered the whole balance
+      // already escaped via the 'paid' branch above — only partial ones got
+      // stuck, which is exactly the deposit case.
+      await supabase.from('invoices').update({ status: 'sent' }).eq('id', invoiceId);
     }
     setSaving(false);
     setShowPayment(false);
