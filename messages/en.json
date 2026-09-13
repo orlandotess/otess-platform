@@ -3294,6 +3294,7 @@
     },
     "ivuInvoiceTable": {
       "detailTitle": "Detail by invoice",
+      "partialShare": "{pct}% collected",
       "searchPlaceholder": "Search invoice # or client...",
       "empty": "No invoices for this period.",
       "noResults": "No results for \"{search}\".",

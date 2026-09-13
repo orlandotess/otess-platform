@@ -8,8 +8,14 @@ import Link from 'next/link';
 import ExportIVUButton from './ExportIVUButton';
 import IVUInvoiceTableClient from './IVUInvoiceTableClient';
 import IVUPaymentTracker from './IVUPaymentTracker';
-import { computeInvoiceIVU } from '../../../lib/ivu';
+import { computeInvoiceIVU, buildIVUCollectionEvents } from '../../../lib/ivu';
 import { getTranslations, getLocale } from 'next-intl/server';
+
+// Periods before this keep the old rule (an invoice's whole IVU on the month
+// it was paid off), so months already filed with Hacienda still report exactly
+// what was filed. IVU earned before the cutoff but not yet reported rides onto
+// the first payment on or after it, so nothing is lost at the seam.
+const IVU_PRORATE_FROM = '2026-01-01';
 
 export default async function AccountingIVU(props) {
   const searchParams = await props.searchParams;
@@ -28,36 +34,52 @@ export default async function AccountingIVU(props) {
     dateEnd = `${year}-12-31`;
   }
 
-  // Cash basis: an invoice only counts toward IVU once it's fully paid, and
-  // it counts in the period it was paid off - not the period it was issued.
-  // A June invoice paid in August shows up in August's report, not June's.
-  const [{ data: paidInvoices }, { data: ivuPayments }] = await Promise.all([
+  // Cash basis, per collection: each payment reports its own share of the
+  // invoice's IVU in the month the money came in, so a 50% deposit reports
+  // half now instead of the whole invoice landing in whatever month it's
+  // finally paid off. See buildIVUCollectionEvents in lib/ivu.js for how a
+  // payment's share is worked out and how retención is handled.
+  const [{ data: allInvoices }, { data: ivuPayments }] = await Promise.all([
     supabase
       .from('invoices')
       .select('id, invoice_number, issued_at, status, total, subtotal_labor, tax_labor, subtotal_products, tax_products, clients(name, client_type)')
-      .eq('status', 'paid')
+      .neq('status', 'cancelled')
       .order('issued_at', { ascending: false }),
     supabase.from('ivu_payments').select('*').eq('year', year),
   ]);
 
-  const invoiceIds = (paidInvoices ?? []).map(inv => inv.id);
-  const { data: paymentRows } = invoiceIds.length
-    ? await supabase.from('payments').select('invoice_id, paid_at').in('invoice_id', invoiceIds)
-    : { data: [] };
+  const invoiceIds = (allInvoices ?? []).map(inv => inv.id);
+  const [{ data: paymentRows }, { data: retencionRows }] = invoiceIds.length
+    ? await Promise.all([
+        supabase.from('payments').select('invoice_id, amount, paid_at').in('invoice_id', invoiceIds),
+        supabase.from('retenciones').select('invoice_id, retencion_aplicada').in('invoice_id', invoiceIds),
+      ])
+    : [{ data: [] }, { data: [] }];
 
-  const paidOffDate = {};
-  (paymentRows ?? []).forEach(p => {
-    if (!paidOffDate[p.invoice_id] || p.paid_at > paidOffDate[p.invoice_id]) {
-      paidOffDate[p.invoice_id] = p.paid_at;
-    }
+  const paymentsByInvoice = {};
+  (paymentRows ?? []).forEach(p => { (paymentsByInvoice[p.invoice_id] ??= []).push(p); });
+  const retainedByInvoice = {};
+  (retencionRows ?? []).forEach(r => {
+    retainedByInvoice[r.invoice_id] = (retainedByInvoice[r.invoice_id] ?? 0) + Number(r.retencion_aplicada ?? 0);
   });
 
-  const invoices = (paidInvoices ?? [])
-    .filter(inv => {
-      const d = paidOffDate[inv.id];
-      return d && d >= dateStart && d <= dateEnd;
-    })
-    .map(inv => ({ ...inv, paid_at: paidOffDate[inv.id] }))
+  const events = buildIVUCollectionEvents(allInvoices, paymentsByInvoice, retainedByInvoice, { prorateFrom: IVU_PRORATE_FROM });
+  const invoiceById = Object.fromEntries((allInvoices ?? []).map(inv => [inv.id, inv]));
+
+  // One row per invoice with money collected in this period, carrying the
+  // slice of its IVU earned here (ivuFraction) so the table can scale the
+  // invoice's own figures down to what this period actually earned.
+  const periodByInvoice = {};
+  events
+    .filter(e => e.date >= dateStart && e.date <= dateEnd)
+    .forEach(e => {
+      const row = (periodByInvoice[e.invoiceId] ??= { fraction: 0, lastDate: e.date });
+      row.fraction += e.fraction;
+      if (e.date > row.lastDate) row.lastDate = e.date;
+    });
+
+  const invoices = Object.entries(periodByInvoice)
+    .map(([id, row]) => ({ ...invoiceById[id], paid_at: row.lastDate, ivuFraction: row.fraction }))
     .sort((a, b) => (b.paid_at > a.paid_at ? 1 : -1));
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -71,13 +93,16 @@ export default async function AccountingIVU(props) {
   // Compute IVU breakdown per invoice straight off the invoice's own fields
   // (see lib/ivu.js) - invoice_line_items isn't reliably populated, which
   // previously under-reported IVU for any invoice missing them.
+  // Scaled by ivuFraction: only the share of each invoice's IVU that this
+  // period's collections earned.
   const ivuByInvoice = {};
   (invoices ?? []).forEach(inv => {
     const b = computeInvoiceIVU(inv);
+    const f = inv.ivuFraction ?? 1;
     ivuByInvoice[inv.id] = {
-      ivuProducts: b.prodTax,
-      ivuLaborFinal: b.isB2B ? 0 : b.laborTax,
-      ivuLaborB2B: b.isB2B ? b.laborTax : 0,
+      ivuProducts: b.prodTax * f,
+      ivuLaborFinal: (b.isB2B ? 0 : b.laborTax) * f,
+      ivuLaborB2B: (b.isB2B ? b.laborTax : 0) * f,
     };
   });
 
@@ -96,14 +121,20 @@ export default async function AccountingIVU(props) {
   const totIVU = totFinal + totB2B;
 
   // Monthly breakdown (only when viewing full year)
+  // Built from the collection events, not from the period rows above: one
+  // invoice can collect across several months, and those rows collapse it into
+  // a single line, which would pile the whole year onto one month.
   const monthlyData = months.map((m, i) => {
     const mStart = `${year}-${String(i + 1).padStart(2, '0')}-01`;
     const mEnd = new Date(year, i + 1, 0).toISOString().slice(0, 10);
-    const mInvIds = new Set((invoices ?? []).filter(inv => inv.paid_at >= mStart && inv.paid_at <= mEnd).map(inv => inv.id));
     let mProd = 0, mLaborFinal = 0, mLaborB2B = 0;
-    mInvIds.forEach(id => {
-      const v = ivuByInvoice[id];
-      if (v) { mProd += v.ivuProducts; mLaborFinal += v.ivuLaborFinal; mLaborB2B += v.ivuLaborB2B; }
+    events.filter(e => e.date >= mStart && e.date <= mEnd).forEach(e => {
+      const inv = invoiceById[e.invoiceId];
+      if (!inv) return;
+      const b = computeInvoiceIVU(inv);
+      mProd += b.prodTax * e.fraction;
+      mLaborFinal += (b.isB2B ? 0 : b.laborTax) * e.fraction;
+      mLaborB2B += (b.isB2B ? b.laborTax : 0) * e.fraction;
     });
     const mFinal = mProd + mLaborFinal;
     return { name: m.slice(0, 3), mProd, mLaborFinal, mLaborB2B, mFinal, estatal: mFinal * (10.5 / 11.5), municipal: mFinal * (1 / 11.5), total: mFinal + mLaborB2B, idx: i };

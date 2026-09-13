@@ -5,6 +5,25 @@ import SearchBox from '../../SearchBox';
 import { computeInvoiceIVU } from '../../../lib/ivu';
 import { useTranslations } from 'next-intl';
 
+// An invoice collected in slices reports only the slice earned in this period
+// (see buildIVUCollectionEvents in lib/ivu.js). Rates stay untouched - they're
+// rates, not amounts - and so does isB2B. Callers that pass no fraction (the
+// Cliente 360 view) get the invoice's full figures, as before.
+function scaleIVU(b, fraction) {
+  if (fraction == null || fraction >= 0.9999) return b;
+  return {
+    ...b,
+    laborSub: b.laborSub * fraction,
+    laborTax: b.laborTax * fraction,
+    prodSub: b.prodSub * fraction,
+    prodTax: b.prodTax * fraction,
+    estatal: b.estatal * fraction,
+    municipal: b.municipal * fraction,
+    totalIVU: b.totalIVU * fraction,
+    totalFactura: b.totalFactura * fraction,
+  };
+}
+
 export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClientColumn = false }) {
   const t = useTranslations('accounting.ivuInvoiceTable');
   const [search, setSearch] = useState('');
@@ -47,11 +66,17 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
             </thead>
             <tbody>
               {visible.map(inv => {
-                const b = computeInvoiceIVU(inv);
+                const b = scaleIVU(computeInvoiceIVU(inv), inv.ivuFraction);
+                const partial = (inv.ivuFraction ?? 1) < 0.9999;
                 return (
                   <tr key={inv.id}>
                     <td style={{ fontWeight: 700, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                       <Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)' }}>{inv.invoice_number}</Link>
+                      {partial && (
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)', fontFamily: 'inherit' }}>
+                          {t('partialShare', { pct: (inv.ivuFraction * 100).toFixed(0) })}
+                        </div>
+                      )}
                     </td>
                     {!hideClientColumn && (
                       <td style={{ fontWeight: 600, minWidth: 116 }}>
@@ -83,7 +108,7 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
             <tfoot>
               {(() => {
                 const totals = visible.reduce((acc, inv) => {
-                  const b = computeInvoiceIVU(inv);
+                  const b = scaleIVU(computeInvoiceIVU(inv), inv.ivuFraction);
                   acc.laborSub += b.laborSub;
                   acc.laborTax += b.laborTax;
                   acc.prodSub += b.prodSub;

@@ -3294,6 +3294,7 @@
     },
     "ivuInvoiceTable": {
       "detailTitle": "Detalle por factura",
+      "partialShare": "{pct}% cobrado",
       "searchPlaceholder": "Buscar # factura o cliente...",
       "empty": "No hay facturas para este período.",
       "noResults": "Sin resultados para \"{search}\".",
