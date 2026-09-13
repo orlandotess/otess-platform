@@ -112,7 +112,7 @@ export default async function AccountingIVU(props) {
   return (
     <div className="admin-shell">
       <Sidebar />
-      <main className="main-content">
+      <main className="main-content main-content-wide">
         <div className="page-header">
           <div>
             <div className="page-title">{t('title')}</div>

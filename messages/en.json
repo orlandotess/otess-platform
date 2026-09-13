@@ -3306,9 +3306,9 @@
         "laborRate": "Labor rate",
         "ivuLabor": "IVU Labor",
         "product": "Product",
-        "ivuProd": "IVU Prod (11.5%)",
-        "estatal": "State (10.5%)",
-        "municipal": "Municipal (1%)",
+        "ivuProd": "IVU Prod",
+        "estatal": "State",
+        "municipal": "Municipal",
         "totalIVU": "Total IVU",
         "totalInvoice": "Invoice total"
       },

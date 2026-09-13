@@ -3306,9 +3306,9 @@
         "laborRate": "Tasa labor",
         "ivuLabor": "IVU Labor",
         "product": "Producto",
-        "ivuProd": "IVU Prod (11.5%)",
-        "estatal": "Estatal (10.5%)",
-        "municipal": "Municipal (1%)",
+        "ivuProd": "IVU Prod",
+        "estatal": "Estatal",
+        "municipal": "Municipal",
         "totalIVU": "Total IVU",
         "totalInvoice": "Total factura"
       },

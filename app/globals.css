@@ -253,6 +253,11 @@ body.has-back-button .main-content {
 .main-content {
   margin-left: 220px;
   flex: 1;
+  /* Un flex item trae min-width:auto, o sea que no se encoge por debajo de su
+     contenido: una tabla ancha estiraba el main y sacaba scroll horizontal a
+     TODA la página, en vez de dejar que .table-wrap hiciera su overflow-x.
+     Con min-width:0 el scroll se queda dentro de la tabla, que es donde va. */
+  min-width: 0;
   padding: 32px;
   max-width: 1100px;
 }
@@ -394,6 +399,32 @@ body.has-back-button .main-content {
 
 .table-dense {
   white-space: nowrap;
+}
+
+/* ── Tabla IVU ──
+   Son 12 columnas de dinero; con el padding normal de 16px no caben y la
+   tabla se corta. Se aprietan las celdas y el nowrap se aplica solo a los
+   números (.num), así el nombre del cliente parte en dos líneas en vez de
+   estirar la tabla entera. */
+.table-ivu th,
+.table-ivu td {
+  padding: 10px 8px;
+}
+
+.table-ivu td {
+  font-size: 13px;
+}
+
+.table-ivu th:first-child,
+.table-ivu td:first-child { padding-left: 0; }
+
+.table-ivu th:last-child,
+.table-ivu td:last-child { padding-right: 0; }
+
+.table-ivu .num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 table {

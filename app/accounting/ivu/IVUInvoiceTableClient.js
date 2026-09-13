@@ -28,21 +28,21 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
         <div className="empty"><p>{t('noResults', { search })}</p></div>
       ) : (
         <div className="table-wrap">
-          <table style={{ minWidth: 1180, whiteSpace: 'nowrap' }}>
+          <table className="table-ivu">
             <thead>
               <tr>
                 <th>{t('columns.number')}</th>
                 {!hideClientColumn && <th>{t('columns.client')}</th>}
                 <th>{invoices.some(i => i.paid_at) ? t('columns.datePaid') : t('columns.date')}</th>
-                <th style={{ textAlign: 'right' }}>{t('columns.labor')}</th>
-                <th style={{ textAlign: 'right' }}>{t('columns.laborRate')}</th>
-                <th style={{ textAlign: 'right' }}>{t('columns.ivuLabor')}</th>
-                <th style={{ textAlign: 'right' }}>{t('columns.product')}</th>
-                <th style={{ textAlign: 'right' }}>{t('columns.ivuProd')}</th>
-                <th style={{ textAlign: 'right' }}>{t('columns.estatal')}</th>
-                <th style={{ textAlign: 'right' }}>{t('columns.municipal')}</th>
-                <th style={{ textAlign: 'right' }}>{t('columns.totalIVU')}</th>
-                <th style={{ textAlign: 'right' }}>{t('columns.totalInvoice')}</th>
+                <th className="num">{t('columns.labor')}</th>
+                <th className="num">{t('columns.laborRate')}</th>
+                <th className="num">{t('columns.ivuLabor')}</th>
+                <th className="num">{t('columns.product')}</th>
+                <th className="num">{t('columns.ivuProd')}</th>
+                <th className="num">{t('columns.estatal')}</th>
+                <th className="num">{t('columns.municipal')}</th>
+                <th className="num">{t('columns.totalIVU')}</th>
+                <th className="num">{t('columns.totalInvoice')}</th>
               </tr>
             </thead>
             <tbody>
@@ -50,30 +50,32 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
                 const b = computeInvoiceIVU(inv);
                 return (
                   <tr key={inv.id}>
-                    <td style={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                    <td style={{ fontWeight: 700, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                       <Link href={`/facturas/${inv.id}`} style={{ color: 'var(--amber)' }}>{inv.invoice_number}</Link>
                     </td>
                     {!hideClientColumn && (
-                      <td style={{ fontWeight: 600 }}>
+                      <td style={{ fontWeight: 600, minWidth: 116 }}>
                         {inv.clients?.name ?? '—'}
-                        <span className={`badge ${b.isB2B ? 'badge-blue' : 'badge-gray'}`} style={{ marginLeft: 6 }}>{b.isB2B ? t('clientType.b2b') : t('clientType.final')}</span>
+                        <div style={{ marginTop: 3 }}>
+                          <span className={`badge ${b.isB2B ? 'badge-blue' : 'badge-gray'}`}>{b.isB2B ? t('clientType.b2b') : t('clientType.final')}</span>
+                        </div>
                       </td>
                     )}
-                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>
+                    <td style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
                       {inv.paid_at ?? inv.issued_at}
                       {inv.paid_at && inv.paid_at !== inv.issued_at && (
                         <div style={{ fontSize: 11, opacity: 0.7 }}>{t('invoiceDatePrefix', { date: inv.issued_at })}</div>
                       )}
                     </td>
-                    <td style={{ textAlign: 'right' }}>{fmt(b.laborSub)}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--muted)', fontSize: 13 }}>{pct(b.laborRate)}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(b.laborTax)}</td>
-                    <td style={{ textAlign: 'right' }}>{fmt(b.prodSub)}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{fmt(b.prodTax)}</td>
-                    <td style={{ textAlign: 'right' }}>{fmt(b.estatal)}</td>
-                    <td style={{ textAlign: 'right' }}>{fmt(b.municipal)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(b.totalIVU)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--navy)' }}>{fmt(b.totalFactura)}</td>
+                    <td className="num">{fmt(b.laborSub)}</td>
+                    <td className="num" style={{ color: 'var(--muted)' }}>{pct(b.laborRate)}</td>
+                    <td className="num" style={{ color: 'var(--muted)' }}>{fmt(b.laborTax)}</td>
+                    <td className="num">{fmt(b.prodSub)}</td>
+                    <td className="num" style={{ color: 'var(--muted)' }}>{fmt(b.prodTax)}</td>
+                    <td className="num">{fmt(b.estatal)}</td>
+                    <td className="num">{fmt(b.municipal)}</td>
+                    <td className="num" style={{ fontWeight: 700 }}>{fmt(b.totalIVU)}</td>
+                    <td className="num" style={{ fontWeight: 900, color: 'var(--navy)' }}>{fmt(b.totalFactura)}</td>
                   </tr>
                 );
               })}
@@ -95,15 +97,15 @@ export default function IVUInvoiceTableClient({ invoices, periodLabel, hideClien
                 return (
                   <tr style={{ borderTop: '2px solid var(--border)' }}>
                     <td colSpan={hideClientColumn ? 2 : 3} style={{ fontWeight: 700, paddingTop: 12 }}>{t('total')}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.laborSub)}</td>
+                    <td className="num" style={{ fontWeight: 700, paddingTop: 12 }}>{fmt(totals.laborSub)}</td>
                     <td></td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.laborTax)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.prodSub)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.prodTax)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.estatal)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, paddingTop: 12 }}>{fmt(totals.municipal)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.totalIVU)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.totalFactura)}</td>
+                    <td className="num" style={{ fontWeight: 700, paddingTop: 12 }}>{fmt(totals.laborTax)}</td>
+                    <td className="num" style={{ fontWeight: 700, paddingTop: 12 }}>{fmt(totals.prodSub)}</td>
+                    <td className="num" style={{ fontWeight: 700, paddingTop: 12 }}>{fmt(totals.prodTax)}</td>
+                    <td className="num" style={{ fontWeight: 700, paddingTop: 12 }}>{fmt(totals.estatal)}</td>
+                    <td className="num" style={{ fontWeight: 700, paddingTop: 12 }}>{fmt(totals.municipal)}</td>
+                    <td className="num" style={{ fontWeight: 900, fontSize: 14, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.totalIVU)}</td>
+                    <td className="num" style={{ fontWeight: 900, fontSize: 14, color: 'var(--navy)', paddingTop: 12 }}>{fmt(totals.totalFactura)}</td>
                   </tr>
                 );
               })()}
