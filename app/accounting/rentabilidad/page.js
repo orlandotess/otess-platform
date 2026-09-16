@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
-import { effectiveEntryHours } from '../../../lib/payrollOverrides';
+import { effectiveEntryHours, splitEntriesRegularOvertime } from '../../../lib/payrollOverrides';
 import { indexRates, rateOn } from '../../../lib/technicianRates';
 import { prDayKey } from '../../../lib/hours';
 import Sidebar from '../../Sidebar';
@@ -17,7 +17,11 @@ export default async function RentabilidadPage() {
     supabase.from('jobs').select('id, title, job_number, status, clients(name)'),
     supabase.from('invoices').select('id, job_id, total'),
     supabase.from('job_line_items').select('job_id, quantity, unit_price, supplier_price'),
-    supabase.from('time_entries').select('job_id, technician_id, clocked_in_at, clocked_out_at, lunch_minutes').not('job_id', 'is', null).not('clocked_out_at', 'is', null),
+    // Sin el filtro de job_id a propósito: el corte de las 40 horas es por
+    // semana completa del técnico, así que contar solo las horas facturables a
+    // un trabajo correría la frontera del overtime. Las entradas sin trabajo se
+    // descartan más abajo, después del reparto.
+    supabase.from('time_entries').select('job_id, technician_id, clocked_in_at, clocked_out_at, lunch_minutes').not('clocked_out_at', 'is', null),
     supabase.from('technicians').select('id, name, hourly_rate'),
     supabase.from('expenses').select('job_id, amount'),
     supabase.from('daily_hour_overrides').select('technician_id, work_date, regular_hours_override, overtime_hours_override'),
@@ -38,11 +42,18 @@ export default async function RentabilidadPage() {
   // recosteaba un trabajo cerrado cada vez que a alguien le subían la paga:
   // un trabajo de marzo aparecía con el costo de mano de obra de hoy, y su
   // margen se movía solo.
-  const timeEntriesEff = rawEntries.map((e, i) => ({
-    ...e,
-    hours: effectiveHours[i],
-    cost: effectiveHours[i] * rateOn(ratesByTech, e.technician_id, prDayKey(e.clocked_in_at), fallbackRateById[e.technician_id]),
-  }));
+  // El costo lleva la prima de overtime: las horas de la semana que pasan de
+  // 40 se pagan a 1.5x, así que costearlas a tarifa base abarataba los
+  // trabajos tocados por una semana de overtime.
+  const splits = splitEntriesRegularOvertime(rawEntries, dayOverrides ?? []);
+  const timeEntriesEff = rawEntries.map((e, i) => {
+    const rate = rateOn(ratesByTech, e.technician_id, prDayKey(e.clocked_in_at), fallbackRateById[e.technician_id]);
+    return {
+      ...e,
+      hours: effectiveHours[i],
+      cost: splits[i].regular * rate + splits[i].overtime * rate * 1.5,
+    };
+  });
   function hoursOf(entry) { return entry.hours; }
 
   const invoiceIds = (invoices ?? []).map(i => i.id);
@@ -64,7 +75,7 @@ export default async function RentabilidadPage() {
   const lineItemsByJob = {};
   (lineItems ?? []).forEach(li => { (lineItemsByJob[li.job_id] ??= []).push(li); });
   const entriesByJob = {};
-  timeEntriesEff.forEach(e => { (entriesByJob[e.job_id] ??= []).push(e); });
+  timeEntriesEff.forEach(e => { if (e.job_id) (entriesByJob[e.job_id] ??= []).push(e); });
   const expensesByJob = {};
   (expenses ?? []).forEach(e => { (expensesByJob[e.job_id] ??= []).push(e); });
 

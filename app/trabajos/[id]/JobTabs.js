@@ -19,6 +19,7 @@ import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDatePR, formatDateTimePR } from '../../../lib/datetimeLocal';
 import { computeHours, getJobScheduleWindow, prDayKey } from '../../../lib/hours';
 import { indexRates, rateOn } from '../../../lib/technicianRates';
+import { splitEntriesRegularOvertime } from '../../../lib/payrollOverrides';
 import { useJobChecklist } from '../../../lib/useJobChecklist';
 
 import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
@@ -74,7 +75,7 @@ const expenseCategories = [
   { value: 'otro', key: 'otro' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, checklistAreas = [], templates, clientType, taxRules = [], totals, jobTechnicians = [], jobContacts = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [], technicianRates = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, checklistAreas = [], templates, clientType, taxRules = [], totals, jobTechnicians = [], jobContacts = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [], technicianRates = [], weekTimeEntries = [], weekDayOverrides = [] }) {
   const router = useRouter();
   const t = useTranslations('trabajos.jobTabs');
   const tPurchaseListCsv = useTranslations('shared.purchaseListCsv');
@@ -1132,14 +1133,24 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     // paga. Un trabajo largo puede abarcar un cambio de tarifa, así que la
     // tarifa que se enseña en la fila es la efectiva (costo ÷ horas) y no una
     // de las dos, que no cuadraría con el costo de al lado.
+    //
+    // El reparto entre regular y overtime se hace sobre las semanas COMPLETAS
+    // de cada técnico (weekTimeEntries), no sobre las horas de este trabajo:
+    // el corte de 40h es semanal. Después se cuentan solo las entradas de este
+    // trabajo. Así la prima de 1.5x cae donde de verdad se causó, y el costo
+    // aquí cuadra con el de Rentabilidad.
+    const contextEntries = weekTimeEntries.length > 0 ? weekTimeEntries : timeEntries;
+    const splits = splitEntriesRegularOvertime(contextEntries, weekDayOverrides);
     const hoursByTech = {};
     const costByTech = {};
-    timeEntries.forEach(e => {
-      const { hours: hrs } = computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes);
+    contextEntries.forEach((e, i) => {
+      if (e.job_id !== job.id) return;
+      const { regular, overtime } = splits[i];
+      const hrs = regular + overtime;
       if (hrs <= 0) return;
+      const rate = rateOn(ratesByTech, e.technician_id, prDayKey(e.clocked_in_at), fallbackRateById[e.technician_id]);
       hoursByTech[e.technician_id] = (hoursByTech[e.technician_id] ?? 0) + hrs;
-      costByTech[e.technician_id] = (costByTech[e.technician_id] ?? 0)
-        + hrs * rateOn(ratesByTech, e.technician_id, prDayKey(e.clocked_in_at), fallbackRateById[e.technician_id]);
+      costByTech[e.technician_id] = (costByTech[e.technician_id] ?? 0) + regular * rate + overtime * rate * 1.5;
     });
     const laborRows = Object.entries(hoursByTech).map(([techId, hours]) => {
       const tech = technicians.find(t => t.id === techId);

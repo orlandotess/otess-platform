@@ -7,6 +7,7 @@ import JobTabs from './JobTabs';
 import JobTitleEditor from './JobTitleEditor';
 import { normalizeName } from '../../../lib/normalizeName';
 import { calcularIVU } from '../../../lib/tax';
+import { prDayKey, payWeekStart } from '../../../lib/hours';
 import { getTranslations } from 'next-intl/server';
 
 const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
@@ -45,7 +46,7 @@ export default async function TrabajoDetail(props) {
     supabase.from('job_schedule_days').select('*, technicians(name)').eq('job_id', id).order('scheduled_start'),
     supabase.from('expenses').select('*').eq('job_id', id).order('expense_date', { ascending: false }),
     supabase.from('invoices').select('id, invoice_number, total, status, issued_at').eq('job_id', id).order('issued_at', { ascending: false }),
-    supabase.from('time_entries').select('technician_id, clocked_in_at, clocked_out_at, lunch_minutes').eq('job_id', id).not('clocked_out_at', 'is', null),
+    supabase.from('time_entries').select('job_id, technician_id, clocked_in_at, clocked_out_at, lunch_minutes').eq('job_id', id).not('clocked_out_at', 'is', null),
     supabase.from('job_reports').select('*').eq('job_id', id).order('created_at', { ascending: false }),
     supabase.from('floor_plans').select('id, name, rendered_image_path').eq('job_id', id).order('updated_at', { ascending: false }),
     supabase.from('tax_rules').select('client_type, line_item_type, rate'),
@@ -162,6 +163,41 @@ export default async function TrabajoDetail(props) {
     })
   );
 
+  // Para costear la mano de obra de este trabajo hace falta el contexto de la
+  // SEMANA COMPLETA de cada técnico que trabajó en él: el corte de las 40 horas
+  // que dispara el overtime es semanal, y mirando solo las horas de este
+  // trabajo la frontera caería en el sitio equivocado. Se consulta aparte
+  // porque el rango y los técnicos salen de la consulta anterior.
+  const jobEntries = jobTimeEntries ?? [];
+  let weekTimeEntries = jobEntries;
+  let weekDayOverrides = [];
+  if (jobEntries.length > 0) {
+    const days = jobEntries.map(e => prDayKey(e.clocked_in_at)).sort();
+    const firstWeek = payWeekStart(days[0]);
+    const lastWeek = payWeekStart(days[days.length - 1]);
+    // Un día de margen por cada lado para no cortar un fichaje nocturno.
+    const from = new Date(firstWeek + 'T00:00:00');
+    from.setDate(from.getDate() - 1);
+    const to = new Date(lastWeek + 'T00:00:00');
+    to.setDate(to.getDate() + 8);
+    const techIds = [...new Set(jobEntries.map(e => e.technician_id).filter(Boolean))];
+    const [{ data: ctxEntries }, { data: ctxOverrides }] = await Promise.all([
+      supabase.from('time_entries')
+        .select('job_id, technician_id, clocked_in_at, clocked_out_at, lunch_minutes')
+        .in('technician_id', techIds)
+        .gte('clocked_in_at', from.toISOString())
+        .lte('clocked_in_at', to.toISOString())
+        .not('clocked_out_at', 'is', null),
+      supabase.from('daily_hour_overrides')
+        .select('technician_id, work_date, regular_hours_override, overtime_hours_override')
+        .in('technician_id', techIds)
+        .gte('work_date', from.toISOString().slice(0, 10))
+        .lte('work_date', to.toISOString().slice(0, 10)),
+    ]);
+    if (ctxEntries?.length) weekTimeEntries = ctxEntries;
+    weekDayOverrides = ctxOverrides ?? [];
+  }
+
   // OTESS is the office/admin account — only gets administrative jobs, never
   // shows up as an assignable field technician.
   const assignableTechnicians = (technicians ?? []).filter(t => normalizeName(t.name) !== 'otess');
@@ -202,6 +238,8 @@ export default async function TrabajoDetail(props) {
           items={itemsWithSignedUrls}
           technicians={assignableTechnicians}
           technicianRates={technicianRates ?? []}
+          weekTimeEntries={weekTimeEntries}
+          weekDayOverrides={weekDayOverrides}
           notes={notesWithSignedUrls}
           checklist={checklistWithSignedUrls}
           checklistAreas={checklistAreasWithSignedUrls}
