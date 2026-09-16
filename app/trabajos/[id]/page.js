@@ -32,7 +32,7 @@ export default async function TrabajoDetail(props) {
     Object.entries(statusBadgeDefs).map(([k, v]) => [k, { cls: v.cls, label: t(`status.${v.key}`) }])
   );
 
-  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: checklistAreas }, { data: templates }, { data: jobTechnicians }, { data: jobContacts }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }, { data: planos }, { data: taxRules }] = await Promise.all([
+  const [{ data: job }, { data: items }, { data: technicians }, { data: notes }, { data: checklist }, { data: checklistAreas }, { data: templates }, { data: jobTechnicians }, { data: jobContacts }, { data: scheduleDays }, { data: expenses }, { data: jobInvoices }, { data: jobTimeEntries }, { data: jobReports }, { data: planos }, { data: taxRules }, { data: technicianRates }] = await Promise.all([
     supabase.from('jobs').select('*, clients(name, email, phone, client_type, company), client_addresses(*), client_properties(*), client_contacts(*)').eq('id', id).single(),
     supabase.from('job_line_items').select('*').eq('job_id', id).order('sort_order'),
     supabase.from('technicians').select('*').order('name'),
@@ -49,6 +49,7 @@ export default async function TrabajoDetail(props) {
     supabase.from('job_reports').select('*').eq('job_id', id).order('created_at', { ascending: false }),
     supabase.from('floor_plans').select('id, name, rendered_image_path').eq('job_id', id).order('updated_at', { ascending: false }),
     supabase.from('tax_rules').select('client_type, line_item_type, rate'),
+    supabase.from('technician_rates').select('*'),
   ]);
 
   const jobInvoiceIds = (jobInvoices ?? []).map(i => i.id);
@@ -200,6 +201,7 @@ export default async function TrabajoDetail(props) {
           job={job}
           items={itemsWithSignedUrls}
           technicians={assignableTechnicians}
+          technicianRates={technicianRates ?? []}
           notes={notesWithSignedUrls}
           checklist={checklistWithSignedUrls}
           checklistAreas={checklistAreasWithSignedUrls}

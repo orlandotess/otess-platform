@@ -2713,6 +2713,29 @@
         "save": "💾 Save",
         "saving": "Saving...",
         "cancel": "Cancel"
+      },
+      "variousRates": "several",
+      "rateModal": {
+        "open": "Adjust hourly rate",
+        "title": "Adjust hourly rate",
+        "newRate": "New rate ($/h)",
+        "effectiveFrom": "Effective from (pay week)",
+        "weekOption": "{start} — {end} · pays {pay}",
+        "alreadyPaidTag": "already paid",
+        "effectNote": "Applies from the week of {start} — {end}. First paycheck at this rate: {pay}. Earlier weeks are left untouched.",
+        "note": "Note (optional)",
+        "notePlaceholder": "e.g. annual raise, change of role...",
+        "errorInvalid": "Enter a valid rate (0 or more).",
+        "errorPaidWeek": "That week is already marked as paid. Pick a later week — changing its rate would move an amount that already went out on a paycheck.",
+        "historyTitle": "Rate history",
+        "historyLoading": "Loading...",
+        "historyEmpty": "No changes recorded yet.",
+        "historySince": "since {date}",
+        "historyRecorded": "Recorded on {date} by {who}",
+        "historyUnknownAuthor": "—",
+        "save": "💾 Save rate",
+        "saving": "Saving...",
+        "cancel": "Cancel"
       }
     },
     "payroll": {

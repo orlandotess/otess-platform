@@ -2,8 +2,10 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
+import { getCurrentProfile } from '../../../lib/supabase-server';
 import { computeHours, prDayKey, prQueryBounds, prMonthRange, prYearRange } from '../../../lib/hours';
 import { indexDayOverrides, splitRegularOvertime } from '../../../lib/payrollOverrides';
+import { indexRates, rateForWeek, rateOn } from '../../../lib/technicianRates';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import PayrollClient from './PayrollCliente';
@@ -47,7 +49,12 @@ function getWeekRange(offset = 0) {
 // otherwise the portion of its raw entries that happen to fall inside this
 // window would get silently added back on top of the adjustment counted in
 // full elsewhere.
-function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}, techWeekAdjustments = [], rangeStart = null, rangeEnd = null) {
+// `rateForWeekStart(wsKey)` devuelve la tarifa vigente el miércoles en que
+// arranca esa semana. El dinero se acumula AQUÍ, semana por semana, y no
+// afuera multiplicando las horas totales por una sola tarifa: un mes o un año
+// abarcan varias semanas de pago y la tarifa pudo haber cambiado en medio, así
+// que el total de horas del período ya no tiene una única tarifa que aplicarle.
+function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}, techWeekAdjustments = [], rangeStart = null, rangeEnd = null, rateForWeekStart = () => 0) {
   const byWeek = {};
   const weekOf = dayKey => {
     const d = new Date(dayKey + 'T00:00:00');
@@ -75,7 +82,7 @@ function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}, techWeek
   // Make sure adjustment-only weeks (no raw/day entries at all) are represented.
   Object.keys(weekAdjByStart).forEach(wsKey => { if (!byWeek[wsKey]) byWeek[wsKey] = {}; });
 
-  let regular = 0, overtime = 0, grossOverridePay = 0;
+  let regular = 0, overtime = 0, grossOverridePay = 0, regularPay = 0, overtimePay = 0;
   Object.keys(byWeek).sort().forEach(wsKey => {
     const weekAdj = weekAdjByStart[wsKey];
     const isNoOpAdj = weekAdj && weekAdj.regular_hours_override == null && weekAdj.overtime_hours_override == null && weekAdj.gross_pay_override == null;
@@ -85,17 +92,25 @@ function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}, techWeek
         if (weekAdj.gross_pay_override !== null && weekAdj.gross_pay_override !== undefined) {
           grossOverridePay += Number(weekAdj.gross_pay_override);
         } else {
-          regular += Number(weekAdj.regular_hours_override ?? 0);
-          overtime += Number(weekAdj.overtime_hours_override ?? 0);
+          const adjRegular = Number(weekAdj.regular_hours_override ?? 0);
+          const adjOvertime = Number(weekAdj.overtime_hours_override ?? 0);
+          const adjRate = rateForWeekStart(wsKey);
+          regular += adjRegular;
+          overtime += adjOvertime;
+          regularPay += adjRegular * adjRate;
+          overtimePay += adjOvertime * adjRate * 1.5;
         }
       }
       return; // this week's raw hours are suppressed either way — see comment above
     }
     const { regular: wkRegular, overtime: wkOvertime } = splitRegularOvertime(byWeek[wsKey], techDayOverrides);
+    const wkRate = rateForWeekStart(wsKey);
     regular += wkRegular;
     overtime += wkOvertime;
+    regularPay += wkRegular * wkRate;
+    overtimePay += wkOvertime * wkRate * 1.5;
   });
-  return { regular, overtime, grossOverridePay };
+  return { regular, overtime, grossOverridePay, regularPay, overtimePay };
 }
 
 export default async function AccountingPayroll(props) {
@@ -132,7 +147,7 @@ export default async function AccountingPayroll(props) {
     periodEnd = r.periodEnd;
   }
 
-  const [{ data: technicians }, { data: entries }, { data: adjustments }, { data: dayOverrides }] = await Promise.all([
+  const [{ data: technicians }, { data: entries }, { data: adjustments }, { data: dayOverrides }, { data: rateRows }, { data: paidWeeks }] = await Promise.all([
     supabase.from('technicians').select('*').order('name'),
     supabase.from('time_entries')
       .select('*')
@@ -150,12 +165,25 @@ export default async function AccountingPayroll(props) {
       .select('*')
       .gte('work_date', periodStart)
       .lte('work_date', periodEnd),
+    // Sin filtro de fecha a propósito: para saber qué tarifa regía en este
+    // período hace falta la vigencia que arrancó ANTES de él, que casi nunca
+    // cae dentro del rango consultado. Es una tabla de unas pocas filas por
+    // técnico (una por cambio de tarifa), no de una por día.
+    supabase.from('technician_rates').select('*'),
+    // Las semanas ya marcadas como pagadas, de todos los tiempos: el
+    // formulario de tarifa las usa para no dejar fechar una vigencia dentro
+    // de una semana cuyo cheque ya salió.
+    supabase.from('payroll_adjustments').select('technician_id, period_start').eq('paid', true),
   ]);
 
   const techs = technicians ?? [];
   const ents = entries ?? [];
   const adjs = adjustments ?? [];
   const dayOvs = dayOverrides ?? [];
+  const ratesByTech = indexRates(rateRows ?? []);
+  const currentProfile = await getCurrentProfile();
+  const paidWeeksByTech = {};
+  (paidWeeks ?? []).forEach(w => { (paidWeeksByTech[w.technician_id] ??= []).push(w.period_start); });
   const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].map(key => t(`months.${key}`));
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
@@ -172,19 +200,27 @@ export default async function AccountingPayroll(props) {
     // range that has one — a month/year view spans several pay-weeks, so
     // each with its own adjustment must be substituted individually rather
     // than looking for a single adjustment matching the whole month/year.
-    const { regular: rawRegular, overtime: rawOvertime } = computeWeeklyOvertimeHours(techEntries, techDayOverrides, [], periodStart, periodEnd);
-    const { regular: regularHours, overtime: overtimeHours, grossOverridePay } = computeWeeklyOvertimeHours(techEntries, techDayOverrides, techWeekAdjustments, periodStart, periodEnd);
+    const rateFor = wsKey => rateForWeek(ratesByTech, tech.id, wsKey, tech.hourly_rate);
+    const { regular: rawRegular, overtime: rawOvertime } = computeWeeklyOvertimeHours(techEntries, techDayOverrides, [], periodStart, periodEnd, rateFor);
+    const { regular: regularHours, overtime: overtimeHours, grossOverridePay, regularPay, overtimePay } = computeWeeklyOvertimeHours(techEntries, techDayOverrides, techWeekAdjustments, periodStart, periodEnd, rateFor);
 
     const hasOverride = techWeekAdjustments.some(a => a.regular_hours_override != null || a.overtime_hours_override != null || a.gross_pay_override != null);
 
-    const rate = Number(tech.hourly_rate ?? 0);
-    const grossPay = grossOverridePay + (regularHours * rate) + (overtimeHours * rate * 1.5);
-    const regularPay = regularHours * rate;
-    const overtimePay = overtimeHours * rate * 1.5;
+    const grossPay = grossOverridePay + regularPay + overtimePay;
     const retention = grossPay * 0.10;
+
+    // La tarifa que se muestra en la columna es la vigente al CIERRE del
+    // período. En vista de semana es la única que aplicó; en mes o año pudo
+    // haber cambiado en medio, y para eso está rateVaried — el dinero de cada
+    // semana ya se calculó con la suya, así que enseñar una sola como si
+    // hubiera regido todo el período sería mentir sobre el total de al lado.
+    const rateAtPeriodEnd = rateOn(ratesByTech, tech.id, periodEnd, tech.hourly_rate);
+    const rateVaried = (ratesByTech[tech.id] ?? []).some(r => r.effective_from > periodStart && r.effective_from <= periodEnd);
 
     return {
       ...tech,
+      hourly_rate: rateAtPeriodEnd,
+      rateVaried,
       regularHours,
       overtimeHours,
       regularHoursRaw: rawRegular,
@@ -214,8 +250,12 @@ export default async function AccountingPayroll(props) {
     let gross = 0;
     techs.forEach(tech => {
       const te = mEntries.filter(e => e.technician_id === tech.id);
-      const hours = te.reduce((a, e) => a + computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours, 0);
-      gross += hours * Number(tech.hourly_rate ?? 0);
+      // Entrada por entrada y no horas-del-mes × una tarifa: un cambio de
+      // tarifa a mitad de mes tiene que partir la barra en su fecha.
+      gross += te.reduce((a, e) => {
+        const hours = computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours;
+        return a + hours * rateOn(ratesByTech, tech.id, prDayKey(e.clocked_in_at), tech.hourly_rate);
+      }, 0);
     });
     return { name: m.slice(0, 3), gross, net: gross * 0.9, idx: i };
   });
@@ -324,6 +364,8 @@ export default async function AccountingPayroll(props) {
           periodStart={periodStart}
           periodEnd={periodEnd}
           allTechnicians={techs}
+          currentProfile={currentProfile}
+          paidWeeksByTech={paidWeeksByTech}
         />
       </main>
     </div>

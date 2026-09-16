@@ -4,8 +4,9 @@ import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { supabase } from '../../../lib/supabase';
 import SearchBox from '../../SearchBox';
+import { nextWeekEffectiveFrom } from '../../../lib/technicianRates';
 
-export default function PayrollClient({ techStats: initialStats, monthlyPayroll, view, year, months, periodStart, periodEnd, allTechnicians = [] }) {
+export default function PayrollClient({ techStats: initialStats, monthlyPayroll, view, year, months, periodStart, periodEnd, allTechnicians = [], currentProfile = null, paidWeeksByTech = {} }) {
   const router = useRouter();
   const t = useTranslations('accounting.payrollClient');
   const locale = useLocale();
@@ -19,6 +20,16 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
   const [manualTechId, setManualTechId] = useState('');
   const [manualForm, setManualForm] = useState({ regular: '', overtime: '', date: periodStart, grossPay: '', paid: false });
   const [savingManual, setSavingManual] = useState(false);
+  // El ajuste de tarifa vive en su propio modal y no en el editor de la fila.
+  // Son dos cosas distintas desde que la tarifa tiene vigencia: las horas
+  // corrigen ESTE período, mientras que la tarifa nueva casi siempre arranca
+  // el miércoles que viene. Metidas en el mismo formulario, guardar parecía
+  // no hacer nada — los números de la fila que estabas mirando no se movían.
+  const [rateTech, setRateTech] = useState(null);
+  const [rateForm, setRateForm] = useState({ rate: '', effectiveFrom: '', note: '' });
+  const [rateHistory, setRateHistory] = useState(null);
+  const [rateError, setRateError] = useState('');
+  const [savingRate, setSavingRate] = useState(false);
 
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtH = h => `${Number(h).toFixed(1)}h`;
@@ -33,7 +44,6 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
   function startEdit(tech) {
     setEditing(tech.id);
     setEditData({
-      rate: tech.hourly_rate ?? 0,
       regular: tech.regularHours.toFixed(1),
       overtime: tech.overtimeHours.toFixed(1),
     });
@@ -52,18 +62,18 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
 
   async function saveTech(tech) {
     setSaving(true);
-    const newRate = parseFloat(editData.rate) || 0;
+    // La tarifa ya no se toca aquí (va por su propio modal, con vigencia): se
+    // usa la que rigió este período para recalcular la paga de las horas
+    // corregidas.
+    const newRate = Number(tech.hourly_rate ?? 0);
     const newRegular = parseFloat(editData.regular) || 0;
     const newOvertime = parseFloat(editData.overtime) || 0;
 
-    // Save rate to technicians table
-    await supabase.from('technicians').update({ hourly_rate: newRate }).eq('id', tech.id);
-
     // Only touch payroll_adjustments if the hours actually differ from the
-    // computed raw total — editing just the rate (hours left untouched)
-    // used to still upsert a row with both hour fields set to null, which
-    // silently zeroed out that tech's real hours everywhere else the
-    // adjustment was read.
+    // computed raw total — abrir este editor y guardar sin cambiar nada
+    // llegó a escribir una fila con los dos campos de horas en null, que
+    // silenciosamente ponía en cero las horas reales de ese técnico en todos
+    // los demás sitios que leen el ajuste.
     const hoursChanged = newRegular !== tech.regularHoursRaw || newOvertime !== tech.overtimeHoursRaw;
     if (hoursChanged) {
       // Editing hours here means the pay should follow hours × rate going
@@ -85,9 +95,48 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     }
 
     const updated = recalc(newRate, newRegular, newOvertime);
-    setStats(prev => prev.map(row => row.id === tech.id ? { ...row, hourly_rate: newRate, ...updated, hasOverride: hoursChanged } : row));
+    setStats(prev => prev.map(row => row.id === tech.id ? { ...row, ...updated, hasOverride: hoursChanged } : row));
     setEditing(null);
     setSaving(false);
+  }
+
+  async function openRateModal(tech) {
+    setRateTech(tech);
+    setRateForm({ rate: String(tech.hourly_rate ?? 0), effectiveFrom: nextWeekEffectiveFrom(), note: '' });
+    setRateError('');
+    setRateHistory(null);
+    const { data } = await supabase.from('technician_rates')
+      .select('*, profiles:created_by(name)').eq('technician_id', tech.id).order('effective_from', { ascending: false });
+    setRateHistory(data ?? []);
+  }
+
+  async function saveRate() {
+    const value = parseFloat(rateForm.rate);
+    if (!(value >= 0)) { setRateError(t('rateModal.errorInvalid')); return; }
+    if ((paidWeeksByTech[rateTech.id] ?? []).includes(rateForm.effectiveFrom)) {
+      setRateError(t('rateModal.errorPaidWeek'));
+      return;
+    }
+    setSavingRate(true);
+    setRateError('');
+    // Upsert y no insert: si fijaste una vigencia y te arrepientes antes de
+    // que entre, volver a guardar esa misma semana la corrige en vez de
+    // chocar contra el unique (technician_id, effective_from).
+    const { error } = await supabase.from('technician_rates').upsert({
+      technician_id: rateTech.id,
+      hourly_rate: value,
+      effective_from: rateForm.effectiveFrom,
+      note: rateForm.note.trim() || null,
+      created_by: currentProfile?.id ?? null,
+      created_at: new Date().toISOString(),
+    }, { onConflict: 'technician_id,effective_from' });
+    setSavingRate(false);
+    if (error) { setRateError(error.message); return; }
+    setRateTech(null);
+    // Refresca desde el servidor en vez de parchar la fila: una vigencia
+    // futura no cambia nada de lo que se está viendo, y una pasada puede
+    // mover varias semanas a la vez.
+    router.refresh();
   }
 
   async function resetOverride(tech) {
@@ -219,10 +268,10 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
                   <tr key={row.id}>
                     <td style={{ fontWeight: 700 }}>{row.name}</td>
                     <td style={{ textAlign: 'right' }}>
-                      {editing === row.id ? (
-                        <input type="number" value={editData.rate} onChange={e => setEditData(d => ({ ...d, rate: e.target.value }))}
-                          style={{ width: 80, padding: '4px 8px', border: '1.5px solid var(--amber)', borderRadius: 6, fontSize: 13, textAlign: 'right', outline: 'none' }} />
-                      ) : <span style={{ color: 'var(--muted)' }}>{fmt(row.hourly_rate)}/h</span>}
+                      <button type="button" onClick={() => openRateModal(row)} title={t('rateModal.open')}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 13, color: 'var(--muted)', textDecoration: 'underline dotted' }}>
+                        {row.rateVaried ? t('variousRates') : `${fmt(row.hourly_rate)}/h`}
+                      </button>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       {editing === row.id ? (
@@ -319,6 +368,109 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
           </div>
         </div>
       )}
+      {rateTech && (() => {
+        // Las vigencias que se ofrecen: 8 semanas hacia atrás y 8 hacia
+        // adelante alrededor de la que viene. Es un selector de semanas y no
+        // un calendario libre porque la vigencia tiene que caer miércoles —
+        // la semana de pago corre Wed–Tue y una tarifa que entrara a mitad de
+        // semana la dejaría con dos tarifas y un corte de overtime ambiguo.
+        const base = nextWeekEffectiveFrom();
+        const pad = n => String(n).padStart(2, '0');
+        const weekOptions = [];
+        for (let i = -8; i <= 8; i++) {
+          const d = new Date(base + 'T00:00:00');
+          d.setDate(d.getDate() + i * 7);
+          weekOptions.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+        }
+        const fmtD = d => d.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
+        const weekParts = key => {
+          const start = new Date(key + 'T00:00:00');
+          const end = new Date(start); end.setDate(start.getDate() + 6);
+          const pay = new Date(start); pay.setDate(start.getDate() + 9); // martes + 3 = viernes
+          return { start: fmtD(start), end: fmtD(end), pay: fmtD(pay) };
+        };
+        const paidWeeks = paidWeeksByTech[rateTech.id] ?? [];
+        const sel = weekParts(rateForm.effectiveFrom);
+        const selIsPaid = paidWeeks.includes(rateForm.effectiveFrom);
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 460, maxHeight: '90vh', overflowY: 'auto' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>{t('rateModal.title')}</h2>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>{rateTech.name}</p>
+
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label>{t('rateModal.newRate')}</label>
+                <input type="number" step="0.01" min="0" value={rateForm.rate}
+                  onChange={e => setRateForm(f => ({ ...f, rate: e.target.value }))} />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label>{t('rateModal.effectiveFrom')}</label>
+                <select value={rateForm.effectiveFrom} onChange={e => setRateForm(f => ({ ...f, effectiveFrom: e.target.value }))}>
+                  {weekOptions.map(key => {
+                    const w = weekParts(key);
+                    const isPaid = paidWeeks.includes(key);
+                    return (
+                      <option key={key} value={key} disabled={isPaid}>
+                        {t('rateModal.weekOption', { start: w.start, end: w.end, pay: w.pay })}{isPaid ? ` — ${t('rateModal.alreadyPaidTag')}` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p style={{ fontSize: 11.5, color: 'var(--amber)', marginTop: 6, fontWeight: 700 }}>
+                  {t('rateModal.effectNote', { start: sel.start, end: sel.end, pay: sel.pay })}
+                </p>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label>{t('rateModal.note')}</label>
+                <input type="text" value={rateForm.note} placeholder={t('rateModal.notePlaceholder')}
+                  onChange={e => setRateForm(f => ({ ...f, note: e.target.value }))} />
+              </div>
+
+              {(rateError || selIsPaid) && (
+                <p style={{ fontSize: 12, color: 'var(--warn)', marginBottom: 14, fontWeight: 600 }}>
+                  {rateError || t('rateModal.errorPaidWeek')}
+                </p>
+              )}
+
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginBottom: 18 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>{t('rateModal.historyTitle')}</p>
+                {rateHistory === null ? (
+                  <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('rateModal.historyLoading')}</p>
+                ) : rateHistory.length === 0 ? (
+                  <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('rateModal.historyEmpty')}</p>
+                ) : (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {rateHistory.map(r => (
+                      <li key={r.id} style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--navy)' }}>{fmt(r.hourly_rate)}/h</span>
+                        {' — '}
+                        {t('rateModal.historySince', { date: new Date(r.effective_from + 'T00:00:00').toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' }) })}
+                        <div style={{ fontSize: 11 }}>
+                          {t('rateModal.historyRecorded', {
+                            date: new Date(r.created_at).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' }),
+                            who: r.profiles?.name ?? t('rateModal.historyUnknownAuthor'),
+                          })}
+                          {r.note ? ` · ${r.note}` : ''}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={saveRate} disabled={savingRate || selIsPaid}>
+                  {savingRate ? t('rateModal.saving') : t('rateModal.save')}
+                </button>
+                <button className="btn btn-ghost" onClick={() => setRateTech(null)}>{t('rateModal.cancel')}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {showManualAdd && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>

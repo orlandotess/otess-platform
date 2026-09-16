@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { supabaseServer as supabase } from "../../../../lib/supabase";
 import { computeHours, prDayKey } from "../../../../lib/hours";
 import { indexDayOverrides, splitRegularOvertime } from "../../../../lib/payrollOverrides";
+import { indexRates, rateForWeek } from "../../../../lib/technicianRates";
 import Sidebar from "../../../Sidebar";
 import Link from "next/link";
 import HistorialClient from "./HistorialClient";
@@ -24,17 +25,19 @@ function getWeekRange(offset = 0) {
 
 export default async function PayrollHistorial() {
   const t = await getTranslations("accounting.payrollHistorial");
-  const [{ data: technicians }, { data: allEntries }, { data: allAdjustments }, { data: allDayOverrides }] = await Promise.all([
+  const [{ data: technicians }, { data: allEntries }, { data: allAdjustments }, { data: allDayOverrides }, { data: rateRows }] = await Promise.all([
     supabase.from("technicians").select("*").order("name"),
     supabase.from("time_entries").select("*").not("clocked_out_at", "is", null).order("clocked_in_at"),
     supabase.from("payroll_adjustments").select("*").order("period_start", { ascending: false }),
     supabase.from("daily_hour_overrides").select("*"),
+    supabase.from("technician_rates").select("*"),
   ]);
 
   const techs = technicians ?? [];
   const entries = allEntries ?? [];
   const adjustments = allAdjustments ?? [];
   const dayOverrides = allDayOverrides ?? [];
+  const ratesByTech = indexRates(rateRows ?? []);
 
   // Build a set of all week period_start values that have activity (from entries or adjustments)
   const weekStarts = new Set();
@@ -102,7 +105,11 @@ export default async function PayrollHistorial() {
 
       if (totalHours === 0 && !adj) return; // skip empty rows with no adjustment record
 
-      const rate = Number(tech.hourly_rate ?? 0);
+      // La tarifa que regía ESA semana, no la de hoy. Antes esta línea leía
+      // technicians.hourly_rate, así que un aumento reescribía hacia atrás
+      // todo el historial: la tabla mostraba lo que se le pagaría hoy por
+      // esas horas en vez de lo que se le pagó.
+      const rate = rateForWeek(ratesByTech, tech.id, wsStr, tech.hourly_rate);
       // A direct gross-pay override (historical backfill where hours/rate at the time are unknown) wins.
       const gross = hasGrossOverride ? Number(adj.gross_pay_override) : (regularHours * rate) + (overtimeHours * rate * 1.5);
       const retention = gross * 0.10;

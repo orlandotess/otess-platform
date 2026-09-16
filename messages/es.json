@@ -2713,6 +2713,29 @@
         "save": "💾 Guardar",
         "saving": "Guardando...",
         "cancel": "Cancelar"
+      },
+      "variousRates": "varias",
+      "rateModal": {
+        "open": "Ajustar tarifa por hora",
+        "title": "Ajustar tarifa por hora",
+        "newRate": "Tarifa nueva ($/h)",
+        "effectiveFrom": "Vigente desde (semana de pago)",
+        "weekOption": "{start} — {end} · paga {pay}",
+        "alreadyPaidTag": "ya pagada",
+        "effectNote": "Aplica desde la semana {start} — {end}. Primer cheque con esta tarifa: {pay}. Las semanas anteriores no se tocan.",
+        "note": "Nota (opcional)",
+        "notePlaceholder": "Ej: aumento anual, cambio de posición...",
+        "errorInvalid": "Escribe una tarifa válida (0 o más).",
+        "errorPaidWeek": "Esa semana ya está marcada como pagada. Escoge una semana posterior — cambiarle la tarifa movería un monto que ya salió en un cheque.",
+        "historyTitle": "Historial de tarifas",
+        "historyLoading": "Cargando...",
+        "historyEmpty": "Sin cambios registrados todavía.",
+        "historySince": "desde el {date}",
+        "historyRecorded": "Registrado el {date} por {who}",
+        "historyUnknownAuthor": "—",
+        "save": "💾 Guardar tarifa",
+        "saving": "Guardando...",
+        "cancel": "Cancelar"
       }
     },
     "payroll": {

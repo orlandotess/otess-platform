@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { computeHours, prDayKey, prQueryBounds } from '../../../lib/hours';
+import { indexRates, rateForWeek } from "../../../lib/technicianRates";
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import TimesheetClient from './TimesheetClient';
@@ -35,7 +36,7 @@ export default async function TimesheetPage(props) {
   const weekEndStr = weekEnd.toISOString().slice(0, 10);
   const { start: entriesQueryStart, end: entriesQueryEnd } = prQueryBounds(weekStart, weekEnd);
 
-  const [{ data: technicians }, { data: entries }, { data: adjustments }, { data: dayOverrides }] = await Promise.all([
+  const [{ data: technicians }, { data: entries }, { data: adjustments }, { data: dayOverrides }, { data: rateRows }] = await Promise.all([
     supabase.from("technicians").select("*").order("name"),
     supabase.from("time_entries")
       .select("*, technicians(name)")
@@ -50,12 +51,14 @@ export default async function TimesheetPage(props) {
       .select("*")
       .gte("work_date", weekStartStr)
       .lte("work_date", weekEndStr),
+    supabase.from("technician_rates").select("*"),
   ]);
 
   const techs = technicians ?? [];
   const ents = entries ?? [];
   const adjs = adjustments ?? [];
   const dayOvs = dayOverrides ?? [];
+  const ratesByTech = indexRates(rateRows ?? []);
 
   const fmtDate = d => new Date(d).toLocaleDateString(dateLocale, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 
@@ -106,10 +109,13 @@ export default async function TimesheetPage(props) {
     const finalOvertime = adj?.overtime_hours_override ?? overtimeHours;
     const hasOverride = adj?.regular_hours_override !== null && adj?.regular_hours_override !== undefined;
 
-    const rate = Number(tech.hourly_rate ?? 0);
+    // La tarifa vigente ESTA semana. Se reescribe hourly_rate en la fila que
+    // baja al cliente para que TimesheetClient (que la lee de aquí para su
+    // editor y sus totales) no tenga que resolver vigencias por su cuenta.
+    const rate = rateForWeek(ratesByTech, tech.id, weekStartStr, tech.hourly_rate);
     const grossPay = (finalRegular * rate) + (finalOvertime * rate * 1.5);
 
-    return { ...tech, regularHours: finalRegular, overtimeHours: finalOvertime, regularHoursRaw: regularHours, overtimeHoursRaw: overtimeHours, totalHours: finalRegular + finalOvertime, grossPay, byDay, dayOverrides: techDayOverrides, entries: techEntries, hasOverride };
+    return { ...tech, hourly_rate: rate, regularHours: finalRegular, overtimeHours: finalOvertime, regularHoursRaw: regularHours, overtimeHoursRaw: overtimeHours, totalHours: finalRegular + finalOvertime, grossPay, byDay, dayOverrides: techDayOverrides, entries: techEntries, hasOverride };
   });
 
   const filtered = techStats.filter(t => techFilter === "all" || t.id === techFilter);

@@ -17,7 +17,8 @@ import { normalizeForSummary } from '../../../lib/materialSummary';
 import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDatePR, formatDateTimePR } from '../../../lib/datetimeLocal';
-import { computeHours, getJobScheduleWindow } from '../../../lib/hours';
+import { computeHours, getJobScheduleWindow, prDayKey } from '../../../lib/hours';
+import { indexRates, rateOn } from '../../../lib/technicianRates';
 import { useJobChecklist } from '../../../lib/useJobChecklist';
 
 import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
@@ -73,7 +74,7 @@ const expenseCategories = [
   { value: 'otro', key: 'otro' },
 ];
 
-export default function JobTabs({ job, items, technicians, notes, checklist, checklistAreas = [], templates, clientType, taxRules = [], totals, jobTechnicians = [], jobContacts = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [] }) {
+export default function JobTabs({ job, items, technicians, notes, checklist, checklistAreas = [], templates, clientType, taxRules = [], totals, jobTechnicians = [], jobContacts = [], clientProperties = [], clientContacts = [], scheduleDays: initialScheduleDays = [], expenses: initialExpenses = [], invoices = [], payments = [], timeEntries = [], reports: initialReports = [], planos = [], pinnedClientNotes = [], technicianRates = [] }) {
   const router = useRouter();
   const t = useTranslations('trabajos.jobTabs');
   const tPurchaseListCsv = useTranslations('shared.purchaseListCsv');
@@ -1123,18 +1124,27 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
       return a + Number(it.quantity ?? 0) * Number(it.supplier_price ?? 0);
     }, 0);
 
-    const techRateById = {};
-    technicians.forEach(t => { techRateById[t.id] = Number(t.hourly_rate ?? 0); });
+    const fallbackRateById = {};
+    technicians.forEach(t => { fallbackRateById[t.id] = Number(t.hourly_rate ?? 0); });
+    const ratesByTech = indexRates(technicianRates);
+    // Costo entrada por entrada, con la tarifa vigente el día trabajado, para
+    // que un trabajo viejo no se recostee solo cuando a alguien le suban la
+    // paga. Un trabajo largo puede abarcar un cambio de tarifa, así que la
+    // tarifa que se enseña en la fila es la efectiva (costo ÷ horas) y no una
+    // de las dos, que no cuadraría con el costo de al lado.
     const hoursByTech = {};
+    const costByTech = {};
     timeEntries.forEach(e => {
       const { hours: hrs } = computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes);
       if (hrs <= 0) return;
       hoursByTech[e.technician_id] = (hoursByTech[e.technician_id] ?? 0) + hrs;
+      costByTech[e.technician_id] = (costByTech[e.technician_id] ?? 0)
+        + hrs * rateOn(ratesByTech, e.technician_id, prDayKey(e.clocked_in_at), fallbackRateById[e.technician_id]);
     });
     const laborRows = Object.entries(hoursByTech).map(([techId, hours]) => {
       const tech = technicians.find(t => t.id === techId);
-      const rate = techRateById[techId] ?? 0;
-      return { techId, name: tech?.name ?? 'Técnico', hours, rate, cost: hours * rate };
+      const cost = costByTech[techId] ?? 0;
+      return { techId, name: tech?.name ?? 'Técnico', hours, rate: hours > 0 ? cost / hours : 0, cost };
     }).sort((a, b) => b.cost - a.cost);
     const manoDeObraCosto = laborRows.reduce((a, r) => a + r.cost, 0);
     const totalHoras = laborRows.reduce((a, r) => a + r.hours, 0);

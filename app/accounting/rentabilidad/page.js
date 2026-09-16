@@ -3,6 +3,8 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { effectiveEntryHours } from '../../../lib/payrollOverrides';
+import { indexRates, rateOn } from '../../../lib/technicianRates';
+import { prDayKey } from '../../../lib/hours';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
@@ -11,7 +13,7 @@ const MARGIN_ALERT_THRESHOLD = 20;
 
 export default async function RentabilidadPage() {
   const t = await getTranslations('accounting.rentabilidad');
-  const [{ data: jobs }, { data: invoices }, { data: lineItems }, { data: timeEntries }, { data: technicians }, { data: expenses }, { data: dayOverrides }] = await Promise.all([
+  const [{ data: jobs }, { data: invoices }, { data: lineItems }, { data: timeEntries }, { data: technicians }, { data: expenses }, { data: dayOverrides }, { data: rateRows }] = await Promise.all([
     supabase.from('jobs').select('id, title, job_number, status, clients(name)'),
     supabase.from('invoices').select('id, job_id, total'),
     supabase.from('job_line_items').select('job_id, quantity, unit_price, supplier_price'),
@@ -19,6 +21,7 @@ export default async function RentabilidadPage() {
     supabase.from('technicians').select('id, name, hourly_rate'),
     supabase.from('expenses').select('job_id, amount'),
     supabase.from('daily_hour_overrides').select('technician_id, work_date, regular_hours_override, overtime_hours_override'),
+    supabase.from('technician_rates').select('*'),
   ]);
 
   // Per-day manual corrections (from the admin Timesheet, e.g. an absence)
@@ -26,7 +29,20 @@ export default async function RentabilidadPage() {
   // and technician cost rollups below use the corrected hours.
   const rawEntries = timeEntries ?? [];
   const effectiveHours = effectiveEntryHours(rawEntries, dayOverrides ?? []);
-  const timeEntriesEff = rawEntries.map((e, i) => ({ ...e, hours: effectiveHours[i] }));
+  const ratesByTech = indexRates(rateRows ?? []);
+  const fallbackRateById = {};
+  (technicians ?? []).forEach(tech => { fallbackRateById[tech.id] = Number(tech.hourly_rate ?? 0); });
+  // El costo se fija POR ENTRADA, con la tarifa vigente el día que se
+  // trabajó, y se arrastra desde aquí. Sumar las horas del trabajo y
+  // multiplicarlas al final por una sola tarifa (lo que se hacía antes)
+  // recosteaba un trabajo cerrado cada vez que a alguien le subían la paga:
+  // un trabajo de marzo aparecía con el costo de mano de obra de hoy, y su
+  // margen se movía solo.
+  const timeEntriesEff = rawEntries.map((e, i) => ({
+    ...e,
+    hours: effectiveHours[i],
+    cost: effectiveHours[i] * rateOn(ratesByTech, e.technician_id, prDayKey(e.clocked_in_at), fallbackRateById[e.technician_id]),
+  }));
   function hoursOf(entry) { return entry.hours; }
 
   const invoiceIds = (invoices ?? []).map(i => i.id);
@@ -40,9 +56,8 @@ export default async function RentabilidadPage() {
     paymentsByInvoice[p.invoice_id] += Number(p.amount ?? 0);
   });
 
-  const techRateById = {};
   const techNameById = {};
-  (technicians ?? []).forEach(tech => { techRateById[tech.id] = Number(tech.hourly_rate ?? 0); techNameById[tech.id] = tech.name; });
+  (technicians ?? []).forEach(tech => { techNameById[tech.id] = tech.name; });
 
   const invoicesByJob = {};
   (invoices ?? []).forEach(i => { (invoicesByJob[i.job_id] ??= []).push(i); });
@@ -66,9 +81,13 @@ export default async function RentabilidadPage() {
 
     const jobEntries = entriesByJob[job.id] ?? [];
     const hoursByTech = {};
-    jobEntries.forEach(e => { hoursByTech[e.technician_id] = (hoursByTech[e.technician_id] ?? 0) + hoursOf(e); });
+    const costByTech = {};
+    jobEntries.forEach(e => {
+      hoursByTech[e.technician_id] = (hoursByTech[e.technician_id] ?? 0) + hoursOf(e);
+      costByTech[e.technician_id] = (costByTech[e.technician_id] ?? 0) + e.cost;
+    });
     const totalHoras = Object.values(hoursByTech).reduce((a, h) => a + h, 0);
-    const manoDeObraCosto = Object.entries(hoursByTech).reduce((a, [techId, hrs]) => a + hrs * (techRateById[techId] ?? 0), 0);
+    const manoDeObraCosto = Object.values(costByTech).reduce((a, c) => a + c, 0);
 
     const gastos = (expensesByJob[job.id] ?? []).reduce((a, e) => a + Number(e.amount ?? 0), 0);
 
@@ -77,7 +96,7 @@ export default async function RentabilidadPage() {
 
     return {
       job, facturado, cobrado, pendiente, materialesCosto, manoDeObraCosto, totalHoras, gastos,
-      gananciaNeta, margenPct, hoursByTech,
+      gananciaNeta, margenPct, hoursByTech, costByTech,
       hasActivity: facturado > 0 || materialesCosto > 0 || manoDeObraCosto > 0 || gastos > 0,
     };
   }).filter(s => s.hasActivity);
@@ -92,7 +111,7 @@ export default async function RentabilidadPage() {
     Object.entries(s.hoursByTech).forEach(([techId, hours]) => {
       if (!techStats[techId]) techStats[techId] = { hours: 0, pay: 0, jobs: new Set(), marginSum: 0, marginCount: 0 };
       techStats[techId].hours += hours;
-      techStats[techId].pay += hours * (techRateById[techId] ?? 0);
+      techStats[techId].pay += s.costByTech[techId] ?? 0;
       techStats[techId].jobs.add(s.job.id);
       if (s.margenPct != null) { techStats[techId].marginSum += s.margenPct; techStats[techId].marginCount += 1; }
     });
