@@ -3,9 +3,10 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { getCurrentProfile } from '../../../lib/supabase-server';
-import { computeHours, prDayKey, prQueryBounds, prMonthRange, prYearRange } from '../../../lib/hours';
+import { computeHours, prDayKey, prMonthRange, prYearRange } from '../../../lib/hours';
 import { indexDayOverrides, splitRegularOvertime } from '../../../lib/payrollOverrides';
 import { indexRates, rateForWeek, rateOn } from '../../../lib/technicianRates';
+import { computeRetentions, payDateForWeek } from '../../../lib/payrollRetention';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import PayrollClient from './PayrollCliente';
@@ -83,6 +84,11 @@ function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}, techWeek
   Object.keys(weekAdjByStart).forEach(wsKey => { if (!byWeek[wsKey]) byWeek[wsKey] = {}; });
 
   let regular = 0, overtime = 0, grossOverridePay = 0, regularPay = 0, overtimePay = 0;
+  // Además del total del período, el desglose semana por semana: la retención
+  // necesita el bruto de CADA semana por separado (los primeros $500 del año
+  // se consumen en orden de fecha de pago), y la gráfica mensual necesita
+  // repartir esas mismas semanas por mes sin volver a calcular nada.
+  const weeks = {};
   Object.keys(byWeek).sort().forEach(wsKey => {
     const weekAdj = weekAdjByStart[wsKey];
     const isNoOpAdj = weekAdj && weekAdj.regular_hours_override == null && weekAdj.overtime_hours_override == null && weekAdj.gross_pay_override == null;
@@ -91,6 +97,7 @@ function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}, techWeek
       if (belongsHere) {
         if (weekAdj.gross_pay_override !== null && weekAdj.gross_pay_override !== undefined) {
           grossOverridePay += Number(weekAdj.gross_pay_override);
+          weeks[wsKey] = { regular: 0, overtime: 0, regularPay: 0, overtimePay: 0, grossOverridePay: Number(weekAdj.gross_pay_override) };
         } else {
           const adjRegular = Number(weekAdj.regular_hours_override ?? 0);
           const adjOvertime = Number(weekAdj.overtime_hours_override ?? 0);
@@ -99,6 +106,7 @@ function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}, techWeek
           overtime += adjOvertime;
           regularPay += adjRegular * adjRate;
           overtimePay += adjOvertime * adjRate * 1.5;
+          weeks[wsKey] = { regular: adjRegular, overtime: adjOvertime, regularPay: adjRegular * adjRate, overtimePay: adjOvertime * adjRate * 1.5, grossOverridePay: 0 };
         }
       }
       return; // this week's raw hours are suppressed either way — see comment above
@@ -109,8 +117,9 @@ function computeWeeklyOvertimeHours(techEntries, techDayOverrides = {}, techWeek
     overtime += wkOvertime;
     regularPay += wkRegular * wkRate;
     overtimePay += wkOvertime * wkRate * 1.5;
+    weeks[wsKey] = { regular: wkRegular, overtime: wkOvertime, regularPay: wkRegular * wkRate, overtimePay: wkOvertime * wkRate * 1.5, grossOverridePay: 0 };
   });
-  return { regular, overtime, grossOverridePay, regularPay, overtimePay };
+  return { regular, overtime, grossOverridePay, regularPay, overtimePay, weeks };
 }
 
 export default async function AccountingPayroll(props) {
@@ -123,48 +132,63 @@ export default async function AccountingPayroll(props) {
   const month = searchParams?.month !== undefined ? parseInt(searchParams.month) : new Date().getMonth();
   const weekOffset = parseInt(searchParams?.week ?? '0');
 
-  let entriesQueryStart, entriesQueryEnd, periodStart, periodEnd;
+  // Solo hacen falta los bordes del período: las entradas se consultan por año
+  // completo (ver abajo) y cada semana se atribuye al período de su miércoles,
+  // así que ya no hay que recortar la consulta al período exacto.
+  let periodStart, periodEnd;
   if (view === 'week') {
     const { weekStart, weekEnd } = getWeekRange(weekOffset);
     periodStart = weekStart.toISOString().slice(0, 10);
     periodEnd = weekEnd.toISOString().slice(0, 10);
-    // Widened by PR's UTC offset so an evening clock-in near the week
-    // boundary isn't dropped by the query before prDayKey() can bucket it.
-    const bounds = prQueryBounds(weekStart, weekEnd);
-    entriesQueryStart = bounds.start.toISOString();
-    entriesQueryEnd = bounds.end.toISOString();
   } else if (view === 'month') {
     const r = prMonthRange(year, month);
-    entriesQueryStart = r.queryStart.toISOString();
-    entriesQueryEnd = r.queryEnd.toISOString();
     periodStart = r.periodStart;
     periodEnd = r.periodEnd;
   } else {
     const r = prYearRange(year);
-    entriesQueryStart = r.queryStart.toISOString();
-    entriesQueryEnd = r.queryEnd.toISOString();
     periodStart = r.periodStart;
     periodEnd = r.periodEnd;
   }
+
+  // Se consulta el AÑO COMPLETO que cubre el período, no solo el período.
+  // La retención lo obliga: los primeros $500 del año de cada técnico van
+  // exentos y se consumen en orden de fecha de pago, así que para saber
+  // cuánta exención le queda a la semana que se está mirando hay que conocer
+  // todas las semanas anteriores de ese año. De paso, trabajar sobre el año
+  // entero deja que cada semana se atribuya completa al período de su
+  // miércoles — igual que hace el dashboard — en vez de partirse por días
+  // cuando cruza un fin de mes, que era la razón por la que las dos pantallas
+  // no cuadraban mes a mes.
+  // Cubre el año del período y también el del selector (`year`), que en vista
+  // semanal pueden ser distintos: la gráfica de barras es siempre la de `year`.
+  const retYearStart = prYearRange(Math.min(parseInt(periodStart.slice(0, 4)), year));
+  const retYearEnd = prYearRange(Math.max(parseInt(periodEnd.slice(0, 4)), year));
+  // Ensanchado 14 días por cada lado: una semana se atribuye al período de su
+  // FECHA DE PAGO (el viernes, 9 días después del miércoles en que arranca),
+  // así que la semana que paga el 2 de enero arrancó en diciembre y hay que
+  // traerla igual.
+  const MS_14D = 14 * 86400000;
+  const yearQueryStart = new Date(retYearStart.queryStart.getTime() - MS_14D).toISOString();
+  const yearQueryEnd = new Date(retYearEnd.queryEnd.getTime() + MS_14D).toISOString();
+  const yearStartStr = new Date(new Date(retYearStart.periodStart + 'T00:00:00').getTime() - MS_14D).toISOString().slice(0, 10);
+  const yearEndStr = new Date(new Date(retYearEnd.periodEnd + 'T00:00:00').getTime() + MS_14D).toISOString().slice(0, 10);
 
   const [{ data: technicians }, { data: entries }, { data: adjustments }, { data: dayOverrides }, { data: rateRows }, { data: paidWeeks }] = await Promise.all([
     supabase.from('technicians').select('*').order('name'),
     supabase.from('time_entries')
       .select('*')
-      .gte('clocked_in_at', entriesQueryStart)
-      .lte('clocked_in_at', entriesQueryEnd)
+      .gte('clocked_in_at', yearQueryStart)
+      .lte('clocked_in_at', yearQueryEnd)
       .not('clocked_out_at', 'is', null)
       .order('clocked_in_at'),
     supabase.from('payroll_adjustments')
       .select('*')
-      // Overlap, not exact match — a month/year view spans several pay-weeks,
-      // and no single adjustment row's period ever equals the whole range.
-      .lte('period_start', periodEnd)
-      .gte('period_end', periodStart),
+      .lte('period_start', yearEndStr)
+      .gte('period_end', yearStartStr),
     supabase.from('daily_hour_overrides')
       .select('*')
-      .gte('work_date', periodStart)
-      .lte('work_date', periodEnd),
+      .gte('work_date', yearStartStr)
+      .lte('work_date', yearEndStr),
     // Sin filtro de fecha a propósito: para saber qué tarifa regía en este
     // período hace falta la vigencia que arrancó ANTES de él, que casi nunca
     // cae dentro del rango consultado. Es una tabla de unas pocas filas por
@@ -190,24 +214,75 @@ export default async function AccountingPayroll(props) {
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtH = h => `${Number(h).toFixed(1)}h`;
 
-  const techStats = techs.map(tech => {
+  // Una pasada por técnico sobre el AÑO completo. De ahí sale todo: el
+  // desglose por semana alimenta la retención (que necesita el año entero) y
+  // la gráfica mensual, y el período que se está mirando es un filtro sobre
+  // esas mismas semanas — nunca un cálculo aparte que pudiera discrepar.
+  const yearByTech = {};
+  techs.forEach(tech => {
     const techEntries = ents.filter(e => e.technician_id === tech.id);
     const techDayOverrides = indexDayOverrides(dayOvs, tech.id);
     const techWeekAdjustments = adjs.filter(a => a.technician_id === tech.id);
-
-    // Computed twice: once ignoring week-level payroll_adjustments (the
-    // "raw" total the edit form resets to) and once applying every week in
-    // range that has one — a month/year view spans several pay-weeks, so
-    // each with its own adjustment must be substituted individually rather
-    // than looking for a single adjustment matching the whole month/year.
     const rateFor = wsKey => rateForWeek(ratesByTech, tech.id, wsKey, tech.hourly_rate);
-    const { regular: rawRegular, overtime: rawOvertime } = computeWeeklyOvertimeHours(techEntries, techDayOverrides, [], periodStart, periodEnd, rateFor);
-    const { regular: regularHours, overtime: overtimeHours, grossOverridePay, regularPay, overtimePay } = computeWeeklyOvertimeHours(techEntries, techDayOverrides, techWeekAdjustments, periodStart, periodEnd, rateFor);
+    // Dos veces: una ignorando los ajustes de semana (el total "crudo" al que
+    // vuelve el editor cuando se borra la corrección) y otra aplicándolos.
+    yearByTech[tech.id] = {
+      raw: computeWeeklyOvertimeHours(techEntries, techDayOverrides, [], null, null, rateFor).weeks,
+      applied: computeWeeklyOvertimeHours(techEntries, techDayOverrides, techWeekAdjustments, null, null, rateFor).weeks,
+      hasAnyAdjustment: techWeekAdjustments,
+    };
+  });
 
-    const hasOverride = techWeekAdjustments.some(a => a.regular_hours_override != null || a.overtime_hours_override != null || a.gross_pay_override != null);
+  // La retención de una semana depende de las anteriores del año, así que se
+  // resuelve de una sola vez para todas las semanas de todos los técnicos.
+  const retentionEvents = [];
+  techs.forEach(tech => {
+    Object.entries(yearByTech[tech.id].applied).forEach(([wsKey, w]) => {
+      retentionEvents.push({
+        key: `${tech.id}|${wsKey}`,
+        technicianId: tech.id,
+        payDate: payDateForWeek(wsKey),
+        gross: w.regularPay + w.overtimePay + w.grossOverridePay,
+      });
+    });
+  });
+  const retentionByWeek = computeRetentions(retentionEvents);
+
+  // Una semana pertenece al período en que se PAGA (el viernes), no al del
+  // miércoles en que arrancó. Es como el Historial ya agrupaba sus meses
+  // (usa fridayDate), y es lo que hace que el dinero y su retención caigan
+  // siempre juntos: la exención de los $500 se consume por año de fecha de
+  // pago. Atribuyendo por miércoles, la semana del 31 dic 2025 — que paga el
+  // 9 de enero — se caía de todas las vistas de 2026 y se llevaba consigo la
+  // exención que había consumido.
+  const inPeriod = wsKey => {
+    const pd = payDateForWeek(wsKey);
+    return pd >= periodStart && pd <= periodEnd;
+  };
+
+  const techStats = techs.map(tech => {
+    const { raw, applied, hasAnyAdjustment } = yearByTech[tech.id];
+    const techWeekAdjustments = hasAnyAdjustment;
+
+    let rawRegular = 0, rawOvertime = 0;
+    Object.entries(raw).forEach(([wsKey, w]) => {
+      if (!inPeriod(wsKey)) return;
+      rawRegular += w.regular; rawOvertime += w.overtime;
+    });
+
+    let regularHours = 0, overtimeHours = 0, grossOverridePay = 0, regularPay = 0, overtimePay = 0, retention = 0;
+    Object.entries(applied).forEach(([wsKey, w]) => {
+      if (!inPeriod(wsKey)) return;
+      regularHours += w.regular; overtimeHours += w.overtime;
+      regularPay += w.regularPay; overtimePay += w.overtimePay;
+      grossOverridePay += w.grossOverridePay;
+      retention += retentionByWeek[`${tech.id}|${wsKey}`]?.retention ?? 0;
+    });
+
+    const hasOverride = techWeekAdjustments.some(a => inPeriod(a.period_start)
+      && (a.regular_hours_override != null || a.overtime_hours_override != null || a.gross_pay_override != null));
 
     const grossPay = grossOverridePay + regularPay + overtimePay;
-    const retention = grossPay * 0.10;
 
     // La tarifa que se muestra en la columna es la vigente al CIERRE del
     // período. En vista de semana es la única que aplicó; en mes o año pudo
@@ -237,27 +312,22 @@ export default async function AccountingPayroll(props) {
   const totalNet = techStats.reduce((a, row) => a + row.netPay, 0);
   const totalHours = techStats.reduce((a, row) => a + row.totalHours, 0);
 
-  const yearBounds = prYearRange(year);
-  const { data: allYearEntries } = view === 'year' ? await supabase
-    .from('time_entries').select('*')
-    .gte('clocked_in_at', yearBounds.queryStart.toISOString())
-    .lte('clocked_in_at', yearBounds.queryEnd.toISOString())
-    .not('clocked_out_at', 'is', null) : { data: ents };
-
+  // La gráfica sale de las MISMAS semanas ya calculadas, repartidas por el mes
+  // de su miércoles. Antes se recalculaba aparte a partir de las horas crudas
+  // por tarifa, sin el corte de 40h y sin los ajustes manuales, así que la
+  // barra de un mes podía quedar muy por debajo de la tabla de esta misma
+  // página (julio: $2,764 en la barra contra $6,095 en la tabla).
   const monthlyPayroll = months.map((m, i) => {
-    const { queryStart: mStart, queryEnd: mEnd } = prMonthRange(year, i);
-    const mEntries = (allYearEntries ?? ents).filter(e => e.clocked_in_at >= mStart.toISOString() && e.clocked_in_at <= mEnd.toISOString());
-    let gross = 0;
+    let gross = 0, retention = 0;
     techs.forEach(tech => {
-      const te = mEntries.filter(e => e.technician_id === tech.id);
-      // Entrada por entrada y no horas-del-mes × una tarifa: un cambio de
-      // tarifa a mitad de mes tiene que partir la barra en su fecha.
-      gross += te.reduce((a, e) => {
-        const hours = computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours;
-        return a + hours * rateOn(ratesByTech, tech.id, prDayKey(e.clocked_in_at), tech.hourly_rate);
-      }, 0);
+      Object.entries(yearByTech[tech.id].applied).forEach(([wsKey, w]) => {
+        const pd = new Date(payDateForWeek(wsKey) + 'T00:00:00');
+        if (pd.getFullYear() !== year || pd.getMonth() !== i) return;
+        gross += w.regularPay + w.overtimePay + w.grossOverridePay;
+        retention += retentionByWeek[`${tech.id}|${wsKey}`]?.retention ?? 0;
+      });
     });
-    return { name: m.slice(0, 3), gross, net: gross * 0.9, idx: i };
+    return { name: m.slice(0, 3), gross, net: gross - retention, idx: i };
   });
 
   const { weekStart, weekEnd } = getWeekRange(weekOffset);

@@ -2691,7 +2691,7 @@
         "regularPay": "Regular Pay",
         "overtimePay": "OT Pay (1.5x)",
         "grossPay": "Gross Pay",
-        "retention": "Retention (10%)",
+        "retention": "Retention",
         "netPay": "Net Pay",
         "month": "Month"
       },
@@ -2708,7 +2708,7 @@
         "regularHours": "Regular hours",
         "overtimeHours": "Overtime hours",
         "grossPayLabel": "Direct gross pay (optional — use this if you don't have the hours)",
-        "grossPayHint": "If filled in, this amount replaces the hours × rate calculation. Retention (10%) and net pay are calculated on this gross amount.",
+        "grossPayHint": "If filled in, this amount replaces the hours × rate calculation. Retention and net pay are calculated on this gross amount, applying whatever is left of the technician’s $500 annual exemption.",
         "alreadyPaid": "Already paid",
         "save": "💾 Save",
         "saving": "Saving...",
@@ -2736,7 +2736,8 @@
         "save": "💾 Save rate",
         "saving": "Saving...",
         "cancel": "Cancel"
-      }
+      },
+      "exemptionNote": "10% retention on services, with each technician’s first $500 of the year exempt (consumed in pay-date order). That is why the period’s effective rate can come out below 10%."
     },
     "payroll": {
       "title": "Payroll",
@@ -2755,7 +2756,7 @@
       "month": "Month",
       "totalHours": "Total hours",
       "grossPay": "Gross Pay",
-      "retention": "Retention (10%)",
+      "retention": "Retention",
       "netPay": "Net Pay",
       "months": {
         "jan": "January",
@@ -2787,7 +2788,7 @@
         "payDate": "Pay date",
         "hours": "Hours",
         "gross": "Gross",
-        "retention": "10%",
+        "retention": "Retention",
         "paid": "Paid",
         "month": "Month"
       },

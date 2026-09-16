@@ -5,6 +5,7 @@ import { supabaseServer as supabase } from "../../../../lib/supabase";
 import { computeHours, prDayKey } from "../../../../lib/hours";
 import { indexDayOverrides, splitRegularOvertime } from "../../../../lib/payrollOverrides";
 import { indexRates, rateForWeek } from "../../../../lib/technicianRates";
+import { computeRetentions } from "../../../../lib/payrollRetention";
 import Sidebar from "../../../Sidebar";
 import Link from "next/link";
 import HistorialClient from "./HistorialClient";
@@ -112,8 +113,10 @@ export default async function PayrollHistorial() {
       const rate = rateForWeek(ratesByTech, tech.id, wsStr, tech.hourly_rate);
       // A direct gross-pay override (historical backfill where hours/rate at the time are unknown) wins.
       const gross = hasGrossOverride ? Number(adj.gross_pay_override) : (regularHours * rate) + (overtimeHours * rate * 1.5);
-      const retention = gross * 0.10;
-      const net = gross - retention;
+      // La retención se resuelve abajo, sobre TODAS las filas a la vez: los
+      // primeros $500 del año del técnico van exentos y se consumen en orden
+      // de fecha de pago, así que una semana suelta no tiene con qué saber
+      // cuánta exención le queda.
 
       rows.push({
         id: `${tech.id}-${wsStr}`,
@@ -125,12 +128,23 @@ export default async function PayrollHistorial() {
         monthLabel: `${months[fridayDate.getMonth()]} ${fridayDate.getFullYear()}`,
         totalHours,
         gross,
-        retention,
-        net,
         paid: adj?.paid ?? false,
         byDay,
       });
     });
+  });
+
+  // Las filas se arman de la semana más nueva a la más vieja, pero la exención
+  // se consume en orden cronológico; computeRetentions ordena por fecha de
+  // pago por su cuenta, así que el orden de esta lista da igual.
+  const retentions = computeRetentions(rows.map(r => ({
+    key: r.id, technicianId: r.techId, payDate: r.payDate, gross: r.gross,
+  })));
+  rows.forEach(r => {
+    const x = retentions[r.id];
+    r.exempt = x.exempt;
+    r.retention = x.retention;
+    r.net = x.net;
   });
 
   return (

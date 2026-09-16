@@ -11,7 +11,11 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
   const t = useTranslations('accounting.payrollClient');
   const locale = useLocale();
   const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
-  const [stats, setStats] = useState(initialStats);
+  // Derivado del prop y NO en useState: al guardar se llama router.refresh(),
+  // que vuelve a renderizar el server component y baja stats nuevos por props.
+  // Un useState inicializado una sola vez al montar se habría quedado con los
+  // números viejos, porque la `key` de este componente no cambia al refrescar.
+  const stats = initialStats;
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [editData, setEditData] = useState({});
@@ -49,17 +53,6 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     });
   }
 
-  function recalc(rate, regular, overtime) {
-    const r = parseFloat(rate) || 0;
-    const rh = parseFloat(regular) || 0;
-    const oh = parseFloat(overtime) || 0;
-    const regularPay = rh * r;
-    const overtimePay = oh * r * 1.5;
-    const grossPay = regularPay + overtimePay;
-    const retention = grossPay * 0.10;
-    return { regularHours: rh, overtimeHours: oh, totalHours: rh + oh, regularPay, overtimePay, grossPay, retention, netPay: grossPay - retention };
-  }
-
   async function saveTech(tech) {
     setSaving(true);
     // La tarifa ya no se toca aquí (va por su propio modal, con vigencia): se
@@ -94,10 +87,14 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
         .eq('period_end', periodEnd);
     }
 
-    const updated = recalc(newRate, newRegular, newOvertime);
-    setStats(prev => prev.map(row => row.id === tech.id ? { ...row, ...updated, hasOverride: hoursChanged } : row));
     setEditing(null);
     setSaving(false);
+    // Se refresca desde el servidor en vez de recalcular la fila aquí: la
+    // retención ya no es el 10% del bruto de la semana — los primeros $500 del
+    // año van exentos y se consumen en orden, así que cambiar las horas de una
+    // semana puede correr la exención y mover la retención de las SIGUIENTES.
+    // Eso no se puede reproducir con los datos de una sola fila.
+    router.refresh();
   }
 
   async function openRateModal(tech) {
@@ -148,10 +145,9 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
       .eq('period_start', periodStart)
       .eq('period_end', periodEnd);
 
-    const updated = recalc(tech.hourly_rate, tech.regularHoursRaw, tech.overtimeHoursRaw);
-    setStats(prev => prev.map(row => row.id === tech.id ? { ...row, ...updated, hasOverride: false } : row));
     setEditing(null);
     setSaving(false);
+    router.refresh();
   }
 
   function getWeekRangeForDate(dateStr) {
@@ -193,18 +189,8 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
     setSavingManual(false);
 
     if (isCurrentPeriod) {
-      const rate = Number(tech?.hourly_rate ?? 0);
-      const updated = grossOverride != null
-        ? { regularHours: regular, overtimeHours: overtime, totalHours: regular + overtime, regularPay: grossOverride, overtimePay: 0, grossPay: grossOverride, retention: grossOverride * 0.10, netPay: grossOverride * 0.90 }
-        : recalc(rate, regular, overtime);
-      setStats(prev => {
-        const exists = prev.find(row => row.id === manualTechId);
-        if (exists) {
-          return prev.map(row => row.id === manualTechId ? { ...row, ...updated, hasOverride: true } : row);
-        }
-        return [...prev, { ...tech, ...updated, hasOverride: true }];
-      });
       setManualForm({ regular: '', overtime: '', date: periodStart, grossPay: '', paid: false });
+      router.refresh();
     } else {
       // Navigate to the week view containing the chosen date so the entry is visible immediately
       const now = new Date();
@@ -331,6 +317,9 @@ export default function PayrollClient({ techStats: initialStats, monthlyPayroll,
             </table>
           </div>
         )}
+        <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 12, lineHeight: 1.5 }}>
+          {t('exemptionNote')}
+        </p>
       </div>
 
       {view === 'year' && (

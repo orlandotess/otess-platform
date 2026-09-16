@@ -4,8 +4,9 @@ export const revalidate = 0;
 import { supabaseServer as supabase } from '../../lib/supabase';
 import { computeInvoiceIVU } from '../../lib/ivu';
 import { computeHours, prDayKey, prMonthRange, prYearRange, prWeekRangeFromDate } from '../../lib/hours';
-import { indexDayOverrides } from '../../lib/payrollOverrides';
+import { indexDayOverrides, splitRegularOvertime } from '../../lib/payrollOverrides';
 import { indexRates, rateForWeek } from '../../lib/technicianRates';
+import { payDateForWeek } from '../../lib/payrollRetention';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
@@ -122,14 +123,22 @@ function computePayroll(periodStartStr, periodEndStr, techs, ents, adjustments, 
 
     // Per-day manual corrections (from the admin Timesheet) replace that
     // day's raw clocked hours before weekly totals are built.
-    const hoursByWeek = {};
+    //
+    // Se guarda el desglose por DÍA dentro de cada semana, no un total
+    // semanal: el corte de las primeras 40 horas se hace día por día
+    // (splitRegularOvertime), y un total semanal ya no permite separar
+    // regular de overtime. Antes esta función sumaba las horas de la semana y
+    // las multiplicaba por la tarifa, sin el 1.5x, así que el total de nómina
+    // del dashboard salía por debajo del de /accounting/payroll cada vez que
+    // alguien pasaba de 40 horas.
+    const daysByWeek = {};
     Object.keys(byDay).forEach(dayKey => {
       const override = techDayOverrides[dayKey];
       const hours = override
         ? Number(override.regular_hours_override ?? 0) + Number(override.overtime_hours_override ?? 0)
         : byDay[dayKey].reduce((a, e) => a + computeHours(e.clocked_in_at, e.clocked_out_at, e.lunch_minutes).hours, 0);
       const wk = getPayrollWeekStart(dayKey);
-      hoursByWeek[wk] = (hoursByWeek[wk] ?? 0) + hours;
+      (daysByWeek[wk] ??= {})[dayKey] = hours;
     });
 
     // Manual whole-week payroll adjustments replace that week's raw total
@@ -141,8 +150,12 @@ function computePayroll(periodStartStr, periodEndStr, techs, ents, adjustments, 
       // (e.g. an edit form opened and saved with nothing entered) — treat it
       // as a no-op instead of zeroing out that week's real computed hours.
       if (a.regular_hours_override == null && a.overtime_hours_override == null && a.gross_pay_override == null) return;
-      delete hoursByWeek[a.period_start];
-      if (a.period_start < periodStartStr || a.period_start > periodEndStr) return;
+      delete daysByWeek[a.period_start];
+      // Por fecha de pago, igual que /accounting/payroll y el Historial: si se
+      // atribuye por el miércoles, la semana que cruza el fin de año se cae de
+      // las dos vistas del año nuevo.
+      const adjPayDate = payDateForWeek(a.period_start);
+      if (adjPayDate < periodStartStr || adjPayDate > periodEndStr) return;
       if (a.gross_pay_override !== null && a.gross_pay_override !== undefined) {
         total += Number(a.gross_pay_override);
       } else {
@@ -151,9 +164,12 @@ function computePayroll(periodStartStr, periodEndStr, techs, ents, adjustments, 
       }
     });
 
-    Object.keys(hoursByWeek).forEach(wk => {
-      if (wk < periodStartStr || wk > periodEndStr) return;
-      total += hoursByWeek[wk] * rateFor(wk);
+    Object.keys(daysByWeek).forEach(wk => {
+      const pd = payDateForWeek(wk);
+      if (pd < periodStartStr || pd > periodEndStr) return;
+      const { regular, overtime } = splitRegularOvertime(daysByWeek[wk], techDayOverrides);
+      const r = rateFor(wk);
+      total += regular * r + overtime * r * 1.5;
     });
   });
   return total;
@@ -323,8 +339,12 @@ export default async function AccountingDashboard(props) {
   // month/week/year is selected, in case those fall outside the current year.
   const rangeStarts = [yearStart, monthStart, selWeekStartISO, selYearStart];
   const rangeEnds = [yearEnd, monthEnd, selWeekEndISO, selYearEnd];
-  const entriesFetchStart = rangeStarts.reduce((a, b) => (a < b ? a : b));
-  const entriesFetchEnd = rangeEnds.reduce((a, b) => (a > b ? a : b));
+  // Ensanchado 14 días por lado porque una semana cuenta en el período de su
+  // fecha de pago (viernes = miércoles + 9 días): la semana que paga el 2 de
+  // enero arrancó en diciembre y sus entradas hay que traerlas igual.
+  const MS_14D = 14 * 86400000;
+  const entriesFetchStart = new Date(new Date(rangeStarts.reduce((a, b) => (a < b ? a : b))).getTime() - MS_14D).toISOString();
+  const entriesFetchEnd = new Date(new Date(rangeEnds.reduce((a, b) => (a > b ? a : b))).getTime() + MS_14D).toISOString();
 
   const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: rateRows }, { data: timeEntries }, { data: payrollAdjustments }, { data: dailyOverrides }, { data: allPayments }, { data: inboxNotifications }, { data: allExpenses }] = await Promise.all([
     supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name, client_type)').order('issued_at', { ascending: false }),

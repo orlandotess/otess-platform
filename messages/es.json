@@ -2691,7 +2691,7 @@
         "regularPay": "Pay Regular",
         "overtimePay": "Pay OT (1.5x)",
         "grossPay": "Gross Pay",
-        "retention": "Retención (10%)",
+        "retention": "Retención",
         "netPay": "Net Pay",
         "month": "Mes"
       },
@@ -2708,7 +2708,7 @@
         "regularHours": "Horas regulares",
         "overtimeHours": "Horas overtime",
         "grossPayLabel": "Pago bruto directo (opcional — úsalo si no tienes las horas)",
-        "grossPayHint": "Si lo llenas, este monto reemplaza el cálculo de horas × tarifa. La retención (10%) y el neto se calculan sobre este bruto.",
+        "grossPayHint": "Si lo llenas, este monto reemplaza el cálculo de horas × tarifa. La retención y el neto se calculan sobre este bruto, aplicando la exención anual de $500 que le quede al técnico.",
         "alreadyPaid": "Ya fue pagado",
         "save": "💾 Guardar",
         "saving": "Guardando...",
@@ -2736,7 +2736,8 @@
         "save": "💾 Guardar tarifa",
         "saving": "Guardando...",
         "cancel": "Cancelar"
-      }
+      },
+      "exemptionNote": "Retención del 10% sobre servicios, con los primeros $500 del año de cada técnico exentos (se consumen en orden de fecha de pago). Por eso el porcentaje efectivo del período puede salir por debajo del 10%."
     },
     "payroll": {
       "title": "Payroll",
@@ -2755,7 +2756,7 @@
       "month": "Mes",
       "totalHours": "Horas totales",
       "grossPay": "Gross Pay",
-      "retention": "Retención (10%)",
+      "retention": "Retención",
       "netPay": "Net Pay",
       "months": {
         "jan": "Enero",
@@ -2787,7 +2788,7 @@
         "payDate": "Fecha de pago",
         "hours": "Horas",
         "gross": "Bruto",
-        "retention": "10%",
+        "retention": "Retención",
         "paid": "Pagado",
         "month": "Mes"
       },
