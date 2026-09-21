@@ -30,7 +30,7 @@ export default function NuevaFacturaRecurrenteForm() {
 
   useEffect(() => {
     supabase.from('clients').select('id, name, company, client_type, email, report_name_source').order('name').then(({ data }) => setClients(data ?? []));
-    supabase.from('tax_rules').select('client_type, line_item_type, rate').then(({ data }) => setTaxRules(data ?? []));
+    supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from').then(({ data }) => setTaxRules(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
   }, []);
 

@@ -2122,7 +2122,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
             </div>
             <div className="card">
               <TaxBreakdown
-                lineas={lineItemsForTax} clientType={clientType} taxRules={taxRules} title={t('taxSummary.title')}
+                lineas={lineItemsForTax} clientType={clientType} taxRules={taxRules} fecha={job.created_at} title={t('taxSummary.title')}
                 note={clientType === 'b2b' && <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>{t('taxSummary.b2bNote')}</div>}
               />
             </div>

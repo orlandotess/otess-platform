@@ -13,7 +13,7 @@ export default async function FacturaRecurrenteDetailPage(props) {
     supabase.from('recurring_invoices').select('*, clients(name, email, company, client_type), recurring_invoice_items(*)').eq('id', params.id).single(),
     supabase.from('clients').select('id, name, company, client_type, email').order('name'),
     supabase.from('invoices').select('id, invoice_number, status, total, issued_at, due_at').eq('recurring_invoice_id', params.id).order('issued_at', { ascending: false }),
-    supabase.from('tax_rules').select('client_type, line_item_type, rate'),
+    supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from'),
   ]);
 
   if (!recurring) {

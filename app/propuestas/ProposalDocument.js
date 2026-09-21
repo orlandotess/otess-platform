@@ -2,6 +2,7 @@
 import { Fragment, useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { displayTitle } from '../../lib/lineItemTitle';
+import { crearResolvedorDeTasa } from '../../lib/tax';
 
 const NAVY = '#16223d';
 
@@ -46,15 +47,26 @@ function billableItems(items) {
 // nivel de propuesta, aplicado DESPUÉS del IVU sobre el total de la opción
 // (distinto de discount_amount por línea, que ya se resta antes del IVU en
 // itemTotal() y se reporta aparte como totalDiscount).
-export function financialBreakdown(items, clientType, taxRules, documentDiscount) {
+// opts.fecha: fecha de la propuesta, para resolver la vigencia de una linea
+// que todavia no tiene tasa congelada (tax_rate). Una linea ya creada usa
+// SIEMPRE su tasa guardada, asi que cambiar el IVU no reescribe una propuesta
+// ya enviada — ver lib/tax.js.
+export function financialBreakdown(items, clientType, taxRules, documentDiscount, opts) {
+  // Propuestas deciden la categoria por item_type, no por tax_category: un fee
+  // se grava como labor. Se mantiene tal cual a proposito — cambiarlo moveria
+  // el total de las propuestas ya enviadas, y es una decision aparte. La
+  // categoria ya resuelta se le pasa al resolvedor para que herede y congele
+  // con el mismo criterio con que se muestra.
+  const lineas = billableItems(items).map(it => ({
+    ...it, tax_category: it.item_type === 'product' ? 'product' : 'labor',
+  }));
+  const tasa = crearResolvedorDeTasa({ lineas, clientType, taxRules, fecha: opts?.fecha });
   let parts = 0, labor = 0, taxParts = 0, taxLabor = 0, totalDiscount = 0;
-  billableItems(items).forEach(it => {
+  lineas.forEach(it => {
     const base = itemTotal(it);
     totalDiscount += it.discount_amount || 0;
-    const lineType = it.item_type === 'product' ? 'product' : 'labor';
-    const rule = (taxRules ?? []).find(r => r.client_type === clientType && r.line_item_type === lineType);
-    const rate = it.exempt_reason ? 0 : (rule?.rate ?? 0.115);
-    if (lineType === 'product') { parts += base; taxParts += base * rate; }
+    const rate = tasa(it);
+    if (it.tax_category === 'product') { parts += base; taxParts += base * rate; }
     else { labor += base; taxLabor += base * rate; }
   });
   const preDiscountTotal = parts + labor + taxParts + taxLabor;
@@ -119,7 +131,7 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
 
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
   const areas = groupByArea(option.items ?? []);
-  const fb = financialBreakdown(option.items, clientType, taxRules, { type: proposal.discount_type, value: proposal.discount_value });
+  const fb = financialBreakdown(option.items, clientType, taxRules, { type: proposal.discount_type, value: proposal.discount_value }, { fecha: proposal.created_at });
   const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
   const partsRate = fb.parts > 0 ? (fb.taxParts / fb.parts * 100).toFixed(1) : '11.5';
   const laborRate = fb.labor > 0 ? (fb.taxLabor / fb.labor * 100).toFixed(1) : (clientType === 'b2b' ? '4' : '11.5');

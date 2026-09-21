@@ -82,7 +82,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
         const { data: insertedItems } = await supabase.from('job_line_items').insert(items.map(i => ({
           job_id: job.id, type: i.type, title: i.title, tax_category: i.tax_category, description: i.description, note: i.note,
           quantity: i.quantity, unit_price: i.unit_price, msrp: i.msrp,
-          supplier_price: i.supplier_price, exempt_reason: i.exempt_reason,
+          supplier_price: i.supplier_price, exempt_reason: i.exempt_reason, tax_rate: i.tax_rate,
           area: i.area, vendor: i.vendor, photo_url: i.photo_url, sort_order: i.sort_order,
         }))).select();
 
@@ -782,7 +782,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
 
         {!isTecnico && lineItems.length > 0 && (
           <div className="card">
-            <TaxBreakdown lineas={lineItems} clientType={clientType} taxRules={taxRules} title={t('taxSummaryTitle')} />
+            <TaxBreakdown lineas={lineItems} clientType={clientType} taxRules={taxRules} fecha={solicitud.created_at} title={t('taxSummaryTitle')} />
           </div>
         )}
       </div>

@@ -40,7 +40,7 @@ export default async function PropuestaPublicPage(props) {
     );
   }
 
-  const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
+  const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from');
   const { data: payments } = await supabase.from('proposal_payments').select('*').eq('proposal_id', proposal.id).order('sort_order');
   const { data: companyInfo } = await supabase.from('company_settings').select('*').limit(1).single();
   const rawAddr = proposal.clients?.client_addresses?.find(a => a.is_primary) ?? proposal.clients?.client_addresses?.[0] ?? null;

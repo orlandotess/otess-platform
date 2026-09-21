@@ -9,7 +9,7 @@ import LineItemPicker from '../LineItemPicker';
 import CableCalculator from '../CableCalculator';
 import PlanImportModal from '../PlanImportModal';
 import TaxBreakdown from '../TaxBreakdown';
-import { calcularIVU, tasaParaLinea, aplicarDescuento } from '../../lib/tax';
+import { calcularIVU, crearResolvedorDeTasa, aplicarDescuento } from '../../lib/tax';
 import { useTranslations } from 'next-intl';
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
@@ -23,6 +23,7 @@ function emptyItem(overrides = {}) {
     parentKey: null, combinePrice: true,
     type: 'labor', tax_category: 'labor', title: '', description: '', note: '', quantity: 1,
     unit_price: '', msrp: '', supplier_price: '', exempt: false, vendor: '', catalog_item_id: null, saveToCatalog: !overrides.catalog_item_id, group_description: '', from_calculator: false,
+    tax_rate: null, tax_rate_cat: null,
     photoFile: null, photoPreview: null, existingPhotoPath: null,
     ...overrides,
   };
@@ -50,6 +51,7 @@ function itemsToAreas(items, t) {
       msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
       vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null,
       combinePrice: li.combine_price !== false, group_description: li.group_description ?? '', from_calculator: !!li.from_calculator,
+      tax_rate: li.tax_rate ?? null, tax_rate_cat: li.tax_category ?? li.type ?? null,
       photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
     });
     area.items.push(parent);
@@ -60,6 +62,7 @@ function itemsToAreas(items, t) {
         quantity: child.quantity, unit_price: child.unit_price,
         msrp: child.msrp ?? '', supplier_price: child.supplier_price ?? '', exempt: !!child.exempt_reason,
         vendor: child.vendor ?? '', catalog_item_id: child.catalog_item_id ?? null, from_calculator: !!child.from_calculator,
+        tax_rate: child.tax_rate ?? null, tax_rate_cat: child.tax_category ?? child.type ?? null,
         photoPreview: child.photo_signed_url ?? null, existingPhotoPath: child.photo_url ?? null,
       }));
     });
@@ -117,7 +120,7 @@ export default function EstimateForm({ initialData = null }) {
     supabase.from('clients').select('id, name, company, client_type').order('name').then(({ data }) => setClients(data ?? []));
     supabase.from('jobs').select('id, title, client_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
-    supabase.from('tax_rules').select('client_type, line_item_type, rate').then(({ data }) => setTaxRules(data ?? []));
+    supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from').then(({ data }) => setTaxRules(data ?? []));
   }, []);
 
   // Catalog is fetched once per mount with no realtime subscription, so an item added in
@@ -154,7 +157,9 @@ export default function EstimateForm({ initialData = null }) {
               const { data } = await supabase.storage.from('Job-photos').createSignedUrl(li.photo_url, 3600);
               photoPreview = data?.signedUrl ?? null;
             }
-            return { ...li, photo_signed_url: photoPreview };
+            // Facturar/estimar un trabajo crea un documento nuevo: la linea
+            // se grava a la fecha de ESTE documento, no a la del trabajo.
+            return { ...li, tax_rate: null, photo_signed_url: photoPreview };
           })).then(loaded => setAreas(itemsToAreas(loaded, t)));
         }
       }
@@ -383,7 +388,7 @@ export default function EstimateForm({ initialData = null }) {
   function areaTotal(area) {
     return area.items.reduce((s, it) => s + itemLineTotal(it), 0);
   }
-  const ivuTotals = calcularIVU(flatItems, clientType, taxRules);
+  const ivuTotals = calcularIVU(flatItems, clientType, taxRules, { fecha: form.issued_at });
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -517,6 +522,12 @@ export default function EstimateForm({ initialData = null }) {
       }
     }
 
+    // La tasa de cada linea se resuelve UNA vez para todo el documento: una
+    // linea que ya existia conserva la suya aunque el IVU haya cambiado desde
+    // que se emitio, y una linea nueva hereda la del resto del documento en vez
+    // de tomar la vigente hoy. Ver lib/tax.js:crearResolvedorDeTasa.
+    const tasaLinea = crearResolvedorDeTasa({ lineas: flatItems, clientType, taxRules, fecha: form.issued_at });
+
     // Parents are inserted first so their DB ids can be attached to their
     // accessories' parent_item_id in a second pass.
     let sortOrder = 0;
@@ -526,7 +537,7 @@ export default function EstimateForm({ initialData = null }) {
       for (const i of area.items.filter(it => !it.parentKey && it.description.trim())) {
         const photoPath = await uploadItemPhoto(i, sortOrder);
         const base = itemLineTotal(i);
-        const rate = tasaParaLinea(i, clientType, taxRules);
+        const rate = tasaLinea(i);
         const { data: row, error: err } = await supabase.from('estimate_line_items').insert([{
           estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null, description: i.description, note: i.note?.trim() || null,
           quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
@@ -550,7 +561,7 @@ export default function EstimateForm({ initialData = null }) {
         for (const i of area.items.filter(it => it.parentKey && it.description.trim() && keyToId[it.parentKey])) {
           const photoPath = await uploadItemPhoto(i, sortOrder);
           const base = itemLineTotal(i);
-          const rate = tasaParaLinea(i, clientType, taxRules);
+          const rate = tasaLinea(i);
           const { error: err } = await supabase.from('estimate_line_items').insert([{
             estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description, note: i.note?.trim() || null,
             quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
@@ -951,7 +962,7 @@ export default function EstimateForm({ initialData = null }) {
             </div>
             <div className="card">
               <TaxBreakdown
-                lineas={flatItems} clientType={clientType} taxRules={taxRules} title={t('ivuSummaryTitle')}
+                lineas={flatItems} clientType={clientType} taxRules={taxRules} fecha={form.issued_at} title={t('ivuSummaryTitle')}
                 discountType={form.discount_type} discountValue={form.discount_value} discountNote={form.discount_note}
                 note={clientType === 'b2b' && (
                   <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>

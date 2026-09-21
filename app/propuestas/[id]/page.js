@@ -21,7 +21,7 @@ export default async function PropuestaDetailPage(props) {
     proposal.status = 'expirada';
   }
 
-  const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
+  const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from');
   const { data: payments } = await supabase.from('proposal_payments').select('*').eq('proposal_id', params.id).order('sort_order');
   const { data: paymentRequests } = await supabase.from('proposal_payment_requests').select('*').eq('proposal_id', params.id);
   const { data: companyInfo } = await supabase.from('company_settings').select('*').limit(1).single();

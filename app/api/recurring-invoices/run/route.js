@@ -49,7 +49,7 @@ export async function GET(request) {
 
   if (dueErr) return Response.json({ error: dueErr.message }, { status: 500 });
 
-  const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate');
+  const { data: taxRules } = await supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from');
   const { data: allInvoices } = await supabase.from('invoices').select('invoice_number');
   let maxNum = 999;
   (allInvoices ?? []).forEach(inv => {

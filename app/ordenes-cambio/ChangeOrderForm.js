@@ -6,12 +6,12 @@ import Sidebar from '../Sidebar';
 import LineItemRow from '../LineItemRow';
 import LineItemPicker from '../LineItemPicker';
 import TaxBreakdown from '../TaxBreakdown';
-import { calcularIVU, tasaParaLinea } from '../../lib/tax';
+import { calcularIVU, crearResolvedorDeTasa } from '../../lib/tax';
 import { useTranslations } from 'next-intl';
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 function emptyItem() {
-  return { type: 'labor', tax_category: 'labor', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, saveToCatalog: true, area: '', vendor: '', catalog_item_id: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
+  return { type: 'labor', tax_category: 'labor', description: '', note: '', quantity: 1, unit_price: '', msrp: '', supplier_price: '', exempt: false, saveToCatalog: true, area: '', vendor: '', catalog_item_id: null, tax_rate: null, tax_rate_cat: null, photoFile: null, photoPreview: null, existingPhotoPath: null };
 }
 
 export default function ChangeOrderForm({ initialData = null }) {
@@ -43,6 +43,7 @@ export default function ChangeOrderForm({ initialData = null }) {
           type: li.type, tax_category: li.tax_category ?? li.type, description: li.description, note: li.note ?? '', quantity: li.quantity, unit_price: li.unit_price,
           msrp: li.msrp ?? '', supplier_price: li.supplier_price ?? '', exempt: !!li.exempt_reason,
           area: li.area ?? '', vendor: li.vendor ?? '', catalog_item_id: li.catalog_item_id ?? null, saveToCatalog: !li.catalog_item_id,
+          tax_rate: li.tax_rate ?? null, tax_rate_cat: li.tax_category ?? li.type ?? null,
           photoFile: null, photoPreview: li.photo_signed_url ?? null, existingPhotoPath: li.photo_url ?? null,
         }))
       : [emptyItem()]
@@ -52,7 +53,7 @@ export default function ChangeOrderForm({ initialData = null }) {
 
   useEffect(() => {
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
-    supabase.from('tax_rules').select('client_type, line_item_type, rate').then(({ data }) => setTaxRules(data ?? []));
+    supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from').then(({ data }) => setTaxRules(data ?? []));
     if (!isEdit && jobIdParam) {
       supabase.from('jobs').select('id, title, client_id, bill_to, clients(name, client_type)').eq('id', jobIdParam).single().then(({ data }) => {
         if (data) { setJob({ id: data.id, title: data.title, client_id: data.client_id, client_name: data.clients?.name, client_type: data.clients?.client_type }); setBillTo(data.bill_to ?? 'person'); }
@@ -103,7 +104,11 @@ export default function ChangeOrderForm({ initialData = null }) {
   }
 
   const clientType = job?.client_type === 'b2b' ? 'b2b' : 'final';
-  const taxCalc = calcularIVU(items, clientType, taxRules);
+  // Una orden de cambio no tiene fecha de emision propia: la del documento es
+  // la de su creacion, y una nueva se resuelve al dia de hoy.
+  const fechaDocumento = initialData?.order.created_at ?? undefined;
+  const taxCalc = calcularIVU(items, clientType, taxRules, { fecha: fechaDocumento });
+  const tasaLinea = crearResolvedorDeTasa({ lineas: items, clientType, taxRules, fecha: fechaDocumento });
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const areaOptions = [...new Set(items.map(i => i.area).filter(Boolean))];
   const vendorOptions = [...new Set(catalogItems.map(i => i.vendor).filter(Boolean))];
@@ -215,7 +220,7 @@ export default function ChangeOrderForm({ initialData = null }) {
         if (!upErr) photoPath = finalPath;
       }
       const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
-      const rate = tasaParaLinea(i, clientType, taxRules);
+      const rate = tasaLinea(i);
       lineItems.push({
         change_order_id: order.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description, note: i.note?.trim() || null,
         quantity: parseFloat(i.quantity) || 1, unit_price: parseFloat(i.unit_price) || 0,
@@ -337,7 +342,7 @@ export default function ChangeOrderForm({ initialData = null }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
-              <TaxBreakdown lineas={items} clientType={clientType} taxRules={taxRules} title={t('taxSummaryTitle')} />
+              <TaxBreakdown lineas={items} clientType={clientType} taxRules={taxRules} fecha={fechaDocumento} title={t('taxSummaryTitle')} />
             </div>
             <button type="submit" className="btn btn-primary" disabled={saving || !job} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
               {saving ? t('saving') : isEdit ? t('saveChanges') : t('saveOrder')}

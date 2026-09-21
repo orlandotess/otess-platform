@@ -13,9 +13,11 @@ const fmtPct = rate => `${(rate * 100).toFixed(rate * 100 % 1 === 0 ? 0 : 1)}%`;
 //   separado, aunque alguna tenga base $0 (mismo criterio que ya usan las
 //   vistas de solo-lectura de factura/estima — nunca se combinan en una sola
 //   línea). Reembolso solo aparece cuando tiene base > 0, por ser poco frecuente.
-export default function TaxBreakdown({ lineas, clientType, taxRules, scope = 'documento', title, note, discountType, discountValue, discountNote }) {
+export default function TaxBreakdown({ lineas, clientType, taxRules, fecha, scope = 'documento', title, note, discountType, discountValue, discountNote }) {
   const t = useTranslations('shared.taxBreakdown');
-  const resultado = calcularIVU(lineas, clientType, taxRules);
+  // `fecha` es la del documento: decide que vigencia de tax_rules aplica a una
+  // linea que todavia no tiene tasa congelada. Las que si la tienen la usan.
+  const resultado = calcularIVU(lineas, clientType, taxRules, { fecha });
   const { categorias, total: preDiscountTotal } = resultado;
   const { discountAmount, finalTotal } = aplicarDescuento(preDiscountTotal, discountType, discountValue);
   const total = finalTotal;

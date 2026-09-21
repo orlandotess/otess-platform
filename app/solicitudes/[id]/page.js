@@ -30,7 +30,7 @@ export default async function SolicitudDetail(props) {
     supabase.from('solicitud_line_items').select('*').eq('solicitud_id', id).order('sort_order'),
     supabase.from('solicitud_notes').select('*').eq('solicitud_id', id).order('created_at', { ascending: false }),
     supabase.from('technicians').select('id, name').order('name'),
-    supabase.from('tax_rules').select('client_type, line_item_type, rate'),
+    supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from'),
   ]);
 
   if (!solicitud) {

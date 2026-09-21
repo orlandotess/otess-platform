@@ -49,7 +49,7 @@ export default async function TrabajoDetail(props) {
     supabase.from('time_entries').select('job_id, technician_id, clocked_in_at, clocked_out_at, lunch_minutes').eq('job_id', id).not('clocked_out_at', 'is', null),
     supabase.from('job_reports').select('*').eq('job_id', id).order('created_at', { ascending: false }),
     supabase.from('floor_plans').select('id, name, rendered_image_path').eq('job_id', id).order('updated_at', { ascending: false }),
-    supabase.from('tax_rules').select('client_type, line_item_type, rate'),
+    supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from'),
     supabase.from('technician_rates').select('*'),
   ]);
 
@@ -203,7 +203,7 @@ export default async function TrabajoDetail(props) {
   const assignableTechnicians = (technicians ?? []).filter(t => normalizeName(t.name) !== 'otess');
 
   const clientType = job.clients?.client_type ?? 'final';
-  const ivu = calcularIVU(items ?? [], clientType, taxRules ?? []);
+  const ivu = calcularIVU(items ?? [], clientType, taxRules ?? [], { fecha: job.created_at });
   const productCat = ivu.categorias.find(c => c.codigo === 'product');
   const laborCat = ivu.categorias.find(c => c.codigo === 'labor');
   const reembolsoCat = ivu.categorias.find(c => c.codigo === 'reembolso');

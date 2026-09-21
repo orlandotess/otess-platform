@@ -84,7 +84,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
 
   const fmt = n => `$${(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
-  const optionTotal = opt => financialBreakdown(opt.items, clientType, taxRules ?? [], { type: proposal.discount_type, value: proposal.discount_value }).total;
+  const optionTotal = opt => financialBreakdown(opt.items, clientType, taxRules ?? [], { type: proposal.discount_type, value: proposal.discount_value }, { fecha: proposal.created_at }).total;
 
   const [publicUrl, setPublicUrl] = useState('');
 
@@ -537,7 +537,7 @@ export default function PropuestaDetailClient({ proposal, options, taxRules, pay
       {proposal.approved_option_id && payments.length > 0 && (() => {
         const approvedOption = options.find(o => o.id === proposal.approved_option_id);
         if (!approvedOption) return null;
-        const fb = financialBreakdown(approvedOption.items, clientType, taxRules ?? []);
+        const fb = financialBreakdown(approvedOption.items, clientType, taxRules ?? [], undefined, { fecha: proposal.created_at });
         const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
         return (
           <div className="card" style={{ marginBottom: 20 }}>
