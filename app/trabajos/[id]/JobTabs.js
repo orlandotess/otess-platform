@@ -2062,9 +2062,9 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               })}
               <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={addExtraArea}>+ {t('lineItems.addArea')}</button>
             </div>
-          </div>
 
-          <MaterialSummary items={summaryItems} docNumber={job.job_number} />
+            <MaterialSummary items={summaryItems} docNumber={job.job_number} />
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
