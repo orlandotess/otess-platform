@@ -523,6 +523,8 @@
         "noItemsForPO": "There are no products with an assigned vendor in this job.",
         "poGenerated": "{count, plural, one {# purchase order generated} other {# purchase orders generated}}.",
         "poGenerateError": "Error generating the purchase order: {error}",
+        "assignTechError": "Couldn't assign the technician: {error}",
+        "removeTechError": "Couldn't remove the technician: {error}",
         "genericError": "Error: {error}"
       },
       "status": {

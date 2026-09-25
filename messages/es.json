@@ -523,6 +523,8 @@
         "noItemsForPO": "No hay productos con proveedor asignado en este trabajo.",
         "poGenerated": "{count, plural, one {# orden de compra generada} other {# órdenes de compra generadas}}.",
         "poGenerateError": "Error al generar la orden de compra: {error}",
+        "assignTechError": "No se pudo asignar el técnico: {error}",
+        "removeTechError": "No se pudo quitar el técnico: {error}",
         "genericError": "Error: {error}"
       },
       "status": {

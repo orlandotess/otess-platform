@@ -125,22 +125,33 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   async function addTechnician(techId) {
     if (!techId) return;
     setSavingTech(true);
-    const { data } = await supabase.from('job_technicians').insert([{ job_id: job.id, technician_id: techId }]).select('*, technicians(name)').single();
-    if (data) {
-      setAssignedTechs(prev => [...prev, data]);
-      fetch('/api/trabajos/notify-assignment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId: job.id, technicianId: techId }),
-      }).catch(() => {});
-    }
-    setAddingTech('');
+    // Say so when the insert fails. Swallowing the error only cleared the
+    // dropdown, which reads as "this job won't let me assign anybody" --
+    // keep the pick in place instead, so the retry is one click away.
+    const { data, error } = await supabase.from('job_technicians').insert([{ job_id: job.id, technician_id: techId }]).select('*, technicians(name)').single();
     setSavingTech(false);
+    if (error) {
+      alert(t('alerts.assignTechError', { error: error.message }));
+      return;
+    }
+    setAssignedTechs(prev => [...prev, data]);
+    fetch('/api/trabajos/notify-assignment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId: job.id, technicianId: techId }),
+    }).catch(() => {});
+    setAddingTech('');
   }
 
   async function removeTechnician(rowId) {
-    await supabase.from('job_technicians').delete().eq('id', rowId);
-    setAssignedTechs(prev => prev.filter(t => t.id !== rowId));
+    // Drop the row from the panel only once the delete landed, or a failed
+    // one hides the technician until the next page load brings them back.
+    const { error } = await supabase.from('job_technicians').delete().eq('id', rowId);
+    if (error) {
+      alert(t('alerts.removeTechError', { error: error.message }));
+      return;
+    }
+    setAssignedTechs(prev => prev.filter(row => row.id !== rowId));
   }
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
