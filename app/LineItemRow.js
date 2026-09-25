@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { matchesCatalogQuery, CATALOG_RESULT_LIMIT } from '../lib/catalogSearch';
+import { matchesCatalogQuery, rankCatalogMatches, CATALOG_RESULT_LIMIT } from '../lib/catalogSearch';
 import { displayTitle } from '../lib/lineItemTitle';
 import CatalogResults, { useCatalogNav } from './CatalogResults';
 
@@ -19,7 +19,7 @@ export function CatalogDescriptionInput({ value, onChange, catalogOptions, sugge
   const t = useTranslations('shared.lineItemRow');
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
-  const matches = catalogOptions.filter(c => matchesCatalogQuery(c, value));
+  const matches = rankCatalogMatches(catalogOptions.filter(c => matchesCatalogQuery(c, value)), value);
   const results = matches.slice(0, CATALOG_RESULT_LIMIT);
   const query = (value ?? '').trim().toLowerCase();
   const suggestionResults = suggestions.filter(sug =>

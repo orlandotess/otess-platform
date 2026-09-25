@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { matchesCatalogQuery, CATALOG_RESULT_LIMIT } from '../lib/catalogSearch';
+import { matchesCatalogQuery, rankCatalogMatches, CATALOG_RESULT_LIMIT } from '../lib/catalogSearch';
 import CatalogResults, { useCatalogNav } from './CatalogResults';
 
 // Buscador único del catálogo, resuelto por id (no por round-trip de string
@@ -23,7 +23,7 @@ export default function LineItemPicker({ onSelect, tipos = ['labor', 'product', 
   const anchorRef = useRef(null);
 
   const pool = catalogOptions.filter(c => tipos.includes(c.type) && !c.internal_only);
-  const matches = pool.filter(c => matchesCatalogQuery(c, query));
+  const matches = rankCatalogMatches(pool.filter(c => matchesCatalogQuery(c, query)), query);
   const results = matches.slice(0, CATALOG_RESULT_LIMIT);
   const entries = results.map(item => ({ kind: 'catalog', item }));
   const { activeIndex, setActiveIndex, onKeyDown } = useCatalogNav(entries.length);
