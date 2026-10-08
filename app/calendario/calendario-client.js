@@ -6,6 +6,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { supabase } from '../../lib/supabase';
 import { isoToLocalInput, localInputToIso, formatDateTimePR, formatTimePR } from '../../lib/datetimeLocal';
 import { pickMapsLink } from '../../lib/mapsLinks';
+import { normalizeName } from '../../lib/normalizeName';
 import ClientCombobox from '../facturas/nueva/ClientCombobox';
 import QuickRescheduleModal from './QuickRescheduleModal';
 
@@ -287,10 +288,10 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
 
   function quickPreviewInfo(type, item) {
     const fmt = (iso) => iso ? formatDateTimePR(iso, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale) : null;
-    if (type === 'job') return { title: item.title, sub: item.clients?.name, time: fmt(item.scheduled_start), tech: item.technicians?.name };
+    if (type === 'job') return { title: item.title, sub: item.clients?.name, time: fmt(item.scheduled_start), tech: jobTechNames(item).join(', ') || null };
     if (type === 'event') return { icon: ENTRY_TYPE_ICONS.event, title: item.title, sub: item.clients?.name, time: fmt(item.start_at), tech: item.technicians?.name };
     if (type === 'task') return { icon: ENTRY_TYPE_ICONS[item.task_type], title: item.title, sub: item.clients?.name, time: fmt(item.due_at), tech: item.technicians?.name };
-    if (type === 'visit') return { icon: '👁', title: item.title ?? t('labels.visit'), sub: item.clients?.name, time: fmt(item.scheduled_at), tech: item.technicians?.name };
+    if (type === 'visit') return { icon: '👁', title: item.title ?? t('labels.visit'), sub: item.clients?.name, time: fmt(item.scheduled_at), tech: visitTechNames(item).join(', ') || null };
     if (type === 'absence') return { icon: '🚫', title: t('labels.technicianAbsent', { name: item.technicians?.name ?? t('labels.technician') }), sub: item.reason, time: item.date ? new Date(`${item.date}T00:00:00`).toLocaleDateString(dateLocale, { weekday: 'long', month: 'long', day: 'numeric' }) : null };
     return { title: item.title };
   }
@@ -373,15 +374,33 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
   const jobMatchesTech = (job, techId) =>
     job.technician_id === techId || (job.job_technicians ?? []).some(jt => jt.technician_id === techId);
 
-  const searchLower = searchQuery.trim().toLowerCase();
-  const matchesSearch = (title, clientName) => {
+  // jobs.technician_id (y solicitudes.technician_id) casi nunca se llena: asignar desde
+  // el trabajo solo inserta en job_technicians, así que leer solo `technicians.name`
+  // mostraba "Sin asignar" en trabajos que sí tienen técnico. Los días extra
+  // (job_schedule_days) son un día+técnico puntual y no heredan los del job, igual
+  // que assignedTechIds en el Dispatch Board.
+  const techNameById = useMemo(() => Object.fromEntries(technicians.map(tech => [tech.id, tech.name])), [technicians]);
+  const jobTechIds = (job) =>
+    [...new Set([job.technician_id, ...(job.schedule_day_id ? [] : (job.job_technicians ?? []).map(jt => jt.technician_id))].filter(Boolean))];
+  const visitTechIds = (visit) =>
+    [...new Set([visit.technician_id, ...(visit.solicitud_technicians ?? []).map(st => st.technician_id)].filter(Boolean))];
+  const jobTechNames = (job) => jobTechIds(job).map(id => techNameById[id]).filter(Boolean);
+  const visitTechNames = (visit) => visitTechIds(visit).map(id => techNameById[id]).filter(Boolean);
+  // El color del bloque es el del primer técnico asignado.
+  const jobColorTech = (job) => jobTechIds(job)[0];
+  const visitColorTech = (visit) => visitTechIds(visit)[0];
+
+  // Sin acentos ni mayúsculas ("diaz" encuentra "Díaz"), y también por técnico y por
+  // número de trabajo ("1053" encuentra JOB-1053).
+  const searchLower = normalizeName(searchQuery);
+  const matchesSearch = (...fields) => {
     if (!searchLower) return true;
-    return (title ?? '').toLowerCase().includes(searchLower) || (clientName ?? '').toLowerCase().includes(searchLower);
+    return fields.flat().some(f => normalizeName(f).includes(searchLower));
   };
 
   const filteredJobs = useMemo(() =>
-    !visibleTypes.job ? [] : jobs.filter(j => (selectedTech === 'all' || jobMatchesTech(j, selectedTech)) && matchesSearch(j.title, j.clients?.name)),
-    [jobs, selectedTech, visibleTypes.job, searchLower]
+    !visibleTypes.job ? [] : jobs.filter(j => (selectedTech === 'all' || jobMatchesTech(j, selectedTech)) && matchesSearch(j.title, j.clients?.name, j.job_number, jobTechNames(j))),
+    [jobs, selectedTech, visibleTypes.job, searchLower, techNameById]
   );
 
   // Una solicitud puede llevar varios técnicos asignados a la evaluación, igual que
@@ -390,8 +409,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     visit.technician_id === techId || (visit.solicitud_technicians ?? []).some(st => st.technician_id === techId);
 
   const filteredVisits = useMemo(() =>
-    !visibleTypes.visit ? [] : visits.filter(v => (selectedTech === 'all' || visitMatchesTech(v, selectedTech)) && matchesSearch(v.title, v.clients?.name)),
-    [visits, selectedTech, visibleTypes.visit, searchLower]
+    !visibleTypes.visit ? [] : visits.filter(v => (selectedTech === 'all' || visitMatchesTech(v, selectedTech)) && matchesSearch(v.title, v.clients?.name, visitTechNames(v))),
+    [visits, selectedTech, visibleTypes.visit, searchLower, techNameById]
   );
 
   const eventMatchesTech = (event, techId) =>
@@ -1086,7 +1105,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                         <div key={`v${v.id}`} className="cal-entry" onClick={(e) => showQuickPreview('visit', v, e)}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)', userSelect: 'none', WebkitUserSelect: 'none' }}>
+                            background: 'var(--surface)', border: `2px solid ${techColors[visitColorTech(v)] ?? 'var(--ink-faint)'}`, color: techColors[visitColorTech(v)] ?? 'var(--ink-faint)', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           <span style={{ fontSize: 9 }}>👁</span> {v.title ?? t('labels.visit')}
                         </div>
                       ))}
@@ -1097,7 +1116,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                           onDragEnd={() => { setDraggingEntry(null); setDragOverDate(null); }}
                           style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4, marginBottom: 2, cursor: canQuickReschedule ? 'grab' : 'pointer',
                             overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                            background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff', userSelect: 'none', WebkitUserSelect: 'none' }}>
+                            background: techColors[jobColorTech(j)] ?? 'var(--ink-faint)', color: '#fff', userSelect: 'none', WebkitUserSelect: 'none' }}>
                           {j.title}
                         </div>
                       ))}
@@ -1165,7 +1184,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               if (!v.scheduled_at || new Date(v.scheduled_at).toISOString().slice(0, 10) !== dateStr) return;
               const start = new Date(v.scheduled_at);
               const startMin = start.getHours() * 60 + start.getMinutes();
-              list.push({ key: `v${v.id}`, type: 'visit', techId: v.technician_id, startMin, endMin: startMin + 30,
+              list.push({ key: `v${v.id}`, type: 'visit', techId: visitColorTech(v), startMin, endMin: startMin + 30,
                 icon: '👁', label: v.title ?? t('labels.visit'), time: fmtTime(v.scheduled_at),
                 onClick: (e) => showQuickPreview('visit', v, e) });
             });
@@ -1175,7 +1194,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
               const end = new Date(j.scheduled_end ?? j.scheduled_start);
               const startMin = start.getHours() * 60 + start.getMinutes();
               const endMin = Math.max(startMin + 30, startMin + (end - start) / 60000);
-              list.push({ key: `j${j.id}`, type: 'job', techId: j.technician_id, startMin, endMin,
+              list.push({ key: `j${j.id}`, type: 'job', techId: jobColorTech(j), startMin, endMin,
                 label: j.title, time: fmtTime(j.scheduled_start),
                 onClick: (e) => { e.stopPropagation(); openEntry('job', j, e); } });
             });
@@ -1361,14 +1380,14 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                       onClick={() => { if (canScheduleVisit) setScheduleModal({ dateStr: dayDate, time: `${String(hour).padStart(2, '0')}:00` }); }}>
                       {hourVisits.map(v => (
                         <div key={`v${v.id}`} className="cal-entry" onClick={(e) => showQuickPreview('visit', v, e)}
-                          style={{ background: 'var(--surface)', border: `2px solid ${techColors[v.technician_id] ?? 'var(--ink-faint)'}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)',
+                          style={{ background: 'var(--surface)', border: `2px solid ${techColors[visitColorTech(v)] ?? 'var(--ink-faint)'}`, color: techColors[visitColorTech(v)] ?? 'var(--ink-faint)',
                             borderRadius: 4, padding: '3px 8px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>
                           <span style={{ fontSize: 10 }}>👁</span> {v.title ?? t('labels.visit')} · {fmtTime(v.scheduled_at)}
                         </div>
                       ))}
                       {hourJobs.map(j => (
                         <div key={j.id} className="cal-entry" onClick={(e) => { e.stopPropagation(); openEntry('job', j, e); }}
-                          style={{ background: techColors[j.technician_id] ?? 'var(--ink-faint)', color: '#fff', borderRadius: 4, padding: '3px 8px',
+                          style={{ background: techColors[jobColorTech(j)] ?? 'var(--ink-faint)', color: '#fff', borderRadius: 4, padding: '3px 8px',
                             fontSize: 12, fontWeight: 600, cursor: 'pointer', width: 'fit-content' }}>
                           {j.title} · {fmtTime(j.scheduled_start)}
                         </div>
@@ -1459,8 +1478,8 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
       {dayDetail && (() => {
         const dItems = [
           ...getAbsencesForDate(dayDetail).map(a => ({ type: 'absence', item: a, time: null, label: `🚫 ${t('labels.technicianAbsent', { name: a.technicians?.name ?? t('labels.technician') })}`, color: 'var(--warn)' })),
-          ...getVisitsForDate(dayDetail).map(v => ({ type: 'visit', item: v, time: v.scheduled_at, label: `👁 ${v.title ?? t('labels.visit')}`, color: techColors[v.technician_id] ?? 'var(--ink-faint)' })),
-          ...getJobsForDate(dayDetail).map(j => ({ type: 'job', item: j, time: j.scheduled_start, label: j.title, color: techColors[j.technician_id] ?? 'var(--ink-faint)' })),
+          ...getVisitsForDate(dayDetail).map(v => ({ type: 'visit', item: v, time: v.scheduled_at, label: `👁 ${v.title ?? t('labels.visit')}`, color: techColors[visitColorTech(v)] ?? 'var(--ink-faint)' })),
+          ...getJobsForDate(dayDetail).map(j => ({ type: 'job', item: j, time: j.scheduled_start, label: j.title, color: techColors[jobColorTech(j)] ?? 'var(--ink-faint)' })),
           ...getEventsForDate(dayDetail).map(e => ({ type: 'event', item: e, time: e.start_at, label: `${ENTRY_TYPE_ICONS.event} ${e.title}`, color: techColors[e.technician_id] ?? 'var(--navy)' })),
           ...getTasksForDate(dayDetail).map(tk => ({ type: 'task', item: tk, time: tk.due_at, label: `${ENTRY_TYPE_ICONS[tk.task_type]} ${tk.title}`, color: techColors[tk.technician_id] ?? 'var(--muted)' })),
         ].sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''));
@@ -1525,7 +1544,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             <div style={{ display: 'grid', gap: 0, marginBottom: 20 }}>
               {[
                 [t('jobDetail.status'), <span style={{ fontWeight: 600, color: STATUS_COLORS[selectedJob.status] }}>{STATUS_LABELS[selectedJob.status]}</span>],
-                [t('jobDetail.technician'), selectedJob.technicians?.name ?? t('labels.unassigned')],
+                [t('jobDetail.technician'), jobTechNames(selectedJob).join(', ') || t('labels.unassigned')],
                 [t('jobDetail.start'), selectedJob.scheduled_start ? formatDateTimePR(selectedJob.scheduled_start, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale) : '—'],
                 [t('jobDetail.end'), selectedJob.scheduled_end ? formatDateTimePR(selectedJob.scheduled_end, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale) : '—'],
               ].map(([label, value]) => (
@@ -1584,7 +1603,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
             <div style={{ display: 'grid', gap: 0, marginBottom: 20 }}>
               {[
                 [t('jobDetail.status'), VISIT_STATUS_LABELS[selectedVisit.status] ?? selectedVisit.status],
-                [t('jobDetail.technician'), selectedVisit.technicians?.name ?? t('labels.unassigned')],
+                [t('jobDetail.technician'), visitTechNames(selectedVisit).join(', ') || t('labels.unassigned')],
                 [t('visitDetail.dateTime'), selectedVisit.scheduled_at ? formatDateTimePR(selectedVisit.scheduled_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale) : '—'],
                 [t('visitDetail.duration'), t('visitDetail.durationMinutes', { count: selectedVisit.duration_minutes ?? 60 })],
               ].map(([label, value]) => (

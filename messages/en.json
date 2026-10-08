@@ -2271,7 +2271,7 @@
       "controls": {
         "today": "Today",
         "all": "All",
-        "searchPlaceholder": "Search title or client... (Enter to jump)",
+        "searchPlaceholder": "Search title, client, technician, or job #... (Enter to jump)",
         "hide": "Hide",
         "legend": "legend"
       },

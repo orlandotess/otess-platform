@@ -28,7 +28,7 @@ export default async function CalendarioPage(props) {
   // job_technicians junction table, since jobs can be assigned solely via the latter).
   const { data: jobs } = await supabase
     .from('jobs')
-    .select('id, title, status, scheduled_start, scheduled_end, technician_id, technicians(id, name), clients(name), job_technicians(technician_id)')
+    .select('id, title, job_number, status, scheduled_start, scheduled_end, technician_id, technicians(id, name), clients(name), job_technicians(technician_id)')
     .not('scheduled_start', 'is', null)
     .order('scheduled_start');
 
@@ -36,7 +36,7 @@ export default async function CalendarioPage(props) {
   // Each is rendered as its own calendar entry, carrying the parent job's info.
   const { data: scheduleDayRows } = await supabase
     .from('job_schedule_days')
-    .select('id, job_id, scheduled_start, scheduled_end, technician_id, technicians(id, name), jobs(id, title, status, clients(name), job_technicians(technician_id))')
+    .select('id, job_id, scheduled_start, scheduled_end, technician_id, technicians(id, name), jobs(id, title, job_number, status, clients(name), job_technicians(technician_id))')
     .order('scheduled_start');
 
   const extraJobDays = (scheduleDayRows ?? [])
@@ -46,6 +46,7 @@ export default async function CalendarioPage(props) {
       job_id: d.job_id,
       schedule_day_id: d.id,
       title: d.jobs.title,
+      job_number: d.jobs.job_number,
       status: d.jobs.status,
       scheduled_start: d.scheduled_start,
       scheduled_end: d.scheduled_end,

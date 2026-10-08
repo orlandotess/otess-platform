@@ -2271,7 +2271,7 @@
       "controls": {
         "today": "Hoy",
         "all": "Todos",
-        "searchPlaceholder": "Buscar título o cliente... (Enter para ir)",
+        "searchPlaceholder": "Buscar título, cliente, técnico o # trabajo... (Enter para ir)",
         "hide": "Ocultar",
         "legend": "leyenda"
       },
