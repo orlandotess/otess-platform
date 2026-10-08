@@ -32,7 +32,7 @@ const CATEGORIES = [
     subtitle: r => r.clients?.name || r.email || r.phone || '',
   },
   {
-    key: 'jobs', table: 'jobs', label: 'Trabajos', icon: 'bolt',
+    key: 'jobs', table: 'jobs', numberCol: 'job_number', label: 'Trabajos', icon: 'bolt',
     roles: ['admin', 'secretaria', 'vendedor', 'tecnico'],
     select: 'id, job_number, title, status, client_id, clients(name)',
     href: r => `/trabajos/${r.id}`,
@@ -40,7 +40,7 @@ const CATEGORIES = [
     subtitle: r => r.clients?.name || r.status || '',
   },
   {
-    key: 'invoices', table: 'invoices', label: 'Facturas', icon: 'receipt',
+    key: 'invoices', table: 'invoices', numberCol: 'invoice_number', label: 'Facturas', icon: 'receipt',
     roles: ['admin', 'secretaria', 'vendedor'],
     select: 'id, invoice_number, status, client_id, clients(name)',
     href: r => `/facturas/${r.id}`,
@@ -48,7 +48,7 @@ const CATEGORIES = [
     subtitle: r => r.clients?.name || r.status || '',
   },
   {
-    key: 'estimates', table: 'estimates', label: 'Estimados', icon: 'calculator',
+    key: 'estimates', table: 'estimates', numberCol: 'estimate_number', label: 'Estimados', icon: 'calculator',
     roles: ['admin', 'secretaria', 'vendedor'],
     select: 'id, estimate_number, title, status, client_id, clients(name)',
     href: r => `/estimados/${r.id}`,
@@ -56,7 +56,7 @@ const CATEGORIES = [
     subtitle: r => r.clients?.name || r.status || '',
   },
   {
-    key: 'proposals', table: 'proposals', label: 'Propuestas', icon: 'fileText',
+    key: 'proposals', table: 'proposals', numberCol: 'proposal_number', label: 'Propuestas', icon: 'fileText',
     roles: ['admin', 'secretaria', 'vendedor'],
     select: 'id, proposal_number, title, status, client_id, clients(name)',
     href: r => `/propuestas/${r.id}`,
@@ -64,7 +64,7 @@ const CATEGORIES = [
     subtitle: r => r.clients?.name || r.status || '',
   },
   {
-    key: 'service_tickets', table: 'service_tickets', label: 'Boletos', icon: 'ticket',
+    key: 'service_tickets', table: 'service_tickets', numberCol: 'ticket_number', label: 'Boletos', icon: 'ticket',
     roles: ['admin', 'secretaria', 'vendedor', 'tecnico'],
     select: 'id, ticket_number, subject, status, client_id, clients(name)',
     href: r => `/boletos/${r.id}`,
@@ -82,6 +82,15 @@ function buildTsQuery(raw) {
   return words.map(w => `${w}:*`).join(' & ');
 }
 
+// El parser de Postgres lee "INV-1041" como "inv" + "-1041" (entero con
+// signo), así que "1041:*" nunca coincide en search_vector. Para búsquedas con
+// dígitos se busca además directo en la columna del número con ILIKE.
+function buildNumberPattern(raw) {
+  const cleaned = raw.trim().replace(/[%_\\]/g, '');
+  if (!/\d/.test(cleaned) || cleaned.length > 30) return null;
+  return `%${cleaned.replace(/\s+/g, '%')}%`;
+}
+
 export async function GET(request) {
   const role = await getCurrentRole();
   if (!role) return Response.json({ error: 'No autorizado' }, { status: 403 });
@@ -92,20 +101,38 @@ export async function GET(request) {
 
   const categories = CATEGORIES.filter(c => c.roles.includes(role));
 
+  const numberPattern = buildNumberPattern(q);
+
   const settled = await Promise.allSettled(
-    categories.map(cat =>
-      supabaseServer
-        .from(cat.table)
-        .select(cat.select)
-        .textSearch('search_vector', tsQuery, { config: 'spanish' })
-        .limit(6)
-    )
+    categories.map(async cat => {
+      const [byNumber, byText] = await Promise.all([
+        cat.numberCol && numberPattern
+          ? supabaseServer.from(cat.table).select(cat.select).ilike(cat.numberCol, numberPattern).limit(6)
+          : { data: [] },
+        supabaseServer
+          .from(cat.table)
+          .select(cat.select)
+          .textSearch('search_vector', tsQuery, { config: 'spanish' })
+          .limit(6),
+      ]);
+      if (byNumber.error && byText.error) throw byText.error;
+      // Coincidencias por número primero; la exacta (p. ej. "1041" -> INV-1041)
+      // antes que las parciales (INV-10410).
+      const digits = q.replace(/\D/g, '');
+      const numbered = (byNumber.data || []).sort((a, b) =>
+        Number(!String(a[cat.numberCol]).endsWith(`-${digits}`)) - Number(!String(b[cat.numberCol]).endsWith(`-${digits}`))
+      );
+      const seen = new Set();
+      return [...numbered, ...(byText.data || [])]
+        .filter(row => !seen.has(row.id) && seen.add(row.id))
+        .slice(0, 6);
+    })
   );
 
   const results = settled.flatMap((res, i) => {
     const cat = categories[i];
-    if (res.status !== 'fulfilled' || res.value.error || !res.value.data) return [];
-    return res.value.data.map(row => ({
+    if (res.status !== 'fulfilled' || !res.value) return [];
+    return res.value.map(row => ({
       type: cat.key,
       label: cat.label,
       icon: cat.icon,
