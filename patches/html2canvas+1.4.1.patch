@@ -1,0 +1,40 @@
+diff --git a/node_modules/html2canvas/dist/html2canvas.esm.js b/node_modules/html2canvas/dist/html2canvas.esm.js
+index dab56ad..441deaf 100644
+--- a/node_modules/html2canvas/dist/html2canvas.esm.js
++++ b/node_modules/html2canvas/dist/html2canvas.esm.js
+@@ -6697,7 +6697,14 @@ var CanvasRenderer = /** @class */ (function (_super) {
+     CanvasRenderer.prototype.renderTextWithLetterSpacing = function (text, letterSpacing, baseline) {
+         var _this = this;
+         if (letterSpacing === 0) {
+-            this.ctx.fillText(text.text, text.bounds.left, text.bounds.top + baseline);
++            // Safari's canvas can draw a word wider than its DOM layout measured it,
++            // running over the following space — cap it to the measured width.
++            if (text.bounds.width > 0 && this.ctx.measureText(text.text).width > text.bounds.width + 0.5) {
++                this.ctx.fillText(text.text, text.bounds.left, text.bounds.top + baseline, text.bounds.width);
++            }
++            else {
++                this.ctx.fillText(text.text, text.bounds.left, text.bounds.top + baseline);
++            }
+         }
+         else {
+             var letters = segmentGraphemes(text.text);
+diff --git a/node_modules/html2canvas/dist/html2canvas.js b/node_modules/html2canvas/dist/html2canvas.js
+index 84cb30d..5c77da6 100644
+--- a/node_modules/html2canvas/dist/html2canvas.js
++++ b/node_modules/html2canvas/dist/html2canvas.js
+@@ -6703,7 +6703,14 @@
+         CanvasRenderer.prototype.renderTextWithLetterSpacing = function (text, letterSpacing, baseline) {
+             var _this = this;
+             if (letterSpacing === 0) {
+-                this.ctx.fillText(text.text, text.bounds.left, text.bounds.top + baseline);
++                // Safari's canvas can draw a word wider than its DOM layout measured it,
++                // running over the following space — cap it to the measured width.
++                if (text.bounds.width > 0 && this.ctx.measureText(text.text).width > text.bounds.width + 0.5) {
++                    this.ctx.fillText(text.text, text.bounds.left, text.bounds.top + baseline, text.bounds.width);
++                }
++                else {
++                    this.ctx.fillText(text.text, text.bounds.left, text.bounds.top + baseline);
++                }
+             }
+             else {
+                 var letters = segmentGraphemes(text.text);
