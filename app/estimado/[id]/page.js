@@ -4,6 +4,7 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import { displayTitle } from '../../../lib/lineItemTitle';
 import AcceptEstimateButton from './AcceptEstimateButton';
+import EstimatePdfButton from './EstimatePdfButton';
 import { getTranslations } from 'next-intl/server';
 
 export default async function EstimaPublica(props) {
@@ -102,12 +103,14 @@ export default async function EstimaPublica(props) {
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
+    <div style={{ background: '#fafafa', color: '#1b2230', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
         <AcceptEstimateButton estimateId={id} status={est.status} />
 
-        <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>
+        <EstimatePdfButton estimateNumber={est.estimate_number} />
+
+        <div id="estimate-doc-public" style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>
 
           <div style={{ padding: '28px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #eee' }}>
             <div>

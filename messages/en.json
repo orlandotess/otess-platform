@@ -2218,7 +2218,9 @@
       "footer": {
         "questions": "Questions? Contact us at",
         "orCall": "or call {phone}"
-      }
+      },
+      "viewPdfBtn": "View PDF",
+      "generatingLabel": "Generating..."
     },
     "acceptButton": {
       "confirmAccept": "Do you confirm you accept this estimate?",

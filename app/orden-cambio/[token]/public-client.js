@@ -34,7 +34,7 @@ export default function OrdenCambioPublicClient({ order, items }) {
 
   if (approved) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', fontFamily: '-apple-system,sans-serif', padding: 20 }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', color: '#1b2230', fontFamily: '-apple-system,sans-serif', padding: 20 }}>
         <div style={{ background: '#fff', borderRadius: 12, padding: 40, maxWidth: 420, textAlign: 'center', border: '1px solid #eee' }}>
           <div style={{ fontSize: 32, marginBottom: 12, color: '#1a7a4a' }}>✓</div>
           <div style={{ fontSize: 19, fontWeight: 700, color: NAVY, marginBottom: 8 }}>{t('approvedTitle')}</div>
@@ -55,7 +55,7 @@ export default function OrdenCambioPublicClient({ order, items }) {
   const total = items.reduce((s, it) => s + lineTotal(it) + (it.tax_amount || 0), 0);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fafafa', fontFamily: '-apple-system,sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#fafafa', color: '#1b2230', fontFamily: '-apple-system,sans-serif' }}>
       <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #eee', background: '#fff' }}>
         <img src="/otess-logo.png" alt="OTESS" style={{ height: 26 }} />
       </div>

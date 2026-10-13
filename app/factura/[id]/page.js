@@ -130,7 +130,7 @@ export default async function FacturaPublica(props) {
   }
 
   return (
-    <div style={{ background: '#fafafa', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
+    <div style={{ background: '#fafafa', color: '#1b2230', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
         {/* Invoice card */}

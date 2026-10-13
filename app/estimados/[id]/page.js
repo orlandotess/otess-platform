@@ -262,7 +262,7 @@ export default async function EstimaDetail(props) {
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>—</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)' }}>
                     —
-                    <div style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${entry.supplier_total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    <div data-html2canvas-ignore="true" style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${entry.supplier_total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', color: 'var(--muted)', fontSize: 12 }}>
                     {entry.tax_rate === 0 ? t('exempt') : `${(entry.tax_rate * 100).toFixed(1)}%`}
@@ -300,17 +300,17 @@ export default async function EstimaDetail(props) {
                       <>
                         —
                         {bundleSupplierTotal(entry.item) > 0 && (
-                          <div style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${bundleSupplierTotal(entry.item).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                          <div data-html2canvas-ignore="true" style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${bundleSupplierTotal(entry.item).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                         )}
                       </>
                     ) : (
                       <>
                         {entry.item.msrp != null && (
-                          <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${Number(entry.item.msrp).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                          <div data-html2canvas-ignore="true" style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${Number(entry.item.msrp).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                         )}
                         ${Number(entry.item.unit_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         {entry.item.supplier_price != null && (
-                          <div style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${Number(entry.item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                          <div data-html2canvas-ignore="true" style={{ fontSize: 10, color: 'var(--warn)' }}>{t('cost')} ${Number(entry.item.supplier_price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                         )}
                       </>
                     )}

@@ -275,11 +275,11 @@ export default async function FacturaDetail(props) {
                         <td style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13.5, color: 'var(--muted)', verticalAlign: 'top' }}>x{item.quantity}</td>
                         <td style={{ padding: '14px 12px', textAlign: 'right', fontSize: 13.5, color: 'var(--muted)', verticalAlign: 'top' }}>
                           {item.msrp != null && (
-                            <div style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${fmt(item.msrp)}</div>
+                            <div data-html2canvas-ignore="true" style={{ fontSize: 10, color: 'var(--muted)', textDecoration: 'line-through' }}>${fmt(item.msrp)}</div>
                           )}
                           ${fmt(item.unit_price)}
                           {item.supplier_price != null && (
-                            <div style={{ fontSize: 10, color: 'var(--warn)' }}>{t('costLabel')} ${fmt(item.supplier_price)}</div>
+                            <div data-html2canvas-ignore="true" style={{ fontSize: 10, color: 'var(--warn)' }}>{t('costLabel')} ${fmt(item.supplier_price)}</div>
                           )}
                         </td>
                         <td style={{ padding: '14px 12px', textAlign: 'right', color: 'var(--muted)', fontSize: 12, verticalAlign: 'top' }}>
