@@ -2193,6 +2193,7 @@
       "dateLabel": "Date:",
       "validUntilLabel": "Valid until:",
       "preparedFor": "Prepared for",
+      "serviceProperty": "Service property",
       "table": {
         "description": "Description",
         "type": "Type",
