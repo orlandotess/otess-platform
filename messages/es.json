@@ -3845,7 +3845,8 @@
       "back": "← Volver",
       "backCrew": "← Crew App",
       "backList": "← Solicitudes",
-      "viewJob": "→ Ver trabajo {jobNumber}"
+      "viewJob": "→ Ver trabajo {jobNumber}",
+      "viewEstimate": "→ Ver estimado {estimateNumber}"
     },
     "tabs": {
       "common": {
@@ -3933,6 +3934,7 @@
         "alreadyConverted": "Esta solicitud ya fue convertida.",
         "archivedNotice": "Esta solicitud está archivada.",
         "convertToJob": "✓ Convertir a Trabajo",
+        "convertToEstimate": "📝 Convertir a Estimado",
         "converting": "Convirtiendo...",
         "unarchive": "Desarchivar",
         "archive": "Archivar",
@@ -3946,6 +3948,9 @@
       },
       "taxSummaryTitle": "Resumen IVU",
       "confirmConvert": "¿Convertir \"{title}\" en un trabajo? Se creará un nuevo trabajo con esta información.",
+      "confirmConvertEstimate": "¿Convertir \"{title}\" en un estimado? Se creará un estimado en borrador con estas líneas.",
+      "estimateNeedsClient": "Asigna un cliente a la solicitud antes de convertirla en estimado.",
+      "estimateLineItemsFailed": "Se creó el estimado {number}, pero las líneas no se pudieron copiar: {message}",
       "deleteError": "No se pudo eliminar la solicitud: {error}"
     },
     "newSolicitud": {

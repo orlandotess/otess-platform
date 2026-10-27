@@ -26,7 +26,7 @@ export default async function SolicitudDetail(props) {
   const isTecnico = currentRole === 'tecnico';
 
   const [{ data: solicitud }, { data: items }, { data: notes }, { data: technicians }, { data: taxRules }] = await Promise.all([
-    supabase.from('solicitudes').select('*, clients(name, email, phone, client_type, company), jobs:converted_to_job_id(id, job_number, title), technicians(name), solicitud_technicians(technician_id, technicians(name)), solicitud_contacts(*)').eq('id', id).single(),
+    supabase.from('solicitudes').select('*, clients(name, email, phone, client_type, company), jobs:converted_to_job_id(id, job_number, title), estimates:converted_to_estimate_id(id, estimate_number), technicians(name), solicitud_technicians(technician_id, technicians(name)), solicitud_contacts(*)').eq('id', id).single(),
     supabase.from('solicitud_line_items').select('*').eq('solicitud_id', id).order('sort_order'),
     supabase.from('solicitud_notes').select('*').eq('solicitud_id', id).order('created_at', { ascending: false }),
     supabase.from('technicians').select('id, name').order('name'),
@@ -104,6 +104,11 @@ export default async function SolicitudDetail(props) {
           {solicitud.jobs && (
             <Link href={`/trabajos/${solicitud.jobs.id}`} style={{ marginLeft: 10, fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>
               {t('viewJob', { jobNumber: solicitud.jobs.job_number })}
+            </Link>
+          )}
+          {solicitud.estimates && (
+            <Link href={`/estimados/${solicitud.estimates.id}`} style={{ marginLeft: 10, fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>
+              {t('viewEstimate', { estimateNumber: solicitud.estimates.estimate_number })}
             </Link>
           )}
         </div>

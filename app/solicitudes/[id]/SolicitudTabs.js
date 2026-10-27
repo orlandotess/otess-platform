@@ -6,7 +6,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import LineItemRow from '../../LineItemRow';
 import LineItemPicker from '../../LineItemPicker';
 import TaxBreakdown from '../../TaxBreakdown';
-import { calcularIVU } from '../../../lib/tax';
+import { calcularIVU, crearResolvedorDeTasa } from '../../../lib/tax';
 import { buildChecklistItemsFromLineItems } from '../../../lib/generateChecklistFromLineItems';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDateTimePR } from '../../../lib/datetimeLocal';
@@ -33,6 +33,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
   const isTecnico = currentRole === 'tecnico';
 
   const [converting, setConverting] = useState(false);
+  const [convertingEstimate, setConvertingEstimate] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [showDeleteSolicitud, setShowDeleteSolicitud] = useState(false);
   const [deletingSolicitud, setDeletingSolicitud] = useState(false);
@@ -106,6 +107,70 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
       router.push(`/trabajos/${job.id}`);
     } finally {
       setConverting(false);
+    }
+  }
+
+  // Crea un estimado en borrador con las líneas de la solicitud, mismo
+  // numerado EST-#### y mismo congelado de tasa por línea que EstimateForm.js,
+  // y lo abre en edición para que la oficina termine de cotizar.
+  async function convertirAEstimado() {
+    if (!solicitud.client_id) { alert(t('estimateNeedsClient')); return; }
+    if (!confirm(t('confirmConvertEstimate', { title: solicitud.title }))) return;
+    setConvertingEstimate(true);
+    try {
+      const { data: allEstimates } = await supabase.from('estimates').select('estimate_number');
+      let maxNum = 1000;
+      (allEstimates ?? []).forEach(est => {
+        const match = est.estimate_number?.match(/^EST-(\d+)$/);
+        if (match) {
+          const n = parseInt(match[1]);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+      const estimateNumber = `EST-${maxNum + 1}`;
+
+      const issuedAt = new Date().toISOString().split('T')[0];
+      const totals = calcularIVU(lineItems, clientType, taxRules, { fecha: issuedAt });
+      const cat = codigo => totals.categorias.find(c => c.codigo === codigo) ?? { base: 0, impuesto: 0 };
+      const { data: estimate, error: estErr } = await supabase.from('estimates').insert([{
+        estimate_number: estimateNumber,
+        client_id: solicitud.client_id,
+        property_id: solicitud.property_id || null,
+        title: solicitud.title || null,
+        notes: solicitud.description || solicitud.notes || null,
+        issued_at: issuedAt,
+        valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        status: 'draft',
+        bill_to: 'person',
+        subtotal_products: cat('product').base + cat('reembolso').base,
+        tax_products: cat('product').impuesto + cat('reembolso').impuesto,
+        subtotal_labor: cat('labor').base,
+        tax_labor: cat('labor').impuesto,
+        total: totals.total,
+      }]).select().single();
+      if (estErr) { alert(estErr.message); return; }
+
+      if (lineItems.length) {
+        const tasaLinea = crearResolvedorDeTasa({ lineas: lineItems, clientType, taxRules, fecha: issuedAt });
+        const { error: liErr } = await supabase.from('estimate_line_items').insert(lineItems.map((i, idx) => {
+          const base = (Number(i.quantity) || 0) * (Number(i.unit_price) || 0);
+          const rate = tasaLinea(i);
+          return {
+            estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, title: i.title || null,
+            description: i.description, note: i.note || null,
+            quantity: i.quantity, unit_price: i.unit_price, msrp: i.msrp, supplier_price: i.supplier_price,
+            exempt_reason: i.exempt_reason, area: i.area, vendor: i.vendor, photo_url: i.photo_url,
+            tax_rate: rate, line_total: base, tax_amount: base * rate,
+            sort_order: i.sort_order ?? idx,
+          };
+        }));
+        if (liErr) { alert(t('estimateLineItemsFailed', { number: estimateNumber, message: liErr.message })); return; }
+      }
+
+      await supabase.from('solicitudes').update({ status: 'convertida', converted_to_estimate_id: estimate.id }).eq('id', solicitud.id);
+      router.push(`/estimados/${estimate.id}`);
+    } finally {
+      setConvertingEstimate(false);
     }
   }
 
@@ -752,6 +817,11 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
               {isOpen && (
                 <button className="btn btn-amber" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} disabled={converting} onClick={convertirATrabajo}>
                   {converting ? t('status.converting') : t('status.convertToJob')}
+                </button>
+              )}
+              {isOpen && (
+                <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} disabled={convertingEstimate} onClick={convertirAEstimado}>
+                  {convertingEstimate ? t('status.converting') : t('status.convertToEstimate')}
                 </button>
               )}
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} disabled={archiving} onClick={toggleArchive}>

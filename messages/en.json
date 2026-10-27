@@ -3845,7 +3845,8 @@
       "back": "← Back",
       "backCrew": "← Crew App",
       "backList": "← Requests",
-      "viewJob": "→ View job {jobNumber}"
+      "viewJob": "→ View job {jobNumber}",
+      "viewEstimate": "→ View estimate {estimateNumber}"
     },
     "tabs": {
       "common": {
@@ -3933,6 +3934,7 @@
         "alreadyConverted": "This request has already been converted.",
         "archivedNotice": "This request is archived.",
         "convertToJob": "✓ Convert to Job",
+        "convertToEstimate": "📝 Convert to Estimate",
         "converting": "Converting...",
         "unarchive": "Unarchive",
         "archive": "Archive",
@@ -3946,6 +3948,9 @@
       },
       "taxSummaryTitle": "Tax summary",
       "confirmConvert": "Convert \"{title}\" into a job? A new job will be created with this information.",
+      "confirmConvertEstimate": "Convert \"{title}\" into an estimate? A draft estimate will be created with these line items.",
+      "estimateNeedsClient": "Assign a client to the request before converting it to an estimate.",
+      "estimateLineItemsFailed": "Estimate {number} was created, but its line items could not be copied: {message}",
       "deleteError": "Could not delete the request: {error}"
     },
     "newSolicitud": {
