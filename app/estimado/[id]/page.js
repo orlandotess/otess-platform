@@ -14,7 +14,7 @@ export default async function EstimaPublica(props) {
 
   const { data: est } = await supabase
     .from('estimates')
-    .select('*, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*))')
+    .select('*, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*)), jobs!estimates_job_id_fkey(client_properties(*))')
     .eq('id', id)
     .single();
 
@@ -99,6 +99,10 @@ export default async function EstimaPublica(props) {
   });
 
   const primaryAddr = est.clients?.client_addresses?.find(a => a.is_primary) ?? est.clients?.client_addresses?.[0];
+  const clientProperties = est.clients?.client_properties ?? [];
+  const property = est.property_id
+    ? clientProperties.find(p => p.id === est.property_id) ?? null
+    : est.jobs?.client_properties ?? null;
   const billToName = est.bill_to === 'company' && est.clients?.company ? est.clients.company : est.clients?.name;
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -136,6 +140,14 @@ export default async function EstimaPublica(props) {
               {primaryAddr && <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>{primaryAddr.line1}, {primaryAddr.city} {primaryAddr.zip}</div>}
               {est.clients?.email && <div style={{ color: '#999', fontSize: 13 }}>{est.clients.email}</div>}
             </div>
+
+            {property && (
+              <div style={{ background: '#fafafa', borderRadius: 8, padding: '16px 20px', marginBottom: 24, border: '1px solid #f0f0f0' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>{t('serviceProperty')}</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{property.name}</div>
+                {property.street && <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>{property.street}{property.city ? `, ${property.city}` : ''}{property.zip ? ` ${property.zip}` : ''}</div>}
+              </div>
+            )}
 
             <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24, minWidth: 560 }}>
