@@ -2061,6 +2061,7 @@
     },
     "detail": {
       "notFound": "Estimate not found",
+      "fromSolicitud": "From: {number}",
       "general": "General",
       "status": {
         "draft": "Draft",
@@ -3845,7 +3846,8 @@
       "back": "← Back",
       "backCrew": "← Crew App",
       "backList": "← Requests",
-      "viewJob": "→ View job {jobNumber}"
+      "viewJob": "→ View job {jobNumber}",
+      "viewEstimate": "View estimate {estimateNumber}"
     },
     "tabs": {
       "common": {
@@ -3932,8 +3934,7 @@
         "tecnicoNotice": "{status} — status changes are made by the office.",
         "alreadyConverted": "This request has already been converted.",
         "archivedNotice": "This request is archived.",
-        "convertToJob": "✓ Convert to Job",
-        "converting": "Converting...",
+        "createEstimate": "✓ Create estimate",
         "unarchive": "Unarchive",
         "archive": "Archive",
         "deleteButton": "🗑 Delete"
@@ -3945,7 +3946,20 @@
         "deleting": "Deleting..."
       },
       "taxSummaryTitle": "Tax summary",
-      "confirmConvert": "Convert \"{title}\" into a job? A new job will be created with this information.",
+      "createEstimate": {
+        "title": "Create estimate",
+        "body": "A draft estimate will be created with {count, plural, =1 {the line} other {the # lines}} from this request. You can review and edit it before sending.",
+        "notesTitle": "Notes for the client",
+        "notesHint": "Whatever you check goes into the estimate notes, which the client sees. The request's photos and notes move to the job when you convert the estimate.",
+        "noNotes": "This request has no notes.",
+        "descriptionLabel": "Description",
+        "internalNotesLabel": "Internal notes",
+        "confirm": "Create estimate",
+        "creating": "Creating…",
+        "noClient": "This request has no client, so an estimate can't be created.",
+        "noLines": "Add at least one line before creating the estimate.",
+        "error": "Could not create the estimate: {error}"
+      },
       "deleteError": "Could not delete the request: {error}"
     },
     "newSolicitud": {

@@ -230,7 +230,7 @@ export default async function EstimaPublica(props) {
             </div>
 
             {est.notes && (
-              <div style={{ marginTop: 24, padding: '14px 18px', background: '#fafafa', borderRadius: 8, fontSize: 13, color: '#999', border: '1px solid #f0f0f0' }}>
+              <div style={{ marginTop: 24, padding: '14px 18px', background: '#fafafa', borderRadius: 8, fontSize: 13, color: '#999', border: '1px solid #f0f0f0', whiteSpace: 'pre-wrap' }}>
                 <strong style={{ color: '#16223d' }}>{t('notesLabel')}</strong> {est.notes}
               </div>
             )}

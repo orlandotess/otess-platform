@@ -10,7 +10,7 @@ import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { localInputToIso } from '../../../lib/datetimeLocal';
 import { useTranslations } from 'next-intl';
 
-export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, title: initialTitle = '', clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null, archivedAt: initialArchivedAt = null }) {
+export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, title: initialTitle = '', clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null, solicitudId = null, archivedAt: initialArchivedAt = null }) {
   const router = useRouter();
   const t = useTranslations('estimados.actions');
   const tPurchaseListCsv = useTranslations('shared.purchaseListCsv');
@@ -80,6 +80,18 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       const prop = clientProperties.find(p => p.id === propertyId) || (!propertyId ? initialProperty : null);
       const hasSchedule = !!(convScheduledStart && convScheduledEnd);
 
+      // Estimado que salió de una solicitud: el técnico necesita lo que se
+      // recogió en la evaluación (fotos, notas, técnicos, contactos), que no
+      // pasa por el estimado porque el estimado lo ve el cliente.
+      let sol = null;
+      if (solicitudId) {
+        const { data } = await supabase.from('solicitudes')
+          .select('id, description, notes, photo_urls, technician_id, property_name, street, city, state, zip, solicitud_technicians(technician_id), solicitud_contacts(*), solicitud_notes(note, photo_url, photo_urls, created_at)')
+          .eq('id', solicitudId).single();
+        sol = data;
+      }
+      const solAddress = !prop && sol?.street ? sol : null;
+
       const { data: job, error: jobErr } = await supabase.from('jobs').insert([{
         job_number: jobNumber,
         client_id: clientId,
@@ -90,13 +102,46 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
         scheduled_start: hasSchedule ? localInputToIso(convScheduledStart) : null,
         scheduled_end: hasSchedule ? localInputToIso(convScheduledEnd) : null,
         property_id: propertyId || null,
-        property_name: prop?.name || null,
-        street: prop?.street || null,
-        city: prop?.city || null,
-        state: prop?.state || null,
-        zip: prop?.zip || null,
+        property_name: prop?.name || solAddress?.property_name || null,
+        street: prop?.street || solAddress?.street || null,
+        city: prop?.city || solAddress?.city || null,
+        state: prop?.state || solAddress?.state || null,
+        zip: prop?.zip || solAddress?.zip || null,
+        description: sol?.description || null,
+        technician_id: sol?.technician_id || null,
       }]).select().single();
       if (jobErr) { alert(t('errorWithMessage', { error: jobErr.message })); return; }
+
+      if (sol) {
+        const techIds = [...new Set([sol.technician_id, ...(sol.solicitud_technicians ?? []).map(st => st.technician_id)].filter(Boolean))];
+        if (techIds.length) {
+          const { error } = await supabase.from('job_technicians').insert(techIds.map(techId => ({ job_id: job.id, technician_id: techId })));
+          if (error) console.error('Error copiando técnicos de la solicitud:', error);
+        }
+        if (sol.solicitud_contacts?.length) {
+          const { error } = await supabase.from('job_contacts').insert(sol.solicitud_contacts.map(c => ({
+            job_id: job.id, contact_id: c.contact_id || null, name: c.name, phone: c.phone, email: c.email, cargo: c.cargo,
+          })));
+          if (error) console.error('Error copiando contactos de la solicitud:', error);
+        }
+        const solNotes = [];
+        if (sol.photo_urls?.length) {
+          solNotes.push({ job_id: job.id, title: 'Fotos de la solicitud', note: sol.description || null, photo_urls: sol.photo_urls, photo_url: sol.photo_urls[0] });
+        }
+        if (sol.notes?.trim()) {
+          solNotes.push({ job_id: job.id, title: 'Notas internas de la solicitud', note: sol.notes });
+        }
+        const evalNotes = [...(sol.solicitud_notes ?? [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        for (const n of evalNotes) {
+          const photos = n.photo_urls?.length ? n.photo_urls : (n.photo_url ? [n.photo_url] : null);
+          solNotes.push({ job_id: job.id, title: 'Nota de la evaluación', note: n.note || null, photo_urls: photos, photo_url: photos?.[0] || null });
+        }
+        if (solNotes.length) {
+          const { error } = await supabase.from('job_notes').insert(solNotes);
+          if (error) alert(t('errorWithMessage', { error: error.message }));
+        }
+        await supabase.from('solicitudes').update({ converted_to_job_id: job.id }).eq('id', sol.id);
+      }
 
       let poMessage = null;
       if (items.length) {

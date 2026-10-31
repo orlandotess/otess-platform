@@ -6,10 +6,9 @@ import { useTranslations, useLocale } from 'next-intl';
 import LineItemRow from '../../LineItemRow';
 import LineItemPicker from '../../LineItemPicker';
 import TaxBreakdown from '../../TaxBreakdown';
-import { calcularIVU } from '../../../lib/tax';
-import { buildChecklistItemsFromLineItems } from '../../../lib/generateChecklistFromLineItems';
+import { calcularIVU, crearResolvedorDeTasa } from '../../../lib/tax';
 import { buildMapsLinks } from '../../../lib/mapsLinks';
-import { isoToLocalInput, localInputToIso, formatDateTimePR } from '../../../lib/datetimeLocal';
+import { isoToLocalInput, localInputToIso, formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 
 import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 const statusOptions = [
@@ -18,7 +17,7 @@ const statusOptions = [
   { value: 'evaluacion_completa', key: 'evaluacionCompleta' },
 ];
 
-export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls, clientProperties = [], clientContacts = [], technicians = [], taxRules = [], currentRole = null }) {
+export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls, clientProperties = [], clientContacts = [], technicians = [], taxRules = [], activeEstimate = null, currentRole = null }) {
   const router = useRouter();
   const t = useTranslations('solicitudes.tabs');
   const locale = useLocale();
@@ -27,85 +26,123 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
   const fmt = n => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const clientType = solicitud.clients?.client_type ?? 'final';
   const isOpen = !['convertida', 'archivada'].includes(solicitud.status);
+  // Un estimado cancelado o archivado libera la solicitud aunque siga marcada
+  // 'convertida'; una que ya pasó directo a trabajo (antes de 2026-10-30) no.
+  const canCreateEstimate = solicitud.status !== 'archivada' && !activeEstimate && !solicitud.converted_to_job_id;
   // A técnico reaches this page from their Crew App agenda to see/add everything about the
-  // visit (notes, photos, line items), but the office-only actions below (convert to job,
+  // visit (notes, photos, line items), but the office-only actions below (create estimate,
   // archive/delete, change status, pricing) stay hidden — those are sales/admin decisions.
   const isTecnico = currentRole === 'tecnico';
 
-  const [converting, setConverting] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [showDeleteSolicitud, setShowDeleteSolicitud] = useState(false);
   const [deletingSolicitud, setDeletingSolicitud] = useState(false);
 
-  async function convertirATrabajo() {
-    if (!confirm(t('confirmConvert', { title: solicitud.title }))) return;
-    setConverting(true);
+  // --- Crear estimado ---
+  // La solicitud se cotiza aquí mismo (sus líneas ya llevan precio) y este paso
+  // crea el estimado en borrador con esas líneas. Las notas que ve el cliente
+  // se escogen con casillas: la descripción viene marcada, las notas internas
+  // y las de la evaluación no. Las fotos y notas que necesita el técnico no
+  // pasan por el estimado: EstimateActions.convertToJob las trae de la
+  // solicitud al convertir el estimado en trabajo.
+  const [showCreateEstimate, setShowCreateEstimate] = useState(false);
+  const [noteChoices, setNoteChoices] = useState([]);
+  const [creatingEstimate, setCreatingEstimate] = useState(false);
+
+  function openCreateEstimate() {
+    const choices = [];
+    if (solicitud.description?.trim()) choices.push({ key: 'description', label: t('createEstimate.descriptionLabel'), text: solicitud.description.trim(), checked: true });
+    if (solicitud.notes?.trim()) choices.push({ key: 'notes', label: t('createEstimate.internalNotesLabel'), text: solicitud.notes.trim(), checked: false });
+    for (const n of notesList) {
+      if (!n.note?.trim()) continue;
+      choices.push({ key: n.id, label: formatDateTimePR(n.created_at, {}, dateLocale), text: n.note.trim(), checked: false });
+    }
+    setNoteChoices(choices);
+    setShowCreateEstimate(true);
+  }
+
+  function toggleNoteChoice(key) {
+    setNoteChoices(prev => prev.map(c => c.key === key ? { ...c, checked: !c.checked } : c));
+  }
+
+  async function crearEstimado() {
+    if (!solicitud.client_id) { alert(t('createEstimate.noClient')); return; }
+    if (!lineItems.length) { alert(t('createEstimate.noLines')); return; }
+    setCreatingEstimate(true);
     try {
-      const { data: last } = await supabase.from('jobs').select('job_number').order('created_at', { ascending: false }).limit(1).single();
-      let nextNum = 1001;
-      if (last?.job_number) {
-        const n = parseInt(last.job_number.replace('JOB-', ''));
-        if (!isNaN(n)) nextNum = n + 1;
-      }
-      const jobNumber = `JOB-${nextNum}`;
-
-      const { data: job, error: jobErr } = await supabase.from('jobs').insert([{
-        job_number: jobNumber,
-        client_id: solicitud.client_id,
-        title: solicitud.title,
-        description: solicitud.description || null,
-        status: 'estimate',
-        notes: solicitud.notes || null,
-        bill_to: 'person',
-        property_id: solicitud.property_id || null,
-        property_name: solicitud.property_name || null,
-        street: solicitud.street || null,
-        city: solicitud.city || null,
-        state: solicitud.state || null,
-        zip: solicitud.zip || null,
-        technician_id: solicitud.technician_id || null,
-      }]).select().single();
-      if (jobErr) { alert(jobErr.message); return; }
-
-      const allTechIds = [solicitud.technician_id, ...(solicitud.solicitud_technicians ?? []).map(st => st.technician_id)].filter(Boolean);
-      if (allTechIds.length) {
-        await supabase.from('job_technicians').insert(allTechIds.map(techId => ({ job_id: job.id, technician_id: techId })));
-      }
-
-      if (assignedContacts.length) {
-        await supabase.from('job_contacts').insert(assignedContacts.map(c => ({
-          job_id: job.id, contact_id: c.contact_id || null, name: c.name, phone: c.phone, email: c.email, cargo: c.cargo,
-        })));
-      }
-
-      if (items.length) {
-        const { data: insertedItems } = await supabase.from('job_line_items').insert(items.map(i => ({
-          job_id: job.id, type: i.type, title: i.title, tax_category: i.tax_category, description: i.description, note: i.note,
-          quantity: i.quantity, unit_price: i.unit_price, msrp: i.msrp,
-          supplier_price: i.supplier_price, exempt_reason: i.exempt_reason, tax_rate: i.tax_rate,
-          area: i.area, vendor: i.vendor, photo_url: i.photo_url, sort_order: i.sort_order,
-        }))).select();
-
-        const checklistItems = buildChecklistItemsFromLineItems(insertedItems, job.id);
-        if (checklistItems.length) {
-          const { error: checklistErr } = await supabase.from('job_checklist_items').insert(checklistItems);
-          if (checklistErr) console.error('Error generando checklist automático:', checklistErr);
+      const { data: allEstimates } = await supabase.from('estimates').select('estimate_number');
+      let maxNum = 1000;
+      (allEstimates ?? []).forEach(est => {
+        const match = est.estimate_number?.match(/^EST-(\d+)$/);
+        if (match) {
+          const n = parseInt(match[1]);
+          if (n > maxNum) maxNum = n;
         }
+      });
+      const estimateNumber = `EST-${maxNum + 1}`;
+
+      // Documento nuevo: cada línea se grava a la tasa de hoy (fecha del
+      // estimado), no a la que tenía congelada en la solicitud.
+      const issuedAt = formatDatePR(new Date().toISOString(), {}, 'en-CA');
+      const lineas = lineItems.map(i => ({ ...i, tax_rate: null }));
+      const tasaLinea = crearResolvedorDeTasa({ lineas, clientType, taxRules, fecha: issuedAt });
+      const ivu = calcularIVU(lineas, clientType, taxRules, { fecha: issuedAt });
+      const productCat = ivu.categorias.find(c => c.codigo === 'product');
+      const laborCat = ivu.categorias.find(c => c.codigo === 'labor');
+      const reembolsoCat = ivu.categorias.find(c => c.codigo === 'reembolso');
+
+      const { data: estimate, error: estErr } = await supabase.from('estimates').insert([{
+        estimate_number: estimateNumber,
+        client_id: solicitud.client_id,
+        solicitud_id: solicitud.id,
+        property_id: solicitud.property_id || null,
+        title: solicitud.title || null,
+        notes: noteChoices.filter(c => c.checked).map(c => c.text).join('\n\n') || null,
+        issued_at: issuedAt,
+        valid_until: formatDatePR(new Date(Date.now() + 30 * 86400000).toISOString(), {}, 'en-CA'),
+        status: 'draft',
+        bill_to: 'person',
+        subtotal_products: productCat.base + reembolsoCat.base,
+        tax_products: productCat.impuesto + reembolsoCat.impuesto,
+        subtotal_labor: laborCat.base,
+        tax_labor: laborCat.impuesto,
+        total: ivu.total,
+      }]).select().single();
+      if (estErr) {
+        // 23505: ya hay un estimado activo para esta solicitud (doble clic u
+        // otra pestaña) — abrir ese en vez de crear otro.
+        if (estErr.code === '23505') {
+          const { data: existing } = await supabase.from('estimates').select('id').eq('solicitud_id', solicitud.id).is('archived_at', null).neq('status', 'cancelled').maybeSingle();
+          if (existing) { router.push(`/estimados/${existing.id}`); return; }
+        }
+        alert(t('createEstimate.error', { error: estErr.message }));
+        return;
       }
 
-      const carriedNotes = [];
-      if (solicitud.photo_urls?.length) {
-        carriedNotes.push({ job_id: job.id, title: 'Fotos de la solicitud', note: solicitud.description || null, photo_urls: solicitud.photo_urls, photo_url: solicitud.photo_urls[0] });
+      const { error: itemsErr } = await supabase.from('estimate_line_items').insert(lineas.map((i, idx) => {
+        const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
+        const rate = tasaLinea(i);
+        return {
+          estimate_id: estimate.id, type: i.type, tax_category: i.tax_category || i.type, description: i.description, note: i.note || null,
+          quantity: i.quantity, unit_price: i.unit_price, msrp: i.msrp,
+          supplier_price: i.supplier_price, exempt_reason: i.exempt_reason,
+          area: i.area || null, vendor: i.vendor || null, photo_url: i.photo_url || null,
+          tax_rate: rate, line_total: base, tax_amount: base * rate,
+          sort_order: idx,
+        };
+      }));
+      if (itemsErr) {
+        // Sin líneas el estimado no sirve: se borra para que la solicitud
+        // quede libre y se pueda intentar de nuevo.
+        await supabase.from('estimates').delete().eq('id', estimate.id);
+        alert(t('createEstimate.error', { error: itemsErr.message }));
+        return;
       }
-      for (const n of notes) {
-        carriedNotes.push({ job_id: job.id, title: n.title || null, note: n.note, photo_urls: n.raw_photo_urls || null, photo_url: n.raw_photo_urls?.[0] || null });
-      }
-      if (carriedNotes.length) await supabase.from('job_notes').insert(carriedNotes);
 
-      await supabase.from('solicitudes').update({ status: 'convertida', converted_to_job_id: job.id }).eq('id', solicitud.id);
-      router.push(`/trabajos/${job.id}`);
+      await supabase.from('solicitudes').update({ status: 'convertida' }).eq('id', solicitud.id);
+      router.push(`/estimados/${estimate.id}`);
     } finally {
-      setConverting(false);
+      setCreatingEstimate(false);
     }
   }
 
@@ -749,10 +786,44 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
                   {solicitud.status === 'convertida' ? t('status.alreadyConverted') : t('status.archivedNotice')}
                 </p>
               )}
-              {isOpen && (
-                <button className="btn btn-amber" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} disabled={converting} onClick={convertirATrabajo}>
-                  {converting ? t('status.converting') : t('status.convertToJob')}
+              {canCreateEstimate && (
+                <button className="btn btn-amber" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} disabled={creatingEstimate} onClick={openCreateEstimate}>
+                  {t('status.createEstimate')}
                 </button>
+              )}
+
+              {showCreateEstimate && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+                  <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 460, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+                    <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}>{t('createEstimate.title')}</h2>
+                    <p style={{ color: lineItems.length ? 'var(--muted)' : 'var(--warn)', fontSize: 13, marginBottom: 16 }}>
+                      {lineItems.length ? t('createEstimate.body', { count: lineItems.length }) : t('createEstimate.noLines')}
+                    </p>
+                    <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 4 }}>{t('createEstimate.notesTitle')}</p>
+                    <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 10 }}>{t('createEstimate.notesHint')}</p>
+                    {noteChoices.length === 0 ? (
+                      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>{t('createEstimate.noNotes')}</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                        {noteChoices.map(c => (
+                          <label key={c.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: 8, background: c.checked ? 'var(--amber-tint)' : 'var(--surface-2)', cursor: 'pointer', textTransform: 'none', letterSpacing: 'normal', fontWeight: 400, color: 'var(--text)', marginBottom: 0 }}>
+                            <input type="checkbox" checked={c.checked} onChange={() => toggleNoteChoice(c.key)} style={{ marginTop: 3 }} />
+                            <span>
+                              <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>{c.label}</span>
+                              <span style={{ display: 'block', fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{c.text}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button className="btn btn-primary" onClick={crearEstimado} disabled={creatingEstimate || !lineItems.length} style={{ flex: 1, justifyContent: 'center' }}>
+                        {creatingEstimate ? t('createEstimate.creating') : t('createEstimate.confirm')}
+                      </button>
+                      <button className="btn btn-ghost" onClick={() => setShowCreateEstimate(false)} disabled={creatingEstimate} style={{ flex: 1, justifyContent: 'center' }}>{t('common.cancel')}</button>
+                    </div>
+                  </div>
+                </div>
               )}
               <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} disabled={archiving} onClick={toggleArchive}>
                 {archiving ? t('common.saving') : solicitud.status === 'archivada' ? t('status.unarchive') : t('status.archive')}

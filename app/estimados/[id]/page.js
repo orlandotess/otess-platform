@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { Fragment } from 'react';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
+import Link from 'next/link';
 import EstimateActions from './EstimateActions';
 import MaterialSummary from '../../MaterialSummary';
 import { displayTitle } from '../../../lib/lineItemTitle';
@@ -97,7 +98,7 @@ export default async function EstimaDetail(props) {
 
   const { data: est } = await supabase
     .from('estimates')
-    .select('*, client_id, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*)), jobs!estimates_job_id_fkey(id, title, client_properties(*))')
+    .select('*, client_id, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*)), jobs!estimates_job_id_fkey(id, title, client_properties(*)), solicitudes!estimates_solicitud_id_fkey(id, solicitud_number, title)')
     .eq('id', id)
     .single();
 
@@ -154,6 +155,11 @@ export default async function EstimaDetail(props) {
             <span className={`badge ${statusCls[est.status]}`} style={{ marginTop: 6, display: 'inline-block' }}>
               {statusLabel[est.status]}
             </span>
+            {est.solicitudes && (
+              <Link href={`/solicitudes/${est.solicitudes.id}`} style={{ marginLeft: 10, fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>
+                {t('fromSolicitud', { number: est.solicitudes.solicitud_number ?? est.solicitudes.title })}
+              </Link>
+            )}
           </div>
           <EstimateActions
             estimateId={id}
@@ -173,6 +179,7 @@ export default async function EstimaDetail(props) {
             items={items ?? []}
             clientContacts={clientContacts ?? []}
             convertedToJobId={est.converted_to_job_id ?? null}
+            solicitudId={est.solicitud_id ?? null}
             archivedAt={est.archived_at ?? null}
           />
         </div>
@@ -386,7 +393,7 @@ export default async function EstimaDetail(props) {
           </div>
 
           {est.notes && (
-            <div style={{ marginTop: 24, padding: '14px 18px', background: 'var(--surface-2)', borderRadius: 10, fontSize: 13, color: 'var(--muted)' }}>
+            <div style={{ marginTop: 24, padding: '14px 18px', background: 'var(--surface-2)', borderRadius: 10, fontSize: 13, color: 'var(--muted)', whiteSpace: 'pre-wrap' }}>
               <strong style={{ color: 'var(--navy)' }}>{t('notesLabel')}</strong> {est.notes}
             </div>
           )}

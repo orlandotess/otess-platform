@@ -25,12 +25,15 @@ export default async function SolicitudDetail(props) {
   const currentRole = await getCurrentRole();
   const isTecnico = currentRole === 'tecnico';
 
-  const [{ data: solicitud }, { data: items }, { data: notes }, { data: technicians }, { data: taxRules }] = await Promise.all([
+  const [{ data: solicitud }, { data: items }, { data: notes }, { data: technicians }, { data: taxRules }, { data: activeEstimate }] = await Promise.all([
     supabase.from('solicitudes').select('*, clients(name, email, phone, client_type, company), jobs:converted_to_job_id(id, job_number, title), technicians(name), solicitud_technicians(technician_id, technicians(name)), solicitud_contacts(*)').eq('id', id).single(),
     supabase.from('solicitud_line_items').select('*').eq('solicitud_id', id).order('sort_order'),
     supabase.from('solicitud_notes').select('*').eq('solicitud_id', id).order('created_at', { ascending: false }),
     supabase.from('technicians').select('id, name').order('name'),
     supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from'),
+    // El estimado activo (no archivado ni cancelado) — a lo sumo uno, por el
+    // índice único de 2026-10-30-estimates-solicitud-id.sql.
+    supabase.from('estimates').select('id, estimate_number').eq('solicitud_id', id).is('archived_at', null).neq('status', 'cancelled').maybeSingle(),
   ]);
 
   if (!solicitud) {
@@ -106,6 +109,11 @@ export default async function SolicitudDetail(props) {
               {t('viewJob', { jobNumber: solicitud.jobs.job_number })}
             </Link>
           )}
+          {activeEstimate && !isTecnico && (
+            <Link href={`/estimados/${activeEstimate.id}`} style={{ marginLeft: 10, fontSize: 13, color: 'var(--amber)', fontWeight: 600 }}>
+              {t('viewEstimate', { estimateNumber: activeEstimate.estimate_number })}
+            </Link>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link href={isTecnico ? '/crew' : '/solicitudes'} className="btn btn-ghost">{isTecnico ? t('backCrew') : t('backList')}</Link>
@@ -121,6 +129,7 @@ export default async function SolicitudDetail(props) {
         clientContacts={clientContacts ?? []}
         technicians={technicians ?? []}
         taxRules={taxRules ?? []}
+        activeEstimate={activeEstimate ?? null}
         currentRole={currentRole}
       />
     </>

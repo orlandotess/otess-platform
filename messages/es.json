@@ -2061,6 +2061,7 @@
     },
     "detail": {
       "notFound": "Estimado no encontrado",
+      "fromSolicitud": "Origen: {number}",
       "general": "General",
       "status": {
         "draft": "Borrador",
@@ -3845,7 +3846,8 @@
       "back": "← Volver",
       "backCrew": "← Crew App",
       "backList": "← Solicitudes",
-      "viewJob": "→ Ver trabajo {jobNumber}"
+      "viewJob": "→ Ver trabajo {jobNumber}",
+      "viewEstimate": "Ver estimado {estimateNumber}"
     },
     "tabs": {
       "common": {
@@ -3932,8 +3934,7 @@
         "tecnicoNotice": "{status} — cambios de estado los hace la oficina.",
         "alreadyConverted": "Esta solicitud ya fue convertida.",
         "archivedNotice": "Esta solicitud está archivada.",
-        "convertToJob": "✓ Convertir a Trabajo",
-        "converting": "Convirtiendo...",
+        "createEstimate": "✓ Crear estimado",
         "unarchive": "Desarchivar",
         "archive": "Archivar",
         "deleteButton": "🗑 Eliminar"
@@ -3945,7 +3946,20 @@
         "deleting": "Eliminando..."
       },
       "taxSummaryTitle": "Resumen IVU",
-      "confirmConvert": "¿Convertir \"{title}\" en un trabajo? Se creará un nuevo trabajo con esta información.",
+      "createEstimate": {
+        "title": "Crear estimado",
+        "body": "Se creará un estimado en borrador con {count, plural, =1 {la línea} other {las # líneas}} de esta solicitud. Puedes revisarlo y editarlo antes de enviarlo.",
+        "notesTitle": "Notas para el cliente",
+        "notesHint": "Lo que marques va a las notas del estimado, que ve el cliente. Las fotos y notas de la solicitud pasan al trabajo cuando conviertas el estimado.",
+        "noNotes": "Esta solicitud no tiene notas.",
+        "descriptionLabel": "Descripción",
+        "internalNotesLabel": "Notas internas",
+        "confirm": "Crear estimado",
+        "creating": "Creando…",
+        "noClient": "Esta solicitud no tiene cliente; no se puede crear el estimado.",
+        "noLines": "Agrega al menos una línea antes de crear el estimado.",
+        "error": "No se pudo crear el estimado: {error}"
+      },
       "deleteError": "No se pudo eliminar la solicitud: {error}"
     },
     "newSolicitud": {
