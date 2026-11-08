@@ -5,6 +5,7 @@ import { supabaseServer as supabase } from '../../lib/supabase';
 import { formatDatePR, formatTimePR } from '../../lib/datetimeLocal';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
+import EstimadosTableClient from './EstimadosTableClient';
 import { getTranslations, getLocale } from 'next-intl/server';
 
 const statusBadge = {
@@ -55,6 +56,26 @@ export default async function EstimadosPage(props) {
     }
   });
 
+  const rows = estimates.map(est => {
+    const b = statusBadge[est.status] ?? statusBadge.draft;
+    const viewInfo = viewsByEstimate[est.id];
+    const viewLabel = viewInfo ? formatViewedAt(viewInfo.lastViewedAt, locale, t) : null;
+    return {
+      id: est.id,
+      estimate_number: est.estimate_number,
+      title: est.title,
+      clientName: est.clients?.name ?? null,
+      statusCls: b.cls,
+      statusLabel: t(`status.${b.key}`),
+      issued_at: est.issued_at,
+      valid_until: est.valid_until,
+      total: est.total,
+      viewCount: viewInfo?.count ?? 0,
+      viewLabel,
+      viewTitle: viewInfo ? t('lastViewed', { date: viewLabel }) : null,
+    };
+  });
+
   const totalDraft = estimates?.filter(e => e.status === 'draft').reduce((a, e) => a + Number(e.total ?? 0), 0) ?? 0;
   const totalSent = estimates?.filter(e => e.status === 'sent').reduce((a, e) => a + Number(e.total ?? 0), 0) ?? 0;
 
@@ -98,54 +119,7 @@ export default async function EstimadosPage(props) {
               {!showArchived && <Link href="/estimados/nueva" className="btn btn-primary btn-sm">{t('empty.cta')}</Link>}
             </div>
           ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t('columns.number')}</th>
-                    <th>{t('columns.client')}</th>
-                    <th>{t('columns.status')}</th>
-                    <th>{t('columns.date')}</th>
-                    <th>{t('columns.validUntil')}</th>
-                    <th>{t('columns.total')}</th>
-                    <th>{t('columns.views')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {estimates.map(est => {
-                    const b = statusBadge[est.status] ?? statusBadge.draft;
-                    const viewInfo = viewsByEstimate[est.id];
-                    return (
-                      <tr key={est.id}>
-                        <td>
-                          <Link href={`/estimados/${est.id}`} style={{ color: 'inherit' }}>
-                            <div style={{ fontWeight: 700, fontFamily: 'monospace' }}>{est.estimate_number}</div>
-                            {est.title && <div style={{ fontSize: 12, color: 'var(--muted)', fontFamily: 'inherit', fontWeight: 400 }}>{est.title}</div>}
-                          </Link>
-                        </td>
-                        <td>{est.clients?.name ?? '—'}</td>
-                        <td><span className={`badge ${b.cls}`}>{t(`status.${b.key}`)}</span></td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{est.issued_at ?? '—'}</td>
-                        <td style={{ color: 'var(--muted)', fontSize: 13 }}>{est.valid_until ?? '—'}</td>
-                        <td style={{ fontWeight: 700 }}>${Number(est.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                        <td>
-                          {viewInfo ? (
-                            <span
-                              title={t('lastViewed', { date: formatViewedAt(viewInfo.lastViewedAt, locale, t) })}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--navy)', fontWeight: 600, background: 'var(--navy-tint)', padding: '3px 8px', borderRadius: 12 }}
-                            >
-                              👁️ {viewInfo.count} · {formatViewedAt(viewInfo.lastViewedAt, locale, t)}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 12, color: 'var(--muted)' }}>—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <EstimadosTableClient estimates={rows} />
           )}
         </div>
       </main>

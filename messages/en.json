@@ -1939,6 +1939,8 @@
       "viewArchived": "📦 View archived",
       "viewArchivedCount": "📦 View archived ({count})",
       "newEstimate": "+ New estimate",
+      "searchPlaceholder": "Search estimate #, title, client, or status...",
+      "noResults": "No results for \"{search}\".",
       "stats": {
         "total": "Total estimates",
         "draft": "Draft",
@@ -4049,6 +4051,8 @@
       "companyBtn": "⚙ Company",
       "newInvoice": "+ New invoice",
       "newProposal": "+ New proposal",
+      "searchPlaceholder": "Search proposal #, title, client, or status...",
+      "noResults": "No results for \"{search}\".",
       "empty": {
         "archived": "No archived proposals.",
         "active": "No proposals yet."

@@ -1939,6 +1939,8 @@
       "viewArchived": "📦 Ver archivados",
       "viewArchivedCount": "📦 Ver archivados ({count})",
       "newEstimate": "+ Nuevo estimado",
+      "searchPlaceholder": "Buscar # estimado, título, cliente o estado...",
+      "noResults": "Sin resultados para \"{search}\".",
       "stats": {
         "total": "Total estimados",
         "draft": "En borrador",
@@ -4049,6 +4051,8 @@
       "companyBtn": "⚙ Empresa",
       "newInvoice": "+ Nueva factura",
       "newProposal": "+ Nueva propuesta",
+      "searchPlaceholder": "Buscar # propuesta, título, cliente o estado...",
+      "noResults": "Sin resultados para \"{search}\".",
       "empty": {
         "archived": "No hay propuestas archivadas.",
         "active": "No hay propuestas todavía."

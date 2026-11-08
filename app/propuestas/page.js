@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabaseServer as supabase } from '../../lib/supabase';
 import { sumBillableLineItems } from '../../lib/proposalLineItemTotal';
 import Sidebar from '../Sidebar';
+import PropuestasListClient from './PropuestasListClient';
 import { getTranslations } from 'next-intl/server';
 
 const STATUS_BADGE = { borrador: 'badge-gray', enviada: 'badge-blue', vista: 'badge-amber', cambios_requeridos: 'badge-amber', expirada: 'badge-gray', aprobada: 'badge-green', rechazada: 'badge-red', completada: 'badge-dark' };
@@ -37,7 +38,15 @@ export default async function PropuestasPage(props) {
       name: o.name,
       total: sumBillableLineItems(o.proposal_line_items),
     }));
-    return { ...p, totals };
+    return {
+      id: p.id,
+      title: p.title,
+      proposal_number: p.proposal_number,
+      clientName: p.clients?.name ?? null,
+      statusCls: STATUS_BADGE[p.status] ?? 'badge-gray',
+      statusLabel: STATUS_KEYS.has(p.status) ? t(`status.${p.status}`) : p.status,
+      totalsText: totals.map(opt => `${opt.name}: $${opt.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`).join('  ·  '),
+    };
   });
 
   return (
@@ -63,27 +72,7 @@ export default async function PropuestasPage(props) {
             {showArchived ? t('empty.archived') : t('empty.active')}
           </div>
         ) : (
-          <div className="card" style={{ padding: 0 }}>
-            {rows.map((p, i) => (
-              <Link key={p.id} href={`/propuestas/${p.id}`}
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : 'none', textDecoration: 'none', color: 'inherit' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--navy)' }}>{p.title}</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>
-                    {p.proposal_number} · {p.clients?.name ?? t('noClient')}
-                  </div>
-                  {p.totals.length > 0 && (
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                      {p.totals.map(opt => `${opt.name}: $${opt.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`).join('  ·  ')}
-                    </div>
-                  )}
-                </div>
-                <span className={`badge ${STATUS_BADGE[p.status] ?? 'badge-gray'}`}>
-                  {STATUS_KEYS.has(p.status) ? t(`status.${p.status}`) : p.status}
-                </span>
-              </Link>
-            ))}
-          </div>
+          <PropuestasListClient proposals={rows} />
         )}
       </main>
     </div>
