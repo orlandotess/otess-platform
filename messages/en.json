@@ -1858,6 +1858,10 @@
         "columnDate": "Date",
         "columnBalance": "Balance",
         "sortTitle": "Sort by this column",
+        "sortBy": "Sort by",
+        "sortAsc": "Ascending",
+        "sortDesc": "Descending",
+        "sortDirTitle": "Reverse the order",
         "totalRow": "TOTAL",
         "totalRowVisible": "(visible)"
       },

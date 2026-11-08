@@ -1253,7 +1253,30 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)' }}>{t('invoices.title')}</h2>
             {invoices.length > 0 && (
-              <SearchBox value={invoiceSearch} onChange={setInvoiceSearch} placeholder={t('invoices.searchPlaceholder')} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--muted)', margin: 0, textTransform: 'none', letterSpacing: 'normal', fontWeight: 600 }}>
+                  {t('invoices.sortBy')}
+                  <select
+                    value={invoiceSortKey}
+                    onChange={e => setInvoiceSortKey(e.target.value)}
+                    style={{ width: 'auto', minWidth: 110 }}
+                  >
+                    {invoiceColumnDefs.filter(c => c.sortable !== false).map(c => (
+                      <option key={c.key} value={c.key}>{t(`invoices.${c.labelKey}`)}</option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setInvoiceSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                  title={t('invoices.sortDirTitle')}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  {invoiceSortDir === 'asc' ? `▲ ${t('invoices.sortAsc')}` : `▼ ${t('invoices.sortDesc')}`}
+                </button>
+                <SearchBox value={invoiceSearch} onChange={setInvoiceSearch} placeholder={t('invoices.searchPlaceholder')} />
+              </div>
             )}
           </div>
           {invoiceReconciliation?.hasVarianza && (
