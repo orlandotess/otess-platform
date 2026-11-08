@@ -136,6 +136,10 @@ export default function PropuestaForm({ initialData = null }) {
   const [discountType, setDiscountType] = useState(initialData?.proposal.discount_type ?? 'amount');
   const [discountValue, setDiscountValue] = useState(initialData?.proposal.discount_value ?? '');
   const [discountNote, setDiscountNote] = useState(initialData?.proposal.discount_note ?? '');
+  // 'after_tax' solo en propuestas que ya tenían descuento antes del 2026-11-08.
+  // Borrar el descuento las pasa a la regla nueva (antes del IVU) — ver
+  // lib/tax.js:modoDescuento.
+  const [discountApplies, setDiscountApplies] = useState(initialData?.proposal.discount_applies ?? null);
   const [paymentSchedule, setPaymentSchedule] = useState(
     (initialData?.payments ?? []).map(p => ({
       key: Math.random().toString(36).slice(2),
@@ -556,6 +560,7 @@ export default function PropuestaForm({ initialData = null }) {
         discount_type: discountValue ? discountType : null,
         discount_value: discountValue ? (parseFloat(discountValue) || 0) : null,
         discount_note: discountNote.trim() || null,
+        discount_applies: discountValue ? discountApplies : null,
       }).eq('id', initialData.proposal.id).select().single();
       if (err) { setError(err.message); setSaving(false); return; }
       proposal = updated;
@@ -592,6 +597,7 @@ export default function PropuestaForm({ initialData = null }) {
         discount_type: discountValue ? discountType : null,
         discount_value: discountValue ? (parseFloat(discountValue) || 0) : null,
         discount_note: discountNote.trim() || null,
+        discount_applies: discountValue ? discountApplies : null,
       }]).select().single();
       if (err) { setError(err.message); setSaving(false); return; }
       proposal = created;
@@ -1111,7 +1117,7 @@ export default function PropuestaForm({ initialData = null }) {
               <div className="form-group">
                 <label>{discountType === 'percent' ? t('percentageLabel') : t('amountLabel')}</label>
                 <input type="number" min="0" step="0.01" value={discountValue}
-                  onChange={e => setDiscountValue(e.target.value)} placeholder="0.00" />
+                  onChange={e => { setDiscountValue(e.target.value); if (!(parseFloat(e.target.value) > 0)) setDiscountApplies(null); }} placeholder="0.00" />
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>

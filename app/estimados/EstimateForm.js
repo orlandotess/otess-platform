@@ -170,6 +170,13 @@ export default function EstimateForm({ initialData = null }) {
   }, [jobIdParam, jobs]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  // Borrar el descuento de un documento viejo ('after_tax') lo pasa a la regla
+  // nueva: si se le vuelve a poner, se resta antes del IVU. Es la forma de
+  // migrar un borrador a mano — ver lib/tax.js:modoDescuento.
+  const setDiscountValue = v => setForm(f => ({
+    ...f, discount_value: v,
+    ...(parseFloat(v) > 0 ? {} : { discount_applies: 'before_tax' }),
+  }));
   const selectedClient = clients.find(c => c.id === form.client_id);
   const clientType = selectedClient?.client_type ?? 'final';
   const hasCompany = !!selectedClient?.company;
@@ -961,7 +968,7 @@ export default function EstimateForm({ initialData = null }) {
                 <div className="form-group">
                   <label>{form.discount_type === 'percent' ? t('percentageLabel') : t('amountLabel')}</label>
                   <input type="number" min="0" step="0.01" value={form.discount_value}
-                    onChange={e => set('discount_value', e.target.value)} placeholder="0.00" />
+                    onChange={e => setDiscountValue(e.target.value)} placeholder="0.00" />
                 </div>
               </div>
               <div className="form-group">
