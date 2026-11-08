@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { Fragment } from 'react';
 import Link from 'next/link';
+import { descuentoGuardado } from '../../../lib/tax';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { fallbackLineItems } from '../../../lib/ivu';
 import { displayTitle } from '../../../lib/lineItemTitle';
@@ -330,6 +331,21 @@ export default async function FacturaDetail(props) {
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <div style={{ width: 320 }}>
+              {descuentoGuardado(inv).modo === 'before_tax' && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}>
+                    <span style={{ color: 'var(--muted)' }}>{t('subtotalBeforeDiscount')}</span>
+                    <span>${fmt(descuentoGuardado(inv).subtotalBruto)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}>
+                    <span style={{ color: 'var(--muted)' }}>{inv.discount_type === 'percent' ? t('discountLabelWithPercent', { percent: Number(inv.discount_value) }) : t('discountLabel')}</span>
+                    <span>-${fmt(descuentoGuardado(inv).monto)}</span>
+                  </div>
+                  {inv.discount_note && (
+                    <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', textAlign: 'right', margin: '0 0 4px' }}>{inv.discount_note}</p>
+                  )}
+                </>
+              )}
               {[
                 { label: t('subtotalProducts'), value: inv.subtotal_products },
                 { label: t('taxProducts'), value: inv.tax_products },
@@ -341,13 +357,13 @@ export default async function FacturaDetail(props) {
                   <span>${fmt(row.value)}</span>
                 </div>
               ))}
-              {inv.discount_value > 0 && (
+              {descuentoGuardado(inv).modo === 'after_tax' && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}>
                   <span style={{ color: 'var(--muted)' }}>{inv.discount_type === 'percent' ? t('discountLabelWithPercent', { percent: Number(inv.discount_value) }) : t('discountLabel')}</span>
-                  <span>-${fmt(Number(inv.subtotal_products) + Number(inv.tax_products) + Number(inv.subtotal_labor) + Number(inv.tax_labor) - Number(inv.total))}</span>
+                  <span>-${fmt(descuentoGuardado(inv).monto)}</span>
                 </div>
               )}
-              {inv.discount_value > 0 && inv.discount_note && (
+              {descuentoGuardado(inv).modo === 'after_tax' && inv.discount_note && (
                 <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', textAlign: 'right', margin: '0 0 4px' }}>{inv.discount_note}</p>
               )}
               <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '10px 0' }} />

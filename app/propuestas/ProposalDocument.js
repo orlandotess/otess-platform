@@ -2,7 +2,7 @@
 import { Fragment, useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { displayTitle } from '../../lib/lineItemTitle';
-import { crearResolvedorDeTasa } from '../../lib/tax';
+import { crearResolvedorDeTasa, modoDescuento } from '../../lib/tax';
 
 const NAVY = '#16223d';
 
@@ -43,10 +43,17 @@ function billableItems(items) {
   });
 }
 
-// documentDiscount: { type: 'amount'|'percent', value: number } — descuento a
-// nivel de propuesta, aplicado DESPUÉS del IVU sobre el total de la opción
-// (distinto de discount_amount por línea, que ya se resta antes del IVU en
-// itemTotal() y se reporta aparte como totalDiscount).
+// documentDiscount: { type: 'amount'|'percent', value: number, applies } —
+// descuento a nivel de propuesta (distinto de discount_amount por línea, que ya
+// se resta antes del IVU en itemTotal() y se reporta aparte como totalDiscount).
+// Desde 2026-11-08 se resta del subtotal de la opción ANTES del IVU, repartido
+// proporcional entre partes y labor. Las propuestas que ya tenían descuento
+// quedaron con discount_applies = 'after_tax' y conservan el cálculo viejo
+// (restado del total ya con IVU) — ver lib/tax.js:modoDescuento.
+//
+// `parts`/`labor`/`subtotal` siguen siendo los montos antes del descuento de
+// documento (el calendario de pagos los usa como base); `partsNeto`/`laborNeto`
+// /`subtotalNeto` son la base que de verdad se grava.
 // opts.fecha: fecha de la propuesta, para resolver la vigencia de una linea
 // que todavia no tiene tasa congelada (tax_rate). Una linea ya creada usa
 // SIEMPRE su tasa guardada, asi que cambiar el IVU no reescribe una propuesta
@@ -61,24 +68,37 @@ export function financialBreakdown(items, clientType, taxRules, documentDiscount
     ...it, tax_category: it.item_type === 'product' ? 'product' : 'labor',
   }));
   const tasa = crearResolvedorDeTasa({ lineas, clientType, taxRules, fecha: opts?.fecha });
-  let parts = 0, labor = 0, taxParts = 0, taxLabor = 0, totalDiscount = 0;
-  lineas.forEach(it => {
-    const base = itemTotal(it);
-    totalDiscount += it.discount_amount || 0;
-    const rate = tasa(it);
-    if (it.tax_category === 'product') { parts += base; taxParts += base * rate; }
-    else { labor += base; taxLabor += base * rate; }
-  });
-  const preDiscountTotal = parts + labor + taxParts + taxLabor;
+  const antesDeIVU = modoDescuento({ discount_applies: documentDiscount?.applies }) === 'before_tax';
   const docValue = Number(documentDiscount?.value ?? 0);
-  const documentDiscountAmount = docValue > 0
-    ? Math.min(documentDiscount.type === 'percent' ? preDiscountTotal * (docValue / 100) : docValue, preDiscountTotal)
+  const montoDe = base => docValue > 0 && base > 0
+    ? Math.min(documentDiscount.type === 'percent' ? base * (docValue / 100) : docValue, base)
     : 0;
+
+  let parts = 0, labor = 0, totalDiscount = 0;
+  lineas.forEach(it => {
+    totalDiscount += it.discount_amount || 0;
+    if (it.tax_category === 'product') parts += itemTotal(it);
+    else labor += itemTotal(it);
+  });
+  const subtotal = parts + labor;
+  const descuentoAntes = antesDeIVU ? montoDe(subtotal) : 0;
+  const factor = subtotal > 0 ? (subtotal - descuentoAntes) / subtotal : 1;
+
+  let taxParts = 0, taxLabor = 0;
+  lineas.forEach(it => {
+    const base = itemTotal(it) * factor;
+    if (it.tax_category === 'product') taxParts += base * tasa(it);
+    else taxLabor += base * tasa(it);
+  });
+  const partsNeto = parts * factor, laborNeto = labor * factor;
+  const subtotalNeto = subtotal - descuentoAntes;
+  const conIVU = subtotalNeto + taxParts + taxLabor;
+  const documentDiscountAmount = antesDeIVU ? descuentoAntes : montoDe(conIVU);
   return {
     parts, labor, taxParts, taxLabor, totalDiscount,
-    subtotal: parts + labor, tax: taxParts + taxLabor,
-    documentDiscountAmount,
-    total: preDiscountTotal - documentDiscountAmount,
+    subtotal, partsNeto, laborNeto, subtotalNeto, tax: taxParts + taxLabor,
+    documentDiscountAmount, descuentoAntesDeIVU: antesDeIVU,
+    total: antesDeIVU ? conIVU : conIVU - documentDiscountAmount,
   };
 }
 
@@ -131,10 +151,10 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
 
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
   const areas = groupByArea(option.items ?? []);
-  const fb = financialBreakdown(option.items, clientType, taxRules, { type: proposal.discount_type, value: proposal.discount_value }, { fecha: proposal.created_at });
+  const fb = financialBreakdown(option.items, clientType, taxRules, { type: proposal.discount_type, value: proposal.discount_value, applies: proposal.discount_applies }, { fecha: proposal.created_at });
   const basisAmount = { parts: fb.parts, labor: fb.labor, subtotal: fb.subtotal };
-  const partsRate = fb.parts > 0 ? (fb.taxParts / fb.parts * 100).toFixed(1) : '11.5';
-  const laborRate = fb.labor > 0 ? (fb.taxLabor / fb.labor * 100).toFixed(1) : (clientType === 'b2b' ? '4' : '11.5');
+  const partsRate = fb.partsNeto > 0 ? (fb.taxParts / fb.partsNeto * 100).toFixed(1) : '11.5';
+  const laborRate = fb.laborNeto > 0 ? (fb.taxLabor / fb.laborNeto * 100).toFixed(1) : (clientType === 'b2b' ? '4' : '11.5');
   const hidePricing = mode === 'installer';
   const clientAsCompany = proposal.clients?.report_name_source === 'company' && proposal.clients?.company;
   const clientPrimaryName = clientAsCompany ? proposal.clients?.company : proposal.clients?.name;
@@ -365,15 +385,27 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14 }}><span style={{ color: '#666' }}>{t('totalLabor')}</span><span style={{ fontWeight: 700 }}>{fmt(fb.labor)}</span></div>
             <hr style={{ border: 'none', borderTop: '1px solid #eee', margin: '6px 0' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700 }}>{fmt(fb.subtotal)}</span></div>
+            {fb.descuentoAntesDeIVU && fb.documentDiscountAmount > 0 && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}>
+                  <span>{proposal.discount_type === 'percent' ? t('discountLabelWithPercent', { percent: Number(proposal.discount_value) }) : t('discountLabel')}</span>
+                  <span>-{fmt(fb.documentDiscountAmount)}</span>
+                </div>
+                {proposal.discount_note && (
+                  <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'right', margin: '0 0 4px' }}>{proposal.discount_note}</p>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>{t('subtotalAfterDiscount')}</span><span style={{ fontWeight: 700 }}>{fmt(fb.subtotalNeto)}</span></div>
+              </>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>{t('salesTaxParts', { rate: partsRate })}</span><span>{fmt(fb.taxParts)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}><span>{t('salesTaxLabor', { rate: laborRate })}</span><span>{fmt(fb.taxLabor)}</span></div>
-            {fb.documentDiscountAmount > 0 && (
+            {!fb.descuentoAntesDeIVU && fb.documentDiscountAmount > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 14 }}>
                 <span>{proposal.discount_type === 'percent' ? t('discountLabelWithPercent', { percent: Number(proposal.discount_value) }) : t('discountLabel')}</span>
                 <span>-{fmt(fb.documentDiscountAmount)}</span>
               </div>
             )}
-            {fb.documentDiscountAmount > 0 && proposal.discount_note && (
+            {!fb.descuentoAntesDeIVU && fb.documentDiscountAmount > 0 && proposal.discount_note && (
               <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'right', margin: '0 0 4px' }}>{proposal.discount_note}</p>
             )}
             <hr style={{ border: 'none', borderTop: '1.5px solid #ddd', margin: '10px 0' }} />

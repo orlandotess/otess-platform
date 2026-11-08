@@ -9,7 +9,7 @@ import LineItemPicker from '../LineItemPicker';
 import CableCalculator from '../CableCalculator';
 import PlanImportModal from '../PlanImportModal';
 import TaxBreakdown from '../TaxBreakdown';
-import { calcularIVU, crearResolvedorDeTasa, aplicarDescuento } from '../../lib/tax';
+import { crearResolvedorDeTasa, totalesDeDocumento, modoDescuento } from '../../lib/tax';
 import { useTranslations } from 'next-intl';
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
@@ -99,11 +99,14 @@ export default function EstimateForm({ initialData = null }) {
     discount_type: initialData.estimate.discount_type ?? 'amount',
     discount_value: initialData.estimate.discount_value ?? '',
     discount_note: initialData.estimate.discount_note ?? '',
+    // Un documento que ya tenía descuento antes del 2026-11-08 conserva el
+    // cálculo viejo (después del IVU) al reeditarlo — ver lib/tax.js:modoDescuento.
+    discount_applies: modoDescuento(initialData.estimate),
   } : {
     client_id: '', job_id: '', property_id: '', title: '', notes: '', bill_to: 'person', terms: '',
     issued_at: new Date().toISOString().split('T')[0],
     valid_until: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-    discount_type: 'amount', discount_value: '', discount_note: '',
+    discount_type: 'amount', discount_value: '', discount_note: '', discount_applies: 'before_tax',
   });
   const [areas, setAreas] = useState(initialData?.items?.length ? itemsToAreas(initialData.items, t) : [emptyArea(t('area', { n: 1 }))]);
   const [areaMenuOpen, setAreaMenuOpen] = useState(null);
@@ -388,7 +391,10 @@ export default function EstimateForm({ initialData = null }) {
   function areaTotal(area) {
     return area.items.reduce((s, it) => s + itemLineTotal(it), 0);
   }
-  const ivuTotals = calcularIVU(flatItems, clientType, taxRules, { fecha: form.issued_at });
+  const ivuTotals = totalesDeDocumento(flatItems, clientType, taxRules, {
+    fecha: form.issued_at, discountType: form.discount_type, discountValue: form.discount_value,
+    discountApplies: form.discount_applies,
+  });
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -421,16 +427,20 @@ export default function EstimateForm({ initialData = null }) {
     const productCat = ivuTotals.categorias.find(c => c.codigo === 'product');
     const laborCat = ivuTotals.categorias.find(c => c.codigo === 'labor');
     const reembolsoCat = ivuTotals.categorias.find(c => c.codigo === 'reembolso');
-    const { discountAmount, finalTotal } = aplicarDescuento(ivuTotals.total, form.discount_type, form.discount_value);
+    const discountAmount = ivuTotals.descuento;
     const aggTotals = {
       subtotal_products: productCat.base + reembolsoCat.base,
       tax_products: productCat.impuesto + reembolsoCat.impuesto,
       subtotal_labor: laborCat.base,
       tax_labor: laborCat.impuesto,
-      total: finalTotal,
+      total: ivuTotals.total,
       discount_type: discountAmount > 0 ? form.discount_type : null,
       discount_value: discountAmount > 0 ? (parseFloat(form.discount_value) || 0) : null,
       discount_note: form.discount_note || null,
+      // Subtotales arriba ya van netos (descuento restado antes del IVU);
+      // discount_amount guarda cuánto se restó para pintar el papel.
+      discount_applies: discountAmount > 0 ? ivuTotals.modo : null,
+      discount_amount: discountAmount > 0 ? discountAmount : null,
     };
 
     let estimate;
@@ -963,7 +973,7 @@ export default function EstimateForm({ initialData = null }) {
             <div className="card">
               <TaxBreakdown
                 lineas={flatItems} clientType={clientType} taxRules={taxRules} fecha={form.issued_at} title={t('ivuSummaryTitle')}
-                discountType={form.discount_type} discountValue={form.discount_value} discountNote={form.discount_note}
+                discountType={form.discount_type} discountValue={form.discount_value} discountNote={form.discount_note} discountApplies={form.discount_applies}
                 note={clientType === 'b2b' && (
                   <div style={{ background: 'var(--info-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--info)', fontWeight: 600 }}>
                     {t('b2bLaborNote')}

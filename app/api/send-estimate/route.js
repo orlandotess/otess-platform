@@ -1,6 +1,7 @@
 import { getResend } from '../../../lib/resend';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { getCurrentRole } from '../../../lib/supabase-server';
+import { descuentoGuardado } from '../../../lib/tax';
 import { getClientEmailTranslator } from '../../../lib/i18n-server';
 
 
@@ -19,6 +20,8 @@ export async function POST(request) {
       supabase.from('estimate_line_items').select('*').eq('estimate_id', estimateId).order('sort_order'),
     ]);
     if (!est) return Response.json({ error: 'No encontrada' }, { status: 404 });
+    // Descuento antes o después del IVU según el documento — ver lib/tax.js.
+    const desc = descuentoGuardado(est);
     const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     const publicUrl = `https://app.otesspr.com/estimado/${estimateId}`;
     const displayItems = await Promise.all((items ?? []).map(async i => {
@@ -116,12 +119,15 @@ export async function POST(request) {
 
     <div style="display:flex;justify-content:flex-end">
       <div style="width:280px">
+        ${desc.modo === 'before_tax' ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('subtotalBeforeDiscount')}</span><span>${fmt(desc.subtotalBruto)}</span></div>` : ''}
+        ${desc.modo === 'before_tax' ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('discount')}${est.discount_type === 'percent' ? ` (${Number(est.discount_value)}%)` : ''}</span><span>-${fmt(desc.monto)}</span></div>` : ''}
+        ${desc.modo === 'before_tax' && est.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:0 0 4px">${est.discount_note}</p>` : ''}
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('subtotalProducts')}</span><span>${fmt(est.subtotal_products)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('taxProducts')}</span><span>${fmt(est.tax_products)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('subtotalLabor')}</span><span>${fmt(est.subtotal_labor)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('taxLabor', { rate: est.clients?.client_type === 'b2b' ? '4%' : '11.5%' })}</span><span>${fmt(est.tax_labor)}</span></div>
-        ${est.discount_value > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('discount')}${est.discount_type === 'percent' ? ` (${Number(est.discount_value)}%)` : ''}</span><span>-${fmt(Number(est.subtotal_products) + Number(est.tax_products) + Number(est.subtotal_labor) + Number(est.tax_labor) - Number(est.total))}</span></div>` : ''}
-        ${est.discount_value > 0 && est.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:0 0 4px">${est.discount_note}</p>` : ''}
+        ${desc.modo === 'after_tax' ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('discount')}${est.discount_type === 'percent' ? ` (${Number(est.discount_value)}%)` : ''}</span><span>-${fmt(desc.monto)}</span></div>` : ''}
+        ${desc.modo === 'after_tax' && est.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:0 0 4px">${est.discount_note}</p>` : ''}
         <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>${t('total')}</span><span>${fmt(est.total)}</span></div>
       </div>
     </div>

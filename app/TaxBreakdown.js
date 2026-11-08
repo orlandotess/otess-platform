@@ -1,5 +1,5 @@
 'use client';
-import { calcularIVU, aplicarDescuento } from '../lib/tax';
+import { totalesDeDocumento } from '../lib/tax';
 import { useTranslations } from 'next-intl';
 
 const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -13,14 +13,16 @@ const fmtPct = rate => `${(rate * 100).toFixed(rate * 100 % 1 === 0 ? 0 : 1)}%`;
 //   separado, aunque alguna tenga base $0 (mismo criterio que ya usan las
 //   vistas de solo-lectura de factura/estima — nunca se combinan en una sola
 //   línea). Reembolso solo aparece cuando tiene base > 0, por ser poco frecuente.
-export default function TaxBreakdown({ lineas, clientType, taxRules, fecha, scope = 'documento', title, note, discountType, discountValue, discountNote }) {
+export default function TaxBreakdown({ lineas, clientType, taxRules, fecha, scope = 'documento', title, note, discountType, discountValue, discountNote, discountApplies }) {
   const t = useTranslations('shared.taxBreakdown');
   // `fecha` es la del documento: decide que vigencia de tax_rules aplica a una
   // linea que todavia no tiene tasa congelada. Las que si la tienen la usan.
-  const resultado = calcularIVU(lineas, clientType, taxRules, { fecha });
-  const { categorias, total: preDiscountTotal } = resultado;
-  const { discountAmount, finalTotal } = aplicarDescuento(preDiscountTotal, discountType, discountValue);
-  const total = finalTotal;
+  // El descuento se resta antes del IVU (las bases de `categorias` ya vienen
+  // netas), salvo documentos viejos marcados 'after_tax' — ver lib/tax.js.
+  const resultado = totalesDeDocumento(lineas, clientType, taxRules, { fecha, discountType, discountValue, discountApplies });
+  const { categorias, total, subtotalBruto, modo } = resultado;
+  const discountAmount = resultado.descuento;
+  const antesDeIVU = modo === 'before_tax';
 
   // c.nombre viene de lib/tax.js (CATEGORY_LABELS), que siempre está en
   // español — usamos c.codigo (estable, no traducido) para resolver la
@@ -43,11 +45,34 @@ export default function TaxBreakdown({ lineas, clientType, taxRules, fecha, scop
 
   const visibles = categorias.filter(c => c.codigo !== 'reembolso' || c.base > 0);
 
+  const discountRow = discountAmount > 0 && (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ color: 'var(--muted)' }}>
+          {discountType === 'percent' ? t('discountPercent', { percent: Number(discountValue) }) : t('discount')}
+        </span>
+        <span style={{ color: 'var(--danger, #c0392b)' }}>-{fmt(discountAmount)}</span>
+      </div>
+      {discountNote && (
+        <span style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>{discountNote}</span>
+      )}
+    </div>
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {title && <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 0 }}>{title}</p>}
       {note}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
+        {antesDeIVU && discountAmount > 0 && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--muted)' }}>{t('subtotalBeforeDiscount')}</span>
+              <span>{fmt(subtotalBruto)}</span>
+            </div>
+            {discountRow}
+          </>
+        )}
         {visibles.map(c => (
           <div key={c.codigo} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -60,19 +85,7 @@ export default function TaxBreakdown({ lineas, clientType, taxRules, fecha, scop
             </div>
           </div>
         ))}
-        {discountAmount > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--muted)' }}>
-                {discountType === 'percent' ? t('discountPercent', { percent: Number(discountValue) }) : t('discount')}
-              </span>
-              <span style={{ color: 'var(--danger, #c0392b)' }}>-{fmt(discountAmount)}</span>
-            </div>
-            {discountNote && (
-              <span style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>{discountNote}</span>
-            )}
-          </div>
-        )}
+        {!antesDeIVU && discountRow}
         <hr style={{ border: 'none', borderTop: '1.5px solid var(--border)', margin: '4px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18 }}>
           <span>{t('total')}</span><span style={{ color: 'var(--navy)' }}>{fmt(total)}</span>

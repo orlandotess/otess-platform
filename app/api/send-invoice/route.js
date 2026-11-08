@@ -2,6 +2,7 @@ import { getResend } from '../../../lib/resend';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { getCurrentRole } from '../../../lib/supabase-server';
 import { fallbackLineItems } from '../../../lib/ivu';
+import { descuentoGuardado } from '../../../lib/tax';
 import { getClientEmailTranslator } from '../../../lib/i18n-server';
 
 
@@ -24,6 +25,8 @@ export async function POST(request) {
       supabase.from('invoice_line_items').select('*').eq('invoice_id', invoiceId).order('sort_order'),
     ]);
     if (!inv) return Response.json({ error: 'No encontrada' }, { status: 404 });
+    // Descuento antes o después del IVU según el documento — ver lib/tax.js.
+    const desc = descuentoGuardado(inv);
     const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     const publicUrl = `https://app.otesspr.com/factura/${invoiceId}`;
     const rawItems = items?.length ? items : fallbackLineItems(inv);
@@ -124,12 +127,15 @@ export async function POST(request) {
 
     <div style="display:flex;justify-content:flex-end">
       <div style="width:280px">
+        ${desc.modo === 'before_tax' ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('subtotalBeforeDiscount')}</span><span>${fmt(desc.subtotalBruto)}</span></div>` : ''}
+        ${desc.modo === 'before_tax' ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('discount')}${inv.discount_type === 'percent' ? ` (${Number(inv.discount_value)}%)` : ''}</span><span>-${fmt(desc.monto)}</span></div>` : ''}
+        ${desc.modo === 'before_tax' && inv.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:0 0 4px">${inv.discount_note}</p>` : ''}
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('subtotalProducts')}</span><span>${fmt(inv.subtotal_products)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('taxProducts')}</span><span>${fmt(inv.tax_products)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('subtotalLabor')}</span><span>${fmt(inv.subtotal_labor)}</span></div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('taxLabor', { rate: inv.clients?.client_type === 'b2b' ? '4%' : '11.5%' })}</span><span>${fmt(inv.tax_labor)}</span></div>
-        ${inv.discount_value > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('discount')}${inv.discount_type === 'percent' ? ` (${Number(inv.discount_value)}%)` : ''}</span><span>-${fmt(Number(inv.subtotal_products) + Number(inv.tax_products) + Number(inv.subtotal_labor) + Number(inv.tax_labor) - Number(inv.total))}</span></div>` : ''}
-        ${inv.discount_value > 0 && inv.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:0 0 4px">${inv.discount_note}</p>` : ''}
+        ${desc.modo === 'after_tax' ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('discount')}${inv.discount_type === 'percent' ? ` (${Number(inv.discount_value)}%)` : ''}</span><span>-${fmt(desc.monto)}</span></div>` : ''}
+        ${desc.modo === 'after_tax' && inv.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:0 0 4px">${inv.discount_note}</p>` : ''}
         <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>${t('total')}</span><span>${fmt(inv.total)}</span></div>
       </div>
     </div>

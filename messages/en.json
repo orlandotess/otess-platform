@@ -129,7 +129,8 @@
       "total": "TOTAL",
       "notes": "Notes:",
       "footerQuestions": "Questions? Contact us at {email} or {phone}",
-      "footerAddress": "OT Electrical & Security Solutions · Carolina, Puerto Rico"
+      "footerAddress": "OT Electrical & Security Solutions · Carolina, Puerto Rico",
+      "subtotalBeforeDiscount": "Subtotal before discount"
     },
     "estimate": {
       "subject": "Estimate {number} — OT Electrical & Security Solutions",
@@ -156,7 +157,8 @@
       "total": "TOTAL",
       "notes": "Notes:",
       "footerQuestions": "Questions? Contact us at {email} or {phone}",
-      "footerAddress": "OT Electrical & Security Solutions · Carolina, Puerto Rico"
+      "footerAddress": "OT Electrical & Security Solutions · Carolina, Puerto Rico",
+      "subtotalBeforeDiscount": "Subtotal before discount"
     },
     "report": {
       "documentLabel": "WORK REPORT",
@@ -1113,7 +1115,8 @@
       "video": "Video",
       "jobPhotoAlt": "Job photo",
       "paymentsRegistered": "Recorded payments",
-      "projectTerms": "Project Terms"
+      "projectTerms": "Project Terms",
+      "subtotalBeforeDiscount": "Subtotal before discount"
     },
     "payButton": {
       "createOrderError": "Error creating the order",
@@ -1162,7 +1165,8 @@
         "total": "TOTAL",
         "paid": "Paid",
         "retained": "Retention applied",
-        "balance": "Balance"
+        "balance": "Balance",
+        "subtotalBeforeDiscount": "Subtotal before discount"
       },
       "notesLabel": "Notes:",
       "workPhotosTitle": "Work photos and documents",
@@ -1435,7 +1439,8 @@
       "taxCategory": "{category} tax ({rate})",
       "discount": "Discount",
       "discountPercent": "Discount ({percent}%)",
-      "total": "Total"
+      "total": "Total",
+      "subtotalBeforeDiscount": "Subtotal before discount"
     },
     "barcodeScanner": {
       "cameraError": "Could not access the camera. Check your browser permissions.",
@@ -2104,7 +2109,8 @@
         "subtotalLabor": "Labor subtotal",
         "taxLabor": "Labor tax ({rate})",
         "discount": "Discount",
-        "total": "TOTAL"
+        "total": "TOTAL",
+        "subtotalBeforeDiscount": "Subtotal before discount"
       },
       "notesLabel": "Notes:",
       "termsTitle": "Project Terms"
@@ -2221,7 +2227,8 @@
         "subtotalLabor": "Labor subtotal",
         "taxLabor": "Labor tax ({rate})",
         "discount": "Discount",
-        "total": "TOTAL"
+        "total": "TOTAL",
+        "subtotalBeforeDiscount": "Subtotal before discount"
       },
       "notesLabel": "Notes:",
       "termsTitle": "Project Terms",
@@ -4299,7 +4306,7 @@
       "percentPlaceholder": "%",
       "dueTriggerPlaceholder": "E.g.: Upon proposal approval",
       "discountCardTitle": "Discount (optional)",
-      "discountCardSubtitle": "Applied to each option's total, after sales tax is calculated.",
+      "discountCardSubtitle": "Taken off each option's subtotal, before sales tax is calculated.",
       "discountTypeLabel": "Type",
       "percentageLabel": "Percentage",
       "amountLabel": "Amount",
@@ -4360,7 +4367,8 @@
       "pickListSubtitle": "Warehouse Pick List — internal use",
       "productColumnHeader": "Product",
       "quantityColumnHeader": "Quantity",
-      "noProductsInOption": "No products in this option."
+      "noProductsInOption": "No products in this option.",
+      "subtotalAfterDiscount": "Subtotal after discount"
     }
   },
   "ordenesCambio": {

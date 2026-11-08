@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { Fragment } from 'react';
+import { descuentoGuardado } from '../../../lib/tax';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
@@ -365,6 +366,21 @@ export default async function EstimaDetail(props) {
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <div style={{ width: 320 }}>
+              {descuentoGuardado(est).modo === 'before_tax' && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--muted)' }}>{t('totals.subtotalBeforeDiscount')}</span>
+                    <span>${(descuentoGuardado(est).subtotalBruto).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--muted)' }}>{t('totals.discount')}{est.discount_type === 'percent' ? ` (${Number(est.discount_value)}%)` : ''}</span>
+                    <span>-${(descuentoGuardado(est).monto).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                  </div>
+                  {est.discount_note && (
+                    <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', textAlign: 'right', margin: '4px 0 0' }}>{est.discount_note}</p>
+                  )}
+                </>
+              )}
               {[
                 { label: t('totals.subtotalProducts'), value: est.subtotal_products },
                 { label: t('totals.taxProducts'), value: est.tax_products },
@@ -376,13 +392,13 @@ export default async function EstimaDetail(props) {
                   <span>${Number(row.value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
               ))}
-              {est.discount_value > 0 && (
+              {descuentoGuardado(est).modo === 'after_tax' && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
                   <span style={{ color: 'var(--muted)' }}>{t('totals.discount')}{est.discount_type === 'percent' ? ` (${Number(est.discount_value)}%)` : ''}</span>
-                  <span>-${(Number(est.subtotal_products) + Number(est.tax_products) + Number(est.subtotal_labor) + Number(est.tax_labor) - Number(est.total)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                  <span>-${(descuentoGuardado(est).monto).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
               )}
-              {est.discount_value > 0 && est.discount_note && (
+              {descuentoGuardado(est).modo === 'after_tax' && est.discount_note && (
                 <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', textAlign: 'right', margin: '4px 0 0' }}>{est.discount_note}</p>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 20, fontWeight: 900, color: 'var(--navy)' }}>

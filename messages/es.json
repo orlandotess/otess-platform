@@ -129,7 +129,8 @@
       "total": "TOTAL",
       "notes": "Notas:",
       "footerQuestions": "¿Preguntas? Contáctanos en {email} o al {phone}",
-      "footerAddress": "OT Electrical & Security Solutions · Carolina, Puerto Rico"
+      "footerAddress": "OT Electrical & Security Solutions · Carolina, Puerto Rico",
+      "subtotalBeforeDiscount": "Subtotal antes de descuento"
     },
     "estimate": {
       "subject": "Estimado {number} — OT Electrical & Security Solutions",
@@ -156,7 +157,8 @@
       "total": "TOTAL",
       "notes": "Notas:",
       "footerQuestions": "¿Preguntas? Contáctanos en {email} o al {phone}",
-      "footerAddress": "OT Electrical & Security Solutions · Carolina, Puerto Rico"
+      "footerAddress": "OT Electrical & Security Solutions · Carolina, Puerto Rico",
+      "subtotalBeforeDiscount": "Subtotal antes de descuento"
     },
     "report": {
       "documentLabel": "REPORTE DE TRABAJO",
@@ -1113,7 +1115,8 @@
       "video": "Video",
       "jobPhotoAlt": "Foto del trabajo",
       "paymentsRegistered": "Pagos registrados",
-      "projectTerms": "Términos del Proyecto"
+      "projectTerms": "Términos del Proyecto",
+      "subtotalBeforeDiscount": "Subtotal antes de descuento"
     },
     "payButton": {
       "createOrderError": "Error creando la orden",
@@ -1162,7 +1165,8 @@
         "total": "TOTAL",
         "paid": "Pagado",
         "retained": "Retención aplicada",
-        "balance": "Balance"
+        "balance": "Balance",
+        "subtotalBeforeDiscount": "Subtotal antes de descuento"
       },
       "notesLabel": "Notas:",
       "workPhotosTitle": "Fotos y documentos del trabajo",
@@ -1435,7 +1439,8 @@
       "taxCategory": "IVU {category} ({rate})",
       "discount": "Descuento",
       "discountPercent": "Descuento ({percent}%)",
-      "total": "Total"
+      "total": "Total",
+      "subtotalBeforeDiscount": "Subtotal antes de descuento"
     },
     "barcodeScanner": {
       "cameraError": "No se pudo acceder a la cámara. Verifica los permisos en tu navegador.",
@@ -2104,7 +2109,8 @@
         "subtotalLabor": "Subtotal labor",
         "taxLabor": "IVU labor ({rate})",
         "discount": "Descuento",
-        "total": "TOTAL"
+        "total": "TOTAL",
+        "subtotalBeforeDiscount": "Subtotal antes de descuento"
       },
       "notesLabel": "Notas:",
       "termsTitle": "Términos del Proyecto"
@@ -2221,7 +2227,8 @@
         "subtotalLabor": "Subtotal labor",
         "taxLabor": "IVU labor ({rate})",
         "discount": "Descuento",
-        "total": "TOTAL"
+        "total": "TOTAL",
+        "subtotalBeforeDiscount": "Subtotal antes de descuento"
       },
       "notesLabel": "Notas:",
       "termsTitle": "Términos del Proyecto",
@@ -4299,7 +4306,7 @@
       "percentPlaceholder": "%",
       "dueTriggerPlaceholder": "Ej: Al aprobar la propuesta",
       "discountCardTitle": "Descuento (opcional)",
-      "discountCardSubtitle": "Se aplica al total de cada opción, después de calcular el IVU.",
+      "discountCardSubtitle": "Se resta del subtotal de cada opción, antes de calcular el IVU.",
       "discountTypeLabel": "Tipo",
       "percentageLabel": "Porcentaje",
       "amountLabel": "Monto",
@@ -4360,7 +4367,8 @@
       "pickListSubtitle": "Lista de Picking del Almacén — uso interno",
       "productColumnHeader": "Producto",
       "quantityColumnHeader": "Cantidad",
-      "noProductsInOption": "No hay productos en esta opción."
+      "noProductsInOption": "No hay productos en esta opción.",
+      "subtotalAfterDiscount": "Subtotal con descuento"
     }
   },
   "ordenesCambio": {
