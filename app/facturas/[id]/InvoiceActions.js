@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import NuevaRetencionForm from '../../accounting/retenciones/NuevaRetencionForm';
+import RetencionesDeFactura from './RetencionesDeFactura';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 import { useTranslations, useLocale } from 'next-intl';
@@ -32,6 +33,9 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
   const [showInternalNotes, setShowInternalNotes] = useState(false);
   const [showCheckPhotos, setShowCheckPhotos] = useState(false);
   const [showRetencion, setShowRetencion] = useState(false);
+  // Con retenciones ya registradas, el modal abre en la lista (editar/borrar);
+  // el formulario para añadir otra solo aparece al pedirlo.
+  const [addingRetencion, setAddingRetencion] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [jobNotes, setJobNotes] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
@@ -238,8 +242,18 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
 
   function handleRetencionSaved(newRow) {
     setRetenciones(prev => [...prev, newRow]);
-    setShowRetencion(false);
+    closeRetencion();
     router.refresh();
+  }
+
+  function handleRetencionesChanged(next) {
+    setRetenciones(next);
+    router.refresh();
+  }
+
+  function closeRetencion() {
+    setShowRetencion(false);
+    setAddingRetencion(false);
   }
 
   async function deleteInvoice() {
@@ -508,19 +522,36 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {/* Registrar retención */}
       {showRetencion && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20, overflow: 'auto' }}>
-          <div style={{ width: 640 }}>
+          <div style={{ width: 640, maxWidth: '100%' }}>
             {retenciones.length > 0 && (
-              <div style={{ background: 'var(--amber-tint)', border: '1.5px solid var(--amber)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: 'var(--navy)' }}>
-                ⚠️ {t('retentionWarning', { count: retenciones.length, total: fmtMoney(retenciones.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0)) })}
-              </div>
+              <RetencionesDeFactura
+                retenciones={retenciones}
+                clientId={clientId}
+                subtotalLabor={subtotalLabor}
+                onChanged={handleRetencionesChanged}
+              />
             )}
-            <NuevaRetencionForm
-              clientIdLocked={clientId}
-              clientNameLocked={clientName}
-              invoiceLocked={{ id: invoiceId, invoice_number: invoiceNumber, subtotal_labor: subtotalLabor, issued_at: issuedAt || new Date().toISOString().slice(0, 10) }}
-              onSaved={handleRetencionSaved}
-              onCancel={() => setShowRetencion(false)}
-            />
+            {retenciones.length > 0 && !addingRetencion ? (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" className="btn btn-ghost" onClick={() => setAddingRetencion(true)} style={{ flex: 1, justifyContent: 'center', background: 'var(--surface)' }}>+ {t('retentionList.addAnother')}</button>
+                <button type="button" className="btn btn-ghost" onClick={closeRetencion} style={{ flex: 1, justifyContent: 'center', background: 'var(--surface)' }}>{t('close')}</button>
+              </div>
+            ) : (
+              <>
+                {retenciones.length > 0 && (
+                  <div style={{ background: 'var(--amber-tint)', border: '1.5px solid var(--amber)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: 'var(--navy)' }}>
+                    ⚠️ {t('retentionWarning', { count: retenciones.length, total: fmtMoney(retenciones.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0)) })}
+                  </div>
+                )}
+                <NuevaRetencionForm
+                  clientIdLocked={clientId}
+                  clientNameLocked={clientName}
+                  invoiceLocked={{ id: invoiceId, invoice_number: invoiceNumber, subtotal_labor: subtotalLabor, issued_at: issuedAt || new Date().toISOString().slice(0, 10) }}
+                  onSaved={handleRetencionSaved}
+                  onCancel={retenciones.length > 0 ? () => setAddingRetencion(false) : closeRetencion}
+                />
+              </>
+            )}
           </div>
         </div>
       )}

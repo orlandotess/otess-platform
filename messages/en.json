@@ -1295,6 +1295,29 @@
         "notesPlaceholder": "Optional",
         "maxPlaceholder": "Max {amount}",
         "save": "Save payment"
+      },
+      "retentionList": {
+        "title": "Withholdings on this invoice",
+        "summary": "{date} · Billed {billed} · Exempt {exempt}",
+        "date": "Date",
+        "billed": "Billed amount (labor)",
+        "exempt": "Exempt amount",
+        "applied": "Withholding applied",
+        "receipt": "Receipt",
+        "status": "Status",
+        "pending": "Pending",
+        "declared": "Filed",
+        "edit": "Edit",
+        "delete": "Delete",
+        "save": "Save",
+        "cancel": "Cancel",
+        "recalculate": "Recalculate on {amount} of labor",
+        "addAnother": "Add another withholding",
+        "declaredCantDelete": "Withholdings marked \"Filed\" were already reported to Hacienda and can't be deleted. To delete one, edit it and set it back to \"Pending\".",
+        "deleteConfirm": "Delete this {amount} withholding? This can't be undone.",
+        "deleteExemptionWarning": "Note: this client has {count, plural, one {# later withholding} other {# later withholdings}} this year. This one used {exempt} of the $500 exemption; deleting it frees that exemption, but the later ones are not recalculated automatically.",
+        "deleteError": "The withholding could not be deleted.",
+        "saveError": "The withholding could not be saved."
       }
     }
   },

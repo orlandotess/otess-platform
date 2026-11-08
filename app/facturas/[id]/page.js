@@ -24,7 +24,7 @@ export default async function FacturaDetail(props) {
     supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order'),
     supabase.from('payments').select('*').eq('invoice_id', id).order('paid_at'),
     supabase.from('invoice_internal_attachments').select('*').eq('invoice_id', id).order('created_at', { ascending: false }),
-    supabase.from('retenciones').select('id, retencion_aplicada, fecha').eq('invoice_id', id),
+    supabase.from('retenciones').select('*').eq('invoice_id', id).order('fecha').order('created_at'),
   ]);
 
 

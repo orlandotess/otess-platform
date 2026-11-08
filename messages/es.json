@@ -1295,6 +1295,29 @@
         "notesPlaceholder": "Opcional",
         "maxPlaceholder": "Máx {amount}",
         "save": "Guardar pago"
+      },
+      "retentionList": {
+        "title": "Retenciones de esta factura",
+        "summary": "{date} · Facturado {billed} · Exento {exempt}",
+        "date": "Fecha",
+        "billed": "Monto facturado (labor)",
+        "exempt": "Monto exento",
+        "applied": "Retención aplicada",
+        "receipt": "Comprobante",
+        "status": "Estado",
+        "pending": "Pendiente",
+        "declared": "Declarado",
+        "edit": "Editar",
+        "delete": "Borrar",
+        "save": "Guardar",
+        "cancel": "Cancelar",
+        "recalculate": "Recalcular sobre {amount} de labor",
+        "addAnother": "Añadir otra retención",
+        "declaredCantDelete": "Las retenciones en estado \"Declarado\" ya se informaron a Hacienda y no se pueden borrar. Para borrar una, edítala y pásala a \"Pendiente\".",
+        "deleteConfirm": "¿Borrar esta retención de {amount}? No se puede deshacer.",
+        "deleteExemptionWarning": "Ojo: este cliente tiene {count, plural, one {# retención posterior} other {# retenciones posteriores}} este año. Esta usó {exempt} de los $500 de exención; al borrarla esa exención queda libre, pero las posteriores no se recalculan solas.",
+        "deleteError": "No se pudo borrar la retención.",
+        "saveError": "No se pudo guardar la retención."
       }
     }
   },
