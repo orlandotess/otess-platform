@@ -1856,6 +1856,8 @@
         "columnStatus": "Estado",
         "columnTotal": "Total",
         "columnDate": "Fecha",
+        "columnBalance": "Balance",
+        "sortTitle": "Ordenar por esta columna",
         "totalRow": "TOTAL",
         "totalRowVisible": "(visibles)"
       },

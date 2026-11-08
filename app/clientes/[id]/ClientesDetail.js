@@ -40,6 +40,36 @@ function jobLocation(j) {
   return [j.property_name, j.city].filter(Boolean).join(' — ');
 }
 
+// issued_at es fecha sin hora (YYYY-MM-DD); al mediodía UTC cae el mismo día
+// en Puerto Rico. Las facturas sin fecha de emisión usan created_at.
+function invoiceDate(inv) {
+  return inv.issued_at ? `${inv.issued_at}T12:00:00Z` : inv.created_at;
+}
+
+// Orden del flujo de cobro, no alfabético, para que "estado" agrupe con sentido.
+const invoiceStatusOrder = { draft: 0, sent: 1, overdue: 2, paid: 3, cancelled: 4 };
+
+const invoiceColumnDefs = [
+  { key: 'number', labelKey: 'columnNumber' },
+  { key: 'job', labelKey: 'columnJob', sortable: false },
+  { key: 'property', labelKey: 'columnProperty', sortable: false },
+  { key: 'status', labelKey: 'columnStatus' },
+  { key: 'total', labelKey: 'columnTotal' },
+  { key: 'balance', labelKey: 'columnBalance' },
+  { key: 'date', labelKey: 'columnDate' },
+];
+
+function compareInvoices(a, b, key, balanceOf) {
+  switch (key) {
+    case 'number': return (a.invoice_number ?? '').localeCompare(b.invoice_number ?? '', 'es', { numeric: true });
+    case 'status': return (invoiceStatusOrder[a.status] ?? 99) - (invoiceStatusOrder[b.status] ?? 99);
+    case 'total': return Number(a.total ?? 0) - Number(b.total ?? 0);
+    case 'balance': return balanceOf(a) - balanceOf(b);
+    case 'date': return new Date(invoiceDate(a)) - new Date(invoiceDate(b));
+    default: return 0;
+  }
+}
+
 function cleanPhones(list) {
   return (list ?? []).filter(p => p.number?.trim()).map(p => ({ label: p.label?.trim() ?? '', number: p.number.trim() }));
 }
@@ -153,6 +183,27 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invoiceSortKey, setInvoiceSortKey] = useState('date');
+  const [invoiceSortDir, setInvoiceSortDir] = useState('desc');
+  // Balance por factura igual que /facturas/[id]: total − pagos − retenciones.
+  const invoiceBalances = useMemo(() => {
+    const out = {};
+    invoices.forEach(i => { out[i.id] = Number(i.total ?? 0); });
+    payments.forEach(p => { if (p.invoice_id in out) out[p.invoice_id] -= Number(p.amount ?? 0); });
+    retenciones.forEach(r => { if (r.invoice_id in out) out[r.invoice_id] -= Number(r.retencion_aplicada ?? 0); });
+    // Redondear a centavos: sin esto una factura saldada puede quedar en -0.00
+    // por error de punto flotante (+ 0 convierte -0 en 0).
+    Object.keys(out).forEach(id => { out[id] = Math.round(out[id] * 100) / 100 + 0; });
+    return out;
+  }, [invoices, payments, retenciones]);
+  function toggleInvoiceSort(key) {
+    if (key === invoiceSortKey) {
+      setInvoiceSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setInvoiceSortKey(key);
+      setInvoiceSortDir('asc');
+    }
+  }
   const [propertySearch, setPropertySearch] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const [jobSearch, setJobSearch] = useState('');
@@ -1229,17 +1280,37 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                   (jobsById[inv.job_id]?.title ?? '').toLowerCase().includes(query)
                 )
               : invoices;
+            const balanceOf = inv => invoiceBalances[inv.id] ?? 0;
+            const sortedInvoices = [...visibleInvoices].sort((a, b) => {
+              const c = compareInvoices(a, b, invoiceSortKey, balanceOf);
+              if (c) return invoiceSortDir === 'asc' ? c : -c;
+              // Empate: la más reciente primero, sin importar la dirección.
+              return new Date(invoiceDate(b)) - new Date(invoiceDate(a));
+            });
             const invoicesTotal = visibleInvoices.reduce((a, i) => a + Number(i.total ?? 0), 0);
+            const invoicesBalance = visibleInvoices.reduce((a, i) => a + balanceOf(i), 0);
             return visibleInvoices.length === 0 ? (
               <div className="empty"><p>{t('invoices.noResults', { search: invoiceSearch })}</p></div>
             ) : (
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>{t('invoices.columnNumber')}</th><th>{t('invoices.columnJob')}</th><th>{t('invoices.columnProperty')}</th><th>{t('invoices.columnStatus')}</th><th>{t('invoices.columnTotal')}</th><th>{t('invoices.columnDate')}</th></tr>
+                    <tr>
+                      {invoiceColumnDefs.map(col => (
+                        <th
+                          key={col.key}
+                          onClick={col.sortable === false ? undefined : () => toggleInvoiceSort(col.key)}
+                          title={col.sortable === false ? undefined : t('invoices.sortTitle')}
+                          style={col.sortable === false ? undefined : { cursor: 'pointer', userSelect: 'none' }}
+                        >
+                          {t(`invoices.${col.labelKey}`)}{invoiceSortKey === col.key ? (invoiceSortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                        </th>
+                      ))}
+                    </tr>
                   </thead>
                   <tbody>
-                    {visibleInvoices.map(inv => {
+                    {sortedInvoices.map(inv => {
+                      const balance = balanceOf(inv);
                       const b = statusInv[inv.status] ?? statusInv.draft;
                       const job = jobsById[inv.job_id];
                       const prop = propertiesById[inv.property_id];
@@ -1270,7 +1341,8 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                           </td>
                           <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
                           <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
-                          <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(inv.created_at, {}, dateLocale)}</td>
+                          <td style={{ fontWeight: 700, color: balance > 0.005 ? 'var(--warn)' : 'var(--ok)' }}>{fmt(balance)}</td>
+                          <td style={{ color: 'var(--muted)', fontSize: 13 }}>{formatDatePR(invoiceDate(inv), {}, dateLocale)}</td>
                         </tr>
                       );
                     })}
@@ -1282,6 +1354,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       <td></td>
                       <td></td>
                       <td style={{ fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(invoicesTotal)}</td>
+                      <td style={{ fontWeight: 900, fontSize: 15, color: 'var(--navy)', paddingTop: 12 }}>{fmt(invoicesBalance)}</td>
                       <td></td>
                     </tr>
                   </tfoot>
