@@ -102,7 +102,7 @@ export async function GET(request) {
 
   const { data: overdue, error: qErr } = await supabase
     .from('invoices')
-    .select('*, clients(name, email), payments(amount)')
+    .select('*, clients(name, email), payments(amount), retenciones(retencion_aplicada)')
     .eq('status', 'sent')
     .lt('due_at', today)
     .is('reminders_paused_at', null);
@@ -115,8 +115,12 @@ export async function GET(request) {
   for (const inv of overdue ?? []) {
     try {
       const totalPaid = (inv.payments ?? []).reduce((a, p) => a + Number(p.amount), 0);
-      const balance = Number(inv.total) - totalPaid;
-      if (balance <= 0) continue;
+      // Lo retenido lo paga el cliente a Hacienda en nombre nuestro, así que
+      // también reduce lo que nos debe — igual que en facturas/[id]/page.js.
+      // Sin restarlo, a INV-1052 le salió un recordatorio por la retención.
+      const totalRetained = (inv.retenciones ?? []).reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0);
+      const balance = Number(inv.total) - totalPaid - totalRetained;
+      if (balance <= 0.01) continue;
 
       const daysOverdue = daysBetween(inv.due_at, today);
       if (daysOverdue < GRACE_DAYS) continue;
