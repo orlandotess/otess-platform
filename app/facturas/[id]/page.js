@@ -10,6 +10,7 @@ import { displayTitle } from '../../../lib/lineItemTitle';
 import Sidebar from '../../Sidebar';
 import InvoiceActions from './InvoiceActions';
 import PaymentsTable from './PaymentsTable';
+import ThumbImg from '../../components/ThumbImg';
 import { getTranslations } from 'next-intl/server';
 
 const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
@@ -43,10 +44,16 @@ export default async function FacturaDetail(props) {
         // instead of making the browser pull tens of MB before anything shows.
         // Videos/PDFs can't be transformed and sign as-is.
         const opts = IMAGE_PATH.test(p) ? { transform: { width: 1400, height: 1400, resize: 'contain' } } : undefined;
-        const { data: sd } = await supabase.storage.from('Job-photos').createSignedUrl(p, 86400, opts);
-        return sd?.signedUrl ?? null;
+        // También el original: si el redimensionado falla (cuota de Supabase),
+        // ThumbImg cambia a este.
+        const [{ data: sd }, { data: full }] = await Promise.all([
+          supabase.storage.from('Job-photos').createSignedUrl(p, 86400, opts),
+          opts ? supabase.storage.from('Job-photos').createSignedUrl(p, 86400) : Promise.resolve({ data: null }),
+        ]);
+        return { url: sd?.signedUrl ?? full?.signedUrl ?? null, full: full?.signedUrl ?? null };
       }));
-      return { ...n, signedUrls: signedUrls.filter(Boolean) };
+      const ok = signedUrls.filter(u => u.url);
+      return { ...n, signedUrls: ok.map(u => u.url), fullUrls: ok.map(u => u.full) };
     }));
   }
 
@@ -427,7 +434,7 @@ export default async function FacturaDetail(props) {
                           </div>
                         );
                         return (
-                          <img key={idx} src={url} alt={t('jobPhotoAlt')} style={{ width: '100%', height: 'auto', maxHeight: 420, objectFit: 'contain', borderRadius: 8, background: 'var(--surface-2)', display: 'block' }} />
+                          <ThumbImg key={idx} src={url} fallback={n.fullUrls?.[idx]} alt={t('jobPhotoAlt')} style={{ width: '100%', height: 'auto', maxHeight: 420, objectFit: 'contain', borderRadius: 8, background: 'var(--surface-2)', display: 'block' }} />
                         );
                       })}
                     </div>

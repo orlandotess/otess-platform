@@ -5,6 +5,7 @@ import Link from 'next/link';
 import SearchBox from '../../SearchBox';
 import NuevoGastoForm from './NuevoGastoForm';
 import { useTranslations } from 'next-intl';
+import ThumbImg from '../../components/ThumbImg';
 
 const expenseCategoryDefs = [
   { value: 'materiales', key: 'materiales' },
@@ -40,7 +41,7 @@ export default function GastosClient({ expenses: initial, jobs, periodLabel, cat
     }
     return (
       <a href={r.receipt_signed_url ?? r.receipt_thumb_url} target="_blank" rel="noreferrer" title={t('viewReceipt')}>
-        <img src={r.receipt_thumb_url ?? r.receipt_signed_url} alt={t('receiptAlt')}
+        <ThumbImg src={r.receipt_thumb_url} fallback={r.receipt_signed_url} alt={t('receiptAlt')}
           style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, display: 'block' }} />
       </a>
     );

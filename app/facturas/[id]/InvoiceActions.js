@@ -9,6 +9,7 @@ import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 import { useTranslations, useLocale } from 'next-intl';
 
 import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
+import ThumbImg from '../../components/ThumbImg';
 import { ScheduleSendPicker, ScheduledSendBadges, useScheduleSend, scheduleSend } from '../../components/ScheduleSend';
 const PAYMENT_METHOD_KEYS = ['cash', 'check', 'card', 'transfer'];
 const TERMS_TEMPLATE_KEYS = ['standard'];
@@ -300,10 +301,16 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
           // for 60px thumbnails left the previews blank while tens of MB
           // downloaded. Ask storage for a resized render; videos/PDFs sign as-is.
           const opts = IMAGE_PATH.test(p) ? { transform: { width: 160, height: 160, resize: 'cover' } } : undefined;
-          const { data: sd } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600, opts);
-          return sd?.signedUrl ?? null;
+          // También el original: si el redimensionado falla (cuota de
+          // Supabase), ThumbImg cambia a este.
+          const [{ data: sd }, { data: full }] = await Promise.all([
+            supabase.storage.from('Job-photos').createSignedUrl(p, 3600, opts),
+            opts ? supabase.storage.from('Job-photos').createSignedUrl(p, 3600) : Promise.resolve({ data: null }),
+          ]);
+          return { url: sd?.signedUrl ?? full?.signedUrl ?? null, full: full?.signedUrl ?? null };
         }));
-        return { ...n, signedUrls: signedUrls.filter(Boolean) };
+        const ok = signedUrls.filter(u => u.url);
+        return { ...n, signedUrls: ok.map(u => u.url), fullUrls: ok.map(u => u.full) };
       }));
       setJobNotes(withSigned);
       setLoadingNotes(false);
@@ -417,7 +424,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
                               const isPdf = /\.pdf(\?|$)/i.test(url);
                               if (isPdf) return <div key={idx} style={{ width: 60, height: 60, background: 'var(--surface-2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📄</div>;
                               if (isVideo) return <div key={idx} style={{ width: 60, height: 60, background: '#000', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🎥</div>;
-                              return <img key={idx} src={url} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6 }} />;
+                              return <ThumbImg key={idx} src={url} fallback={n.fullUrls?.[idx]} style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6 }} />;
                             })}
                           </div>
                         )}

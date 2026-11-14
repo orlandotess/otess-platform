@@ -11,6 +11,7 @@ import ClientCombobox from '../facturas/nueva/ClientCombobox';
 import QuickRescheduleModal from './QuickRescheduleModal';
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
+import ThumbImg from '../components/ThumbImg';
 const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 const ATTACHMENT_THUMB = { transform: { width: 400, height: 400, resize: 'contain' } };
 
@@ -180,7 +181,7 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: n.note ? 6 : 0 }}>
                     {n.photo_signed_urls.map((url, i) => url && (
                       <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                        <img src={n.photo_thumb_urls?.[i] ?? url} alt={t('notes.photoAlt')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                        <ThumbImg src={n.photo_thumb_urls?.[i]} fallback={url} alt={t('notes.photoAlt')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
                       </a>
                     ))}
                   </div>
@@ -2383,7 +2384,7 @@ function ChecklistItemRow({ item, onToggle, onUploadFiles, onRemoveAttachment, o
                 ) : isVideoFile(path) ? (
                   <video src={url} onClick={() => onOpenLightbox(i)} controls style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
                 ) : (
-                  <img src={item.attachment_thumb_urls?.[i] ?? url} alt={t('checklistItem.attachmentAlt')} onClick={() => onOpenLightbox(i)}
+                  <ThumbImg src={item.attachment_thumb_urls?.[i]} fallback={url} alt={t('checklistItem.attachmentAlt')} onClick={() => onOpenLightbox(i)}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer' }} />
                 )}
                 <button type="button" onClick={() => onRemoveAttachment(i)}

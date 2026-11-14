@@ -11,6 +11,7 @@ import { useJobChecklist } from '../../lib/useJobChecklist';
 import { useTranslations, useLocale } from 'next-intl';
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
+import ThumbImg from '../components/ThumbImg';
 const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 // Técnicos open this on a phone: a note photo straight off the camera is 5-10 MB,
 // and a job with a dozen of them used to pull 30+ MB just to fill the tiles. The
@@ -2875,7 +2876,7 @@ export default function FieldApp() {
                             return isVideo ? (
                               <video key={idx} src={url} controls style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                             ) : (
-                              <img key={idx} src={n.thumb_urls?.[idx] ?? url} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
+                              <ThumbImg key={idx} src={n.thumb_urls?.[idx]} fallback={url} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
                                 style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                             );
                           })}
@@ -2892,7 +2893,7 @@ export default function FieldApp() {
                         return isVideo ? (
                           <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 250, borderRadius: 10, marginBottom: 8, background: '#000' }} />
                         ) : (
-                          <img src={n.thumb_url ?? n.photo_url} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
+                          <ThumbImg src={n.thumb_url} fallback={n.photo_url} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
                             style={{ width: '100%', maxHeight: 250, objectFit: 'cover', borderRadius: 10, marginBottom: 8, cursor: 'zoom-in' }} />
                         );
                       })()}
@@ -3105,7 +3106,7 @@ export default function FieldApp() {
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: n.note ? 6 : 0 }}>
                             {n.photo_signed_urls.map((url, i) => url && (
                               <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                                <img src={n.photo_thumb_urls?.[i] ?? url} alt={t('detailEntry.notePhotoAlt')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
+                                <ThumbImg src={n.photo_thumb_urls?.[i]} fallback={url} alt={t('detailEntry.notePhotoAlt')} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />
                               </a>
                             ))}
                           </div>
@@ -3576,7 +3577,7 @@ export default function FieldApp() {
                               ) : isVideo(url) ? (
                                 <video key={idx} src={url} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, background: '#000' }} />
                               ) : (
-                                <img key={idx} src={thumbSrcs[idx] ?? url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid #eee' }} />
+                                <ThumbImg key={idx} src={thumbSrcs[idx]} fallback={url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, border: '1px solid #eee' }} />
                               )
                             ))}
                           </div>

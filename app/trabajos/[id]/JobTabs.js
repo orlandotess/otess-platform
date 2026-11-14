@@ -23,6 +23,7 @@ import { splitEntriesRegularOvertime } from '../../../lib/payrollOverrides';
 import { useJobChecklist } from '../../../lib/useJobChecklist';
 
 import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
+import ThumbImg from '../../components/ThumbImg';
 // Thumbnails of note photos are served resized (see the same constant in
 // page.js) — the lightbox and the annotator still get the original.
 const NOTE_THUMB_WIDTH = 800;
@@ -1245,7 +1246,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     return isVideo ? (
                       <video key={idx} src={url} controls style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                     ) : (
-                      <img key={idx} src={n.thumb_urls?.[idx] ?? url} alt={t('pinnedNote.photoAlt')} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: null })}
+                      <ThumbImg key={idx} src={n.thumb_urls?.[idx]} fallback={url} alt={t('pinnedNote.photoAlt')} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: null })}
                         style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                     );
                   })}
@@ -1259,7 +1260,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ maxWidth: 260, maxHeight: 160, borderRadius: 8, background: '#000' }} />
                 ) : (
-                  <img src={n.thumb_url ?? n.photo_url} alt={t('pinnedNote.photoAlt')} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: null })}
+                  <ThumbImg src={n.thumb_url} fallback={n.photo_url} alt={t('pinnedNote.photoAlt')} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: null })}
                     style={{ maxWidth: 260, maxHeight: 160, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                 );
               })()}
@@ -2316,7 +2317,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                     return isVideo ? (
                       <video key={idx} src={url} controls style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, background: '#000' }} />
                     ) : (
-                      <img key={idx} src={n.thumb_urls?.[idx] ?? url} alt={t('notes.jobPhotoAlt')} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
+                      <ThumbImg key={idx} src={n.thumb_urls?.[idx]} fallback={url} alt={t('notes.jobPhotoAlt')} onClick={() => setLightbox({ urls: n.photo_urls, index: idx, noteId: n.id })}
                         style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }} />
                     );
                   })}
@@ -2333,7 +2334,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 return isVideo ? (
                   <video src={n.photo_url} controls style={{ width: '100%', maxHeight: 300, borderRadius: 10, marginBottom: n.note ? 10 : 0, background: '#000' }} />
                 ) : (
-                  <img src={n.thumb_url ?? n.photo_url} alt={t('notes.jobPhotoAlt')} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
+                  <ThumbImg src={n.thumb_url} fallback={n.photo_url} alt={t('notes.jobPhotoAlt')} onClick={() => setLightbox({ urls: [n.photo_url], index: 0, noteId: n.id })}
                     style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: n.note ? 10 : 0, cursor: 'zoom-in' }} />
                 );
               })()}
