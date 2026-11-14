@@ -27,6 +27,10 @@
     {
       "path": "/api/backup-storage/run",
       "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/scheduled-emails/run",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

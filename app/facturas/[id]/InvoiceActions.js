@@ -14,7 +14,27 @@ const TERMS_TEMPLATE_KEYS = ['standard'];
 const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 const fmtMoney = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function InvoiceActions({ invoiceId, status, isOverdue = false, remindersPausedAt: initialRemindersPausedAt = null, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [], internalNotes: initialInternalNotes = '', internalAttachments: initialInternalAttachments = [], clientId = null, subtotalLabor = 0, existingRetenciones = [], issuedAt = null, clientContacts = [] }) {
+// Envío programado. Puerto Rico no cambia de hora (UTC-4 todo el año), así que
+// la fecha y hora que se escogen se interpretan siempre como hora de PR, sin
+// importar la zona del navegador.
+const PR_OFFSET = '-04:00';
+const DEFAULT_SEND_TIME = '08:00';
+function todayPR() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Puerto_Rico', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+function addDays(ymd, n) {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function nextMondayPR() {
+  const today = todayPR();
+  const dow = new Date(`${today}T12:00:00Z`).getUTCDay(); // 0 = domingo
+  return addDays(today, ((8 - dow) % 7) || 7);
+}
+const prToIso = (date, time) => new Date(`${date}T${time}:00${PR_OFFSET}`).toISOString();
+
+export default function InvoiceActions({ invoiceId, status, isOverdue = false, remindersPausedAt: initialRemindersPausedAt = null, clientEmail, invoiceNumber, showPaymentOnly = false, balance = 0, clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, terms: initialTerms = '', jobId = null, attachedNoteIds: initialAttached = [], internalNotes: initialInternalNotes = '', internalAttachments: initialInternalAttachments = [], clientId = null, subtotalLabor = 0, existingRetenciones = [], issuedAt = null, clientContacts = [], scheduledEmails = [] }) {
   const router = useRouter();
   const t = useTranslations('facturas.actions');
   const locale = useLocale();
@@ -60,6 +80,10 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [sendMode, setSendMode] = useState('now');
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState(DEFAULT_SEND_TIME);
+  const [cancellingScheduleId, setCancellingScheduleId] = useState(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const toOptions = [
@@ -138,6 +162,21 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
     router.refresh();
   }
 
+  async function cancelScheduled(id) {
+    if (!confirm(t('scheduled.confirmCancel'))) return;
+    setCancellingScheduleId(id);
+    const res = await fetch(`/api/scheduled-emails?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    setCancellingScheduleId(null);
+    if (!data.success) alert(t('emailError', { error: data.error }));
+    router.refresh();
+  }
+
+  function pickSchedulePreset(date) {
+    setScheduleDate(date);
+    setScheduleTime(DEFAULT_SEND_TIME);
+  }
+
   function toggleCcContact(email) {
     setEmailCc(prev => prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]);
   }
@@ -147,6 +186,21 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
     setSending(true);
     const extraCc = emailCcExtra.split(',').map(s => s.trim()).filter(Boolean);
     const cc = [...new Set([...emailCc, ...extraCc])];
+    if (sendMode === 'schedule') {
+      if (!scheduleDate || !scheduleTime) { setSending(false); alert(t('emailModal.scheduleMissing')); return; }
+      const sendAt = prToIso(scheduleDate, scheduleTime);
+      if (new Date(sendAt).getTime() <= Date.now() + 60_000) { setSending(false); alert(t('emailModal.schedulePast')); return; }
+      const res = await fetch('/api/scheduled-emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceId, toEmail: emailTo, cc, sendAt }),
+      });
+      const data = await res.json();
+      setSending(false);
+      if (data.success) { setShowEmail(false); setSendMode('now'); router.refresh(); }
+      else alert(t('emailError', { error: data.error }));
+      return;
+    }
     const res = await fetch('/api/send-invoice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -357,6 +411,12 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {status === 'sent' && <button className="btn btn-amber" onClick={() => setShowPayment(true)}>💰 {t('payment')}</button>}
       {status === 'paid' && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ {t('paidBadge')}</span>}
       {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ {t('sentBadge')}</span>}
+      {scheduledEmails.map(s => (
+        <span key={s.id} className="badge" title={s.to_email} style={{ padding: '6px 8px 6px 14px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--info-tint)', color: 'var(--navy)' }}>
+          📅 {t('scheduled.badge', { when: formatDateTimePR(s.send_at, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }, dateLocale) })}
+          <button type="button" onClick={() => cancelScheduled(s.id)} disabled={cancellingScheduleId === s.id} aria-label={t('scheduled.cancel')} title={t('scheduled.cancel')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--muted)', padding: '0 4px' }}>✕</button>
+        </span>
+      ))}
 
       <button className="btn btn-ghost" onClick={() => setShowMore(v => !v)}>⋯ {t('more')}</button>
       {showMore && (
@@ -696,11 +756,44 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
                 <input value={emailCcExtra} onChange={e => setEmailCcExtra(e.target.value)} placeholder={t('emailModal.ccExtraPlaceholder')} />
               </div>
 
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label>{t('emailModal.when')}</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {['now', 'schedule'].map(mode => (
+                    <button key={mode} type="button" onClick={() => { setSendMode(mode); if (mode === 'schedule' && !scheduleDate) pickSchedulePreset(nextMondayPR()); }}
+                      aria-pressed={sendMode === mode}
+                      style={{ flex: 1, padding: '9px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${sendMode === mode ? 'var(--navy)' : 'var(--border)'}`, background: sendMode === mode ? 'var(--navy)' : 'var(--surface)', color: sendMode === mode ? '#fff' : 'var(--text)' }}>
+                      {mode === 'now' ? `⚡ ${t('emailModal.sendNow')}` : `📅 ${t('emailModal.schedule')}`}
+                    </button>
+                  ))}
+                </div>
+                {sendMode === 'schedule' && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                      {[
+                        { key: 'tomorrow', date: addDays(todayPR(), 1) },
+                        { key: 'nextMonday', date: nextMondayPR() },
+                      ].map(p => (
+                        <button key={p.key} type="button" onClick={() => pickSchedulePreset(p.date)}
+                          className="btn btn-ghost" style={{ fontSize: 12.5, padding: '6px 10px', borderColor: scheduleDate === p.date && scheduleTime === DEFAULT_SEND_TIME ? 'var(--navy)' : undefined }}>
+                          {t(`emailModal.preset.${p.key}`)}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input type="date" value={scheduleDate} min={todayPR()} onChange={e => setScheduleDate(e.target.value)} required style={{ flex: 3 }} />
+                      <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} step={900} required style={{ flex: 2 }} />
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--muted)', margin: '8px 0 0' }}>{t('emailModal.scheduleHint')}</p>
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sending} style={{ flex: 1, justifyContent: 'center' }}>
-                  {sending ? t('sending') : `📧 ${t('send')}`}
+                  {sending ? t('sending') : sendMode === 'schedule' ? `📅 ${t('emailModal.scheduleBtn')}` : `📧 ${t('send')}`}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEmail(false)}>{t('cancel')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => { setShowEmail(false); setSendMode('now'); }}>{t('cancel')}</button>
               </div>
             </form>
           </div>

@@ -1284,7 +1284,18 @@
         "ccExtra": "Otros correos en copia (opcional)",
         "ccExtraPlaceholder": "correo1@ejemplo.com, correo2@ejemplo.com",
         "clientLabel": "Cliente",
-        "clientLabelWithName": "{name} (cliente)"
+        "clientLabelWithName": "{name} (cliente)",
+        "when": "¿Cuándo enviar?",
+        "sendNow": "Ahora",
+        "schedule": "Programar",
+        "scheduleBtn": "Programar envío",
+        "preset": {
+          "tomorrow": "Mañana 8:00 AM",
+          "nextMonday": "Próximo lunes 8:00 AM"
+        },
+        "scheduleHint": "Hora de Puerto Rico. El correo se arma al enviarlo, con el balance al día. Si para entonces la factura está pagada o cancelada, no se envía.",
+        "scheduleMissing": "Escoge fecha y hora para programar el envío.",
+        "schedulePast": "La fecha y hora tienen que ser en el futuro."
       },
       "sending": "Enviando...",
       "paymentModal": {
@@ -1321,6 +1332,11 @@
         "deleteExemptionWarning": "Ojo: este cliente tiene {count, plural, one {# retención posterior} other {# retenciones posteriores}} este año. Esta usó {exempt} de los $500 de exención; al borrarla esa exención queda libre, pero las posteriores no se recalculan solas.",
         "deleteError": "No se pudo borrar la retención.",
         "saveError": "No se pudo guardar la retención."
+      },
+      "scheduled": {
+        "badge": "Programado: {when}",
+        "cancel": "Cancelar envío programado",
+        "confirmCancel": "¿Cancelar este envío programado?"
       }
     }
   },

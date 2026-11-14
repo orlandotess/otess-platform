@@ -19,12 +19,13 @@ export default async function FacturaDetail(props) {
   const { id } = params;
   const t = await getTranslations('facturas.detail');
 
-  const [{ data: inv }, { data: items }, { data: payments }, { data: internalAttachments }, { data: invoiceRetenciones }] = await Promise.all([
+  const [{ data: inv }, { data: items }, { data: payments }, { data: internalAttachments }, { data: invoiceRetenciones }, { data: scheduledEmails }] = await Promise.all([
     supabase.from('invoices').select('*, client_id, clients(name, email, phone, company, client_type, client_addresses(*), client_properties(*)), jobs(id, title, client_properties(*))').eq('id', id).single(),
     supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order'),
     supabase.from('payments').select('*').eq('invoice_id', id).order('paid_at'),
     supabase.from('invoice_internal_attachments').select('*').eq('invoice_id', id).order('created_at', { ascending: false }),
     supabase.from('retenciones').select('*').eq('invoice_id', id).order('fecha').order('created_at'),
+    supabase.from('scheduled_invoice_emails').select('id, to_email, send_at').eq('invoice_id', id).eq('status', 'pending').order('send_at'),
   ]);
 
 
@@ -177,6 +178,7 @@ export default async function FacturaDetail(props) {
               subtotalLabor={inv.subtotal_labor ?? 0}
               existingRetenciones={invoiceRetenciones ?? []}
               issuedAt={inv.issued_at ?? null}
+              scheduledEmails={scheduledEmails ?? []}
             />
           </div>
         </div>
