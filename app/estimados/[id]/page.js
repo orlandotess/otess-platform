@@ -106,6 +106,7 @@ export default async function EstimaDetail(props) {
   if (!est) return <div style={{ padding: 40 }}>{t('notFound')}</div>;
 
   const { data: rawItems } = await supabase.from('estimate_line_items').select('*').eq('estimate_id', id).order('sort_order');
+  const { data: scheduledEmails } = await supabase.from('scheduled_invoice_emails').select('id, to_email, send_at').eq('estimate_id', id).eq('status', 'pending').order('send_at');
   const items = await Promise.all(
     (rawItems ?? []).map(async it => {
       if (!it.photo_url) return it;
@@ -182,6 +183,7 @@ export default async function EstimaDetail(props) {
             convertedToJobId={est.converted_to_job_id ?? null}
             solicitudId={est.solicitud_id ?? null}
             archivedAt={est.archived_at ?? null}
+            scheduledEmails={scheduledEmails ?? []}
           />
         </div>
 

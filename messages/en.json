@@ -1284,18 +1284,7 @@
         "ccExtra": "Other emails in copy (optional)",
         "ccExtraPlaceholder": "email1@example.com, email2@example.com",
         "clientLabel": "Client",
-        "clientLabelWithName": "{name} (client)",
-        "when": "When to send?",
-        "sendNow": "Now",
-        "schedule": "Schedule",
-        "scheduleBtn": "Schedule send",
-        "preset": {
-          "tomorrow": "Tomorrow 8:00 AM",
-          "nextMonday": "Next Monday 8:00 AM"
-        },
-        "scheduleHint": "Puerto Rico time. The email is built when it goes out, with the current balance. If the invoice is paid or cancelled by then, it is not sent.",
-        "scheduleMissing": "Pick a date and time to schedule the send.",
-        "schedulePast": "The date and time must be in the future."
+        "clientLabelWithName": "{name} (client)"
       },
       "sending": "Sending...",
       "paymentModal": {
@@ -1332,11 +1321,6 @@
         "deleteExemptionWarning": "Note: this client has {count, plural, one {# later withholding} other {# later withholdings}} this year. This one used {exempt} of the $500 exemption; deleting it frees that exemption, but the later ones are not recalculated automatically.",
         "deleteError": "The withholding could not be deleted.",
         "saveError": "The withholding could not be saved."
-      },
-      "scheduled": {
-        "badge": "Scheduled: {when}",
-        "cancel": "Cancel scheduled send",
-        "confirmCancel": "Cancel this scheduled send?"
       }
     }
   },
@@ -5924,5 +5908,22 @@
         "cancelled": "Cancelled"
       }
     }
+  },
+  "scheduleSend": {
+    "when": "When to send?",
+    "now": "Now",
+    "schedule": "Schedule",
+    "submit": "Schedule send",
+    "preset": {
+      "tomorrow": "Tomorrow 8:00 AM",
+      "nextMonday": "Next Monday 8:00 AM"
+    },
+    "hint": "Puerto Rico time. The email is built when it goes out, with current information. If by then the document is no longer open (paid, accepted, cancelled or expired), it is not sent.",
+    "missing": "Pick a date and time to schedule the send.",
+    "past": "The date and time must be in the future.",
+    "badge": "Scheduled: {when}",
+    "cancel": "Cancel scheduled send",
+    "confirmCancel": "Cancel this scheduled send?",
+    "error": "Error: {error}"
   }
 }

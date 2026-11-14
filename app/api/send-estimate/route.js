@@ -7,9 +7,13 @@ import { getClientEmailTranslator } from '../../../lib/i18n-server';
 
 export async function POST(request) {
   try {
-    const role = await getCurrentRole();
-    if (!['admin', 'secretaria', 'vendedor'].includes(role)) {
-      return Response.json({ error: 'No autorizado' }, { status: 403 });
+    // El cron de envíos programados (/api/scheduled-emails/run) llama sin sesión.
+    const isCron = !!process.env.CRON_SECRET && request.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`;
+    if (!isCron) {
+      const role = await getCurrentRole();
+      if (!['admin', 'secretaria', 'vendedor'].includes(role)) {
+        return Response.json({ error: 'No autorizado' }, { status: 403 });
+      }
     }
 
     const { estimateId, toEmail, cc } = await request.json();

@@ -9,8 +9,9 @@ import { buildChecklistItemsFromLineItems } from '../../../lib/generateChecklist
 import { openPdfPreview } from '../../../lib/openPdfPreview';
 import { localInputToIso } from '../../../lib/datetimeLocal';
 import { useTranslations } from 'next-intl';
+import { ScheduleSendPicker, ScheduledSendBadges, useScheduleSend, scheduleSend } from '../../components/ScheduleSend';
 
-export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, title: initialTitle = '', clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null, solicitudId = null, archivedAt: initialArchivedAt = null }) {
+export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, title: initialTitle = '', clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null, solicitudId = null, archivedAt: initialArchivedAt = null, scheduledEmails = [] }) {
   const router = useRouter();
   const t = useTranslations('estimados.actions');
   const tPurchaseListCsv = useTranslations('shared.purchaseListCsv');
@@ -36,6 +37,8 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
   const [sending, setSending] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const schedule = useScheduleSend();
+  const tSchedule = useTranslations('scheduleSend');
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [converting, setConverting] = useState(false);
   const [convScheduledStart, setConvScheduledStart] = useState('');
@@ -198,6 +201,13 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
     setSending(true);
     const extraCc = emailCcExtra.split(',').map(s => s.trim()).filter(Boolean);
     const cc = [...new Set([...emailCc, ...extraCc])];
+    if (schedule.mode === 'schedule') {
+      const r = await scheduleSend(schedule, { estimateId }, emailTo, cc, tSchedule);
+      setSending(false);
+      if (r.ok) { setShowEmail(false); schedule.reset(); router.refresh(); }
+      else alert(t('errorWithMessage', { error: r.error }));
+      return;
+    }
     const res = await fetch('/api/send-estimate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -316,6 +326,7 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
       )}
       {emailSent && <span className="badge badge-green" style={{ padding: '8px 16px', fontSize: 13 }}>✅ {t('sentEmailBadge')}</span>}
       {archivedAt && <span className="badge badge-gray" style={{ padding: '8px 16px', fontSize: 13 }}>📦 {t('archivedBadge')}</span>}
+      <ScheduledSendBadges items={scheduledEmails} />
 
       <button className="btn btn-ghost" onClick={() => setShowMore(v => !v)}>⋯ {t('more')}</button>
       {showMore && (
@@ -543,11 +554,13 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
                 <input value={emailCcExtra} onChange={e => setEmailCcExtra(e.target.value)} placeholder={t('emailModal.ccExtraPlaceholder')} />
               </div>
 
+              <ScheduleSendPicker schedule={schedule} />
+
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={sending} style={{ flex: 1, justifyContent: 'center' }}>
-                  {sending ? t('sending') : `📧 ${t('send')}`}
+                  {sending ? t('sending') : schedule.mode === 'schedule' ? `📅 ${tSchedule('submit')}` : `📧 ${t('send')}`}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEmail(false)}>{t('cancel')}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => { setShowEmail(false); schedule.reset(); }}>{t('cancel')}</button>
               </div>
             </form>
           </div>
