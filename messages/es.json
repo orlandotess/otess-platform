@@ -130,7 +130,10 @@
       "notes": "Notas:",
       "footerQuestions": "¿Preguntas? Contáctanos en {email} o al {phone}",
       "footerAddress": "OT Electrical & Security Solutions · Carolina, Puerto Rico",
-      "subtotalBeforeDiscount": "Subtotal antes de descuento"
+      "subtotalBeforeDiscount": "Subtotal antes de descuento",
+      "paid": "Pagado",
+      "retained": "Retención aplicada",
+      "balanceDue": "BALANCE PENDIENTE"
     },
     "estimate": {
       "subject": "Estimado {number} — OT Electrical & Security Solutions",

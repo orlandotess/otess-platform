@@ -20,11 +20,19 @@ export async function POST(request) {
     const { invoiceId, toEmail, cc } = await request.json();
     const t = await getClientEmailTranslator('emails.invoice');
     const ccList = Array.isArray(cc) ? cc.filter(Boolean) : [];
-    const [{ data: inv }, { data: items }] = await Promise.all([
+    const [{ data: inv }, { data: items }, { data: payments }, { data: retenciones }] = await Promise.all([
       supabase.from('invoices').select('*, clients(name, email, company, client_type)').eq('id', invoiceId).single(),
       supabase.from('invoice_line_items').select('*').eq('invoice_id', invoiceId).order('sort_order'),
+      supabase.from('payments').select('amount').eq('invoice_id', invoiceId),
+      supabase.from('retenciones').select('retencion_aplicada').eq('invoice_id', invoiceId),
     ]);
     if (!inv) return Response.json({ error: 'No encontrada' }, { status: 404 });
+    // Mismo cálculo que la página pública (app/factura/[id]/page.js) y los
+    // recordatorios: lo que el cliente debe es el total menos abonos y retenciones.
+    const totalPaid = payments?.reduce((a, p) => a + Number(p.amount), 0) ?? 0;
+    const totalRetained = retenciones?.reduce((a, r) => a + Number(r.retencion_aplicada ?? 0), 0) ?? 0;
+    const balance = Number(inv.total) - totalPaid - totalRetained;
+    const hasCredits = totalPaid > 0 || totalRetained > 0;
     // Descuento antes o después del IVU según el documento — ver lib/tax.js.
     const desc = descuentoGuardado(inv);
     const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -136,7 +144,12 @@ export async function POST(request) {
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('taxLabor', { rate: inv.clients?.client_type === 'b2b' ? '4%' : '11.5%' })}</span><span>${fmt(inv.tax_labor)}</span></div>
         ${desc.modo === 'after_tax' ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #eee"><span style="color:#888">${t('discount')}${inv.discount_type === 'percent' ? ` (${Number(inv.discount_value)}%)` : ''}</span><span>-${fmt(desc.monto)}</span></div>` : ''}
         ${desc.modo === 'after_tax' && inv.discount_note ? `<p style="font-size:12px;color:#888;font-style:italic;text-align:right;margin:0 0 4px">${inv.discount_note}</p>` : ''}
-        <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>${t('total')}</span><span>${fmt(inv.total)}</span></div>
+        ${hasCredits ? `
+        <div style="display:flex;justify-content:space-between;padding:10px 0 6px;font-size:15px;font-weight:700;color:#16223d;border-bottom:1px solid #eee"><span>${t('total')}</span><span>${fmt(inv.total)}</span></div>
+        ${totalPaid > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#1a7a4a;border-bottom:1px solid #eee"><span>${t('paid')}</span><span>-${fmt(totalPaid)}</span></div>` : ''}
+        ${totalRetained > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#92600a;border-bottom:1px solid #eee"><span>${t('retained')}</span><span>-${fmt(totalRetained)}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>${t('balanceDue')}</span><span>${fmt(Math.max(balance, 0))}</span></div>
+        ` : `<div style="display:flex;justify-content:space-between;padding:12px 0;font-size:20px;font-weight:900;color:#16223d"><span>${t('total')}</span><span>${fmt(inv.total)}</span></div>`}
       </div>
     </div>
 
