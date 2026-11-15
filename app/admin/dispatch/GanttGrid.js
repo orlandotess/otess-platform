@@ -24,8 +24,8 @@ export default function GanttGrid({ technicians, jobsByTech, sinTecnicoJobs = []
           <p>{t('noTechnicians')}</p>
         </div>
       ) : (
-        technicians.map((tech, i) => (
-          <GanttRow key={tech.id} tecnico={tech} colorIndex={i} jobs={jobsByTech[tech.id] ?? []} absence={absencesByTech[tech.id]} openEntry={openEntryByTech[tech.id]} />
+        technicians.map(tech => (
+          <GanttRow key={tech.id} tecnico={tech} jobs={jobsByTech[tech.id] ?? []} absence={absencesByTech[tech.id]} openEntry={openEntryByTech[tech.id]} />
         ))
       )}
     </div>

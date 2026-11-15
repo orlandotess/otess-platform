@@ -117,7 +117,7 @@ export default async function CalendarioPage(props) {
 
   const { data: technicians } = await supabase
     .from('technicians')
-    .select('id, name, ics_token')
+    .select('id, name, ics_token, color')
     .order('name');
 
   const { data: absences } = await supabase

@@ -2,7 +2,8 @@
 import { useDroppable } from '@dnd-kit/core';
 import { useTranslations } from 'next-intl';
 import JobCard from './JobCard';
-import { HORA_INICIO, HORA_FIN, SLOT_MINUTOS, SLOT_WIDTH, techColor, jobPosition } from './dispatchUtils';
+import { HORA_INICIO, HORA_FIN, SLOT_MINUTOS, SLOT_WIDTH, jobPosition } from './dispatchUtils';
+import { techColorOf } from '../../../lib/techColors';
 
 function GanttSlot({ technicianId, hour, minute, disabled }) {
   const id = `slot_${technicianId}_${hour}_${minute}`;
@@ -16,13 +17,14 @@ function GanttSlot({ technicianId, hour, minute, disabled }) {
   );
 }
 
-export default function GanttRow({ tecnico, colorIndex, jobs, absence, openEntry }) {
+export default function GanttRow({ tecnico, jobs, absence, openEntry }) {
   const t = useTranslations('admin.dispatchGanttRow');
   const slots = [];
   for (let h = HORA_INICIO; h < HORA_FIN; h++) {
     for (let m = 0; m < 60; m += SLOT_MINUTOS) slots.push({ hour: h, minute: m });
   }
-  const color = techColor(colorIndex);
+  // Mismo color que en el Calendario (lib/techColors.js).
+  const color = techColorOf(tecnico);
 
   return (
     <div className={`dispatch-row${absence ? ' dispatch-row-absent' : ''}`}>

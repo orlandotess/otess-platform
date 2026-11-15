@@ -3,12 +3,9 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { formatTimePR, formatDatePR } from "../lib/datetimeLocal";
 import { prDayKey } from "../lib/hours";
+import { techColorMap } from "../lib/techColors";
 import { useTranslations, useLocale } from "next-intl";
 
-const TECH_COLORS = [
-  "#16223d", "#e0972c", "#27ae60", "#2a4cb5", "#e05c2a",
-  "#8e44ad", "#16a085", "#c0392b", "#d35400", "#1abc9c",
-];
 
 export default function DashboardCalendarClient({ techs, allJobs, year, month, monthName }) {
   const t = useTranslations("home.calendarClient");
@@ -16,18 +13,8 @@ export default function DashboardCalendarClient({ techs, allJobs, year, month, m
   const dateLocale = locale === "en" ? "en-US" : "es-PR";
   const [selectedTech, setSelectedTech] = useState("all");
 
-  const techColors = useMemo(() => {
-    const map = {};
-    // Hashed by ID rather than array index so a technician keeps the same color
-    // even after others are added/removed/reordered in the technicians table.
-    techs.forEach((tech) => {
-      let hash = 0;
-      const id = String(tech.id);
-      for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-      map[tech.id] = TECH_COLORS[hash % TECH_COLORS.length];
-    });
-    return map;
-  }, [techs]);
+  // Mismo color que en el Calendario y Dispatch (lib/techColors.js).
+  const techColors = useMemo(() => techColorMap(techs), [techs]);
 
   const filteredJobs = useMemo(() =>
     selectedTech === "all" ? allJobs : allJobs.filter(j => j.technician_id === selectedTech),

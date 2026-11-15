@@ -12,13 +12,11 @@ import QuickRescheduleModal from './QuickRescheduleModal';
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 import ThumbImg from '../components/ThumbImg';
+import TechColorsModal from './TechColorsModal';
+import { techColorMap } from '../../lib/techColors';
 const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 const ATTACHMENT_THUMB = { transform: { width: 400, height: 400, resize: 'contain' } };
 
-const TECH_COLORS = [
-  '#16223d', '#e0972c', '#27ae60', '#2a4cb5', '#e05c2a',
-  '#8e44ad', '#16a085', '#c0392b', '#d35400', '#1abc9c', '#c1501f',
-];
 
 const STATUS_COLORS = {
   estimate: 'var(--ink-soft)', scheduled: 'var(--info)', in_progress: 'var(--amber)',
@@ -359,18 +357,20 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
     router.refresh();
   }
 
-  const techColors = useMemo(() => {
-    const map = {};
-    // Hashed by ID rather than array index so a technician keeps the same color
-    // even after others are added/removed/reordered in the technicians table.
-    technicians.forEach((tech) => {
-      let hash = 0;
-      const id = String(tech.id);
-      for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-      map[tech.id] = TECH_COLORS[hash % TECH_COLORS.length];
-    });
-    return map;
-  }, [technicians]);
+  // El color que escogió la oficina, o el que tenía antes si no ha escogido
+  // (lib/techColors.js — la misma regla que Dispatch). `colorOverrides` aplica
+  // al momento lo que se acaba de escoger, sin esperar a recargar.
+  const [colorOverrides, setColorOverrides] = useState({});
+  const [showTechColors, setShowTechColors] = useState(false);
+  const canEditTechColors = ['admin', 'secretaria', 'vendedor'].includes(currentRole);
+  // El color escogido de cada uno (null = automático), con lo recién cambiado encima.
+  const chosenTechColors = useMemo(() => Object.fromEntries(
+    technicians.map(tech => [tech.id, tech.id in colorOverrides ? colorOverrides[tech.id] : (tech.color ?? null)])
+  ), [technicians, colorOverrides]);
+  const techColors = useMemo(
+    () => techColorMap(technicians.map(tech => ({ ...tech, color: chosenTechColors[tech.id] }))),
+    [technicians, chosenTechColors],
+  );
 
   const jobMatchesTech = (job, techId) =>
     job.technician_id === techId || (job.job_technicians ?? []).some(jt => jt.technician_id === techId);
@@ -942,7 +942,21 @@ export default function CalendarioClient({ jobs, technicians, visits, calendarEv
                 {tech.name}
               </button>
             ))}
+            {canEditTechColors && technicians.length > 0 && (
+              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => setShowTechColors(true)} title={t('techColors.buttonTitle')}>
+                🎨 {t('techColors.button')}
+              </button>
+            )}
           </div>
+          {showTechColors && (
+            <TechColorsModal
+              technicians={technicians}
+              colors={techColors}
+              chosen={chosenTechColors}
+              onChange={(id, color) => setColorOverrides(prev => ({ ...prev, [id]: color }))}
+              onClose={() => setShowTechColors(false)}
+            />
+          )}
 
           <div className="toolbar-divider" />
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

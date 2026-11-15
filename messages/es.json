@@ -2537,7 +2537,24 @@
         "techniciansOptionalMulti": "Técnicos (opcional, puedes escoger más de uno)",
         "noTechniciansRegistered": "No hay técnicos registrados.",
         "noTechniciansRegisteredShort": "No hay técnicos registrados"
+      },
+      "techColors": {
+        "button": "Colores",
+        "buttonTitle": "Escoger el color de cada empleado"
       }
+    },
+    "techColors": {
+      "title": "Colores del equipo",
+      "subtitle": "El color de cada empleado en el Calendario, el calendario del Dashboard y Dispatch. Se guarda para toda la oficina.",
+      "automatic": "Automático",
+      "saving": "Guardando…",
+      "reset": "Automático",
+      "swatch": "Color {color}",
+      "swatchUsed": "Color {color}, ya lo usa {names}",
+      "usedBy": "Ya lo usa {names}",
+      "usedLegend": "Colores que ya tiene otro empleado. Se pueden repetir, pero cuesta distinguirlos.",
+      "done": "Listo",
+      "saveError": "No se pudo guardar el color: {error}"
     }
   },
   "accounting": {

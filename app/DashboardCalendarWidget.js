@@ -2,12 +2,9 @@ import { supabaseServer as supabase } from '../lib/supabase';
 import { getCurrentRole } from '../lib/supabase-server';
 import Link from 'next/link';
 import DashboardWeekItems from './DashboardWeekItems';
+import { techColorMap } from '../lib/techColors';
 import { getTranslations, getLocale } from 'next-intl/server';
 
-const TECH_COLORS = [
-  '#16223d', '#e0972c', '#27ae60', '#2a4cb5', '#e05c2a',
-  '#8e44ad', '#16a085', '#c0392b', '#d35400', '#1abc9c',
-];
 
 export default async function DashboardCalendarWidget() {
   const t = await getTranslations('home.calendarWidget');
@@ -47,7 +44,7 @@ export default async function DashboardCalendarWidget() {
     { data: absences },
     currentRole,
   ] = await Promise.all([
-    supabase.from('technicians').select('id, name').order('name'),
+    supabase.from('technicians').select('id, name, color').order('name'),
     supabase.from('jobs')
       .select('id, title, status, scheduled_start, scheduled_end, technician_id, technicians(name), clients(name)')
       .not('scheduled_start', 'is', null)
@@ -98,15 +95,8 @@ export default async function DashboardCalendarWidget() {
   const allTasks = tasks ?? [];
   const allAbsences = absences ?? [];
 
-  const techColors = {};
-  // Hashed by ID rather than array index so a technician keeps the same color
-  // even after others are added/removed/reordered in the technicians table.
-  techs.forEach((tech) => {
-    let hash = 0;
-    const id = String(tech.id);
-    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-    techColors[tech.id] = TECH_COLORS[hash % TECH_COLORS.length];
-  });
+  // Mismo color que en el Calendario y Dispatch (lib/techColors.js).
+  const techColors = techColorMap(techs);
 
   const today = now.toISOString().slice(0, 10);
   const inWeek = dateStr => dateStr && dateStr <= weekEnd && dateStr >= weekStart;

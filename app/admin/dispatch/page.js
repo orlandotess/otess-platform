@@ -28,7 +28,7 @@ export default async function DispatchPage(props) {
 
   const { data: technicians } = await supabase
     .from('technicians')
-    .select('id, name')
+    .select('id, name, color')
     .order('name');
 
   // Jobs programados para este día (visita principal). Sin filtrar por technician_id:

@@ -6,12 +6,6 @@ export const HORA_FIN = 24;
 export const SLOT_MINUTOS = 30;
 export const SLOT_WIDTH = 64;
 
-const TECH_COLORS = ['#2a4cb5', '#e0972c', '#2f7d5c', '#7c3aed', '#c1501f', '#0891b2', '#be185d', '#4b5563'];
-
-export function techColor(index) {
-  return TECH_COLORS[index % TECH_COLORS.length];
-}
-
 const PR_TIME_FMT = new Intl.DateTimeFormat('en-US', {
   timeZone: APP_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false,
 });

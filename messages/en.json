@@ -2537,7 +2537,24 @@
         "techniciansOptionalMulti": "Technicians (optional, you can choose more than one)",
         "noTechniciansRegistered": "No technicians registered.",
         "noTechniciansRegisteredShort": "No technicians registered"
+      },
+      "techColors": {
+        "button": "Colors",
+        "buttonTitle": "Choose each team member's color"
       }
+    },
+    "techColors": {
+      "title": "Team colors",
+      "subtitle": "Each team member's color in the Calendar, the Dashboard calendar and Dispatch. Saved for the whole office.",
+      "automatic": "Automatic",
+      "saving": "Saving…",
+      "reset": "Automatic",
+      "swatch": "Color {color}",
+      "swatchUsed": "Color {color}, already used by {names}",
+      "usedBy": "Already used by {names}",
+      "usedLegend": "Colors another team member already has. They can repeat, but they are harder to tell apart.",
+      "done": "Done",
+      "saveError": "Could not save the color: {error}"
     }
   },
   "accounting": {
