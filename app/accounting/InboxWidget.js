@@ -70,6 +70,7 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [clearingRead, setClearingRead] = useState(false);
 
   const unread = items.filter(n => !n.read).length;
   const pendingCount = automaticItems.length + gestiones.length;
@@ -89,6 +90,30 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
   async function deleteNotification(id) {
     setItems(prev => prev.filter(n => n.id !== id));
     await supabase.from('inbox_notifications').delete().eq('id', id);
+  }
+
+  // Borra TODAS las notificaciones ya leídas de la base, no solo las que se ven:
+  // el widget enseña las 20 más nuevas, y si solo se borraran esas aparecerían
+  // otras 20 leídas detrás. Las no leídas se quedan. Las notificaciones son de
+  // toda la oficina, por eso la confirmación lo dice y da el número exacto.
+  // El historial de aperturas (estimate_views/invoice_views) no se toca.
+  async function clearRead() {
+    setClearingRead(true);
+    try {
+      const { count, error: countErr } = await supabase.from('inbox_notifications').select('id', { count: 'exact', head: true }).eq('read', true);
+      if (countErr) throw countErr;
+      if (!count) return;
+      if (!confirm(t('confirmClearRead', { count }))) return;
+      const { error } = await supabase.from('inbox_notifications').delete().eq('read', true);
+      if (error) throw error;
+      // Volver a pedir las 20 más nuevas: pueden subir no leídas que estaban más atrás.
+      const { data } = await supabase.from('inbox_notifications').select('*').order('created_at', { ascending: false }).limit(20);
+      setItems(data ?? []);
+    } catch (err) {
+      alert(t('clearReadError', { error: err.message }));
+    } finally {
+      setClearingRead(false);
+    }
   }
 
   async function completeGestion(id) {
@@ -279,9 +304,16 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.03em', color: 'var(--muted)', textTransform: 'uppercase' }}>{t('recentActivity')}</div>
-                {unread > 0 && (
-                  <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '4px 10px' }} onClick={markAllRead}>{t('markAllRead')}</button>
-                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {unread > 0 && (
+                    <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '4px 10px' }} onClick={markAllRead}>{t('markAllRead')}</button>
+                  )}
+                  {items.some(n => n.read) && (
+                    <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: '4px 10px' }} onClick={clearRead} disabled={clearingRead}>
+                      {clearingRead ? t('deleting') : `🗑 ${t('clearRead')}`}
+                    </button>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'grid' }}>
                 {items.map(n => (
