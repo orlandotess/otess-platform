@@ -360,7 +360,8 @@
         "in_progress": "In progress",
         "completed": "Completed",
         "cancelled": "Cancelled"
-      }
+      },
+      "sortTitle": "Sort by this column (tap again to reverse or clear)"
     },
     "actions": {
       "status": {

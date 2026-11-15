@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SearchBox from '../SearchBox';
@@ -21,11 +21,51 @@ function location(j) {
   return [j.property_name, j.city].filter(Boolean).join(' — ');
 }
 
+// Orden al tocar los encabezados (mismo estilo que la lista de Dispatch). Sin
+// columna escogida se queda el orden de siempre: los más nuevos primero.
+// El estado sigue el flujo del trabajo, no el abecedario.
+const STATUS_ORDER = { estimate: 0, scheduled: 1, in_progress: 2, completed: 3, cancelled: 4 };
+const SORT_STORAGE_KEY = 'trabajos.sort';
+
+function sortValue(j, key) {
+  switch (key) {
+    // JOB-1078 → 1078, para que JOB-999 quede antes que JOB-1000.
+    case 'number': return j.job_number ? parseInt(String(j.job_number).replace(/\D/g, ''), 10) || 0 : null;
+    case 'job': return (j.title ?? '').toLowerCase() || null;
+    case 'client': return (j.clients?.name ?? '').toLowerCase() || null;
+    case 'location': return location(j).toLowerCase() || null;
+    case 'status': return STATUS_ORDER[j.status] ?? 99;
+    case 'scheduledDate': return j.scheduled_start ?? null;
+    default: return null;
+  }
+}
+
+const COLUMN_KEYS = ['number', 'job', 'client', 'location', 'status', 'scheduledDate'];
+
 export default function TrabajosTableClient({ jobs }) {
   const t = useTranslations('trabajos.listTable');
   const locale = useLocale();
   const router = useRouter();
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ key: null, dir: 'asc' });
+
+  // Recordar el orden escogido en este navegador (solo comodidad: si falla, se
+  // usa el orden de siempre).
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) ?? 'null');
+      if (saved && COLUMN_KEYS.includes(saved.key) && ['asc', 'desc'].includes(saved.dir)) setSort(saved);
+    } catch {}
+  }, []);
+
+  function toggleSort(key) {
+    setSort(prev => {
+      // asc → desc → orden de siempre
+      const next = prev.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : { key: null, dir: 'asc' };
+      try { localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }
 
   // Toda la fila abre el trabajo. Los enlaces de adentro (número, título, mapa)
   // siguen funcionando solos; Cmd/Ctrl+clic en la fila lo abre en otra pestaña.
@@ -52,6 +92,21 @@ export default function TrabajosTableClient({ jobs }) {
         (j.city ?? '').toLowerCase().includes(query))
     : jobs;
 
+  const sorted = useMemo(() => {
+    if (!sort.key) return visible;
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...visible].sort((a, b) => {
+      const av = sortValue(a, sort.key);
+      const bv = sortValue(b, sort.key);
+      // Los vacíos (sin fecha, sin cliente…) siempre al final, en cualquier dirección.
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      if (typeof av === 'string') return av.localeCompare(bv, 'es') * dir;
+      return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
+    });
+  }, [visible, sort]);
+
   return (
     <div className="card">
       <div style={{ marginBottom: 16 }}>
@@ -64,16 +119,17 @@ export default function TrabajosTableClient({ jobs }) {
           <table>
             <thead>
               <tr>
-                <th>{t('columns.number')}</th>
-                <th>{t('columns.job')}</th>
-                <th>{t('columns.client')}</th>
-                <th>{t('columns.location')}</th>
-                <th>{t('columns.status')}</th>
-                <th>{t('columns.scheduledDate')}</th>
+                {COLUMN_KEYS.map(key => (
+                  <th key={key} onClick={() => toggleSort(key)} title={t('sortTitle')}
+                    aria-sort={sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
+                    style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    {t(`columns.${key}`)}{sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {visible.map(j => {
+              {sorted.map(j => {
                 const b = statusBadge[j.status] ?? statusBadge.estimate;
                 return (
                   <tr key={j.id} className="row-link" onClick={e => openJob(e, j.id)}>
