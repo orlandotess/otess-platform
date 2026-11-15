@@ -55,11 +55,11 @@ export default function NuevoCliente() {
               <label>{t('kindLabel')}</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" onClick={() => setKind('individual')}
-                  style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: kind === 'individual' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: kind === 'individual' ? 'var(--navy)' : 'transparent', color: kind === 'individual' ? '#fff' : 'var(--text)' }}>
+                  style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: kind === 'individual' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: kind === 'individual' ? 'var(--navy-fill)' : 'transparent', color: kind === 'individual' ? '#fff' : 'var(--text)' }}>
                   {t('kindIndividual')}
                 </button>
                 <button type="button" onClick={() => setKind('empresa')}
-                  style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: kind === 'empresa' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: kind === 'empresa' ? 'var(--navy)' : 'transparent', color: kind === 'empresa' ? '#fff' : 'var(--text)' }}>
+                  style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: kind === 'empresa' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: kind === 'empresa' ? 'var(--navy-fill)' : 'transparent', color: kind === 'empresa' ? '#fff' : 'var(--text)' }}>
                   {t('kindCompany')}
                 </button>
               </div>

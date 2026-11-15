@@ -422,8 +422,8 @@ export default function InventarioClient({ locations: initialLocations, location
       {/* Toolbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 4, background: "var(--surface-2)", borderRadius: 10, padding: 4 }}>
-          <button onClick={() => setView("tree")} className="btn" style={{ background: view === "tree" ? "var(--surface)" : "none", boxShadow: view === "tree" ? "0 1px 4px rgba(0,0,0,0.1)" : "none", border: "none", fontWeight: 700, fontSize: 13 }}>{t("toolbar.treeView")}</button>
-          <button onClick={() => setView("table")} className="btn" style={{ background: view === "table" ? "var(--surface)" : "none", boxShadow: view === "table" ? "0 1px 4px rgba(0,0,0,0.1)" : "none", border: "none", fontWeight: 700, fontSize: 13 }}>{t("toolbar.tableView")}</button>
+          <button onClick={() => setView("tree")} className="btn" style={{ color: "var(--text)", background: view === "tree" ? "var(--surface)" : "none", boxShadow: view === "tree" ? "0 1px 4px rgba(0,0,0,0.1)" : "none", border: "none", fontWeight: 700, fontSize: 13 }}>{t("toolbar.treeView")}</button>
+          <button onClick={() => setView("table")} className="btn" style={{ color: "var(--text)", background: view === "table" ? "var(--surface)" : "none", boxShadow: view === "table" ? "0 1px 4px rgba(0,0,0,0.1)" : "none", border: "none", fontWeight: 700, fontSize: 13 }}>{t("toolbar.tableView")}</button>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <label style={{ fontSize: 13, color: "var(--muted)", display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>

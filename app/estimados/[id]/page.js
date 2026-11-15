@@ -241,7 +241,7 @@ export default async function EstimaDetail(props) {
             )}
           <table style={{ marginBottom: multiArea ? 8 : 0 }}>
             <thead>
-              <tr style={{ background: 'var(--navy)' }}>
+              <tr style={{ background: 'var(--navy-fill)' }}>
                 <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'left', fontSize: 11 }}>{t('table.description')}</th>
                 <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'center', fontSize: 11 }}>{t('table.type')}</th>
                 <th style={{ color: '#fff', padding: '10px 14px', textAlign: 'right', fontSize: 11 }}>{t('table.qty')}</th>

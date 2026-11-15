@@ -39,7 +39,7 @@ export default function MaterialSummary({ items = [], docNumber, style }) {
       <div style={{ overflowX: 'auto' }}>
         <table>
           <thead>
-            <tr style={{ background: 'var(--navy)' }}>
+            <tr style={{ background: 'var(--navy-fill)' }}>
               <th style={th({ textAlign: 'left' })}>{t('columnMaterial')}</th>
               {multiArea && areas.map(a => <th key={a} style={th({ textAlign: 'right' })}>{a}</th>)}
               <th style={th({ textAlign: 'right' })}>{t('columnQuantity')}</th>

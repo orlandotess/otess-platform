@@ -380,7 +380,7 @@ export default function TimesheetClient({ techStats, weekDays, techFilter }) {
               return (
                 <div key={dayIso} onClick={() => { setSelectedDay(isSelected ? null : dayIso); setSelectedTech(isSelected ? null : tech.id); }}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 4px', borderRadius: 10, cursor: 'pointer',
-                    background: isSelected ? 'var(--navy)' : isToday ? 'var(--info-tint)' : 'var(--surface-2)',
+                    background: isSelected ? 'var(--navy-fill)' : isToday ? 'var(--info-tint)' : 'var(--surface-2)',
                     border: isToday ? '2px solid var(--navy)' : '2px solid transparent' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? '#fff' : isToday ? 'var(--navy)' : 'var(--muted)' }}>{DAYS[i]}</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: isSelected ? '#fff' : isOvertime ? 'var(--warn)' : hasHours ? 'var(--navy)' : 'var(--ink-faint)' }}>

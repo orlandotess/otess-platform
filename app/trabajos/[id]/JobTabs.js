@@ -1707,7 +1707,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                                       const checked = !already && editDayForm.technician_ids.includes(tech.id);
                                       return (
                                         <label key={tech.id} className={already ? undefined : 'hover-lift'} title={already ? t('scheduleDays.alreadyOnDay') : undefined}
-                                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: already ? 'not-allowed' : 'pointer', userSelect: 'none', opacity: already ? 0.55 : 1 }}>
+                                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy-fill)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: already ? 'not-allowed' : 'pointer', userSelect: 'none', opacity: already ? 0.55 : 1 }}>
                                           <input type="checkbox" checked={checked} disabled={already} onChange={() => toggleEditDayTechnician(tech.id)} style={{ margin: 0 }} />
                                           {tech.name}
                                           {already && <span style={{ fontSize: 11, color: 'var(--muted)' }}>· {t('scheduleDays.alreadyOnDay')}</span>}
@@ -1809,7 +1809,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                       {technicians.map(tech => {
                         const checked = newDay.technician_ids.includes(tech.id);
                         return (
-                          <label key={tech.id} className="hover-lift" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                          <label key={tech.id} className="hover-lift" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy-fill)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
                             <input type="checkbox" checked={checked} onChange={() => toggleNewDayTechnician(tech.id)} style={{ margin: 0 }} />
                             {tech.name}
                           </label>
@@ -2054,7 +2054,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                               fmt={fmt}
                               actions={
                                 <>
-                                  <button onClick={() => addAccessoryLine(it)} disabled={savingLine} style={{ background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+                                  <button onClick={() => addAccessoryLine(it)} disabled={savingLine} style={{ background: 'var(--navy-fill)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
                                     {savingLine ? '...' : '✓'}
                                   </button>
                                   <button onClick={() => setAddingAccessoryFor(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 15 }}>✕</button>
@@ -2112,7 +2112,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                         fmt={fmt}
                         actions={
                           <>
-                            <button onClick={addLineItem} disabled={savingLine} style={{ background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                            <button onClick={addLineItem} disabled={savingLine} style={{ background: 'var(--navy-fill)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
                               {savingLine ? '...' : '✓'}
                             </button>
                             <button onClick={() => setAddingLineFor(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>✕</button>
@@ -2345,7 +2345,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: n.photo_url || n.note ? 10 : 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }}>
                   {n.is_pinned && <span title={t('notes.pinnedTitle')}>📌</span>}
-                  {n.phase_number != null && <span style={{ background: 'var(--navy)', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>{t('notes.phaseLabel', { number: n.phase_number })}</span>}
+                  {n.phase_number != null && <span style={{ background: 'var(--navy-fill)', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>{t('notes.phaseLabel', { number: n.phase_number })}</span>}
                   {n.author_name && <>{n.author_name} · </>}
                   {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
@@ -2649,7 +2649,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                           <img src={item.photo_signed_url}
                             style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }} />
                           {item.photo_signed_urls?.length > 1 && (
-                            <span style={{ position: 'absolute', bottom: -4, right: -4, background: 'var(--navy)', color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: 8, padding: '1px 4px', minWidth: 14, textAlign: 'center' }}>
+                            <span style={{ position: 'absolute', bottom: -4, right: -4, background: 'var(--navy-fill)', color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: 8, padding: '1px 4px', minWidth: 14, textAlign: 'center' }}>
                               {item.photo_signed_urls.length}
                             </span>
                           )}
@@ -2731,7 +2731,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                             <img src={sub.photo_signed_url}
                               style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }} />
                             {sub.photo_signed_urls?.length > 1 && (
-                              <span style={{ position: 'absolute', bottom: -4, right: -4, background: 'var(--navy)', color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: 8, padding: '1px 4px', minWidth: 14, textAlign: 'center' }}>
+                              <span style={{ position: 'absolute', bottom: -4, right: -4, background: 'var(--navy-fill)', color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: 8, padding: '1px 4px', minWidth: 14, textAlign: 'center' }}>
                                 {sub.photo_signed_urls.length}
                               </span>
                             )}
@@ -3013,12 +3013,12 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                   {groupEntries.length > 1 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                       <button type="button" onClick={() => setReportPhaseFilter('all')}
-                        style={{ fontSize: 11, fontWeight: 700, padding: '4px 11px', borderRadius: 20, border: 'none', cursor: 'pointer', background: reportPhaseFilter === 'all' ? 'var(--navy)' : 'var(--surface-2)', color: reportPhaseFilter === 'all' ? '#fff' : 'var(--muted)' }}>
+                        style={{ fontSize: 11, fontWeight: 700, padding: '4px 11px', borderRadius: 20, border: 'none', cursor: 'pointer', background: reportPhaseFilter === 'all' ? 'var(--navy-fill)' : 'var(--surface-2)', color: reportPhaseFilter === 'all' ? '#fff' : 'var(--muted)' }}>
                         {t('reportModal.allPhases')}
                       </button>
                       {groupEntries.map(([label]) => (
                         <button key={label} type="button" onClick={() => setReportPhaseFilter(label)}
-                          style={{ fontSize: 11, fontWeight: 700, padding: '4px 11px', borderRadius: 20, border: 'none', cursor: 'pointer', background: reportPhaseFilter === label ? 'var(--navy)' : 'var(--surface-2)', color: reportPhaseFilter === label ? '#fff' : 'var(--muted)' }}>
+                          style={{ fontSize: 11, fontWeight: 700, padding: '4px 11px', borderRadius: 20, border: 'none', cursor: 'pointer', background: reportPhaseFilter === label ? 'var(--navy-fill)' : 'var(--surface-2)', color: reportPhaseFilter === label ? '#fff' : 'var(--muted)' }}>
                           {label}
                         </button>
                       ))}

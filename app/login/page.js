@@ -49,7 +49,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight:'100vh', background:'var(--navy)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+    <div style={{ minHeight:'100vh', background:'var(--navy-fill)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
       <div style={{ background:'var(--surface)', borderRadius:20, padding:40, width:'100%', maxWidth:400 }}>
         <div style={{ textAlign:'center', marginBottom:32 }}>
           <img src="/otess-logo.png" alt="OTESS" className="brand-logo-light" style={{ width:'100%', maxWidth:220, height:'auto', margin:'0 auto', display:'block' }} />
@@ -70,7 +70,7 @@ export default function LoginPage() {
           <div style={{ textAlign:'right', marginBottom:24 }}>
             <a href="/forgot-password" style={{ fontSize:13, color:'var(--ink-faint)' }}>{t('forgotPassword')}</a>
           </div>
-          <button type="submit" disabled={loading} style={{ width:'100%', padding:13, background:'var(--navy)', color:'#fff', border:'none', borderRadius:10, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+          <button type="submit" disabled={loading} style={{ width:'100%', padding:13, background:'var(--navy-fill)', color:'#fff', border:'none', borderRadius:10, fontSize:15, fontWeight:700, cursor:'pointer' }}>
             {loading ? t('entering') : t('enter')}
           </button>
         </form>

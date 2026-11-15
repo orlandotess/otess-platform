@@ -77,7 +77,7 @@ export default function VerifyCodePage() {
   }
 
   return (
-    <div style={{ minHeight:'100vh', background:'var(--navy)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+    <div style={{ minHeight:'100vh', background:'var(--navy-fill)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
       <div style={{ background:'var(--surface)', borderRadius:20, padding:40, width:'100%', maxWidth:400 }}>
         <div style={{ textAlign:'center', marginBottom:32 }}>
           <img src="/otess-logo.png" alt="OTESS" className="brand-logo-light" style={{ width:'100%', maxWidth:220, height:'auto', margin:'0 auto', display:'block' }} />
@@ -101,7 +101,7 @@ export default function VerifyCodePage() {
               style={{ padding:'10px 14px', border:'1.5px solid var(--border)', borderRadius:8, fontSize:22, letterSpacing:8, textAlign:'center', width:'100%', outline:'none' }}
             />
           </div>
-          <button type="submit" disabled={loading || code.length !== 6} style={{ width:'100%', padding:13, background:'var(--navy)', color:'#fff', border:'none', borderRadius:10, fontSize:15, fontWeight:700, cursor:'pointer', marginBottom:16 }}>
+          <button type="submit" disabled={loading || code.length !== 6} style={{ width:'100%', padding:13, background:'var(--navy-fill)', color:'#fff', border:'none', borderRadius:10, fontSize:15, fontWeight:700, cursor:'pointer', marginBottom:16 }}>
             {loading ? t('verifying') : t('verifyButton')}
           </button>
           <div style={{ textAlign:'center' }}>

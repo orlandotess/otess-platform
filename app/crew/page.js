@@ -1682,7 +1682,7 @@ export default function FieldApp() {
   ].sort((a, b) => new Date(a.scheduled_start ?? 0) - new Date(b.scheduled_start ?? 0));
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: BG, fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto', paddingTop: 'env(safe-area-inset-top,0px)' }}>
+    <div className="crew-light" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: BG, fontFamily: '-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif', display: 'flex', flexDirection: 'column', maxWidth: 430, margin: '0 auto', paddingTop: 'env(safe-area-inset-top,0px)' }}>
       <div
         ref={scrollRef}
         onTouchStart={handlePullStart}
@@ -2265,7 +2265,8 @@ export default function FieldApp() {
                             ) : (
                               <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>🧵</div>
                             )}
-                            <div style={{ fontSize: 14, fontWeight: 600 }}>{r.catalog_items?.name || r.catalog_items?.description}{r.code ? ` · ${r.code}` : ''}</div>
+                            {/* Color fijo: la tarjeta es blanca siempre, y sin esto en modo oscuro el nombre heredaba letra casi blanca. */}
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#16223d' }}>{r.catalog_items?.name || r.catalog_items?.description}{r.code ? ` · ${r.code}` : ''}</div>
                           </div>
                           <div style={{ fontWeight: 700, fontSize: 13, color: pct <= 15 ? '#b52a2a' : '#16223d', flexShrink: 0 }}>{t('inventario.feetOfTotal', { remaining: r.remaining_footage, total: r.total_footage })}</div>
                         </div>
@@ -2274,7 +2275,8 @@ export default function FieldApp() {
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <input type="number" value={invReelFootageInputs[r.id] ?? ''} onChange={e => setInvReelFootageInputs(prev => ({ ...prev, [r.id]: e.target.value }))} placeholder={t('inventario.feetUsedPlaceholder')}
-                            style={{ flex: 1, padding: '8px 10px', border: '1.5px solid #eee', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+                            className="crew-light-input"
+                            style={{ flex: 1, padding: '8px 10px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#16223d' }} />
                           <button onClick={() => invUseReelFootage(r)} disabled={invSavingReel || !invReelFootageInputs[r.id]} style={{ background: ORANGE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('inventario.use')}</button>
                         </div>
                       </div>

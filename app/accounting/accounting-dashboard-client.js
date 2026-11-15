@@ -64,7 +64,7 @@ export default function AccountingDashboardClient({ quarterData, year }) {
               style={{
                 flex: 1, padding: '14px 10px', borderRadius: 12, border: '2px solid',
                 borderColor: selected.includes(q.key) ? 'var(--navy)' : 'var(--border)',
-                background: selected.includes(q.key) ? 'var(--navy)' : 'var(--surface)',
+                background: selected.includes(q.key) ? 'var(--navy-fill)' : 'var(--surface)',
                 color: selected.includes(q.key) ? '#fff' : 'var(--muted)',
                 cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
               }}>

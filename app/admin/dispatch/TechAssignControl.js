@@ -72,7 +72,7 @@ export default function TechAssignControl({ job, technicians }) {
               style={{
                 display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6,
                 fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                background: checked ? 'var(--navy)' : 'var(--surface-2)',
+                background: checked ? 'var(--navy-fill)' : 'var(--surface-2)',
                 color: checked ? '#fff' : 'var(--text)',
               }}
             >

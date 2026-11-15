@@ -877,7 +877,7 @@ export default function PropuestaForm({ initialData = null }) {
             const optionsWithSelection = options.filter(o => o.areas.some(a => a.items.some(it => !it.parentKey && selectedItemKeys.has(it.key))));
             const singleOption = optionsWithSelection.length === 1 ? optionsWithSelection[0] : null;
             return (
-              <div style={{ position: 'sticky', top: 0, zIndex: 15, display: 'flex', alignItems: 'center', gap: 12, background: 'var(--navy)', color: '#fff', borderRadius: 10, padding: '10px 16px', marginBottom: 14 }}>
+              <div style={{ position: 'sticky', top: 0, zIndex: 15, display: 'flex', alignItems: 'center', gap: 12, background: 'var(--navy-fill)', color: '#fff', borderRadius: 10, padding: '10px 16px', marginBottom: 14 }}>
                 <span style={{ fontSize: 13, fontWeight: 700 }}>{t('selectedCount', { count: selectedItemKeys.size })}</span>
                 {singleOption ? (
                   <select onChange={e => { if (e.target.value) bulkMoveSelectedToArea(singleOption.key, e.target.value); }} value=""

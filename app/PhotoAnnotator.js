@@ -154,7 +154,7 @@ export default function PhotoAnnotator({ imageUrl, onSave, onCancel }) {
   const toolBtn = (toolName, icon, label) => (
     <button onClick={() => setTool(toolName)} style={{
       padding: "8px 14px", borderRadius: 8, border: "2px solid", borderColor: tool === toolName ? "var(--navy)" : "var(--border)",
-      background: tool === toolName ? "var(--navy)" : "var(--surface)", color: tool === toolName ? "#fff" : "var(--navy)",
+      background: tool === toolName ? "var(--navy-fill)" : "var(--surface)", color: tool === toolName ? "#fff" : "var(--navy)",
       fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
     }}>
       {icon} {label}
@@ -198,7 +198,7 @@ export default function PhotoAnnotator({ imageUrl, onSave, onCancel }) {
             <input autoFocus value={textValue} onChange={e => setTextValue(e.target.value)}
               onKeyDown={e => e.key === "Enter" && addText()}
               style={{ border: "1px solid var(--border)", borderRadius: 4, padding: "4px 8px", fontSize: 13, width: 140 }} placeholder={t("textPlaceholder")} />
-            <button onClick={addText} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{t("confirmButton")}</button>
+            <button onClick={addText} style={{ background: "var(--navy-fill)", color: "#fff", border: "none", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>{t("confirmButton")}</button>
           </div>
         )}
       </div>

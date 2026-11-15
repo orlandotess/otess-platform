@@ -566,11 +566,11 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                     <label>{t('info.clientIsLabel')}</label>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button type="button" onClick={() => setEditKind('individual')}
-                        style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editKind === 'individual' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editKind === 'individual' ? 'var(--navy)' : 'transparent', color: editKind === 'individual' ? '#fff' : 'var(--text)' }}>
+                        style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editKind === 'individual' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editKind === 'individual' ? 'var(--navy-fill)' : 'transparent', color: editKind === 'individual' ? '#fff' : 'var(--text)' }}>
                         {t('info.individual')}
                       </button>
                       <button type="button" onClick={() => setEditKind('empresa')}
-                        style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editKind === 'empresa' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editKind === 'empresa' ? 'var(--navy)' : 'transparent', color: editKind === 'empresa' ? '#fff' : 'var(--text)' }}>
+                        style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editKind === 'empresa' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editKind === 'empresa' ? 'var(--navy-fill)' : 'transparent', color: editKind === 'empresa' ? '#fff' : 'var(--text)' }}>
                         {t('info.company')}
                       </button>
                     </div>
@@ -619,11 +619,11 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                       <label>{t('info.reportNameLabel')}</label>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button type="button" onClick={() => setEditInfoData(d => ({ ...d, report_name_source: 'client' }))}
-                          style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editInfoData.report_name_source === 'client' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editInfoData.report_name_source === 'client' ? 'var(--navy)' : 'transparent', color: editInfoData.report_name_source === 'client' ? '#fff' : 'var(--text)' }}>
+                          style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editInfoData.report_name_source === 'client' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editInfoData.report_name_source === 'client' ? 'var(--navy-fill)' : 'transparent', color: editInfoData.report_name_source === 'client' ? '#fff' : 'var(--text)' }}>
                           {editInfoData.name || t('info.clientNamePlaceholder')}
                         </button>
                         <button type="button" onClick={() => setEditInfoData(d => ({ ...d, report_name_source: 'company' }))}
-                          style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editInfoData.report_name_source === 'company' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editInfoData.report_name_source === 'company' ? 'var(--navy)' : 'transparent', color: editInfoData.report_name_source === 'company' ? '#fff' : 'var(--text)' }}>
+                          style={{ flex: 1, fontSize: 13, fontWeight: 700, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: editInfoData.report_name_source === 'company' ? '1.5px solid var(--navy)' : '1.5px solid var(--border)', background: editInfoData.report_name_source === 'company' ? 'var(--navy-fill)' : 'transparent', color: editInfoData.report_name_source === 'company' ? '#fff' : 'var(--text)' }}>
                           {editInfoData.company}
                         </button>
                       </div>
@@ -917,7 +917,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                                   <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
                                 </div>
                                 <PhonePills phone={c.phone} extraPhones={c.extra_phones} />
-                                {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'var(--navy)', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
+                                {c.email && <a href={`mailto:${c.email}`} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'var(--navy-fill)', color: '#fff', borderRadius: 7, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>✉️ {c.email}</a>}
                                 {link && (
                                   <button onClick={() => unlinkContact(link.id)} title={t('properties.unlinkTitle')}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}>🗑</button>
@@ -1062,7 +1062,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                         {c.email && (
                           <div>
                             <p style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('contacts.emailTitle')}</p>
-                            <a href={`mailto:${c.email}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                            <a href={`mailto:${c.email}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--navy-fill)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
                               ✉️ {c.email}
                             </a>
                           </div>

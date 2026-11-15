@@ -72,7 +72,7 @@ export function ScheduleSendPicker({ schedule }) {
         {['now', 'schedule'].map(m => (
           <button key={m} type="button" aria-pressed={mode === m}
             onClick={() => { setMode(m); if (m === 'schedule' && !date) pick(nextMondayPR()); }}
-            style={{ flex: 1, padding: '9px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${mode === m ? 'var(--navy)' : 'var(--border)'}`, background: mode === m ? 'var(--navy)' : 'var(--surface)', color: mode === m ? '#fff' : 'var(--text)' }}>
+            style={{ flex: 1, padding: '9px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: `1.5px solid ${mode === m ? 'var(--navy)' : 'var(--border)'}`, background: mode === m ? 'var(--navy-fill)' : 'var(--surface)', color: mode === m ? '#fff' : 'var(--text)' }}>
             {m === 'now' ? `⚡ ${t('now')}` : `📅 ${t('schedule')}`}
           </button>
         ))}

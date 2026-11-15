@@ -290,7 +290,7 @@ export default function InboxWidget({ notifications: initial, automaticItems = [
                     urgency={it.urgency}
                     href={it.href}
                     right={
-                      <span style={{ ...actionButtonStyle, background: it.urgency === 'warn' ? 'var(--warn)' : 'var(--navy)', color: '#fff', display: 'inline-block' }}>
+                      <span style={{ ...actionButtonStyle, background: it.urgency === 'warn' ? 'var(--warn)' : 'var(--navy-fill)', color: '#fff', display: 'inline-block' }}>
                         {it.ctaLabel}
                       </span>
                     }

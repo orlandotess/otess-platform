@@ -1731,7 +1731,7 @@ export default function PlanoEditor({ plan, imageUrl, sourceUrl, initialMarkers,
         <button
           onClick={() => { setMode('select'); setCableDraft(null); }}
           className="btn btn-ghost"
-          style={{ fontWeight: 700, background: mode === 'select' ? 'var(--navy)' : undefined, color: mode === 'select' ? '#fff' : undefined }}
+          style={{ fontWeight: 700, background: mode === 'select' ? 'var(--navy-fill)' : undefined, color: mode === 'select' ? '#fff' : undefined }}
         >
           🖱️ {t('toolbar.select')}
         </button>

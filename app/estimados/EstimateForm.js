@@ -904,7 +904,7 @@ export default function EstimateForm({ initialData = null }) {
                                   title={t('combineAccessoryPricesTooltip')}>
                                   <span
                                     onClick={() => setItem(area.key, item.key, 'combinePrice', item.combinePrice === false)}
-                                    style={{ display: 'inline-flex', alignItems: 'center', width: 30, height: 16, borderRadius: 10, position: 'relative', flexShrink: 0, background: item.combinePrice !== false ? 'var(--navy)' : 'var(--border)', transition: 'background 0.15s' }}
+                                    style={{ display: 'inline-flex', alignItems: 'center', width: 30, height: 16, borderRadius: 10, position: 'relative', flexShrink: 0, background: item.combinePrice !== false ? 'var(--navy-fill)' : 'var(--border)', transition: 'background 0.15s' }}
                                   >
                                     <span style={{ position: 'absolute', top: 2, left: item.combinePrice !== false ? 16 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
                                   </span>
