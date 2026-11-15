@@ -5655,7 +5655,25 @@
         "assignTechnicianFailed": "No se pudo asignar el técnico. Intenta de nuevo.",
         "confirmDeleteLocation": "¿Eliminar \"{name}\"? Esto no se puede deshacer.",
         "chooseDifferentDestination": "Elige una ubicación destino distinta."
+      },
+      "sections": {
+        "locations": "Ubicaciones",
+        "cableBox": "Cable box"
       }
+    },
+    "cableBox": {
+      "title": "Cable box",
+      "summary": "{boxes, plural, one {# caja} other {# cajas}} · {types, plural, one {# tipo de cable} other {# tipos de cable}}",
+      "subtitle": "Todas las cajas de cable por tipo y ubicación. Se registran y se descuentan desde Crew App o Catálogo.",
+      "searchPlaceholder": "Buscar por tipo de cable, código o ubicación...",
+      "empty": "No hay cajas de cable registradas.",
+      "noResults": "Sin resultados para \"{query}\".",
+      "unnamed": "Sin nombre",
+      "noNameHint": "ponle nombre en Catálogo",
+      "noLocation": "Sin ubicación",
+      "groupTotal": "{count, plural, one {# caja} other {# cajas}} · quedan {remaining} de {total} pies",
+      "footage": "quedan {remaining} de {total} pies",
+      "boxFootage": "{remaining} / {total} pies"
     }
   },
   "reportes": {

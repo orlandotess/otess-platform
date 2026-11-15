@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 import BarcodeScanner from "../BarcodeScanner";
+import CableBoxList from "./CableBoxList";
 import { useTranslations, useLocale } from "next-intl";
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
@@ -14,7 +15,7 @@ const TYPE_ICON = {
   bin: "🗃️",
 };
 
-export default function InventarioClient({ locations: initialLocations, locationStock: initialStock, products: initialProducts, locationStockUnits: initialUnits, technicians = [] }) {
+export default function InventarioClient({ locations: initialLocations, locationStock: initialStock, products: initialProducts, locationStockUnits: initialUnits, technicians = [], cableReels = [] }) {
   const t = useTranslations("inventario.client");
   const locale = useLocale();
   const dateLocale = locale === "en" ? "en-US" : "es-PR";
@@ -31,6 +32,8 @@ export default function InventarioClient({ locations: initialLocations, location
   const [products, setProducts] = useState(initialProducts);
   const [units, setUnits] = useState(initialUnits ?? []);
   const [view, setView] = useState("tree");
+  // Pestaña de la pantalla: "locations" (el árbol de siempre) o "cable" (lista Cable box).
+  const [section, setSection] = useState("locations");
   const [selectedId, setSelectedId] = useState(null);
   const [locationQuery, setLocationQuery] = useState("");
   const [unitSearch, setUnitSearch] = useState("");
@@ -398,8 +401,24 @@ export default function InventarioClient({ locations: initialLocations, location
     );
   }
 
+  const sectionTab = (id, label) => (
+    <button key={id} onClick={() => setSection(id)} className="btn" aria-pressed={section === id}
+      style={{ background: section === id ? "var(--surface)" : "none", boxShadow: section === id ? "0 1px 4px rgba(0,0,0,0.1)" : "none", border: "none", fontWeight: 700, fontSize: 13, padding: "7px 14px", color: "var(--navy)" }}>
+      {label}
+    </button>
+  );
+
   return (
     <div>
+      <div style={{ display: "inline-flex", gap: 4, background: "var(--surface-2)", borderRadius: 10, padding: 4, marginBottom: 16 }}>
+        {sectionTab("locations", `📍 ${t("sections.locations")}`)}
+        {sectionTab("cable", `🧵 ${t("sections.cableBox")}${cableReels.length ? ` (${cableReels.length})` : ""}`)}
+      </div>
+
+      {section === "cable" ? (
+        <CableBoxList reels={cableReels} locations={locations} />
+      ) : (
+      <>
       {/* Toolbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 4, background: "var(--surface-2)", borderRadius: 10, padding: 4 }}>
@@ -552,6 +571,8 @@ export default function InventarioClient({ locations: initialLocations, location
           )}
         </div>
       </div>
+      </>
+      )}
 
       {/* Modal: + Nueva Ubicación */}
       {showAddModal && (

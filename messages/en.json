@@ -5655,7 +5655,25 @@
         "assignTechnicianFailed": "Could not assign the technician. Try again.",
         "confirmDeleteLocation": "Delete \"{name}\"? This cannot be undone.",
         "chooseDifferentDestination": "Choose a different destination location."
+      },
+      "sections": {
+        "locations": "Locations",
+        "cableBox": "Cable box"
       }
+    },
+    "cableBox": {
+      "title": "Cable box",
+      "summary": "{boxes, plural, one {# box} other {# boxes}} · {types, plural, one {# cable type} other {# cable types}}",
+      "subtitle": "Every cable box by type and location. They are registered and drawn down from the Crew App or the Catalog.",
+      "searchPlaceholder": "Search by cable type, code or location...",
+      "empty": "No cable boxes registered.",
+      "noResults": "No results for \"{query}\".",
+      "unnamed": "Unnamed",
+      "noNameHint": "name it in the Catalog",
+      "noLocation": "No location",
+      "groupTotal": "{count, plural, one {# box} other {# boxes}} · {remaining} of {total} ft left",
+      "footage": "{remaining} of {total} ft left",
+      "boxFootage": "{remaining} / {total} ft"
     }
   },
   "reportes": {
