@@ -344,7 +344,7 @@
       "createJob": "+ Crear trabajo"
     },
     "listTable": {
-      "searchPlaceholder": "Buscar trabajo, cliente o ubicación...",
+      "searchPlaceholder": "Buscar por trabajo, cliente, ubicación o estado...",
       "noResults": "Sin resultados para \"{search}\".",
       "columns": {
         "number": "#",
@@ -361,7 +361,17 @@
         "completed": "Completado",
         "cancelled": "Cancelado"
       },
-      "sortTitle": "Ordenar por esta columna (toca otra vez para invertir o quitar el orden)"
+      "sortTitle": "Ordenar por esta columna (toca otra vez para invertir o quitar el orden)",
+      "filters": {
+        "all": "Todos",
+        "active": "Activos",
+        "estimate": "Estimado",
+        "scheduled": "Programado",
+        "in_progress": "En progreso",
+        "completed": "Completado",
+        "cancelled": "Cancelado"
+      },
+      "noResultsFilter": "No hay trabajos en «{filter}»."
     },
     "actions": {
       "status": {

@@ -42,12 +42,29 @@ function sortValue(j, key) {
 
 const COLUMN_KEYS = ['number', 'job', 'client', 'location', 'status', 'scheduledDate'];
 
+// Filtro por estado (tarjetas con conteo, como en Solicitudes). "Activos" junta
+// lo que todavía está pendiente; "Todos" es el de siempre.
+const ACTIVE_STATUSES = ['estimate', 'scheduled', 'in_progress'];
+const FILTER_IDS = ['all', 'active', 'estimate', 'scheduled', 'in_progress', 'completed', 'cancelled'];
+const FILTER_STORAGE_KEY = 'trabajos.statusFilter';
+
+function normalize(text) {
+  return String(text ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function matchesFilter(j, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'active') return ACTIVE_STATUSES.includes(j.status);
+  return j.status === filter;
+}
+
 export default function TrabajosTableClient({ jobs }) {
   const t = useTranslations('trabajos.listTable');
   const locale = useLocale();
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
+  const [filter, setFilter] = useState('all');
 
   // Recordar el orden escogido en este navegador (solo comodidad: si falla, se
   // usa el orden de siempre).
@@ -55,8 +72,15 @@ export default function TrabajosTableClient({ jobs }) {
     try {
       const saved = JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) ?? 'null');
       if (saved && COLUMN_KEYS.includes(saved.key) && ['asc', 'desc'].includes(saved.dir)) setSort(saved);
+      const savedFilter = localStorage.getItem(FILTER_STORAGE_KEY);
+      if (FILTER_IDS.includes(savedFilter)) setFilter(savedFilter);
     } catch {}
   }, []);
+
+  function chooseFilter(id) {
+    setFilter(id);
+    try { localStorage.setItem(FILTER_STORAGE_KEY, id); } catch {}
+  }
 
   function toggleSort(key) {
     setSort(prev => {
@@ -81,16 +105,24 @@ export default function TrabajosTableClient({ jobs }) {
     Object.entries(statusBadgeDefs).map(([k, v]) => [k, { cls: v.cls, label: t(`status.${v.key}`) }])
   ), [t]);
 
-  const query = search.trim().toLowerCase();
-  const visible = query
-    ? jobs.filter(j =>
-        (j.title ?? '').toLowerCase().includes(query) ||
-        (j.job_number ?? '').toLowerCase().includes(query) ||
-        (j.clients?.name ?? '').toLowerCase().includes(query) ||
-        (j.property_name ?? '').toLowerCase().includes(query) ||
-        (j.street ?? '').toLowerCase().includes(query) ||
-        (j.city ?? '').toLowerCase().includes(query))
-    : jobs;
+  // Los conteos son sobre todos los trabajos, sin importar la búsqueda.
+  const counts = Object.fromEntries(FILTER_IDS.map(id => [id, jobs.filter(j => matchesFilter(j, id)).length]));
+  const byStatus = jobs.filter(j => matchesFilter(j, filter));
+
+  // Cada palabra tiene que aparecer en alguno de los campos, incluido el nombre
+  // del estado en el idioma de la pantalla: "instant programado" = trabajos
+  // programados de Instant Pixel. Sin acentos ni mayúsculas ("diaz" = "Díaz").
+  const query = search.trim();
+  const words = normalize(query).split(/\s+/).filter(Boolean);
+  const visible = words.length
+    ? byStatus.filter(j => {
+        const haystack = normalize([
+          j.title, j.job_number, j.clients?.name, j.property_name, j.street, j.city,
+          statusBadge[j.status]?.label,
+        ].filter(Boolean).join(' '));
+        return words.every(w => haystack.includes(w));
+      })
+    : byStatus;
 
   const sorted = useMemo(() => {
     if (!sort.key) return visible;
@@ -108,12 +140,22 @@ export default function TrabajosTableClient({ jobs }) {
   }, [visible, sort]);
 
   return (
+    <>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
+      {FILTER_IDS.map(id => (
+        <button key={id} onClick={() => chooseFilter(id)} className="card" aria-pressed={filter === id}
+          style={{ cursor: 'pointer', textAlign: 'left', border: filter === id ? '1.5px solid var(--amber)' : '1.5px solid var(--border)', background: filter === id ? 'var(--amber-tint)' : 'var(--surface)' }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--navy)' }}>{counts[id]}</div>
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 600 }}>{t(`filters.${id}`)}</div>
+        </button>
+      ))}
+    </div>
     <div className="card">
       <div style={{ marginBottom: 16 }}>
         <SearchBox value={search} onChange={setSearch} placeholder={t('searchPlaceholder')} />
       </div>
       {visible.length === 0 ? (
-        <div className="empty"><p>{t('noResults', { search })}</p></div>
+        <div className="empty"><p>{query ? t('noResults', { search }) : t('noResultsFilter', { filter: t(`filters.${filter}`) })}</p></div>
       ) : (
         <div className="table-wrap">
           <table>
@@ -162,5 +204,6 @@ export default function TrabajosTableClient({ jobs }) {
         </div>
       )}
     </div>
+    </>
   );
 }

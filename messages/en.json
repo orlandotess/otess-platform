@@ -344,7 +344,7 @@
       "createJob": "+ Create job"
     },
     "listTable": {
-      "searchPlaceholder": "Search job, client, or location...",
+      "searchPlaceholder": "Search by job, client, location or status...",
       "noResults": "No results for \"{search}\".",
       "columns": {
         "number": "#",
@@ -361,7 +361,17 @@
         "completed": "Completed",
         "cancelled": "Cancelled"
       },
-      "sortTitle": "Sort by this column (tap again to reverse or clear)"
+      "sortTitle": "Sort by this column (tap again to reverse or clear)",
+      "filters": {
+        "all": "All",
+        "active": "Active",
+        "estimate": "Estimate",
+        "scheduled": "Scheduled",
+        "in_progress": "In progress",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+      },
+      "noResultsFilter": "No jobs in “{filter}”."
     },
     "actions": {
       "status": {
