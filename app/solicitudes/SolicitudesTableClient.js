@@ -8,6 +8,7 @@ import { useTranslations, useLocale } from 'next-intl';
 
 const statusBadgeCls = {
   nueva:                'badge-blue',
+  en_proceso:           'badge-purple',
   necesita_aprobacion:  'badge-amber',
   evaluacion_completa:  'badge-green',
   convertida:           'badge-dark',
@@ -15,7 +16,7 @@ const statusBadgeCls = {
 };
 
 const OVERDUE_DAYS = 7;
-const OPEN_STATUSES = ['nueva', 'necesita_aprobacion'];
+const OPEN_STATUSES = ['nueva', 'en_proceso', 'necesita_aprobacion'];
 
 function isOverdue(s) {
   if (!OPEN_STATUSES.includes(s.status)) return false;
@@ -35,7 +36,7 @@ function technicianNames(s) {
   return [s.technicians?.name, ...(s.solicitud_technicians ?? []).map(st => st.technicians?.name)].filter(Boolean).join(', ');
 }
 
-const FILTER_IDS = ['all', 'nueva', 'necesita_aprobacion', 'evaluacion_completa', 'overdue', 'unscheduled'];
+const FILTER_IDS = ['all', 'nueva', 'en_proceso', 'necesita_aprobacion', 'evaluacion_completa', 'overdue', 'unscheduled'];
 
 export default function SolicitudesTableClient({ solicitudes }) {
   const t = useTranslations('solicitudes.listTable');
@@ -52,6 +53,7 @@ export default function SolicitudesTableClient({ solicitudes }) {
   const counts = {
     all: solicitudes.length,
     nueva: solicitudes.filter(s => s.status === 'nueva').length,
+    en_proceso: solicitudes.filter(s => s.status === 'en_proceso').length,
     necesita_aprobacion: solicitudes.filter(s => s.status === 'necesita_aprobacion').length,
     evaluacion_completa: solicitudes.filter(s => s.status === 'evaluacion_completa').length,
     overdue: solicitudes.filter(isOverdue).length,

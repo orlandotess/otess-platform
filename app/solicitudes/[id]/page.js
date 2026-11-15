@@ -9,6 +9,7 @@ import { getTranslations } from 'next-intl/server';
 
 const statusBadgeCls = {
   nueva:                'badge-blue',
+  en_proceso:           'badge-purple',
   necesita_aprobacion:  'badge-amber',
   evaluacion_completa:  'badge-green',
   convertida:           'badge-dark',

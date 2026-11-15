@@ -3180,7 +3180,7 @@ export default function FieldApp() {
                   const next = !detailEntry._raw.assessment_completed;
                   await supabase.from('solicitudes').update({
                     assessment_completed: next,
-                    status: next && detailEntry._raw.status === 'nueva' ? 'evaluacion_completa' : detailEntry._raw.status,
+                    status: next && ['nueva', 'en_proceso'].includes(detailEntry._raw.status) ? 'evaluacion_completa' : detailEntry._raw.status,
                   }).eq('id', detailEntry._raw.id);
                   setDetailEntry(null);
                   loadTechScheduleExtras();

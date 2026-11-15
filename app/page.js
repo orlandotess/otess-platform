@@ -81,7 +81,7 @@ async function getAccionRequerida() {
   const [{ data: solicitudes }, { data: jobsSinAsignar }, { data: invoicesDraft }, { data: invoicesOverdue }, { data: gestiones }] = await Promise.all([
     supabase.from('solicitudes')
       .select('id, solicitud_number, title, requested_on, clients(name)')
-      .in('status', ['nueva', 'necesita_aprobacion'])
+      .in('status', ['nueva', 'en_proceso', 'necesita_aprobacion'])
       .order('requested_on', { ascending: true })
       .limit(8),
     supabase.from('jobs')

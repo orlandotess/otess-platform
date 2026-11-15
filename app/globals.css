@@ -31,6 +31,8 @@
   --amber-tint: #fdf1de;
   --ok-tint: #e7f3ee;
   --info-tint: #e8f0f6;
+  --progress: #6b3fa0;
+  --progress-tint: #f0eaf7;
   --danger-tint: #fbeae3;
   --neutral-tint: #eceef2;
   --ink: #1b2230;
@@ -78,6 +80,8 @@
   --amber-tint: #2c2312;
   --ok-tint: #16281f;
   --info-tint: #142433;
+  --progress: #b49ae0;
+  --progress-tint: #241a33;
   --danger-tint: #2e1712;
   --neutral-tint: #232c40;
   --ink: #eef1f6;
@@ -709,6 +713,8 @@ body.sidebar-hidden .main-content {
 .admin-shell .badge-red   { background: var(--danger-tint); color: var(--warn); }
 .admin-shell .badge-amber { background: var(--amber-tint); color: var(--amber); }
 .admin-shell .badge-dark  { background: var(--navy-tint); color: var(--navy); }
+/* En proceso (solicitudes): morado para no confundirse con el azul de Nueva. */
+.badge-purple, .admin-shell .badge-purple { background: var(--progress-tint); color: var(--progress); }
 
 .admin-shell table thead th {
   color: var(--ink-faint);

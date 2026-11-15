@@ -13,6 +13,7 @@ import { isoToLocalInput, localInputToIso, formatDateTimePR, formatDatePR } from
 import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 const statusOptions = [
   { value: 'nueva', key: 'nueva' },
+  { value: 'en_proceso', key: 'enProceso' },
   { value: 'necesita_aprobacion', key: 'necesitaAprobacion' },
   { value: 'evaluacion_completa', key: 'evaluacionCompleta' },
 ];
@@ -233,7 +234,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
     const next = !solicitud.assessment_completed;
     await supabase.from('solicitudes').update({
       assessment_completed: next,
-      status: next && solicitud.status === 'nueva' ? 'evaluacion_completa' : solicitud.status,
+      status: next && ['nueva', 'en_proceso'].includes(solicitud.status) ? 'evaluacion_completa' : solicitud.status,
     }).eq('id', solicitud.id);
     router.refresh();
   }
@@ -778,9 +779,17 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
           ) : (
             <>
               {isOpen ? (
-                <select value={solicitud.status} onChange={e => updateStatus(e.target.value)} style={{ marginBottom: 12 }}>
-                  {translatedStatusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                <>
+                  {/* Atajo de un toque para el paso más común; el menú cubre el resto. */}
+                  {solicitud.status === 'nueva' && (
+                    <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => updateStatus('en_proceso')}>
+                      ▶ {t('status.markInProgress')}
+                    </button>
+                  )}
+                  <select value={solicitud.status} onChange={e => updateStatus(e.target.value)} style={{ marginBottom: 12 }}>
+                    {translatedStatusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </>
               ) : (
                 <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
                   {solicitud.status === 'convertida' ? t('status.alreadyConverted') : t('status.archivedNotice')}
