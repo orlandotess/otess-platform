@@ -615,7 +615,10 @@
         "reviewShort": "revisar",
         "addDay": "Añadir día",
         "techniciansMultiHint": "Técnicos (puedes escoger más de uno)",
-        "noTechnicians": "No hay técnicos registrados."
+        "noTechnicians": "No hay técnicos registrados.",
+        "alreadyOnDay": "ya está en este día",
+        "saveError": "No se pudo guardar el día: {error}",
+        "addTechniciansError": "El día se guardó, pero no se pudieron agregar los otros empleados: {error}"
       },
       "lineItems": {
         "title": "Líneas de trabajo",

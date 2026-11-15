@@ -615,7 +615,10 @@
         "reviewShort": "review",
         "addDay": "Add day",
         "techniciansMultiHint": "Technicians (you can pick more than one)",
-        "noTechnicians": "No technicians registered."
+        "noTechnicians": "No technicians registered.",
+        "alreadyOnDay": "already on this day",
+        "saveError": "Could not save the day: {error}",
+        "addTechniciansError": "The day was saved, but the other team members could not be added: {error}"
       },
       "lineItems": {
         "title": "Job lines",

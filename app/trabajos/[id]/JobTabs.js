@@ -328,7 +328,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
   const [savingDay, setSavingDay] = useState(false);
   const [newDayError, setNewDayError] = useState('');
   const [editingDayId, setEditingDayId] = useState(null);
-  const [editDayForm, setEditDayForm] = useState({ start: '', end: '', technician_id: '', lunch_minutes: 0 });
+  const [editDayForm, setEditDayForm] = useState({ start: '', end: '', technician_ids: [], lunch_minutes: 0 });
   const [savingEditDay, setSavingEditDay] = useState(false);
   const [editDayError, setEditDayError] = useState('');
 
@@ -390,10 +390,30 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     setEditDayForm({
       start: isoToLocalInput(d.scheduled_start),
       end: isoToLocalInput(d.scheduled_end),
-      technician_id: d.technician_id ?? '',
+      technician_ids: d.technician_id ? [d.technician_id] : [],
       lunch_minutes: d.lunch_minutes ?? 0,
     });
     setEditDayError('');
+  }
+
+  function toggleEditDayTechnician(techId) {
+    setEditDayForm(f => ({
+      ...f,
+      technician_ids: f.technician_ids.includes(techId)
+        ? f.technician_ids.filter(id => id !== techId)
+        : [...f.technician_ids, techId],
+    }));
+  }
+
+  // Empleados que ya tienen OTRA fila de este trabajo a la misma hora de inicio
+  // que el día que se edita: no se pueden volver a marcar, para no duplicarles
+  // el día ni contarles horas de más.
+  function techsAlreadyOnDay(dayId, startLocal) {
+    if (!startLocal) return new Set();
+    const startMs = new Date(localInputToIso(startLocal)).getTime();
+    return new Set(scheduleDays
+      .filter(o => o.id !== dayId && o.technician_id && new Date(o.scheduled_start).getTime() === startMs)
+      .map(o => o.technician_id));
   }
 
   function cancelEditDay() {
@@ -410,23 +430,44 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
     }
     setEditDayError('');
     setSavingEditDay(true);
-    const payload = {
+    // Igual que al agregar un día: una fila por empleado. Esta fila se queda con
+    // su empleado si sigue marcado (si no, con el primero marcado, o sin asignar),
+    // y cada empleado extra recibe su propia fila con la misma hora y almuerzo.
+    // Se saltan los que ya tienen otra fila a esa hora, para no duplicarlos.
+    const original = scheduleDays.find(d => d.id === dayId);
+    const taken = techsAlreadyOnDay(dayId, editDayForm.start);
+    const chosen = editDayForm.technician_ids.filter(id => !taken.has(id));
+    const keep = original?.technician_id && chosen.includes(original.technician_id) ? original.technician_id : (chosen[0] ?? null);
+    const extra = chosen.filter(id => id !== keep);
+    const base = {
       scheduled_start: localInputToIso(editDayForm.start),
       scheduled_end: endIso,
-      technician_id: editDayForm.technician_id || null,
       lunch_minutes: editDayForm.lunch_minutes,
     };
-    const { data } = await supabase.from('job_schedule_days').update(payload).eq('id', dayId).select('*, technicians(name)').single();
-    if (data) {
-      setScheduleDays(prev => prev.map(d => d.id === dayId ? data : d).sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
-      if (payload.technician_id) {
-        fetch('/api/trabajos/notify-assignment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId: job.id, technicianId: payload.technician_id }),
-        }).catch(() => {});
-      }
+    const { data, error } = await supabase.from('job_schedule_days').update({ ...base, technician_id: keep }).eq('id', dayId).select('*, technicians(name)').single();
+    let added = [];
+    if (!error && extra.length > 0) {
+      const { data: inserted, error: insErr } = await supabase.from('job_schedule_days')
+        .insert(extra.map(techId => ({ job_id: job.id, ...base, technician_id: techId })))
+        .select('*, technicians(name)');
+      if (insErr) setEditDayError(t('scheduleDays.addTechniciansError', { error: insErr.message }));
+      added = inserted ?? [];
     }
+    if (error) {
+      setEditDayError(t('scheduleDays.saveError', { error: error.message }));
+      setSavingEditDay(false);
+      return;
+    }
+    setScheduleDays(prev => [...prev.map(d => d.id === dayId ? data : d), ...added].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start)));
+    // Aviso solo a quien se acaba de agregar a este día, no a quien ya estaba.
+    const notify = [keep, ...added.map(r => r.technician_id)].filter(id => id && id !== original?.technician_id);
+    notify.forEach(techId => {
+      fetch('/api/trabajos/notify-assignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: job.id, technicianId: techId }),
+      }).catch(() => {});
+    });
     setEditingDayId(null);
     setSavingEditDay(false);
   }
@@ -1656,14 +1697,28 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                                   <input type="datetime-local" value={editDayForm.end} onChange={e => setEditDayForm(f => ({ ...f, end: e.target.value }))} />
                                 </div>
                               </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                                <div className="form-group">
-                                  <label>{t('common.technician')}</label>
-                                  <select value={editDayForm.technician_id ?? ''} onChange={e => setEditDayForm(f => ({ ...f, technician_id: e.target.value }))}>
-                                    <option value="">{t('common.unassigned')}</option>
-                                    {technicians.map(tech => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
-                                  </select>
+                              <div className="form-group" style={{ marginBottom: 12 }}>
+                                <label>{t('scheduleDays.techniciansMultiHint')}</label>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                  {(() => {
+                                    const taken = techsAlreadyOnDay(d.id, editDayForm.start);
+                                    return technicians.map(tech => {
+                                      const already = taken.has(tech.id);
+                                      const checked = !already && editDayForm.technician_ids.includes(tech.id);
+                                      return (
+                                        <label key={tech.id} className={already ? undefined : 'hover-lift'} title={already ? t('scheduleDays.alreadyOnDay') : undefined}
+                                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: checked ? 'var(--navy)' : 'var(--surface)', color: checked ? '#fff' : 'var(--navy)', border: '1.5px solid var(--border)', borderRadius: 20, fontSize: 13, cursor: already ? 'not-allowed' : 'pointer', userSelect: 'none', opacity: already ? 0.55 : 1 }}>
+                                          <input type="checkbox" checked={checked} disabled={already} onChange={() => toggleEditDayTechnician(tech.id)} style={{ margin: 0 }} />
+                                          {tech.name}
+                                          {already && <span style={{ fontSize: 11, color: 'var(--muted)' }}>· {t('scheduleDays.alreadyOnDay')}</span>}
+                                        </label>
+                                      );
+                                    });
+                                  })()}
+                                  {technicians.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 12 }}>{t('scheduleDays.noTechnicians')}</p>}
                                 </div>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                                 <div className="form-group">
                                   <label>{t('common.lunch')}</label>
                                   <select value={editDayForm.lunch_minutes} onChange={e => setEditDayForm(f => ({ ...f, lunch_minutes: parseInt(e.target.value) }))}>
