@@ -6,6 +6,13 @@ import Sidebar from "../Sidebar";
 import InventarioClient from "./InventarioClient";
 import { getTranslations } from "next-intl/server";
 
+// Los patch cables no son cajas de cable: no salen en la pestaña "Cable box"
+// aunque alguien los haya registrado como caja. Se reconocen por el nombre,
+// la descripción o el código del producto ("patch").
+function isPatchCable(item) {
+  return /patch/i.test([item?.name, item?.description, item?.item_code].filter(Boolean).join(" "));
+}
+
 export default async function InventarioPage() {
   const t = await getTranslations("inventario.page");
   const [{ data: locations }, { data: locationStock }, { data: products }, { data: locationStockUnits }, { data: technicians }, { data: cableReels }] = await Promise.all([
@@ -31,7 +38,7 @@ export default async function InventarioPage() {
           products={products ?? []}
           locationStockUnits={locationStockUnits ?? []}
           technicians={technicians ?? []}
-          cableReels={cableReels ?? []}
+          cableReels={(cableReels ?? []).filter(r => !isPatchCable(r.catalog_items))}
         />
       </main>
     </div>
