@@ -1,7 +1,9 @@
 'use client';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import SearchBox from '../SearchBox';
+import JobNumberLink from '../components/JobNumberLink';
 import { pickMapsLink } from '../../lib/mapsLinks';
 import { formatDatePR } from '../../lib/datetimeLocal';
 import { useTranslations, useLocale } from 'next-intl';
@@ -21,7 +23,18 @@ function location(j) {
 export default function TrabajosTableClient({ jobs }) {
   const t = useTranslations('trabajos.listTable');
   const locale = useLocale();
+  const router = useRouter();
   const [search, setSearch] = useState('');
+
+  // Toda la fila abre el trabajo. Los enlaces de adentro (número, título, mapa)
+  // siguen funcionando solos; Cmd/Ctrl+clic en la fila lo abre en otra pestaña.
+  function openJob(e, id) {
+    if (e.target.closest('a, button, input, select, textarea')) return;
+    if (window.getSelection()?.toString()) return; // estaba seleccionando texto
+    const href = `/trabajos/${id}`;
+    if (e.metaKey || e.ctrlKey) window.open(href, '_blank');
+    else router.push(href);
+  }
 
   const statusBadge = useMemo(() => Object.fromEntries(
     Object.entries(statusBadgeDefs).map(([k, v]) => [k, { cls: v.cls, label: t(`status.${v.key}`) }])
@@ -62,8 +75,10 @@ export default function TrabajosTableClient({ jobs }) {
               {visible.map(j => {
                 const b = statusBadge[j.status] ?? statusBadge.estimate;
                 return (
-                  <tr key={j.id}>
-                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{j.job_number ?? '—'}</td>
+                  <tr key={j.id} className="row-link" onClick={e => openJob(e, j.id)}>
+                    <td style={{ fontSize: 13 }}>
+                      <JobNumberLink jobId={j.id} jobNumber={j.job_number} empty={<span style={{ color: 'var(--muted)' }}>—</span>} />
+                    </td>
                     <td style={{ fontWeight: 600 }}><Link href={`/trabajos/${j.id}`} style={{ color: 'inherit' }}>{j.title}</Link></td>
                     <td style={{ color: 'var(--muted)' }}>{j.clients?.name ?? '—'}</td>
                     <td style={{ fontSize: 13 }}>

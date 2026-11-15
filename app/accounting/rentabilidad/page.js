@@ -7,6 +7,7 @@ import { indexRates, rateOn } from '../../../lib/technicianRates';
 import { prDayKey } from '../../../lib/hours';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
+import JobNumberLink from '../../components/JobNumberLink';
 import { getTranslations } from 'next-intl/server';
 
 const MARGIN_ALERT_THRESHOLD = 20;
@@ -210,7 +211,7 @@ export default async function RentabilidadPage() {
                     <tr key={s.job.id} style={{ borderTop: '1px solid var(--border)', background: low ? 'var(--danger-tint)' : 'transparent' }}>
                       <td style={{ padding: '8px 0' }}>
                         <Link href={`/trabajos/${s.job.id}`} style={{ color: 'var(--navy)', fontWeight: 700, textDecoration: 'none' }}>{s.job.title}</Link>
-                        {s.job.job_number && <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 6 }}>{s.job.job_number}</span>}
+                        <JobNumberLink jobId={s.job.id} jobNumber={s.job.job_number} style={{ marginLeft: 6 }} />
                       </td>
                       <td style={{ padding: '8px 0', color: 'var(--muted)' }}>{s.job.clients?.name ?? t('notAvailable')}</td>
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.facturado)}</td>

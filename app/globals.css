@@ -452,6 +452,8 @@ td {
 
 tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--surface-2); }
+/* Fila que abre su registro al tocarla en cualquier parte (ej. lista de Trabajos). */
+tbody tr.row-link { cursor: pointer; }
 
 /* ── Badges ── */
 .badge {

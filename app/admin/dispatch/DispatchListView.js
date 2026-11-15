@@ -1,6 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import JobNumberLink from '../../components/JobNumberLink';
 import { useTranslations, useLocale } from 'next-intl';
 import { formatTimePR } from '../../../lib/datetimeLocal';
 import { pickMapsLink } from '../../../lib/mapsLinks';
@@ -110,7 +111,7 @@ export default function DispatchListView({ jobs, technicians }) {
                     <td style={{ color: 'var(--muted)', fontSize: 13, whiteSpace: 'nowrap' }}>{formatRange(job, dateLocale)}</td>
                     <td style={{ fontWeight: 600 }}>
                       <Link href={`/trabajos/${jobId}`} style={{ color: 'inherit' }}>{job.title}</Link>
-                      {job.job_number && <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 6 }}>#{job.job_number}</span>}
+                      <JobNumberLink jobId={jobId} jobNumber={job.job_number} style={{ marginLeft: 6 }} />
                       {isExtraDay && <span style={{ marginLeft: 6, fontSize: 11 }} title={t('extraDayTitle')}>📅</span>}
                     </td>
                     <td style={{ color: 'var(--muted)' }}>{job.clients?.name ?? '—'}</td>
