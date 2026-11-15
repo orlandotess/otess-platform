@@ -12,6 +12,7 @@ import { useTranslations, useLocale } from 'next-intl';
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 import ThumbImg from '../components/ThumbImg';
+import { isPatchCable } from '../../lib/cableBoxes';
 const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 // Técnicos open this on a phone: a note photo straight off the camera is 5-10 MB,
 // and a job with a dozen of them used to pull 30+ MB just to fill the tiles. The
@@ -1377,7 +1378,8 @@ export default function FieldApp() {
   const invUnitSearchTerm = invUnitSearch.trim().toLowerCase();
   const invSelectedUnits = invUnits.filter(u => u.location_id === invLocationId
     && (!invUnitSearchTerm || u.catalog_items?.name?.toLowerCase().includes(invUnitSearchTerm) || u.catalog_items?.description?.toLowerCase().includes(invUnitSearchTerm) || u.catalog_items?.item_code?.toLowerCase().includes(invUnitSearchTerm) || u.serial_number.toLowerCase().includes(invUnitSearchTerm)));
-  const invSelectedReels = invReels.filter(r => r.location_id === invLocationId);
+  // Los patch cables no son cajas de cable (lib/cableBoxes.js).
+  const invSelectedReels = invReels.filter(r => r.location_id === invLocationId && !isPatchCable(r.catalog_items));
 
   function closeInvAddReelModal() {
     setShowInvAddReel(false);

@@ -5,13 +5,7 @@ import { supabaseServer as supabase } from "../../lib/supabase";
 import Sidebar from "../Sidebar";
 import InventarioClient from "./InventarioClient";
 import { getTranslations } from "next-intl/server";
-
-// Los patch cables no son cajas de cable: no salen en la pestaña "Cable box"
-// aunque alguien los haya registrado como caja. Se reconocen por el nombre,
-// la descripción o el código del producto ("patch").
-function isPatchCable(item) {
-  return /patch/i.test([item?.name, item?.description, item?.item_code].filter(Boolean).join(" "));
-}
+import { isPatchCable } from "../../lib/cableBoxes";
 
 export default async function InventarioPage() {
   const t = await getTranslations("inventario.page");
