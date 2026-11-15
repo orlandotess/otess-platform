@@ -10,7 +10,7 @@ export default async function TrabajosPage() {
   const t = await getTranslations('trabajos.list');
   const { data: jobs } = await supabase
     .from('jobs')
-    .select('id, job_number, title, status, scheduled_start, property_name, street, city, state, zip, clients(name)')
+    .select('id, job_number, title, status, scheduled_start, property_name, street, city, state, zip, clients(id, name)')
     .order('created_at', { ascending: false });
 
   return (

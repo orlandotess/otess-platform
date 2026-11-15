@@ -454,6 +454,10 @@ tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--surface-2); }
 /* Fila que abre su registro al tocarla en cualquier parte (ej. lista de Trabajos). */
 tbody tr.row-link { cursor: pointer; }
+/* Enlace que se ve como el texto de alrededor y solo se subraya al pasar el mouse
+   (ej. el nombre del cliente en las listas — ver app/components/ClientLink.js). */
+a.link-quiet { color: inherit; text-decoration: none; }
+a.link-quiet:hover { text-decoration: underline; text-underline-offset: 2px; }
 
 /* ── Badges ── */
 .badge {

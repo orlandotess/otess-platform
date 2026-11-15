@@ -24,6 +24,7 @@ import { useJobChecklist } from '../../../lib/useJobChecklist';
 
 import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 import ThumbImg from '../../components/ThumbImg';
+import ClientLink from '../../components/ClientLink';
 // Thumbnails of note photos are served resized (see the same constant in
 // page.js) — the lightbox and the annotator still get the original.
 const NOTE_THUMB_WIDTH = 800;
@@ -1317,7 +1318,7 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
                 </div>
               ) : (
                 <>
-                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{job.clients?.name}</div>
+                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}><ClientLink clientId={job.client_id} name={job.clients?.name} /></div>
                   <span className={`badge ${job.clients?.client_type === 'b2b' ? 'badge-blue' : 'badge-gray'}`} style={{ marginBottom: 12, display: 'inline-block' }}>
                     {job.clients?.client_type === 'b2b' ? 'B2B' : t('info.client.finalConsumer')}
                   </span>

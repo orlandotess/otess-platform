@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SearchBox from '../SearchBox';
 import JobNumberLink from '../components/JobNumberLink';
+import ClientLink from '../components/ClientLink';
 import { pickMapsLink } from '../../lib/mapsLinks';
 import { formatDatePR } from '../../lib/datetimeLocal';
 import { useTranslations, useLocale } from 'next-intl';
@@ -80,7 +81,7 @@ export default function TrabajosTableClient({ jobs }) {
                       <JobNumberLink jobId={j.id} jobNumber={j.job_number} empty={<span style={{ color: 'var(--muted)' }}>—</span>} />
                     </td>
                     <td style={{ fontWeight: 600 }}><Link href={`/trabajos/${j.id}`} style={{ color: 'inherit' }}>{j.title}</Link></td>
-                    <td style={{ color: 'var(--muted)' }}>{j.clients?.name ?? '—'}</td>
+                    <td style={{ color: 'var(--muted)' }}><ClientLink clientId={j.clients?.id} name={j.clients?.name} empty="—" /></td>
                     <td style={{ fontSize: 13 }}>
                       {location(j) ? (
                         (j.street || j.city) ? (

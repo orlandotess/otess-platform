@@ -8,6 +8,7 @@ import { prDayKey } from '../../../lib/hours';
 import Sidebar from '../../Sidebar';
 import Link from 'next/link';
 import JobNumberLink from '../../components/JobNumberLink';
+import ClientLink from '../../components/ClientLink';
 import { getTranslations } from 'next-intl/server';
 
 const MARGIN_ALERT_THRESHOLD = 20;
@@ -15,7 +16,7 @@ const MARGIN_ALERT_THRESHOLD = 20;
 export default async function RentabilidadPage() {
   const t = await getTranslations('accounting.rentabilidad');
   const [{ data: jobs }, { data: invoices }, { data: lineItems }, { data: timeEntries }, { data: technicians }, { data: expenses }, { data: dayOverrides }, { data: rateRows }] = await Promise.all([
-    supabase.from('jobs').select('id, title, job_number, status, clients(name)'),
+    supabase.from('jobs').select('id, title, job_number, status, clients(id, name)'),
     supabase.from('invoices').select('id, job_id, total'),
     supabase.from('job_line_items').select('job_id, quantity, unit_price, supplier_price'),
     // Sin el filtro de job_id a propósito: el corte de las 40 horas es por
@@ -213,7 +214,7 @@ export default async function RentabilidadPage() {
                         <Link href={`/trabajos/${s.job.id}`} style={{ color: 'var(--navy)', fontWeight: 700, textDecoration: 'none' }}>{s.job.title}</Link>
                         <JobNumberLink jobId={s.job.id} jobNumber={s.job.job_number} style={{ marginLeft: 6 }} />
                       </td>
-                      <td style={{ padding: '8px 0', color: 'var(--muted)' }}>{s.job.clients?.name ?? t('notAvailable')}</td>
+                      <td style={{ padding: '8px 0', color: 'var(--muted)' }}><ClientLink clientId={s.job.clients?.id} name={s.job.clients?.name} empty={t('notAvailable')} /></td>
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.facturado)}</td>
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.cobrado)}</td>
                       <td style={{ padding: '8px 0', textAlign: 'right' }}>{fmt(s.materialesCosto)}</td>
