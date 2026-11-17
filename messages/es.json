@@ -2153,7 +2153,8 @@
         "subtotalBeforeDiscount": "Subtotal antes de descuento"
       },
       "notesLabel": "Notas:",
-      "termsTitle": "Términos del Proyecto"
+      "termsTitle": "Términos del Proyecto",
+      "photosLabel": "Fotos"
     },
     "actions": {
       "emailModal": {
@@ -2277,7 +2278,8 @@
         "orCall": "o al {phone}"
       },
       "viewPdfBtn": "Ver PDF",
-      "generatingLabel": "Generando..."
+      "generatingLabel": "Generando...",
+      "photosLabel": "Fotos"
     },
     "acceptButton": {
       "confirmAccept": "¿Confirmas que aceptas este estimado?",
@@ -4038,7 +4040,10 @@
         "creating": "Creando…",
         "noClient": "Esta solicitud no tiene cliente; no se puede crear el estimado.",
         "noLines": "Agrega al menos una línea antes de crear el estimado.",
-        "error": "No se pudo crear el estimado: {error}"
+        "error": "No se pudo crear el estimado: {error}",
+        "bodyNoLines": "Esta solicitud no tiene líneas. Se creará un estimado en borrador en $0 y lo cotizas en el editor del estimado.",
+        "photosTitle": "Fotos para el cliente",
+        "photosHint": "Toca las fotos de las notas que quieres en el estimado. El cliente las verá. Si no escoges ninguna, el estimado sale sin fotos."
       },
       "deleteError": "No se pudo eliminar la solicitud: {error}"
     },

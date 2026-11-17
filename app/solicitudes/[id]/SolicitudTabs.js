@@ -43,11 +43,15 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
   // La solicitud se cotiza aquí mismo (sus líneas ya llevan precio) y este paso
   // crea el estimado en borrador con esas líneas. Las notas que ve el cliente
   // se escogen con casillas: la descripción viene marcada, las notas internas
-  // y las de la evaluación no. Las fotos y notas que necesita el técnico no
-  // pasan por el estimado: EstimateActions.convertToJob las trae de la
-  // solicitud al convertir el estimado en trabajo.
+  // y las de la evaluación no; marcar notas es opcional. Las fotos de las
+  // notas también se escogen (ninguna viene marcada) y van a
+  // estimates.photo_urls, que ve el cliente. Sin líneas también se puede: el
+  // estimado queda en borrador en $0 y se cotiza en el editor. Las fotos y
+  // notas que necesita el técnico siguen llegando al trabajo por
+  // EstimateActions.convertToJob, se escojan aquí o no.
   const [showCreateEstimate, setShowCreateEstimate] = useState(false);
   const [noteChoices, setNoteChoices] = useState([]);
+  const [photoChoices, setPhotoChoices] = useState([]);
   const [creatingEstimate, setCreatingEstimate] = useState(false);
 
   function openCreateEstimate() {
@@ -59,6 +63,13 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
       choices.push({ key: n.id, label: formatDateTimePR(n.created_at, {}, dateLocale), text: n.note.trim(), checked: false });
     }
     setNoteChoices(choices);
+    const photos = [];
+    for (const n of notesList) {
+      for (const p of n.photo_pairs ?? []) {
+        if (!photos.some(x => x.path === p.path)) photos.push({ path: p.path, url: p.url, checked: false });
+      }
+    }
+    setPhotoChoices(photos);
     setShowCreateEstimate(true);
   }
 
@@ -66,9 +77,12 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
     setNoteChoices(prev => prev.map(c => c.key === key ? { ...c, checked: !c.checked } : c));
   }
 
+  function togglePhotoChoice(path) {
+    setPhotoChoices(prev => prev.map(c => c.path === path ? { ...c, checked: !c.checked } : c));
+  }
+
   async function crearEstimado() {
     if (!solicitud.client_id) { alert(t('createEstimate.noClient')); return; }
-    if (!lineItems.length) { alert(t('createEstimate.noLines')); return; }
     setCreatingEstimate(true);
     try {
       const { data: allEstimates } = await supabase.from('estimates').select('estimate_number');
@@ -99,6 +113,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
         property_id: solicitud.property_id || null,
         title: solicitud.title || null,
         notes: noteChoices.filter(c => c.checked).map(c => c.text).join('\n\n') || null,
+        ...(photoChoices.some(c => c.checked) ? { photo_urls: photoChoices.filter(c => c.checked).map(c => c.path) } : {}),
         issued_at: issuedAt,
         valid_until: formatDatePR(new Date(Date.now() + 30 * 86400000).toISOString(), {}, 'en-CA'),
         status: 'draft',
@@ -120,7 +135,7 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
         return;
       }
 
-      const { error: itemsErr } = await supabase.from('estimate_line_items').insert(lineas.map((i, idx) => {
+      const { error: itemsErr } = !lineas.length ? { error: null } : await supabase.from('estimate_line_items').insert(lineas.map((i, idx) => {
         const base = (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0);
         const rate = tasaLinea(i);
         return {
@@ -438,7 +453,8 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
         const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
         return data?.signedUrl ?? null;
       }));
-      setNotesList(prev => [{ ...newNote, photo_urls: signedUrls.filter(Boolean), raw_photo_urls: uploadedPaths }, ...prev]);
+      const photo_pairs = uploadedPaths.map((path, i) => ({ path, url: signedUrls[i] })).filter(p => p.url);
+      setNotesList(prev => [{ ...newNote, photo_urls: signedUrls.filter(Boolean), raw_photo_urls: uploadedPaths, photo_pairs }, ...prev]);
     }
     setNoteText(''); setPendingPhotos([]); setPendingPhotoPreviews([]); setSavingNote(false);
   }
@@ -805,8 +821,8 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
                   <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 460, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
                     <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 8 }}>{t('createEstimate.title')}</h2>
-                    <p style={{ color: lineItems.length ? 'var(--muted)' : 'var(--warn)', fontSize: 13, marginBottom: 16 }}>
-                      {lineItems.length ? t('createEstimate.body', { count: lineItems.length }) : t('createEstimate.noLines')}
+                    <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
+                      {lineItems.length ? t('createEstimate.body', { count: lineItems.length }) : t('createEstimate.bodyNoLines')}
                     </p>
                     <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 4 }}>{t('createEstimate.notesTitle')}</p>
                     <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 10 }}>{t('createEstimate.notesHint')}</p>
@@ -825,8 +841,23 @@ export default function SolicitudTabs({ solicitud, items, notes, intakePhotoUrls
                         ))}
                       </div>
                     )}
+                    {photoChoices.length > 0 && (
+                      <>
+                        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)', marginBottom: 4 }}>{t('createEstimate.photosTitle')}</p>
+                        <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 10 }}>{t('createEstimate.photosHint')}</p>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                          {photoChoices.map(c => (
+                            <button key={c.path} type="button" onClick={() => togglePhotoChoice(c.path)} aria-pressed={c.checked}
+                              style={{ position: 'relative', padding: 0, width: 78, height: 78, borderRadius: 8, overflow: 'hidden', cursor: 'pointer', background: 'none', border: c.checked ? '3px solid var(--amber)' : '1.5px solid var(--border)', opacity: c.checked ? 1 : 0.75 }}>
+                              <img src={c.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                              {c.checked && <span style={{ position: 'absolute', top: 3, right: 3, width: 20, height: 20, borderRadius: '50%', background: 'var(--amber)', color: '#fff', fontSize: 13, fontWeight: 800, lineHeight: '20px', textAlign: 'center' }}>✓</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                     <div style={{ display: 'flex', gap: 10 }}>
-                      <button className="btn btn-primary" onClick={crearEstimado} disabled={creatingEstimate || !lineItems.length} style={{ flex: 1, justifyContent: 'center' }}>
+                      <button className="btn btn-primary" onClick={crearEstimado} disabled={creatingEstimate} style={{ flex: 1, justifyContent: 'center' }}>
                         {creatingEstimate ? t('createEstimate.creating') : t('createEstimate.confirm')}
                       </button>
                       <button className="btn btn-ghost" onClick={() => setShowCreateEstimate(false)} disabled={creatingEstimate} style={{ flex: 1, justifyContent: 'center' }}>{t('common.cancel')}</button>

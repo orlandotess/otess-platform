@@ -88,7 +88,10 @@ export default async function SolicitudDetail(props) {
     (notes ?? []).map(async (note) => {
       if (note.photo_urls && note.photo_urls.length > 0) {
         const signedUrls = await Promise.all(note.photo_urls.map(p => signPath(p)));
-        return { ...note, photo_urls: signedUrls.filter(Boolean), raw_photo_urls: note.photo_urls };
+        // photo_pairs mantiene ruta y URL firmada juntas (filtrar las nulas
+        // descuadraría los índices): de aquí se escogen las fotos del estimado.
+        const photo_pairs = note.photo_urls.map((path, i) => ({ path, url: signedUrls[i] })).filter(p => p.url);
+        return { ...note, photo_urls: signedUrls.filter(Boolean), raw_photo_urls: note.photo_urls, photo_pairs };
       }
       return note;
     })

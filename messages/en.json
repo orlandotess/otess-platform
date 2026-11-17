@@ -2153,7 +2153,8 @@
         "subtotalBeforeDiscount": "Subtotal before discount"
       },
       "notesLabel": "Notes:",
-      "termsTitle": "Project Terms"
+      "termsTitle": "Project Terms",
+      "photosLabel": "Photos"
     },
     "actions": {
       "emailModal": {
@@ -2277,7 +2278,8 @@
         "orCall": "or call {phone}"
       },
       "viewPdfBtn": "View PDF",
-      "generatingLabel": "Generating..."
+      "generatingLabel": "Generating...",
+      "photosLabel": "Photos"
     },
     "acceptButton": {
       "confirmAccept": "Do you confirm you accept this estimate?",
@@ -4038,7 +4040,10 @@
         "creating": "Creating…",
         "noClient": "This request has no client, so an estimate can't be created.",
         "noLines": "Add at least one line before creating the estimate.",
-        "error": "Could not create the estimate: {error}"
+        "error": "Could not create the estimate: {error}",
+        "bodyNoLines": "This request has no lines. A $0 draft estimate will be created and you can price it in the estimate editor.",
+        "photosTitle": "Photos for the client",
+        "photosHint": "Tap the note photos you want on the estimate. The client will see them. If you pick none, the estimate has no photos."
       },
       "deleteError": "Could not delete the request: {error}"
     },

@@ -67,6 +67,11 @@ export default async function EstimaPublica(props) {
     const { data } = await supabase.storage.from('Job-photos').createSignedUrl(item.photo_url, 3600);
     return { ...item, photo_signed_url: data?.signedUrl ?? null };
   }));
+  // Fotos que la oficina escogió de las notas de la solicitud.
+  const estPhotoUrls = (await Promise.all((est.photo_urls ?? []).map(async p => {
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
+    return data?.signedUrl ?? null;
+  }))).filter(Boolean);
   // Bundled accessories ("Combinar precios" on, the default) stay off this
   // client-facing document — their real cost is already folded into the
   // parent's row here, but the itemized breakdown is kept internal until the
@@ -248,6 +253,19 @@ export default async function EstimaPublica(props) {
             {est.notes && (
               <div style={{ marginTop: 24, padding: '14px 18px', background: '#fafafa', borderRadius: 8, fontSize: 13, color: '#999', border: '1px solid #f0f0f0', whiteSpace: 'pre-wrap' }}>
                 <strong style={{ color: '#16223d' }}>{t('notesLabel')}</strong> {est.notes}
+              </div>
+            )}
+
+            {estPhotoUrls.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <strong style={{ color: '#16223d', display: 'block', marginBottom: 8, fontSize: 13 }}>{t('photosLabel')}</strong>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {estPhotoUrls.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                      <img src={url} alt="" style={{ width: 140, height: 140, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' }} />
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
 

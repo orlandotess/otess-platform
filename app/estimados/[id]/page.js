@@ -114,6 +114,11 @@ export default async function EstimaDetail(props) {
       return { ...it, photo_signed_url: data?.signedUrl ?? null };
     })
   );
+  // Fotos escogidas de las notas de la solicitud al crear el estimado.
+  const estPhotoUrls = (await Promise.all((est.photo_urls ?? []).map(async p => {
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
+    return data?.signedUrl ?? null;
+  }))).filter(Boolean);
   const topLevelItems = items.filter(it => !it.parent_item_id);
   const childrenByParentId = new Map();
   for (const it of items) {
@@ -413,6 +418,19 @@ export default async function EstimaDetail(props) {
           {est.notes && (
             <div style={{ marginTop: 24, padding: '14px 18px', background: 'var(--surface-2)', borderRadius: 10, fontSize: 13, color: 'var(--muted)', whiteSpace: 'pre-wrap' }}>
               <strong style={{ color: 'var(--navy)' }}>{t('notesLabel')}</strong> {est.notes}
+            </div>
+          )}
+
+          {estPhotoUrls.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <strong style={{ color: 'var(--navy)', display: 'block', marginBottom: 8, fontSize: 13 }}>{t('photosLabel')}</strong>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {estPhotoUrls.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                    <img src={url} alt="" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--border)' }} />
+                  </a>
+                ))}
+              </div>
             </div>
           )}
 
