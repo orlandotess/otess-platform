@@ -117,7 +117,8 @@ export default async function EstimaDetail(props) {
   // Fotos escogidas de las notas de la solicitud al crear el estimado.
   const estPhotoUrls = (await Promise.all((est.photo_urls ?? []).map(async p => {
     const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
-    return data?.signedUrl ?? null;
+    if (!data?.signedUrl) return null;
+    return { url: data.signedUrl, kind: /\.pdf$/i.test(p) ? 'pdf' : /\.(mp4|mov|webm|avi)$/i.test(p) ? 'video' : 'image' };
   }))).filter(Boolean);
   const topLevelItems = items.filter(it => !it.parent_item_id);
   const childrenByParentId = new Map();
@@ -187,6 +188,8 @@ export default async function EstimaDetail(props) {
             clientContacts={clientContacts ?? []}
             convertedToJobId={est.converted_to_job_id ?? null}
             solicitudId={est.solicitud_id ?? null}
+            jobId={est.job_id ?? null}
+            photoUrls={est.photo_urls ?? []}
             archivedAt={est.archived_at ?? null}
             scheduledEmails={scheduledEmails ?? []}
           />
@@ -425,9 +428,10 @@ export default async function EstimaDetail(props) {
             <div style={{ marginTop: 16 }}>
               <strong style={{ color: 'var(--navy)', display: 'block', marginBottom: 8, fontSize: 13 }}>{t('photosLabel')}</strong>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {estPhotoUrls.map((url, i) => (
+                {estPhotoUrls.map(({ url, kind }, i) => (
                   <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                    <img src={url} alt="" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--border)' }} />
+                    {kind === 'image' ? <img src={url} alt="" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--border)' }} />
+                      : <span style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, textDecoration: 'none' }}>{kind === 'pdf' ? '📄' : '🎥'}</span>}
                   </a>
                 ))}
               </div>

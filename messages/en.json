@@ -2182,7 +2182,9 @@
         "terms": "Terms",
         "unarchive": "Unarchive",
         "archive": "Archive",
-        "deleteEstimate": "Delete estimate"
+        "deleteEstimate": "Delete estimate",
+        "attachments": "Attachments",
+        "clearAttachments": "Remove attachments"
       },
       "saving": "Saving...",
       "generatingPdf": "Generating...",
@@ -2240,7 +2242,16 @@
         "confirm": "Yes, delete"
       },
       "deleting": "Deleting...",
-      "sending": "Sending..."
+      "sending": "Sending...",
+      "confirmClearAttachments": "Remove all attachments from this estimate?",
+      "attachmentsModal": {
+        "title": "Request attachments",
+        "subtitle": "Select which photos, videos or documents from the notes to share with the client on this estimate. Tap each photo, or check the note to pick all of them.",
+        "empty": "There are no photos or files in this request’s notes.",
+        "loading": "Loading...",
+        "saveWithCount": "Save ({count} selected)",
+        "error": "Could not save the attachments: {error}"
+      }
     },
     "public": {
       "notFoundTitle": "Estimate not found",

@@ -2182,7 +2182,9 @@
         "terms": "Términos",
         "unarchive": "Desarchivar",
         "archive": "Archivar",
-        "deleteEstimate": "Eliminar estimado"
+        "deleteEstimate": "Eliminar estimado",
+        "attachments": "Adjuntos",
+        "clearAttachments": "Quitar adjuntos"
       },
       "saving": "Guardando...",
       "generatingPdf": "Generando...",
@@ -2240,7 +2242,16 @@
         "confirm": "Sí, eliminar"
       },
       "deleting": "Eliminando...",
-      "sending": "Enviando..."
+      "sending": "Enviando...",
+      "confirmClearAttachments": "¿Quitar todos los adjuntos de este estimado?",
+      "attachmentsModal": {
+        "title": "Adjuntos de la solicitud",
+        "subtitle": "Selecciona qué fotos, videos o documentos de las notas compartir con el cliente en este estimado. Toca cada foto, o marca la nota para escogerlas todas.",
+        "empty": "No hay fotos ni archivos en las notas de esta solicitud.",
+        "loading": "Cargando...",
+        "saveWithCount": "Guardar ({count} seleccionados)",
+        "error": "No se pudieron guardar los adjuntos: {error}"
+      }
     },
     "public": {
       "notFoundTitle": "Estimado no encontrado",

@@ -7,13 +7,84 @@ import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
 import { buildChecklistItemsFromLineItems } from '../../../lib/generateChecklistFromLineItems';
 import { openPdfPreview } from '../../../lib/openPdfPreview';
-import { localInputToIso } from '../../../lib/datetimeLocal';
-import { useTranslations } from 'next-intl';
+import { localInputToIso, formatDateTimePR } from '../../../lib/datetimeLocal';
+import { useTranslations, useLocale } from 'next-intl';
+import ThumbImg from '../../components/ThumbImg';
 import { ScheduleSendPicker, ScheduledSendBadges, useScheduleSend, scheduleSend } from '../../components/ScheduleSend';
 
-export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, title: initialTitle = '', clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null, solicitudId = null, archivedAt: initialArchivedAt = null, scheduledEmails = [] }) {
+const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
+const VIDEO_PATH = /\.(mp4|mov|webm|avi)$/i;
+const PDF_PATH = /\.pdf$/i;
+
+export default function EstimateActions({ estimateId, status, clientId, clientEmail, estimateNumber, title: initialTitle = '', clientName, clientCompany, billTo: initialBillTo = 'person', clientProperties = [], propertyId: initialPropertyId = null, initialProperty = null, terms: initialTerms = '', notes = '', items = [], clientContacts = [], convertedToJobId = null, solicitudId = null, jobId = null, photoUrls: initialPhotoUrls = [], archivedAt: initialArchivedAt = null, scheduledEmails = [] }) {
   const router = useRouter();
   const t = useTranslations('estimados.actions');
+  const dateLocale = useLocale() === 'en' ? 'en-US' : 'es-PR';
+
+  // --- Adjuntos ---
+  // Igual que en facturas, pero aquí se escoge foto por foto (o la nota
+  // entera) de las notas de la solicitud y del trabajo; las rutas van a
+  // estimates.photo_urls, que es lo que ve el cliente debajo de las notas.
+  const [showAttachments, setShowAttachments] = useState(false);
+  const [attachNotes, setAttachNotes] = useState([]);
+  const [loadingAttach, setLoadingAttach] = useState(false);
+  const [selectedPaths, setSelectedPaths] = useState(initialPhotoUrls || []);
+  const [savedPaths, setSavedPaths] = useState(initialPhotoUrls || []);
+  const [savingAttach, setSavingAttach] = useState(false);
+
+  async function openAttachments() {
+    setSelectedPaths(savedPaths);
+    setShowAttachments(true);
+    if (attachNotes.length > 0) return;
+    setLoadingAttach(true);
+    const [{ data: solNotes }, { data: jobNotes }] = await Promise.all([
+      solicitudId ? supabase.from('solicitud_notes').select('*').eq('solicitud_id', solicitudId) : Promise.resolve({ data: [] }),
+      jobId ? supabase.from('job_notes').select('*').eq('job_id', jobId) : Promise.resolve({ data: [] }),
+    ]);
+    const all = [...(solNotes ?? []), ...(jobNotes ?? [])].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+    const withSigned = await Promise.all(all.map(async n => {
+      const paths = n.photo_urls?.length ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
+      const files = await Promise.all(paths.map(async path => {
+        // Miniatura redimensionada para no bajar originales de 5-10 MB; el
+        // original queda de respaldo por si Supabase no redimensiona.
+        const opts = IMAGE_PATH.test(path) ? { transform: { width: 160, height: 160, resize: 'cover' } } : undefined;
+        const [{ data: sd }, { data: full }] = await Promise.all([
+          supabase.storage.from('Job-photos').createSignedUrl(path, 3600, opts),
+          opts ? supabase.storage.from('Job-photos').createSignedUrl(path, 3600) : Promise.resolve({ data: null }),
+        ]);
+        return { path, url: sd?.signedUrl ?? full?.signedUrl ?? null, full: full?.signedUrl ?? null };
+      }));
+      return { ...n, files: files.filter(f => f.url) };
+    }));
+    setAttachNotes(withSigned.filter(n => n.files.length > 0));
+    setLoadingAttach(false);
+  }
+
+  function togglePath(path) {
+    setSelectedPaths(prev => prev.includes(path) ? prev.filter(p => p !== path) : [...prev, path]);
+  }
+
+  function toggleNotePaths(note) {
+    const paths = note.files.map(f => f.path);
+    const allOn = paths.every(p => selectedPaths.includes(p));
+    setSelectedPaths(prev => allOn ? prev.filter(p => !paths.includes(p)) : [...prev, ...paths.filter(p => !prev.includes(p))]);
+  }
+
+  async function saveAttachments(paths = selectedPaths) {
+    setSavingAttach(true);
+    const { error } = await supabase.from('estimates').update({ photo_urls: paths.length ? paths : null }).eq('id', estimateId);
+    setSavingAttach(false);
+    if (error) { alert(t('attachmentsModal.error', { error: error.message })); return; }
+    setSavedPaths(paths);
+    setShowAttachments(false);
+    router.refresh();
+  }
+
+  async function clearAttachments() {
+    if (!confirm(t('confirmClearAttachments'))) return;
+    setSelectedPaths([]);
+    await saveAttachments([]);
+  }
   const tPurchaseListCsv = useTranslations('shared.purchaseListCsv');
   const [archivedAt, setArchivedAt] = useState(initialArchivedAt);
   const [archiving, setArchiving] = useState(false);
@@ -285,6 +356,8 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
     clientCompany && { key: 'billto', label: `👤 ${t('menu.billTo')}`, onClick: () => setShowEditBillTo(true) },
     clientProperties.length > 0 && { key: 'property', label: `🏠 ${t('menu.property')}`, onClick: () => setShowEditProperty(true) },
     { key: 'terms', label: `📋 ${t('menu.terms')}`, onClick: () => setShowEditTerms(true) },
+    (solicitudId || jobId) && { key: 'attach', label: `📎 ${t('menu.attachments')}${savedPaths.length > 0 ? ` (${savedPaths.length})` : ''}`, onClick: openAttachments },
+    savedPaths.length > 0 && { key: 'clearattach', label: `🗑 ${t('menu.clearAttachments')}`, onClick: clearAttachments, warn: true },
     { key: 'archive', label: archiving ? `⏳ ${t('saving')}` : archivedAt ? `📤 ${t('menu.unarchive')}` : `📦 ${t('menu.archive')}`, onClick: toggleArchive },
     { key: 'delete', label: `🗑 ${t('menu.deleteEstimate')}`, onClick: () => setShowDelete(true), warn: true },
   ].filter(Boolean);
@@ -345,6 +418,59 @@ export default function EstimateActions({ estimateId, status, clientId, clientEm
             ))}
           </div>
         </>
+      )}
+
+      {/* Attachments modal */}
+      {showAttachments && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 600, maxWidth: '100%', maxHeight: '80vh', overflow: 'auto' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 6 }}>📎 {t('attachmentsModal.title')}</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>{t('attachmentsModal.subtitle')}</p>
+
+            {loadingAttach ? (
+              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>{t('attachmentsModal.loading')}</p>
+            ) : attachNotes.length === 0 ? (
+              <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>{t('attachmentsModal.empty')}</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                {attachNotes.map(n => {
+                  const count = n.files.filter(f => selectedPaths.includes(f.path)).length;
+                  const allOn = count === n.files.length;
+                  return (
+                    <div key={n.id} style={{ display: 'flex', gap: 12, padding: '12px 14px', borderRadius: 10, border: `2px solid ${count ? 'var(--navy)' : 'var(--border)'}`, background: count ? 'var(--info-tint)' : 'var(--surface)' }}>
+                      <input type="checkbox" checked={allOn} ref={el => { if (el) el.indeterminate = count > 0 && !allOn; }} onChange={() => toggleNotePaths(n)} style={{ marginTop: 4, cursor: 'pointer' }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
+                          {formatDateTimePR(n.created_at, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, dateLocale)}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: n.note ? 8 : 0 }}>
+                          {n.files.map(f => {
+                            const on = selectedPaths.includes(f.path);
+                            const box = { position: 'relative', width: 64, height: 64, padding: 0, borderRadius: 6, overflow: 'hidden', cursor: 'pointer', background: 'var(--surface-2)', border: on ? '3px solid var(--amber)' : '1.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 };
+                            return (
+                              <button key={f.path} type="button" onClick={() => togglePath(f.path)} aria-pressed={on} style={box}>
+                                {PDF_PATH.test(f.path) ? '📄' : VIDEO_PATH.test(f.path) ? '🎥' : <ThumbImg src={f.url} fallback={f.full} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+                                {on && <span style={{ position: 'absolute', top: 2, right: 2, width: 18, height: 18, borderRadius: '50%', background: 'var(--amber)', color: '#fff', fontSize: 12, fontWeight: 800, lineHeight: '18px', textAlign: 'center' }}>✓</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {n.note && <p style={{ fontSize: 13, margin: 0, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{n.note}</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-primary" onClick={() => saveAttachments()} disabled={savingAttach || loadingAttach} style={{ flex: 1, justifyContent: 'center' }}>
+                {savingAttach ? t('saving') : `💾 ${t('attachmentsModal.saveWithCount', { count: selectedPaths.length })}`}
+              </button>
+              <button className="btn btn-ghost" onClick={() => setShowAttachments(false)}>{t('cancel')}</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Edit terms */}

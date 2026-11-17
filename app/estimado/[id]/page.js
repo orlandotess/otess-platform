@@ -70,7 +70,8 @@ export default async function EstimaPublica(props) {
   // Fotos que la oficina escogió de las notas de la solicitud.
   const estPhotoUrls = (await Promise.all((est.photo_urls ?? []).map(async p => {
     const { data } = await supabase.storage.from('Job-photos').createSignedUrl(p, 3600);
-    return data?.signedUrl ?? null;
+    if (!data?.signedUrl) return null;
+    return { url: data.signedUrl, kind: /\.pdf$/i.test(p) ? 'pdf' : /\.(mp4|mov|webm|avi)$/i.test(p) ? 'video' : 'image' };
   }))).filter(Boolean);
   // Bundled accessories ("Combinar precios" on, the default) stay off this
   // client-facing document — their real cost is already folded into the
@@ -260,9 +261,10 @@ export default async function EstimaPublica(props) {
               <div style={{ marginTop: 16 }}>
                 <strong style={{ color: '#16223d', display: 'block', marginBottom: 8, fontSize: 13 }}>{t('photosLabel')}</strong>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {estPhotoUrls.map((url, i) => (
+                  {estPhotoUrls.map(({ url, kind }, i) => (
                     <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt="" style={{ width: 140, height: 140, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' }} />
+                      {kind === 'image' ? <img src={url} alt="" style={{ width: 140, height: 140, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee' }} />
+                        : <span style={{ width: 140, height: 140, objectFit: 'cover', borderRadius: 8, border: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, textDecoration: 'none' }}>{kind === 'pdf' ? '📄' : '🎥'}</span>}
                     </a>
                   ))}
                 </div>
