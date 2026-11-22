@@ -3726,7 +3726,13 @@
         "property": "Property",
         "openLocation": "Open location",
         "planos": "Floor plans",
-        "switchToThisJob": "Switch to this job"
+        "switchToThisJob": "Switch to this job",
+        "clientNote": {
+          "label": "Client note",
+          "show": "Show",
+          "hide": "Hide",
+          "photoAlt": "Client note photo"
+        }
       },
       "checklist": {
         "progress": "Progress",

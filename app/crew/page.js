@@ -12,6 +12,7 @@ import { useTranslations, useLocale } from 'next-intl';
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 import ThumbImg from '../components/ThumbImg';
+import PinnedClientNotes from './PinnedClientNotes';
 import { isPatchCable } from '../../lib/cableBoxes';
 const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 // Técnicos open this on a phone: a note photo straight off the camera is 5-10 MB,
@@ -250,6 +251,9 @@ export default function FieldApp() {
   // Job reports (create/edit + email to client, mirrors app/trabajos/[id]/JobTabs.js)
   const [detailReports, setDetailReports] = useState([]);
   const [detailClientContacts, setDetailClientContacts] = useState([]);
+  // Notas fijadas (📌) del cliente: solo lectura para el técnico.
+  const [detailPinnedClientNotes, setDetailPinnedClientNotes] = useState([]);
+  const detailJobIdRef = useRef(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [editingReportId, setEditingReportId] = useState(null);
   const [reportTitle, setReportTitle] = useState('');
@@ -638,8 +642,31 @@ export default function FieldApp() {
     return data?.signedUrl ?? null;
   }
 
+  async function loadPinnedClientNotes(job) {
+    if (!job.client_id) return;
+    const { data, error } = await supabase
+      .from('client_notes')
+      .select('*')
+      .eq('client_id', job.client_id)
+      .eq('is_pinned', true)
+      .order('created_at', { ascending: false });
+    if (error) { console.error('client_notes', error); return; }
+    const withUrls = await Promise.all((data ?? []).map(async n => {
+      const raw = n.photo_urls?.length ? n.photo_urls : (n.photo_url ? [n.photo_url] : []);
+      if (!raw.length) return n;
+      const full = await Promise.all(raw.map(p => getSignedUrl(p)));
+      const thumbs = await Promise.all(raw.map(async (p, i) => await getSignedUrl(p, NOTE_THUMB_WIDTH) ?? full[i]));
+      return { ...n, photo_urls: full, thumb_urls: thumbs, photo_url: full[0] ?? null, thumb_url: thumbs[0] ?? null };
+    }));
+    // Si el técnico ya abrió otro trabajo mientras cargaba, no mezclar notas.
+    if (detailJobIdRef.current === job.id) setDetailPinnedClientNotes(withUrls);
+  }
+
   async function openJobDetail(job) {
     setDetailJob(job);
+    detailJobIdRef.current = job.id;
+    setDetailPinnedClientNotes([]);
+    loadPinnedClientNotes(job);
     setDetailTab('info');
     setDetailNotes([]);
     setDetailChecklist([]);
@@ -2412,6 +2439,10 @@ export default function FieldApp() {
             {/* INFO TAB */}
             {detailTab === 'info' && (
               <div>
+                <PinnedClientNotes
+                  notes={detailPinnedClientNotes}
+                  onOpenPhoto={(urls, url) => setLightbox({ urls, index: Math.max(0, urls.indexOf(url)) })}
+                />
                 {/* Status */}
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>{t('jobDetail.status')}</div>

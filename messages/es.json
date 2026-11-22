@@ -3726,7 +3726,13 @@
         "property": "Propiedad",
         "openLocation": "Abrir ubicación",
         "planos": "Planos",
-        "switchToThisJob": "Cambiar a este job"
+        "switchToThisJob": "Cambiar a este job",
+        "clientNote": {
+          "label": "Nota del cliente",
+          "show": "Mostrar",
+          "hide": "Ocultar",
+          "photoAlt": "Foto de la nota del cliente"
+        }
       },
       "checklist": {
         "progress": "Progreso",
