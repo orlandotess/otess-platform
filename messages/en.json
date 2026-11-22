@@ -933,6 +933,10 @@
     "newInvoice": {
       "loading": "Loading..."
     },
+    "propertyCombobox": {
+      "placeholder": "Search property by name or address...",
+      "noResults": "No matching properties."
+    },
     "clientCombobox": {
       "placeholder": "Search by name or company...",
       "noResults": "No results."
@@ -1050,6 +1054,7 @@
       "client": "Client *",
       "job": "Job (optional)",
       "noJobOption": "— No associated job —",
+      "property": "Service property (optional)",
       "billTo": "Bill to",
       "invoiceNumber": "Invoice number",
       "invoiceNumberPlaceholder": "INV-1000",
@@ -1293,7 +1298,9 @@
       "propertyModal": {
         "title": "Service property",
         "none": "No property",
-        "noneDesc": "Don't assign a property"
+        "noneDesc": "Don't assign a property",
+        "searchPlaceholder": "Search property...",
+        "noResults": "No matching properties."
       },
       "billToModal": {
         "title": "Bill to",

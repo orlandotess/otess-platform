@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '../Sidebar';
 import ClientCombobox from './nueva/ClientCombobox';
+import PropertyCombobox from './nueva/PropertyCombobox';
 import LineItemRow from '../LineItemRow';
 import LineItemPicker from '../LineItemPicker';
 import TaxBreakdown from '../TaxBreakdown';
@@ -80,11 +81,13 @@ export default function InvoiceForm({ initialData = null }) {
   })), [t]);
 
   const [clients, setClients] = useState([]);
+  const [clientProperties, setClientProperties] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [catalogItems, setCatalogItems] = useState([]);
   const [taxRules, setTaxRules] = useState([]);
   const [form, setForm] = useState(initialData ? {
     client_id: initialData.invoice.client_id ?? '', job_id: initialData.invoice.job_id ?? '',
+    property_id: initialData.invoice.property_id ?? '',
     notes: initialData.invoice.notes ?? '', work_description: initialData.invoice.work_description ?? '',
     bill_to: initialData.invoice.bill_to ?? 'person', terms: initialData.invoice.terms ?? '',
     issued_at: initialData.invoice.issued_at ?? new Date().toISOString().split('T')[0],
@@ -96,7 +99,7 @@ export default function InvoiceForm({ initialData = null }) {
     // cálculo viejo (después del IVU) al reeditarlo — ver lib/tax.js:modoDescuento.
     discount_applies: modoDescuento(initialData.invoice),
   } : {
-    client_id: '', job_id: '', notes: '', work_description: '', bill_to: 'person', terms: '',
+    client_id: '', job_id: '', property_id: '', notes: '', work_description: '', bill_to: 'person', terms: '',
     invoice_number: '',
     issued_at: new Date().toISOString().split('T')[0],
     due_at: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
@@ -119,7 +122,7 @@ export default function InvoiceForm({ initialData = null }) {
 
   useEffect(() => {
     supabase.from('clients').select('id, name, company, client_type, report_name_source').order('name').then(({ data }) => setClients(data ?? []));
-    supabase.from('jobs').select('id, title, description, client_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
+    supabase.from('jobs').select('id, title, description, client_id, property_id, bill_to, job_line_items(*)').order('created_at', { ascending: false }).then(({ data }) => setJobs(data ?? []));
     supabase.from('catalog_items').select('*').order('item_code').then(({ data }) => setCatalogItems(data ?? []));
     supabase.from('tax_rules').select('client_type, line_item_type, rate, effective_from').then(({ data }) => setTaxRules(data ?? []));
     if (!isEdit) {
@@ -157,7 +160,7 @@ export default function InvoiceForm({ initialData = null }) {
     if (!isEdit && jobIdParam && jobs.length) {
       const job = jobs.find(j => j.id === jobIdParam);
       if (job) {
-        setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id, bill_to: job.bill_to ?? 'person', work_description: job.description ?? '' }));
+        setForm(f => ({ ...f, job_id: job.id, client_id: job.client_id, property_id: job.property_id ?? '', bill_to: job.bill_to ?? 'person', work_description: job.description ?? '' }));
         if (job.job_line_items?.length) {
           Promise.all(job.job_line_items.map(async li => {
             let photoPreview = null;
@@ -175,6 +178,20 @@ export default function InvoiceForm({ initialData = null }) {
   }, [jobIdParam, jobs]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Propiedades del cliente escogido. Si la propiedad marcada no es de este
+  // cliente (se cambió de cliente), se limpia.
+  useEffect(() => {
+    if (!form.client_id) { setClientProperties([]); return; }
+    let cancelled = false;
+    supabase.from('client_properties').select('id, name, street, city').eq('client_id', form.client_id).order('name').then(({ data }) => {
+      if (cancelled) return;
+      const props = data ?? [];
+      setClientProperties(props);
+      setForm(f => (f.property_id && !props.some(p => p.id === f.property_id) ? { ...f, property_id: '' } : f));
+    });
+    return () => { cancelled = true; };
+  }, [form.client_id]);
   // Borrar el descuento de un documento viejo ('after_tax') lo pasa a la regla
   // nueva: si se le vuelve a poner, se resta antes del IVU. Es la forma de
   // migrar un borrador a mano — ver lib/tax.js:modoDescuento.
@@ -410,6 +427,7 @@ export default function InvoiceForm({ initialData = null }) {
       const { data: updated, error: err } = await supabase.from('invoices').update({
         client_id: form.client_id,
         job_id: form.job_id || null,
+        property_id: form.property_id || null,
         notes: form.notes || null,
         work_description: form.work_description || null,
         terms: form.terms || null,
@@ -443,6 +461,7 @@ export default function InvoiceForm({ initialData = null }) {
         invoice_number: invoiceNumber,
         client_id: form.client_id,
         job_id: form.job_id || null,
+        property_id: form.property_id || null,
         notes: form.notes || null,
         work_description: form.work_description || null,
         terms: form.terms || null,
@@ -595,7 +614,7 @@ export default function InvoiceForm({ initialData = null }) {
                   <select value={form.job_id} onChange={e => {
                     const jid = e.target.value;
                     const job = jobs.find(j => j.id === jid);
-                    setForm(f => ({ ...f, job_id: jid, work_description: job?.description ?? '' }));
+                    setForm(f => ({ ...f, job_id: jid, work_description: job?.description ?? '', property_id: job?.property_id ?? f.property_id }));
                   }}>
                     <option value="">{t('noJobOption')}</option>
                     {jobs.filter(j => !form.client_id || j.client_id === form.client_id).map(j => (
@@ -604,6 +623,13 @@ export default function InvoiceForm({ initialData = null }) {
                   </select>
                 </div>
               </div>
+
+              {clientProperties.length > 0 && (
+                <div className="form-group" style={{ marginTop: 4 }}>
+                  <label>{t('property')}</label>
+                  <PropertyCombobox properties={clientProperties} value={form.property_id} onChange={id => set('property_id', id)} />
+                </div>
+              )}
 
               {hasCompany && (
                 <div className="form-group" style={{ marginTop: 4 }}>

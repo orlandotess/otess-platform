@@ -10,6 +10,7 @@ import { useTranslations, useLocale } from 'next-intl';
 
 import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 import ThumbImg from '../../components/ThumbImg';
+import SearchBox from '../../SearchBox';
 import { ScheduleSendPicker, ScheduledSendBadges, useScheduleSend, scheduleSend } from '../../components/ScheduleSend';
 const PAYMENT_METHOD_KEYS = ['cash', 'check', 'card', 'transfer'];
 const TERMS_TEMPLATE_KEYS = ['standard'];
@@ -47,6 +48,13 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
   const [numberError, setNumberError] = useState('');
   const [billTo, setBillTo] = useState(initialBillTo);
   const [propertyId, setPropertyId] = useState(initialPropertyId || '');
+  const [propertySearch, setPropertySearch] = useState('');
+  const filteredProperties = useMemo(() => {
+    const norm = v => (v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const q = norm(propertySearch.trim());
+    if (!q) return clientProperties;
+    return clientProperties.filter(p => norm([p.name, p.street, p.city].filter(Boolean).join(" ")).includes(q));
+  }, [clientProperties, propertySearch]);
   const [terms, setTerms] = useState(initialTerms || '');
   const [internalNotes, setInternalNotes] = useState(initialInternalNotes);
   const [savingInternalNotes, setSavingInternalNotes] = useState(false);
@@ -349,7 +357,7 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
     ['draft', 'sent'].includes(status) && { key: 'items', label: `🧾 ${t('menu.editLines')}`, onClick: () => router.push(`/facturas/${invoiceId}/editar`) },
     { key: 'number', label: `✏️ ${t('menu.editNumber')}`, onClick: () => { setNewNumber(invoiceNumber); setNumberError(''); setShowEditNumber(true); } },
     clientCompany && { key: 'billto', label: `👤 ${t('menu.billTo')}`, onClick: () => setShowEditBillTo(true) },
-    clientProperties.length > 0 && { key: 'property', label: `🏠 ${t('menu.property')}`, onClick: () => setShowEditProperty(true) },
+    clientProperties.length > 0 && { key: 'property', label: `🏠 ${t('menu.property')}`, onClick: () => { setPropertySearch(''); setShowEditProperty(true); } },
     { key: 'terms', label: `📋 ${t('menu.terms')}`, onClick: () => setShowEditTerms(true) },
     { key: 'notes', label: `📝 ${t('menu.internalNotes')}`, onClick: () => setShowInternalNotes(true) },
     { key: 'checks', label: `📷 ${t('menu.checkPhotos')}${checkPhotos.length > 0 ? ` (${checkPhotos.length})` : ''}`, onClick: openCheckPhotos },
@@ -578,9 +586,10 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
       {showEditProperty && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, width: 400 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 20 }}>{t('propertyModal.title')}</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)', marginBottom: 16 }}>{t('propertyModal.title')}</h2>
             <form onSubmit={saveProperty}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+              <SearchBox value={propertySearch} onChange={setPropertySearch} placeholder={t('propertyModal.searchPlaceholder')} style={{ maxWidth: 'none', marginBottom: 12 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24, maxHeight: '55vh', overflowY: 'auto' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${!propertyId ? 'var(--navy)' : 'var(--border)'}`, background: !propertyId ? 'var(--info-tint)' : 'var(--surface)' }}>
                   <input type="radio" name="property" value="" checked={!propertyId} onChange={() => setPropertyId('')} />
                   <div>
@@ -588,7 +597,10 @@ export default function InvoiceActions({ invoiceId, status, isOverdue = false, r
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('propertyModal.noneDesc')}</div>
                   </div>
                 </label>
-                {clientProperties.map(p => (
+                {filteredProperties.length === 0 && (
+                  <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: '8px 0' }}>{t('propertyModal.noResults')}</div>
+                )}
+                {filteredProperties.map(p => (
                   <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer', padding: '12px 16px', borderRadius: 10, border: `2px solid ${propertyId === p.id ? 'var(--navy)' : 'var(--border)'}`, background: propertyId === p.id ? 'var(--info-tint)' : 'var(--surface)' }}>
                     <input type="radio" name="property" value={p.id} checked={propertyId === p.id} onChange={() => setPropertyId(p.id)} />
                     <div>
