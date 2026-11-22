@@ -72,6 +72,7 @@ export default function InvoiceForm({ initialData = null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobIdParam = searchParams.get('job');
+  const clientIdParam = searchParams.get('client');
   const isEdit = !!initialData;
   const t = useTranslations('facturas.form');
   const termsTemplates = useMemo(() => TERMS_TEMPLATE_DEFS.map(d => ({
@@ -155,6 +156,13 @@ export default function InvoiceForm({ initialData = null }) {
       window.removeEventListener('focus', refreshCatalog);
     };
   }, []);
+
+  // Desde la ficha del cliente (?client=): el cliente ya viene escogido.
+  useEffect(() => {
+    if (isEdit || jobIdParam || !clientIdParam || !clients.length) return;
+    const c = clients.find(cl => cl.id === clientIdParam);
+    if (c) setForm(f => (f.client_id ? f : { ...f, client_id: c.id, bill_to: c.report_name_source === 'company' ? 'company' : 'person' }));
+  }, [clientIdParam, clients]);
 
   useEffect(() => {
     if (!isEdit && jobIdParam && jobs.length) {

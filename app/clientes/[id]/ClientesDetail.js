@@ -1285,6 +1285,7 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
                 <SearchBox value={invoiceSearch} onChange={setInvoiceSearch} placeholder={t('invoices.searchPlaceholder')} />
               </div>
             )}
+            <Link href={`/facturas/nueva?client=${client.id}`} className="btn btn-primary" style={{ marginLeft: invoices.length > 0 ? 0 : 'auto' }}>{t('invoices.newInvoice')}</Link>
           </div>
           {invoiceReconciliation?.hasVarianza && (
             <div style={{ borderLeft: '4px solid var(--warn)', background: 'var(--danger-tint)', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>

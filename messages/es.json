@@ -1915,6 +1915,7 @@
         "columnDate": "Fecha"
       },
       "invoices": {
+        "newInvoice": "+ Nueva factura",
         "title": "Facturas",
         "searchPlaceholder": "Buscar # factura, trabajo o estado...",
         "varianceTitle": "⚠️ El cobrado no cuadra con el neto esperado",

@@ -1915,6 +1915,7 @@
         "columnDate": "Date"
       },
       "invoices": {
+        "newInvoice": "+ New invoice",
         "title": "Invoices",
         "searchPlaceholder": "Search invoice #, job, or status...",
         "varianceTitle": "⚠️ Amount collected doesn't match the expected net",
