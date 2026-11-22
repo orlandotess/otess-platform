@@ -9,6 +9,7 @@ import { formatDateTimePR, formatDatePR } from '../../../lib/datetimeLocal';
 import { uploadJobPhoto } from '../../../lib/uploadJobPhoto';
 import { sumBillableLineItems } from '../../../lib/proposalLineItemTotal';
 import SearchBox from '../../SearchBox';
+import ClientCredentials from '../../components/ClientCredentials';
 
 const statusJobDefs = {
   estimate: { cls: 'badge-gray', key: 'estimate' },
@@ -157,6 +158,9 @@ async function resolveShortLink(url) {
 
 export default function ClientesDetail({ client, jobs, invoices, payments = [], retenciones = [], scheduleDays = [], calendarEvents = [], tasks = [], properties: initProps, contacts: initContacts, propertyContacts: initPropertyContacts = [], proposals, internalNotes: initInternalNotes, serviceTickets = [], currentRole, invoiceReconciliation }) {
   const canDeleteClient = currentRole === 'admin' || currentRole === 'secretaria';
+  // Credenciales: oficina y técnicos (los permisos reales los aplica la base de datos).
+  const canSeeCredentials = ['admin', 'secretaria', 'tecnico'].includes(currentRole);
+  const isOffice = currentRole === 'admin' || currentRole === 'secretaria';
   const router = useRouter();
   const t = useTranslations('clientes.detail');
   const locale = useLocale();
@@ -546,6 +550,9 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
           {t('tabs.internalNotes')}
           {internalNotes.length > 0 && <span style={{ background: 'var(--amber)', color: 'var(--navy)', borderRadius: 20, padding: '1px 7px', fontSize: 11, marginLeft: 6 }}>{internalNotes.length}</span>}
         </button>
+        {canSeeCredentials && (
+          <button style={tabStyle('credentials')} onClick={() => setTab('credentials')}>{t('tabs.credentials')}</button>
+        )}
       </div>
 
       {/* INFO TAB */}
@@ -1577,6 +1584,16 @@ export default function ClientesDetail({ client, jobs, invoices, payments = [], 
       )}
 
       {/* INTERNAL NOTES TAB */}
+      {tab === 'credentials' && canSeeCredentials && (
+        <ClientCredentials
+          clientId={client.id}
+          properties={properties}
+          variant="admin"
+          canDelete={isOffice}
+          showLog={isOffice}
+        />
+      )}
+
       {tab === 'internalNotes' && (
         <div>
           <div className="card" style={{ marginBottom: 16 }}>

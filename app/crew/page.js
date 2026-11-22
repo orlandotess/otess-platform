@@ -13,6 +13,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 import ThumbImg from '../components/ThumbImg';
 import PinnedClientNotes from './PinnedClientNotes';
+import ClientCredentials from '../components/ClientCredentials';
 import { isPatchCable } from '../../lib/cableBoxes';
 const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 // Técnicos open this on a phone: a note photo straight off the camera is 5-10 MB,
@@ -58,7 +59,7 @@ function FieldIcon({ name }) {
     </svg>
   );
 }
-const JOB_FIELDS = 'id, title, status, client_id, scheduled_start, scheduled_end, street, city, state, zip, property_name, clients(name, phone, email), job_contacts(id, name, phone, email, cargo)';
+const JOB_FIELDS = 'id, title, status, client_id, property_id, scheduled_start, scheduled_end, street, city, state, zip, property_name, clients(name, phone, email), job_contacts(id, name, phone, email, cargo)';
 const EXPENSE_CATEGORIES = [
   { value: 'materiales', key: 'materiales' },
   { value: 'gasolina', key: 'gasolina' },
@@ -2443,6 +2444,16 @@ export default function FieldApp() {
                   notes={detailPinnedClientNotes}
                   onOpenPhoto={(urls, url) => setLightbox({ urls, index: Math.max(0, urls.indexOf(url)) })}
                 />
+                {detailJob.client_id && (
+                  <ClientCredentials
+                    key={detailJob.id}
+                    clientId={detailJob.client_id}
+                    jobId={detailJob.id}
+                    propertyId={detailJob.property_id ?? null}
+                    variant="crew"
+                    hideWhenNoAccess
+                  />
+                )}
                 {/* Status */}
                 <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>{t('jobDetail.status')}</div>

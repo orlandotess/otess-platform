@@ -1773,7 +1773,8 @@
         "billing": "💰 Billing",
         "proposals": "📄 Proposals",
         "tickets": "🎫 Tickets",
-        "internalNotes": "📝 Internal notes"
+        "internalNotes": "📝 Internal notes",
+        "credentials": "🔐 Credentials"
       },
       "info": {
         "contactInfoTitle": "Contact information",
@@ -6025,5 +6026,68 @@
     "cancel": "Cancel scheduled send",
     "confirmCancel": "Cancel this scheduled send?",
     "error": "Error: {error}"
+  },
+  "clientCredentials": {
+    "title": "Credentials",
+    "add": "Add",
+    "loading": "Loading…",
+    "empty": "No credentials saved for this client.",
+    "noAccess": "You don't have access to this client's credentials.",
+    "show": "Show",
+    "hide": "Hide",
+    "copy": "Copy",
+    "copied": "Copied",
+    "autoHide": "Hides automatically in {seconds} seconds.",
+    "updatedBy": "Updated by {name} · {date}",
+    "editAria": "Edit {label}",
+    "deleteAria": "Delete {label}",
+    "confirmDelete": "Delete the credential “{label}”? The password is removed and can't be recovered.",
+    "fields": {
+      "username": "Username",
+      "secret": "Password",
+      "host": "IP / address"
+    },
+    "kinds": {
+      "nvr": "NVR / DVR",
+      "camara": "Camera",
+      "wifi": "Wi-Fi",
+      "alarma": "Alarm",
+      "router": "Router",
+      "porton": "Gate / access",
+      "otro": "Other"
+    },
+    "form": {
+      "newTitle": "New credential",
+      "editTitle": "Edit credential",
+      "kind": "Type",
+      "label": "Device or system",
+      "labelPlaceholder": "E.g.: Main NVR, Camera #6",
+      "property": "Property",
+      "allProperties": "All / general",
+      "username": "Username",
+      "secret": "Password",
+      "secretKeep": "Leave blank to keep it",
+      "clearSecret": "Remove the password",
+      "host": "IP or address (optional)",
+      "notes": "Notes (optional)",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving…"
+    },
+    "log": {
+      "title": "Access history",
+      "empty": "Nobody has viewed or copied this client's passwords yet.",
+      "when": "Date",
+      "who": "Who",
+      "credential": "Credential",
+      "job": "Job"
+    },
+    "errors": {
+      "load": "Couldn't load the credentials.",
+      "reveal": "Couldn't get the password.",
+      "save": "Couldn't save the credential.",
+      "delete": "Couldn't delete the credential.",
+      "labelRequired": "Enter the device or system name."
+    }
   }
 }

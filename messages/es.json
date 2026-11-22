@@ -1773,7 +1773,8 @@
         "billing": "💰 Facturación",
         "proposals": "📄 Propuestas",
         "tickets": "🎫 Boletos",
-        "internalNotes": "📝 Notas internas"
+        "internalNotes": "📝 Notas internas",
+        "credentials": "🔐 Credenciales"
       },
       "info": {
         "contactInfoTitle": "Información de contacto",
@@ -6025,5 +6026,68 @@
     "cancel": "Cancelar envío programado",
     "confirmCancel": "¿Cancelar este envío programado?",
     "error": "Error: {error}"
+  },
+  "clientCredentials": {
+    "title": "Credenciales",
+    "add": "Agregar",
+    "loading": "Cargando…",
+    "empty": "No hay credenciales guardadas para este cliente.",
+    "noAccess": "No tienes acceso a las credenciales de este cliente.",
+    "show": "Mostrar",
+    "hide": "Ocultar",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "autoHide": "Se oculta sola en {seconds} segundos.",
+    "updatedBy": "Actualizada por {name} · {date}",
+    "editAria": "Editar {label}",
+    "deleteAria": "Borrar {label}",
+    "confirmDelete": "¿Borrar la credencial «{label}»? La contraseña se elimina y no se puede recuperar.",
+    "fields": {
+      "username": "Usuario",
+      "secret": "Contraseña",
+      "host": "IP / dirección"
+    },
+    "kinds": {
+      "nvr": "NVR / DVR",
+      "camara": "Cámara",
+      "wifi": "Wifi",
+      "alarma": "Alarma",
+      "router": "Router",
+      "porton": "Portón / acceso",
+      "otro": "Otro"
+    },
+    "form": {
+      "newTitle": "Nueva credencial",
+      "editTitle": "Editar credencial",
+      "kind": "Tipo",
+      "label": "Equipo o sistema",
+      "labelPlaceholder": "Ej.: NVR principal, Cámara #6",
+      "property": "Propiedad",
+      "allProperties": "Todas / general",
+      "username": "Usuario",
+      "secret": "Contraseña",
+      "secretKeep": "Dejar vacío para no cambiarla",
+      "clearSecret": "Quitar la contraseña",
+      "host": "IP o dirección (opcional)",
+      "notes": "Notas (opcional)",
+      "cancel": "Cancelar",
+      "save": "Guardar",
+      "saving": "Guardando…"
+    },
+    "log": {
+      "title": "Historial de accesos",
+      "empty": "Nadie ha visto ni copiado contraseñas de este cliente todavía.",
+      "when": "Fecha",
+      "who": "Quién",
+      "credential": "Credencial",
+      "job": "Trabajo"
+    },
+    "errors": {
+      "load": "No se pudieron cargar las credenciales.",
+      "reveal": "No se pudo obtener la contraseña.",
+      "save": "No se pudo guardar la credencial.",
+      "delete": "No se pudo borrar la credencial.",
+      "labelRequired": "Escribe el nombre del equipo o sistema."
+    }
   }
 }
