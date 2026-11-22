@@ -822,7 +822,8 @@
       "stats": {
         "total": "Total facturas",
         "pending": "Pendiente cobro",
-        "collected": "Cobrado"
+        "collected": "Cobrado",
+        "overdue": "Vencidas"
       },
       "empty": {
         "title": "No hay facturas aún",
@@ -851,17 +852,23 @@
       "filters": {
         "viewAll": "Ver todas",
         "invoiceCount": "{count, plural, one {# factura} other {# facturas}}",
-        "pendingCountOverdue": "{count, plural, one {# factura} other {# facturas}} · {overdue, plural, one {# vencida} other {# vencidas}}",
         "showing": {
           "pendientes": "Mostrando {count, plural, one {# factura pendiente} other {# facturas pendientes}} de cobro",
-          "pagadas": "Mostrando {count, plural, one {# factura pagada} other {# facturas pagadas}}"
+          "pagadas": "Mostrando {count, plural, one {# factura pagada} other {# facturas pagadas}}",
+          "vencidas": "Mostrando {count, plural, one {# factura vencida} other {# facturas vencidas}}",
+          "todas": "Mostrando {count, plural, one {# factura} other {# facturas}}"
         },
         "clear": "Ver todas las facturas",
         "empty": {
           "pendientes": "No hay facturas pendientes de cobro.",
-          "pagadas": "Aún no hay facturas pagadas."
-        }
-      }
+          "pagadas": "Aún no hay facturas pagadas.",
+          "vencidas": "No hay facturas vencidas.",
+          "todas": "No hay facturas."
+        },
+        "matching": "que coinciden con «{search}»",
+        "noResults": "Sin resultados para «{search}»."
+      },
+      "searchPlaceholder": "Buscar por cliente o # de factura..."
     },
     "recurringList": {
       "title": "Facturas recurrentes",

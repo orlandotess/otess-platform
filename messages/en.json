@@ -822,7 +822,8 @@
       "stats": {
         "total": "Total invoices",
         "pending": "Pending collection",
-        "collected": "Collected"
+        "collected": "Collected",
+        "overdue": "Overdue"
       },
       "empty": {
         "title": "No invoices yet",
@@ -851,17 +852,23 @@
       "filters": {
         "viewAll": "View all",
         "invoiceCount": "{count, plural, one {# invoice} other {# invoices}}",
-        "pendingCountOverdue": "{count, plural, one {# invoice} other {# invoices}} · {overdue} overdue",
         "showing": {
           "pendientes": "Showing {count, plural, one {# unpaid invoice} other {# unpaid invoices}}",
-          "pagadas": "Showing {count, plural, one {# paid invoice} other {# paid invoices}}"
+          "pagadas": "Showing {count, plural, one {# paid invoice} other {# paid invoices}}",
+          "vencidas": "Showing {count, plural, one {# overdue invoice} other {# overdue invoices}}",
+          "todas": "Showing {count, plural, one {# invoice} other {# invoices}}"
         },
         "clear": "View all invoices",
         "empty": {
           "pendientes": "No unpaid invoices.",
-          "pagadas": "No paid invoices yet."
-        }
-      }
+          "pagadas": "No paid invoices yet.",
+          "vencidas": "No overdue invoices.",
+          "todas": "No invoices."
+        },
+        "matching": "matching “{search}”",
+        "noResults": "No results for “{search}”."
+      },
+      "searchPlaceholder": "Search by client or invoice #..."
     },
     "recurringList": {
       "title": "Recurring invoices",

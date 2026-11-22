@@ -5,6 +5,8 @@ import { supabaseServer as supabase } from '../../lib/supabase';
 import { formatDatePR, formatTimePR } from '../../lib/datetimeLocal';
 import Sidebar from '../Sidebar';
 import Link from 'next/link';
+import { Suspense } from 'react';
+import InvoiceSearch from './InvoiceSearch';
 import { getTranslations, getLocale } from 'next-intl/server';
 
 const statusBadge = {
@@ -32,11 +34,16 @@ function formatViewedAt(dateStr, locale, t) {
 }
 
 // Filtros de las tarjetas de estado (?estado=...). "pendientes" = enviadas sin
-// cobrar, incluidas las vencidas; "pagadas" = cobradas; sin parámetro = todas.
+// cobrar, incluidas las vencidas; "vencidas" = pendientes con fecha de
+// vencimiento pasada; "pagadas" = cobradas; sin parámetro = todas.
 const FILTERS = {
-  pendientes: inv => inv.status === 'sent',
-  pagadas:    inv => inv.status === 'paid',
+  pendientes: ()    => inv => inv.status === 'sent',
+  vencidas:   today => inv => inv.status === 'sent' && !!inv.due_at && inv.due_at < today,
+  pagadas:    ()    => inv => inv.status === 'paid',
 };
+
+// Normaliza para buscar sin importar mayúsculas ni acentos.
+const norm = str => (str ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 const money = n => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -63,6 +70,15 @@ function StatCard({ href, active, accent, label, value, sub, valueStyle }) {
 export default async function FacturasPage(props) {
   const searchParams = await props.searchParams;
   const filter = FILTERS[searchParams?.estado] ? searchParams.estado : 'todas';
+  const q = typeof searchParams?.q === 'string' ? searchParams.q.trim() : '';
+  // Enlaces de las tarjetas: cambian el estado y conservan la búsqueda.
+  const hrefFor = estado => {
+    const params = new URLSearchParams();
+    if (estado) params.set('estado', estado);
+    if (q) params.set('q', q);
+    const qs = params.toString();
+    return qs ? `/facturas?${qs}` : '/facturas';
+  };
   const t = await getTranslations('facturas.list');
   const locale = await getLocale();
   const today = new Date().toISOString().slice(0, 10);
@@ -88,12 +104,24 @@ export default async function FacturasPage(props) {
     }
   });
 
-  const pendingInvoices = (invoices ?? []).filter(FILTERS.pendientes);
-  const paidInvoices = (invoices ?? []).filter(FILTERS.pagadas);
-  const totalPending = pendingInvoices.reduce((a, i) => a + Number(i.total), 0);
-  const totalPaid = paidInvoices.reduce((a, i) => a + Number(i.total), 0);
-  const overdueCount = pendingInvoices.filter(i => i.due_at && i.due_at < today).length;
-  const visible = filter === 'todas' ? (invoices ?? []) : (invoices ?? []).filter(FILTERS[filter]);
+  const all = invoices ?? [];
+  const pendingInvoices = all.filter(FILTERS.pendientes(today));
+  const overdueInvoices = all.filter(FILTERS.vencidas(today));
+  const paidInvoices = all.filter(FILTERS.pagadas(today));
+  const sum = list => list.reduce((a, i) => a + Number(i.total), 0);
+  const totalPending = sum(pendingInvoices);
+  const totalOverdue = sum(overdueInvoices);
+  const totalPaid = sum(paidInvoices);
+
+  const byStatus = filter === 'todas' ? all : all.filter(FILTERS[filter](today));
+  // Búsqueda por cliente (o número de factura); todas las palabras deben aparecer.
+  const words = norm(q).split(/\s+/).filter(Boolean);
+  const visible = words.length
+    ? byStatus.filter(inv => {
+        const haystack = norm(`${inv.clients?.name ?? ''} ${inv.invoice_number ?? ''}`);
+        return words.every(w => haystack.includes(w));
+      })
+    : byStatus;
 
   return (
     <div className="admin-shell ds-facturas">
@@ -107,27 +135,34 @@ export default async function FacturasPage(props) {
           </div>
         </div>
 
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
           <StatCard
-            href="/facturas"
+            href={hrefFor(null)}
             active={filter === 'todas'}
             label={t('stats.total')}
             value={invoices?.length ?? 0}
             sub={t('filters.viewAll')}
           />
           <StatCard
-            href="/facturas?estado=pendientes"
+            href={hrefFor('pendientes')}
             active={filter === 'pendientes'}
             accent="amber"
             label={t('stats.pending')}
             value={money(totalPending)}
             valueStyle={{ color: 'var(--amber)', fontSize: 22 }}
-            sub={overdueCount
-              ? t('filters.pendingCountOverdue', { count: pendingInvoices.length, overdue: overdueCount })
-              : t('filters.invoiceCount', { count: pendingInvoices.length })}
+            sub={t('filters.invoiceCount', { count: pendingInvoices.length })}
           />
           <StatCard
-            href="/facturas?estado=pagadas"
+            href={hrefFor('vencidas')}
+            active={filter === 'vencidas'}
+            accent="warn"
+            label={t('stats.overdue')}
+            value={money(totalOverdue)}
+            valueStyle={{ color: overdueInvoices.length ? 'var(--warn)' : 'var(--muted)', fontSize: 22 }}
+            sub={t('filters.invoiceCount', { count: overdueInvoices.length })}
+          />
+          <StatCard
+            href={hrefFor('pagadas')}
             active={filter === 'pagadas'}
             accent="ok"
             label={t('stats.collected')}
@@ -137,10 +172,11 @@ export default async function FacturasPage(props) {
           />
         </div>
 
-        {filter !== 'todas' && (
+        {(filter !== 'todas' || q) && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', margin: '0 0 12px' }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--navy)' }}>
               {t(`filters.showing.${filter}`, { count: visible.length })}
+              {q && <span style={{ color: 'var(--muted)', fontWeight: 500 }}> · {t('filters.matching', { search: q })}</span>}
             </div>
             <Link href="/facturas" scroll={false} className="btn btn-ghost btn-sm">{t('filters.clear')}</Link>
           </div>
@@ -154,9 +190,16 @@ export default async function FacturasPage(props) {
               <p>{t('empty.text')}</p>
               <Link href="/facturas/nueva" className="btn btn-primary btn-sm">{t('empty.cta')}</Link>
             </div>
-          ) : !visible.length ? (
+          ) : (
+          <>
+            <div style={{ marginBottom: 16 }}>
+              <Suspense fallback={null}>
+                <InvoiceSearch placeholder={t('searchPlaceholder')} />
+              </Suspense>
+            </div>
+            {!visible.length ? (
             <div className="empty">
-              <p>{t(`filters.empty.${filter}`)}</p>
+              <p>{q ? t('filters.noResults', { search: q }) : t(`filters.empty.${filter}`)}</p>
             </div>
           ) : (
             <div className="table-wrap">
@@ -207,6 +250,8 @@ export default async function FacturasPage(props) {
                 </tbody>
               </table>
             </div>
+            )}
+          </>
           )}
         </div>
       </main>
