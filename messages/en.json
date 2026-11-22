@@ -847,7 +847,21 @@
       },
       "remindersPaused": "Reminders paused",
       "lastViewed": "Last viewed: {date}",
-      "today": "today {time}"
+      "today": "today {time}",
+      "filters": {
+        "viewAll": "View all",
+        "invoiceCount": "{count, plural, one {# invoice} other {# invoices}}",
+        "pendingCountOverdue": "{count, plural, one {# invoice} other {# invoices}} · {overdue} overdue",
+        "showing": {
+          "pendientes": "Showing {count, plural, one {# unpaid invoice} other {# unpaid invoices}}",
+          "pagadas": "Showing {count, plural, one {# paid invoice} other {# paid invoices}}"
+        },
+        "clear": "View all invoices",
+        "empty": {
+          "pendientes": "No unpaid invoices.",
+          "pagadas": "No paid invoices yet."
+        }
+      }
     },
     "recurringList": {
       "title": "Recurring invoices",

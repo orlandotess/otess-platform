@@ -847,7 +847,21 @@
       },
       "remindersPaused": "Recordatorios pausados",
       "lastViewed": "Última vista: {date}",
-      "today": "hoy {time}"
+      "today": "hoy {time}",
+      "filters": {
+        "viewAll": "Ver todas",
+        "invoiceCount": "{count, plural, one {# factura} other {# facturas}}",
+        "pendingCountOverdue": "{count, plural, one {# factura} other {# facturas}} · {overdue, plural, one {# vencida} other {# vencidas}}",
+        "showing": {
+          "pendientes": "Mostrando {count, plural, one {# factura pendiente} other {# facturas pendientes}} de cobro",
+          "pagadas": "Mostrando {count, plural, one {# factura pagada} other {# facturas pagadas}}"
+        },
+        "clear": "Ver todas las facturas",
+        "empty": {
+          "pendientes": "No hay facturas pendientes de cobro.",
+          "pagadas": "Aún no hay facturas pagadas."
+        }
+      }
     },
     "recurringList": {
       "title": "Facturas recurrentes",

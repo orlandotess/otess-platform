@@ -31,7 +31,38 @@ function formatViewedAt(dateStr, locale, t) {
   return formatDatePR(dateStr, { month: 'short', day: 'numeric' }, dateLocale);
 }
 
-export default async function FacturasPage() {
+// Filtros de las tarjetas de estado (?estado=...). "pendientes" = enviadas sin
+// cobrar, incluidas las vencidas; "pagadas" = cobradas; sin parámetro = todas.
+const FILTERS = {
+  pendientes: inv => inv.status === 'sent',
+  pagadas:    inv => inv.status === 'paid',
+};
+
+const money = n => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function StatCard({ href, active, accent, label, value, sub, valueStyle }) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      className="stat-card"
+      data-accent={accent}
+      aria-current={active ? 'true' : undefined}
+      style={{
+        display: 'block', color: 'inherit', textDecoration: 'none', cursor: 'pointer',
+        ...(active ? { borderColor: 'var(--amber)', background: 'var(--amber-tint)' } : {}),
+      }}
+    >
+      <div className="stat-label">{label}</div>
+      <div className="stat-value" style={valueStyle}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, marginTop: 4 }}>{sub}</div>}
+    </Link>
+  );
+}
+
+export default async function FacturasPage(props) {
+  const searchParams = await props.searchParams;
+  const filter = FILTERS[searchParams?.estado] ? searchParams.estado : 'todas';
   const t = await getTranslations('facturas.list');
   const locale = await getLocale();
   const today = new Date().toISOString().slice(0, 10);
@@ -57,8 +88,12 @@ export default async function FacturasPage() {
     }
   });
 
-  const totalPending = invoices?.filter(i => i.status === 'sent').reduce((a, i) => a + i.total, 0) ?? 0;
-  const totalPaid = invoices?.filter(i => i.status === 'paid').reduce((a, i) => a + i.total, 0) ?? 0;
+  const pendingInvoices = (invoices ?? []).filter(FILTERS.pendientes);
+  const paidInvoices = (invoices ?? []).filter(FILTERS.pagadas);
+  const totalPending = pendingInvoices.reduce((a, i) => a + Number(i.total), 0);
+  const totalPaid = paidInvoices.reduce((a, i) => a + Number(i.total), 0);
+  const overdueCount = pendingInvoices.filter(i => i.due_at && i.due_at < today).length;
+  const visible = filter === 'todas' ? (invoices ?? []) : (invoices ?? []).filter(FILTERS[filter]);
 
   return (
     <div className="admin-shell ds-facturas">
@@ -73,19 +108,43 @@ export default async function FacturasPage() {
         </div>
 
         <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-          <div className="stat-card">
-            <div className="stat-label">{t('stats.total')}</div>
-            <div className="stat-value">{invoices?.length ?? 0}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">{t('stats.pending')}</div>
-            <div className="stat-value" style={{ color: 'var(--amber)', fontSize: 22 }}>${totalPending.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">{t('stats.collected')}</div>
-            <div className="stat-value" style={{ color: 'var(--ok)', fontSize: 22 }}>${totalPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-          </div>
+          <StatCard
+            href="/facturas"
+            active={filter === 'todas'}
+            label={t('stats.total')}
+            value={invoices?.length ?? 0}
+            sub={t('filters.viewAll')}
+          />
+          <StatCard
+            href="/facturas?estado=pendientes"
+            active={filter === 'pendientes'}
+            accent="amber"
+            label={t('stats.pending')}
+            value={money(totalPending)}
+            valueStyle={{ color: 'var(--amber)', fontSize: 22 }}
+            sub={overdueCount
+              ? t('filters.pendingCountOverdue', { count: pendingInvoices.length, overdue: overdueCount })
+              : t('filters.invoiceCount', { count: pendingInvoices.length })}
+          />
+          <StatCard
+            href="/facturas?estado=pagadas"
+            active={filter === 'pagadas'}
+            accent="ok"
+            label={t('stats.collected')}
+            value={money(totalPaid)}
+            valueStyle={{ color: 'var(--ok)', fontSize: 22 }}
+            sub={t('filters.invoiceCount', { count: paidInvoices.length })}
+          />
         </div>
+
+        {filter !== 'todas' && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', margin: '0 0 12px' }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--navy)' }}>
+              {t(`filters.showing.${filter}`, { count: visible.length })}
+            </div>
+            <Link href="/facturas" scroll={false} className="btn btn-ghost btn-sm">{t('filters.clear')}</Link>
+          </div>
+        )}
 
         <div className="card">
           {!invoices?.length ? (
@@ -94,6 +153,10 @@ export default async function FacturasPage() {
               <h3>{t('empty.title')}</h3>
               <p>{t('empty.text')}</p>
               <Link href="/facturas/nueva" className="btn btn-primary btn-sm">{t('empty.cta')}</Link>
+            </div>
+          ) : !visible.length ? (
+            <div className="empty">
+              <p>{t(`filters.empty.${filter}`)}</p>
             </div>
           ) : (
             <div className="table-wrap">
@@ -110,7 +173,7 @@ export default async function FacturasPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.map(inv => {
+                  {visible.map(inv => {
                     const b = statusFor(inv, today, t);
                     const viewInfo = viewsByInvoice[inv.id];
                     return (
