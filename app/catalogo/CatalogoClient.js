@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase";
 import ViewToggle, { useCatalogView } from "../ViewToggle";
 import CatalogoView from "../CatalogoView";
 import { matchesCatalogQuery } from "../../lib/catalogSearch";
+import { isPatchCable } from "../../lib/cableBoxes";
 
 import { uploadJobPhoto } from '../../lib/uploadJobPhoto';
 const TYPE_META_BASE = {
@@ -50,12 +51,14 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
   const [savingReel, setSavingReel] = useState(false);
   const [reelError, setReelError] = useState("");
   const [tab, setTab] = useState("labor");
+  // Botón "🧵 Cable box" de Productos: enseña solo los productos que son cable.
+  const [cableOnly, setCableOnly] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [editPhotoFile, setEditPhotoFile] = useState(null);
   const [editPhotoPreview, setEditPhotoPreview] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [newItem, setNewItem] = useState({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "", folder_id: "" });
+  const [newItem, setNewItem] = useState({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "", folder_id: "", is_cable: false });
   const [feeView, setFeeView] = useCatalogView("list");
   const [newPhotoFile, setNewPhotoFile] = useState(null);
   const [newPhotoPreview, setNewPhotoPreview] = useState(null);
@@ -215,6 +218,17 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
     });
   }
 
+  // ¿Es cable? Lo dice el check "🧵 Es cable" (catalog_items.is_cable, ver
+  // migrations/2026-11-22b-catalog-is-cable.sql). Mientras esa migración no
+  // esté aplicada la columna no viene, y se adivina como antes: tiene cajas
+  // registradas y no es patch cable (lib/cableBoxes.js).
+  const hasCableColumn = items.some(i => "is_cable" in i);
+  const isCable = item => item.type === "product" && (hasCableColumn
+    ? !!item.is_cable
+    : reels.some(r => r.catalog_item_id === item.id) && !isPatchCable(item));
+  const cableView = tab === "product" && cableOnly;
+  const cableCount = items.filter(isCable).length;
+
   const counts = { labor: items.filter(i => i.type === "labor").length, product: items.filter(i => i.type === "product").length, fee: items.filter(i => i.type === "fee").length };
   counts.catalog_view = counts.product;
 
@@ -222,8 +236,9 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
   // tolerante a campos nulos — `i.description.toLowerCase()` lanzaba si la
   // columna venía vacía, y bastaba una fila así para tumbar la página entera.
   const filtered = useMemo(
-    () => items.filter(i => i.type === dataType && matchesCatalogQuery(i, search)).sort(byManualOrder),
-    [items, dataType, search]
+    () => items.filter(i => i.type === dataType && (!cableView || isCable(i)) && matchesCatalogQuery(i, search)).sort(byManualOrder),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, dataType, search, cableView, reels]
   );
 
   // Reordenar solo tiene sentido sobre la lista completa: dentro de una
@@ -231,7 +246,9 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
   // pestañas de Fees y Catálogo comparten este orden pero se reordenan desde
   // Labor/Producto, que son las listas donde el orden se trabaja.
   const isPlainList = tab === "labor" || tab === "product";
-  const canReorder = isPlainList && !search.trim() && editingId === null;
+  // En la vista Cable box la lista va plana y sin reordenar: el orden y las
+  // carpetas se trabajan sobre la lista completa de Productos.
+  const canReorder = isPlainList && !cableView && !search.trim() && editingId === null;
 
   const folderList = useMemo(
     () => folders.filter(f => f.type === dataType).sort(byManualOrder),
@@ -242,7 +259,7 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
   // Con búsqueda la lista se aplana: buscar tiene que encontrar el ítem esté en
   // la carpeta que esté, y cada resultado enseña de cuál viene.
   const groups = useMemo(() => {
-    if (!isPlainList || search.trim()) return null;
+    if (!isPlainList || cableView || search.trim()) return null;
     const byFolder = new Map(folderList.map(f => [f.id, []]));
     const loose = [];
     for (const item of filtered) {
@@ -250,7 +267,7 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
       bucket.push(item);
     }
     return [...folderList.map(f => ({ folder: f, items: byFolder.get(f.id) })), { folder: null, items: loose }];
-  }, [isPlainList, search, folderList, filtered]);
+  }, [isPlainList, cableView, search, folderList, filtered]);
 
   function itemsInFolder(folderId) {
     return items.filter(i => i.type === dataType && (i.folder_id ?? null) === (folderId ?? null)).sort(byManualOrder);
@@ -389,7 +406,7 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
 
   function startEdit(item) {
     setEditingId(item.id);
-    setEditForm({ folder_id: item.folder_id ?? "", item_code: item.item_code, name: item.name ?? "", description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", markup_pct: item.markup_pct ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "", internal_only: item.internal_only ?? false, tax_category: item.tax_category ?? "labor", costo: item.costo ?? "", recurrencia: item.recurrencia ?? "unica", termino_meses: item.termino_meses ?? "" });
+    setEditForm({ folder_id: item.folder_id ?? "", item_code: item.item_code, name: item.name ?? "", description: item.description, price: item.price, msrp: item.msrp ?? "", supplier_price: item.supplier_price ?? "", markup_pct: item.markup_pct ?? "", vendor: item.vendor ?? "", stock_quantity: item.stock_quantity ?? "", default_location_id: item.default_location_id ?? "", internal_only: item.internal_only ?? false, tax_category: item.tax_category ?? "labor", costo: item.costo ?? "", recurrencia: item.recurrencia ?? "unica", termino_meses: item.termino_meses ?? "", is_cable: !!item.is_cable });
     setEditPhotoFile(null);
     setEditPhotoPreview(item.photo_url ? signedUrls[item.photo_url] ?? null : null);
   }
@@ -431,6 +448,8 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
       payload.stock_quantity = editForm.stock_quantity !== "" ? parseFloat(editForm.stock_quantity) : null;
       payload.default_location_id = editForm.default_location_id || null;
       payload.markup_pct = editForm.markup_pct !== "" ? parseFloat(editForm.markup_pct) : null;
+      // Solo si la columna ya existe: antes de la migración el update fallaría.
+      if (hasCableColumn) payload.is_cable = !!editForm.is_cable;
     }
     if (dataType === "fee") {
       payload.costo = editForm.costo !== "" ? parseFloat(editForm.costo) : null;
@@ -489,6 +508,7 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
       costo: dataType === "fee" && newItem.costo !== "" ? parseFloat(newItem.costo) : null,
       recurrencia: dataType === "fee" ? (newItem.recurrencia || "unica") : "unica",
       termino_meses: dataType === "fee" && newItem.termino_meses !== "" ? parseInt(newItem.termino_meses, 10) : null,
+      ...(hasCableColumn ? { is_cable: dataType === "product" && !!newItem.is_cable } : {}),
       photo_url,
     }]).select().single();
     if (error) {
@@ -497,7 +517,7 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
       return;
     }
     if (data) setItems(prev => [...prev, data]);
-    setNewItem({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "", folder_id: "" });
+    setNewItem({ item_code: "", name: "", description: "", price: "", msrp: "", supplier_price: "", markup_pct: "", vendor: "", stock_quantity: "", default_location_id: "", internal_only: false, tax_category: "labor", costo: "", recurrencia: "unica", termino_meses: "", folder_id: "", is_cable: false });
     setNewPhotoFile(null);
     setNewPhotoPreview(null);
     setAdding(false);
@@ -760,6 +780,12 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
                 <input type="checkbox" checked={!!editForm.internal_only} onChange={e => setEditForm(f => ({ ...f, internal_only: e.target.checked }))} />
                 {t("internalOnlyLabel")}
               </label>
+              {item.type === "product" && hasCableColumn && (
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted)", cursor: "pointer" }} title={t("isCableTitle")}>
+                  <input type="checkbox" checked={!!editForm.is_cable} onChange={e => setEditForm(f => ({ ...f, is_cable: e.target.checked }))} />
+                  {t("isCableLabel")}
+                </label>
+              )}
               <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                 <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>{t("saveButton")}</button>
                 <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>{t("cancelWithIconButton")}</button>
@@ -807,7 +833,7 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
               )}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("internalOnlyBadgeTitle")}>{t("internalOnlyBadge")}</span>}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("internalOnlyBadgeTitle")}>{t("internalOnlyBadge")}</span>}{isCable(item) && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("cableBadgeTitle")}>🧵</span>}</div>
               <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
               {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)" }}>{item.description}</div>}
               {item.type === "product" && item.vendor && <div style={{ fontSize: 11, color: "var(--muted)" }}>🏪 {item.vendor}</div>}
@@ -879,13 +905,19 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
       {/* Toolbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <p style={{ fontWeight: 700, fontSize: 15, color: "var(--navy)" }}>
-          {typeMeta[tab].icon} {typeMeta[tab].label} ({filtered.length})
+          {cableView ? `🧵 ${t("cableBoxToggle")}` : `${typeMeta[tab].icon} ${typeMeta[tab].label}`} ({filtered.length})
           {isPlainList && search.trim() && (
             <span style={{ fontWeight: 400, fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>{t("reorderSearchHint")}</span>
           )}
         </p>
         <div style={{ display: "flex", gap: 8, position: "relative" }}>
           {tab === "fee" && <ViewToggle view={feeView} onChange={setFeeView} />}
+          {tab === "product" && (
+            <button className={cableOnly ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setCableOnly(v => !v)}
+              aria-pressed={cableOnly} title={t("cableBoxToggleTitle")}>
+              🧵 {t("cableBoxToggle")}{cableCount ? ` (${cableCount})` : ""}
+            </button>
+          )}
           <button className="btn btn-ghost" onClick={() => setShowMenu(m => !m)}>{t("moreButton")}</button>
           {showMenu && (
             <>
@@ -898,7 +930,7 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
           )}
           <input ref={fileRef} type="file" accept=".csv" onChange={handleImport} style={{ display: "none" }} />
           {isPlainList && <button className="btn btn-ghost" onClick={addFolder}>{t("newFolderButton")}</button>}
-          <button className="btn btn-amber" onClick={() => setAdding(true)}>{t("newButton")}</button>
+          <button className="btn btn-amber" onClick={() => { if (cableView) setNewItem(f => ({ ...f, is_cable: true })); setAdding(true); }}>{t("newButton")}</button>
         </div>
       </div>
 
@@ -973,6 +1005,12 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
                 <input type="checkbox" checked={newItem.internal_only} onChange={e => setNewItem(f => ({ ...f, internal_only: e.target.checked }))} />
                 {t("internalOnlyLabel")}
               </label>
+              {dataType === "product" && hasCableColumn && (
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", cursor: "pointer" }} title={t("isCableTitle")}>
+                  <input type="checkbox" checked={!!newItem.is_cable} onChange={e => setNewItem(f => ({ ...f, is_cable: e.target.checked }))} />
+                  {t("isCableLabel")}
+                </label>
+              )}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
@@ -1072,8 +1110,8 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
             </div>
           )}
         />
-      ) : filtered.length === 0 && !(isPlainList && folderList.length > 0) ? (
-        <div className="empty"><p>{dataType === "labor" ? t("emptyItemsLabor") : t("emptyItemsProduct")}</p></div>
+      ) : filtered.length === 0 && (cableView || !(isPlainList && folderList.length > 0)) ? (
+        <div className="empty"><p>{cableView ? t("emptyCables") : dataType === "labor" ? t("emptyItemsLabor") : t("emptyItemsProduct")}</p></div>
       ) : isCardView ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
           {filtered.map(item => {
@@ -1123,6 +1161,12 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
                       <input type="checkbox" checked={!!editForm.internal_only} onChange={e => setEditForm(f => ({ ...f, internal_only: e.target.checked }))} />
                       {t("internalOnlyShortLabel")}
                     </label>
+                    {item.type === "product" && hasCableColumn && (
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--muted)", cursor: "pointer" }} title={t("isCableTitle")}>
+                        <input type="checkbox" checked={!!editForm.is_cable} onChange={e => setEditForm(f => ({ ...f, is_cable: e.target.checked }))} />
+                        {t("isCableShortLabel")}
+                      </label>
+                    )}
                     <div style={{ display: "flex", gap: 6 }}>
                       <button onClick={() => saveEdit(item.id)} disabled={saving} className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px", flex: 1, justifyContent: "center" }}>{t("saveButton")}</button>
                       <button onClick={() => { setEditingId(null); setEditPhotoFile(null); setEditPhotoPreview(null); }} className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 14px" }}>✕</button>
@@ -1135,7 +1179,7 @@ export default function CatalogoClient({ items: initial, folders: initialFolders
                         <img src={signedUrls[item.photo_url]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                       ) : "📦"}
                     </div>
-                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("internalOnlyBadgeTitle")}>{t("internalOnlyBadge")}</span>}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "var(--amber)" }}>{item.item_code}{item.internal_only && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("internalOnlyBadgeTitle")}>{t("internalOnlyBadge")}</span>}{isCable(item) && <span style={{ marginLeft: 6, color: "var(--muted)" }} title={t("cableBadgeTitle")}>🧵</span>}</div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.description}</div>
                     {item.name && item.description && <div style={{ fontSize: 12, color: "var(--muted)", minHeight: 34 }}>{item.description}</div>}
                     <div>
