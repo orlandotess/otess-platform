@@ -1,31 +1,38 @@
 'use client';
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { openPdfPreview } from '../../../lib/openPdfPreview';
+import { openPdfPreview, downloadPdf } from '../../../lib/openPdfPreview';
+
+// The line-item table has a 560px min width and scrolls sideways on a
+// phone — render the capture at desktop width so the PDF isn't clipped.
+const PDF_OPTIONS = { html2canvas: { windowWidth: 800 } };
+
+const buttonStyle = { padding: '8px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#16223d' };
 
 export default function EstimatePdfButton({ estimateNumber }) {
   const t = useTranslations('estimados.public');
-  const [generating, setGenerating] = useState(false);
+  // Which action is running ('view' | 'download'), so only that button says
+  // "Generating..." and both are disabled meanwhile.
+  const [busy, setBusy] = useState(null);
 
-  async function handlePdf() {
-    setGenerating(true);
+  async function run(kind) {
+    setBusy(kind);
     try {
-      await openPdfPreview('estimate-doc-public', `${estimateNumber}.pdf`, {
-        // The line-item table has a 560px min width and scrolls sideways on a
-        // phone — render the capture at desktop width so the PDF isn't clipped.
-        html2canvas: { windowWidth: 800 },
-      });
+      const fn = kind === 'download' ? downloadPdf : openPdfPreview;
+      await fn('estimate-doc-public', `${estimateNumber}.pdf`, PDF_OPTIONS);
     } catch (err) {
       console.error('PDF error:', err);
     }
-    setGenerating(false);
+    setBusy(null);
   }
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-      <button onClick={handlePdf} disabled={generating}
-        style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#16223d' }}>
-        {generating ? `⏳ ${t('generatingLabel')}` : `🖨️ ${t('viewPdfBtn')}`}
+    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 10 }}>
+      <button onClick={() => run('view')} disabled={!!busy} style={buttonStyle}>
+        {busy === 'view' ? `⏳ ${t('generatingLabel')}` : `🖨️ ${t('viewPdfBtn')}`}
+      </button>
+      <button onClick={() => run('download')} disabled={!!busy} style={buttonStyle}>
+        {busy === 'download' ? `⏳ ${t('generatingLabel')}` : `⬇️ ${t('downloadPdfBtn')}`}
       </button>
     </div>
   );

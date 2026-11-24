@@ -2319,6 +2319,7 @@
         "orCall": "or call {phone}"
       },
       "viewPdfBtn": "View PDF",
+      "downloadPdfBtn": "Download PDF",
       "generatingLabel": "Generating...",
       "photosLabel": "Photos"
     },
