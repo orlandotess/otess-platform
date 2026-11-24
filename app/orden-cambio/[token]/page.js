@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import OrdenCambioPublicClient from './public-client';
+import { sinDatosInternos } from '../../../lib/publicLineItem';
 import { getTranslations, getLocale } from 'next-intl/server';
 
 export default async function OrdenCambioPublicPage(props) {
@@ -44,7 +45,8 @@ export default async function OrdenCambioPublicPage(props) {
   }
 
   const itemsWithSignedUrls = await Promise.all(
-    (items ?? []).map(async it => {
+    (items ?? []).map(async raw => {
+      const it = sinDatosInternos(raw);
       if (!it.photo_url) return it;
       const { data } = await supabase.storage.from('Job-photos').createSignedUrl(it.photo_url, 3600);
       return { ...it, photo_signed_url: data?.signedUrl ?? null };

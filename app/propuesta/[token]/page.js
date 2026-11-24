@@ -6,6 +6,7 @@ import { getResend } from '../../../lib/resend';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import PropuestaPublicClient from './public-client';
 import { getTranslations, getLocale } from 'next-intl/server';
+import { sinDatosInternos } from '../../../lib/publicLineItem';
 
 export default async function PropuestaPublicPage(props) {
   const params = await props.params;
@@ -85,13 +86,15 @@ export default async function PropuestaPublicPage(props) {
   const options = await Promise.all(
     (proposal.proposal_options ?? []).sort((a, b) => a.sort_order - b.sort_order).map(async opt => {
       const items = await Promise.all(
-        (opt.proposal_line_items ?? []).sort((a, b) => a.sort_order - b.sort_order).map(async it => {
+        (opt.proposal_line_items ?? []).sort((a, b) => a.sort_order - b.sort_order).map(async raw => {
+          const it = sinDatosInternos(raw);
           if (!it.photo_url) return it;
           const { data } = await supabase.storage.from('Job-photos').createSignedUrl(it.photo_url, 3600);
           return { ...it, photo_signed_url: data?.signedUrl ?? null };
         })
       );
-      return { ...opt, items };
+      const { proposal_line_items: _omit, ...optSinPartidas } = opt;
+      return { ...optSinPartidas, items };
     })
   );
 
@@ -101,5 +104,9 @@ export default async function PropuestaPublicPage(props) {
     coverPhotoUrl = data?.signedUrl ?? null;
   }
 
-  return <PropuestaPublicClient proposal={proposal} options={options} coverPhotoUrl={coverPhotoUrl} taxRules={taxRules ?? []} payments={payments ?? []} companyInfo={companyInfo ?? null} primaryAddress={primaryAddress} />;
+  // `proposal` trae proposal_options → proposal_line_items crudos (con costo
+  // de suplidor); el cliente ya recibe las partidas limpias en `options`.
+  const { proposal_options: _omitOpts, ...proposalPublica } = proposal;
+
+  return <PropuestaPublicClient proposal={proposalPublica} options={options} coverPhotoUrl={coverPhotoUrl} taxRules={taxRules ?? []} payments={payments ?? []} companyInfo={companyInfo ?? null} primaryAddress={primaryAddress} />;
 }

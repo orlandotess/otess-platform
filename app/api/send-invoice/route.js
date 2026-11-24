@@ -9,7 +9,7 @@ import { getClientEmailTranslator } from '../../../lib/i18n-server';
 export async function POST(request) {
   try {
     const auth = request.headers.get('authorization');
-    const isCron = auth === `Bearer ${process.env.CRON_SECRET}`;
+    const isCron = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`;
     if (!isCron) {
       const role = await getCurrentRole();
       if (!['admin', 'secretaria', 'vendedor'].includes(role)) {
