@@ -15,7 +15,7 @@ import { exportPurchaseListCSV } from '../../purchaseListCsv';
 import MaterialSummary from '../../MaterialSummary';
 import { normalizeForSummary } from '../../../lib/materialSummary';
 import { generatePurchaseOrders } from '../../../lib/generatePurchaseOrders';
-import { buildMapsLinks } from '../../../lib/mapsLinks';
+import { buildMapsLinks, isMapsUrl } from '../../../lib/mapsLinks';
 import { isoToLocalInput, localInputToIso, formatDatePR, formatDateTimePR } from '../../../lib/datetimeLocal';
 import { computeHours, getJobScheduleWindow, prDayKey } from '../../../lib/hours';
 import { indexRates, rateOn } from '../../../lib/technicianRates';
@@ -1516,7 +1516,10 @@ export default function JobTabs({ job, items, technicians, notes, checklist, che
               ) : (job.street || job.city || job.property_name) ? (
                 <div>
                   {job.property_name && <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{job.property_name}</div>}
-                  {job.street && <div style={{ fontSize: 14, color: 'var(--muted)' }}>{job.street}</div>}
+                  {/* A pasted Maps URL is one long unbroken string: showing it raw stretches
+                      the page sideways and pushes the status/delete controls off-screen.
+                      The "open location" button below already links to it. */}
+                  {job.street && !isMapsUrl(job.street) && <div style={{ fontSize: 14, color: 'var(--muted)', overflowWrap: 'anywhere' }}>{job.street}</div>}
                   {job.city && <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 10 }}>{job.city}{job.state ? `, ${job.state}` : ''}{job.zip ? ` ${job.zip}` : ''}</div>}
                   {(job.street || job.city) && (() => {
                     const links = buildMapsLinks(job.street, job.city, job.state, job.zip);
