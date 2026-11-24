@@ -2320,6 +2320,7 @@
       },
       "viewPdfBtn": "View PDF",
       "downloadPdfBtn": "Download PDF",
+      "savePdfBtn": "PDF ready — tap to save",
       "generatingLabel": "Generating...",
       "photosLabel": "Photos"
     },

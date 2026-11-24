@@ -14,16 +14,34 @@ export default function EstimatePdfButton({ estimateNumber }) {
   // Which action is running ('view' | 'download'), so only that button says
   // "Generating..." and both are disabled meanwhile.
   const [busy, setBusy] = useState(null);
+  // iPhone only: the PDF is ready but Safari wants a fresh tap before it
+  // opens the share sheet — holds the function that opens it.
+  const [pendingSave, setPendingSave] = useState(null);
 
   async function run(kind) {
     setBusy(kind);
     try {
-      const fn = kind === 'download' ? downloadPdf : openPdfPreview;
-      await fn('estimate-doc-public', `${estimateNumber}.pdf`, PDF_OPTIONS);
+      const filename = `${estimateNumber}.pdf`;
+      if (kind === 'download') {
+        const result = await downloadPdf('estimate-doc-public', filename, PDF_OPTIONS);
+        if (result?.needsTap) setPendingSave(() => result.needsTap);
+      } else {
+        await openPdfPreview('estimate-doc-public', filename, PDF_OPTIONS);
+      }
     } catch (err) {
       console.error('PDF error:', err);
     }
     setBusy(null);
+  }
+
+  async function savePending() {
+    const save = pendingSave;
+    setPendingSave(null);
+    try {
+      await save();
+    } catch (err) {
+      console.error('PDF error:', err);
+    }
   }
 
   return (
@@ -31,9 +49,15 @@ export default function EstimatePdfButton({ estimateNumber }) {
       <button onClick={() => run('view')} disabled={!!busy} style={buttonStyle}>
         {busy === 'view' ? `⏳ ${t('generatingLabel')}` : `🖨️ ${t('viewPdfBtn')}`}
       </button>
-      <button onClick={() => run('download')} disabled={!!busy} style={buttonStyle}>
-        {busy === 'download' ? `⏳ ${t('generatingLabel')}` : `⬇️ ${t('downloadPdfBtn')}`}
-      </button>
+      {pendingSave ? (
+        <button onClick={savePending} style={{ ...buttonStyle, background: '#e0972c', borderColor: '#e0972c', color: '#fff' }}>
+          {`⬇️ ${t('savePdfBtn')}`}
+        </button>
+      ) : (
+        <button onClick={() => run('download')} disabled={!!busy} style={buttonStyle}>
+          {busy === 'download' ? `⏳ ${t('generatingLabel')}` : `⬇️ ${t('downloadPdfBtn')}`}
+        </button>
+      )}
     </div>
   );
 }
