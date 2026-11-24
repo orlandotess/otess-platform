@@ -198,8 +198,9 @@ export default async function EstimaDetail(props) {
         <div className="card" id="estimate-doc" style={{ marginBottom: 20, fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--navy)', letterSpacing: -1 }}>OTESS</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>OT Electrical & Security Solutions</div>
+              <img src="/otess-logo.png" alt="OTESS" className="brand-logo-light" style={{ width: 130, height: 'auto', display: 'block' }} />
+              <img src="/otess-logo-blanco.png" alt="OTESS" className="brand-logo-dark" style={{ width: 130, height: 'auto', display: 'block' }} />
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>OT Electrical & Security Solutions</div>
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>Calle 56, #2D8 Lomas de Carolina</div>
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>Carolina, PR 00987</div>
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>(787) 513-8352 · info@otesspr.com</div>

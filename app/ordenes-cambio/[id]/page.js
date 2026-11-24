@@ -74,8 +74,9 @@ export default async function OrdenCambioDetail(props) {
         <div className="card" id="change-order-doc" style={{ marginBottom: 20, fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--navy)', letterSpacing: -1 }}>OTESS</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{t('companyTagline')}</div>
+              <img src="/otess-logo.png" alt="OTESS" className="brand-logo-light" style={{ width: 130, height: 'auto', display: 'block' }} />
+              <img src="/otess-logo-blanco.png" alt="OTESS" className="brand-logo-dark" style={{ width: 130, height: 'auto', display: 'block' }} />
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>{t('companyTagline')}</div>
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('companyAddressLine1')}</div>
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('companyAddressLine2')}</div>
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('companyContact')}</div>

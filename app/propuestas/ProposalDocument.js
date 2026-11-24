@@ -169,8 +169,8 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
         <div style={page}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>OTESS</div>
-              <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{t('companyTagline')}</div>
+              <img src="/otess-logo.png" alt="OTESS" style={{ width: 130, height: 'auto', display: 'block' }} />
+              <div style={{ fontSize: 12, color: '#999', marginTop: 8 }}>{t('companyTagline')}</div>
               <div style={{ fontSize: 12, color: '#999' }}>{t('companyAddressLine1')}</div>
               <div style={{ fontSize: 12, color: '#999' }}>{t('companyAddressLine2')}</div>
               <div style={{ fontSize: 12, color: '#999' }}>{t('companyContact')}</div>
@@ -202,8 +202,8 @@ export default function ProposalDocument({ proposal, option, companyInfo, primar
         <div style={page}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>OTESS</div>
-              <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{t('installerSubtitle')}</div>
+              <img src="/otess-logo.png" alt="OTESS" style={{ width: 130, height: 'auto', display: 'block' }} />
+              <div style={{ fontSize: 12, color: '#999', marginTop: 8 }}>{t('installerSubtitle')}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 24, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>{t('installerHeading')}</div>
@@ -476,8 +476,8 @@ function PickListDocument({ proposal, option }) {
       <div style={page}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
           <div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>OTESS</div>
-            <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{t('pickListSubtitle')}</div>
+            <img src="/otess-logo.png" alt="OTESS" style={{ width: 130, height: 'auto', display: 'block' }} />
+            <div style={{ fontSize: 12, color: '#999', marginTop: 8 }}>{t('pickListSubtitle')}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#e0972c', fontFamily: 'monospace' }}>{proposal.proposal_number}</div>
