@@ -5,6 +5,7 @@ import { supabaseServer as supabase } from '../../../lib/supabase';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import { displayTitle } from '../../../lib/lineItemTitle';
 import AcceptEstimateButton from './AcceptEstimateButton';
+import { isEstimateExpired } from '../../../lib/estimateExpiry';
 import EstimatePdfButton from './EstimatePdfButton';
 import { getTranslations } from 'next-intl/server';
 
@@ -118,7 +119,7 @@ export default async function EstimaPublica(props) {
     <div style={{ background: '#fafafa', color: '#1b2230', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
-        <AcceptEstimateButton estimateId={id} status={est.status} />
+        <AcceptEstimateButton estimateId={id} status={est.status} expired={isEstimateExpired(est.valid_until)} />
 
         <EstimatePdfButton estimateNumber={est.estimate_number} />
 

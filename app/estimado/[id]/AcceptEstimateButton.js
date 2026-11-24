@@ -2,9 +2,10 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 
-export default function AcceptEstimateButton({ estimateId, status }) {
+export default function AcceptEstimateButton({ estimateId, status, expired = false }) {
   const t = useTranslations('estimados.acceptButton');
   const [current, setCurrent] = useState(status);
+  const [isExpired, setIsExpired] = useState(expired);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -20,6 +21,8 @@ export default function AcceptEstimateButton({ estimateId, status }) {
       });
       const data = await res.json();
       if (data.success) setCurrent('accepted');
+      // Page left open past the valid_until day: the server refuses it.
+      else if (data.error === 'expired') setIsExpired(true);
       else setError(data.error || t('genericError'));
     } catch {
       setError(t('genericError'));
@@ -37,6 +40,15 @@ export default function AcceptEstimateButton({ estimateId, status }) {
   }
 
   if (current !== 'sent') return null;
+
+  if (isExpired) {
+    return (
+      <div style={{ background: '#fdf3e4', border: '1px solid #f3d3a1', borderRadius: 10, padding: '14px 20px', marginBottom: 20 }}>
+        <div style={{ color: '#8a5a12', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>⏰ {t('expiredTitle')}</div>
+        <div style={{ color: '#8a5a12', fontSize: 13 }}>{t('expiredBody')}</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ marginBottom: 20 }}>

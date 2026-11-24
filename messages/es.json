@@ -2327,7 +2327,9 @@
       "genericError": "No se pudo procesar la aceptación",
       "acceptedMessage": "Estimado aceptado. Nuestro equipo se pondrá en contacto para coordinar.",
       "processing": "Procesando...",
-      "acceptButton": "Aceptar este estimado"
+      "acceptButton": "Aceptar este estimado",
+      "expiredTitle": "Este estimado venció",
+      "expiredBody": "Ya no se puede aceptar en línea. Comunícate con nosotros y te enviamos un estimado actualizado."
     }
   },
   "calendario": {

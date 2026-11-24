@@ -2327,7 +2327,9 @@
       "genericError": "Could not process the acceptance",
       "acceptedMessage": "Estimate accepted. Our team will reach out to coordinate.",
       "processing": "Processing...",
-      "acceptButton": "Accept this estimate"
+      "acceptButton": "Accept this estimate",
+      "expiredTitle": "This estimate has expired",
+      "expiredBody": "It can no longer be accepted online. Contact us and we'll send you an updated estimate."
     }
   },
   "calendario": {

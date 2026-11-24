@@ -1,6 +1,7 @@
 import { getResend } from '../../../lib/resend';
 import { supabaseServer as supabase } from '../../../lib/supabase';
 import { getServerLocale, getEmailTranslator } from '../../../lib/i18n-server';
+import { isEstimateExpired } from '../../../lib/estimateExpiry';
 
 
 export async function POST(request) {
@@ -11,6 +12,7 @@ export async function POST(request) {
     const { data: est } = await supabase.from('estimates').select('*, clients(name)').eq('id', estimateId).single();
     if (!est) return Response.json({ error: 'Estimado no encontrado' }, { status: 404 });
     if (est.status !== 'sent') return Response.json({ error: 'Este estimado ya no se puede aceptar' }, { status: 400 });
+    if (isEstimateExpired(est.valid_until)) return Response.json({ error: 'expired' }, { status: 400 });
 
     const accepted_at = new Date().toISOString();
     const { error } = await supabase.from('estimates').update({ status: 'accepted', accepted_at }).eq('id', estimateId);
