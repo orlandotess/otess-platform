@@ -2319,8 +2319,6 @@
         "orCall": "or call {phone}"
       },
       "viewPdfBtn": "View PDF",
-      "downloadPdfBtn": "Download PDF",
-      "savePdfBtn": "PDF ready — tap to save",
       "generatingLabel": "Generating...",
       "photosLabel": "Photos"
     },
@@ -5756,10 +5754,6 @@
         "orCall": "or call {phone}"
       }
     },
-    "trabajoActions": {
-      "generating": "⏳ Generating...",
-      "download": "📥 Download PDF"
-    },
     "boleto": {
       "notFoundTitle": "Report not found",
       "notFoundBody": "The link may have expired or be incorrect.",
@@ -5775,10 +5769,6 @@
         "questions": "Questions? Contact us at",
         "orCall": "or call {phone}"
       }
-    },
-    "boletoActions": {
-      "generating": "⏳ Generating...",
-      "download": "📥 Download PDF"
     },
     "mantenimiento": {
       "notFoundTitle": "Report not found",
@@ -5800,10 +5790,6 @@
         "questions": "Questions? Contact us at",
         "orCall": "or call {phone}"
       }
-    },
-    "mantenimientoActions": {
-      "generating": "⏳ Generating...",
-      "download": "📥 Download PDF"
     }
   },
   "catalogo": {
@@ -6108,5 +6094,11 @@
       "delete": "Couldn't delete the credential.",
       "labelRequired": "Enter the device or system name."
     }
+  },
+  "pdfButtons": {
+    "view": "View PDF",
+    "download": "Download PDF",
+    "generating": "Generating...",
+    "saveReady": "PDF ready — tap to save"
   }
 }

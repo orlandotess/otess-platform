@@ -1,12 +1,13 @@
 'use client';
 import { useState } from 'react';
 import ProposalDocument, { financialBreakdown } from '../../propuestas/ProposalDocument';
-import { openPdfPreview } from '../../../lib/openPdfPreview';
+import PdfButtons from '../../components/PdfButtons';
 import { displayTitle } from '../../../lib/lineItemTitle';
 import { useTranslations } from 'next-intl';
 
 const NAVY = '#16223d';
 const AMBER = '#e0972c';
+const PROPOSAL_PDF_OPTIONS = { margin: 0, pagebreak: { mode: 'css' } };
 
 export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl, taxRules, payments, companyInfo, primaryAddress }) {
   const t = useTranslations('propuestas.publicClient');
@@ -20,26 +21,12 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
   const [approving, setApproving] = useState(false);
   const [approved, setApproved] = useState(proposal.status === 'aprobada');
   const [error, setError] = useState('');
-  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const clientType = proposal.tax_client_type ?? proposal.clients?.client_type ?? 'final';
   const fmt = n => `$${(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const optionTotal = opt => financialBreakdown(opt.items, clientType, taxRules, { type: proposal.discount_type, value: proposal.discount_value, applies: proposal.discount_applies }, { fecha: proposal.created_at }).total;
 
   const canApprove = selectedId && (!proposal.requires_signature || signedName.trim().length > 1);
-
-  async function handlePdf() {
-    setGeneratingPdf(true);
-    try {
-      await openPdfPreview('proposal-doc-public', `${proposal.proposal_number}.pdf`, {
-        margin: 0,
-        pagebreak: { mode: 'css' },
-      });
-    } catch (err) {
-      console.error('PDF error:', err);
-    }
-    setGeneratingPdf(false);
-  }
 
   async function handleApprove() {
     if (!canApprove) return;
@@ -205,12 +192,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
           if (!opt) return null;
           return (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-                <button onClick={handlePdf} disabled={generatingPdf}
-                  style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', color: NAVY }}>
-                  {generatingPdf ? `⏳ ${t('generatingLabel')}` : `🖨️ ${t('viewPdfBtn')}`}
-                </button>
-              </div>
+              <PdfButtons elementId="proposal-doc-public" filename={`${proposal.proposal_number}.pdf`} pdfOptions={PROPOSAL_PDF_OPTIONS} />
               <div id="proposal-doc-public" style={{ background: '#fff', borderRadius: 10, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>
                 <div style={{ overflowX: 'auto' }}>
                   <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} />

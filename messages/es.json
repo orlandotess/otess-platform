@@ -2319,8 +2319,6 @@
         "orCall": "o al {phone}"
       },
       "viewPdfBtn": "Ver PDF",
-      "downloadPdfBtn": "Descargar PDF",
-      "savePdfBtn": "PDF listo — toca para guardar",
       "generatingLabel": "Generando...",
       "photosLabel": "Fotos"
     },
@@ -5756,10 +5754,6 @@
         "orCall": "o al {phone}"
       }
     },
-    "trabajoActions": {
-      "generating": "⏳ Generando...",
-      "download": "📥 Descargar PDF"
-    },
     "boleto": {
       "notFoundTitle": "Reporte no encontrado",
       "notFoundBody": "El enlace puede haber expirado o ser incorrecto.",
@@ -5775,10 +5769,6 @@
         "questions": "¿Preguntas? Contáctanos en",
         "orCall": "o al {phone}"
       }
-    },
-    "boletoActions": {
-      "generating": "⏳ Generando...",
-      "download": "📥 Descargar PDF"
     },
     "mantenimiento": {
       "notFoundTitle": "Reporte no encontrado",
@@ -5800,10 +5790,6 @@
         "questions": "¿Preguntas? Contáctanos en",
         "orCall": "o al {phone}"
       }
-    },
-    "mantenimientoActions": {
-      "generating": "⏳ Generando...",
-      "download": "📥 Descargar PDF"
     }
   },
   "catalogo": {
@@ -6108,5 +6094,11 @@
       "delete": "No se pudo borrar la credencial.",
       "labelRequired": "Escribe el nombre del equipo o sistema."
     }
+  },
+  "pdfButtons": {
+    "view": "Ver PDF",
+    "download": "Descargar PDF",
+    "generating": "Generando...",
+    "saveReady": "PDF listo — toca para guardar"
   }
 }

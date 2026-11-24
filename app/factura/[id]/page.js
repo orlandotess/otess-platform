@@ -9,6 +9,7 @@ import { displayTitle } from '../../../lib/lineItemTitle';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import { getTranslations } from 'next-intl/server';
 import ThumbImg from '../../components/ThumbImg';
+import PdfButtons from '../../components/PdfButtons';
 
 const IMAGE_PATH = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 
@@ -141,8 +142,11 @@ export default async function FacturaPublica(props) {
     <div style={{ background: '#fafafa', color: '#1b2230', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
+        {/* Line items scroll sideways on a phone — capture at desktop width so the PDF isn't clipped. */}
+        <PdfButtons elementId="invoice-doc-public" filename={`${inv.invoice_number}.pdf`} pdfOptions={{ html2canvas: { windowWidth: 800 } }} />
+
         {/* Invoice card */}
-        <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>
+        <div id="invoice-doc-public" style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>
 
           {/* Header */}
           <div style={{ padding: '28px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #eee' }}>
