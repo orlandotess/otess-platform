@@ -12,7 +12,7 @@ import InboxWidget from './accounting/InboxWidget';
 import { getTranslations, getLocale } from 'next-intl/server';
 
 async function getStats() {
-  const [clients, jobs, activeJobs, tickets, activeTickets, { data: invoices }, { data: payments }, { data: expenses }] = await Promise.all([
+  const [clients, jobs, activeJobs, tickets, activeTickets, { data: invoices }, { data: payments }, { data: expenses }, { data: retenciones }] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }),
     supabase.from('jobs').select('*', { count: 'exact', head: true }),
     supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
@@ -21,11 +21,18 @@ async function getStats() {
     supabase.from('invoices').select('id, total, status, due_at'),
     supabase.from('payments').select('invoice_id, amount'),
     supabase.from('expenses').select('amount'),
+    supabase.from('retenciones').select('invoice_id, retencion_aplicada'),
   ]);
 
   const collectedByInvoice = {};
   (payments ?? []).forEach(p => {
     collectedByInvoice[p.invoice_id] = (collectedByInvoice[p.invoice_id] ?? 0) + Number(p.amount ?? 0);
+  });
+  // Same net balance as the Facturas page: a logged retención was withheld and
+  // remitted to Hacienda on the invoice's behalf, so it isn't still owed.
+  (retenciones ?? []).forEach(r => {
+    if (!r.invoice_id) return;
+    collectedByInvoice[r.invoice_id] = (collectedByInvoice[r.invoice_id] ?? 0) + Number(r.retencion_aplicada ?? 0);
   });
   const totalCollected = (payments ?? []).reduce((a, p) => a + Number(p.amount ?? 0), 0);
   const totalExpenses = (expenses ?? []).reduce((a, e) => a + Number(e.amount ?? 0), 0);

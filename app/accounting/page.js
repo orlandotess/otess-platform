@@ -25,19 +25,24 @@ function getPeriods() {
   return { yearStart, yearEnd, year, month };
 }
 
-function computeRevenue(invs, paymentsByInvoice) {
-  const invIds = new Set(invs.map(i => i.id));
+function computeRevenue(invs, paymentsByInvoice, retenidoByInvoice) {
   let collected = 0;
+  let outstanding = 0;
   invs.forEach(i => {
     const payments = paymentsByInvoice[i.id] ?? [];
-    collected += payments.reduce((a, p) => a + Number(p.amount ?? 0), 0);
+    const paid = payments.reduce((a, p) => a + Number(p.amount ?? 0), 0);
+    collected += paid;
+    // Same net balance as the Facturas page: a logged retención was withheld
+    // and remitted to Hacienda on the invoice's behalf, so it isn't still owed.
+    // A draft was never sent and a cancelled invoice is void: neither is owed.
+    if (i.status === 'draft' || i.status === 'cancelled') return;
+    outstanding += Math.max(Number(i.total ?? 0) - paid - (retenidoByInvoice[i.id] ?? 0), 0);
   });
   const total = invs.reduce((a, i) => a + Number(i.total ?? 0), 0);
-  const outstanding = total - collected;
   return {
     total,
     collected,
-    outstanding: Math.max(outstanding, 0),
+    outstanding,
     subProducts: invs.reduce((a, i) => a + Number(i.subtotal_products ?? 0), 0),
     subLabor: invs.reduce((a, i) => a + Number(i.subtotal_labor ?? 0), 0),
     taxProducts: invs.reduce((a, i) => a + Number(i.tax_products ?? 0), 0),
@@ -346,7 +351,7 @@ export default async function AccountingDashboard(props) {
   const entriesFetchStart = new Date(new Date(rangeStarts.reduce((a, b) => (a < b ? a : b))).getTime() - MS_14D).toISOString();
   const entriesFetchEnd = new Date(new Date(rangeEnds.reduce((a, b) => (a > b ? a : b))).getTime() + MS_14D).toISOString();
 
-  const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: rateRows }, { data: timeEntries }, { data: payrollAdjustments }, { data: dailyOverrides }, { data: allPayments }, { data: inboxNotifications }, { data: allExpenses }] = await Promise.all([
+  const [{ data: allInvoices }, { data: lineItems }, { data: technicians }, { data: rateRows }, { data: timeEntries }, { data: payrollAdjustments }, { data: dailyOverrides }, { data: allPayments }, { data: inboxNotifications }, { data: allExpenses }, { data: allRetenciones }] = await Promise.all([
     supabase.from('invoices').select('id, invoice_number, status, total, subtotal_products, tax_products, subtotal_labor, tax_labor, issued_at, clients(name, client_type)').order('issued_at', { ascending: false }),
     supabase.from('invoice_line_items').select('invoice_id, type, tax_rate, tax_amount, quantity, unit_price, supplier_price'),
     supabase.from('technicians').select('id, hourly_rate'),
@@ -357,6 +362,7 @@ export default async function AccountingDashboard(props) {
     supabase.from('payments').select('invoice_id, amount, paid_at'),
     supabase.from('inbox_notifications').select('*').order('created_at', { ascending: false }).limit(20),
     supabase.from('expenses').select('expense_date, amount, category, job_id'),
+    supabase.from('retenciones').select('invoice_id, retencion_aplicada'),
   ]);
 
   const invoices = allInvoices ?? [];
@@ -373,6 +379,11 @@ export default async function AccountingDashboard(props) {
   payments.forEach(p => {
     if (!paymentsByInvoice[p.invoice_id]) paymentsByInvoice[p.invoice_id] = [];
     paymentsByInvoice[p.invoice_id].push(p);
+  });
+  const retenidoByInvoice = {};
+  (allRetenciones ?? []).forEach(r => {
+    if (!r.invoice_id) return;
+    retenidoByInvoice[r.invoice_id] = (retenidoByInvoice[r.invoice_id] ?? 0) + Number(r.retencion_aplicada ?? 0);
   });
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -395,7 +406,7 @@ export default async function AccountingDashboard(props) {
     const qInvs = filterInvs(q.start, q.end);
     return {
       key: q.key,
-      revenue: computeRevenue(qInvs, paymentsByInvoice),
+      revenue: computeRevenue(qInvs, paymentsByInvoice, retenidoByInvoice),
       ivu: computeIVU(qInvs),
       payroll: computePayroll(q.start, q.end, techs, entries, adjustments, dayOverrides, ratesByTech),
       gastos: computeExpenses(q.start, q.end, expenses),
@@ -430,7 +441,7 @@ export default async function AccountingDashboard(props) {
         <PeriodSection
           id="esta-semana"
           label={<WeekPeriodSelector weekStart={selWeekStartStr} />}
-          revenue={computeRevenue(weekInvs, paymentsByInvoice)}
+          revenue={computeRevenue(weekInvs, paymentsByInvoice, retenidoByInvoice)}
           ivu={computeIVU(weekInvs)}
           payroll={computePayroll(selWeekPeriodStart, selWeekPeriodEnd, techs, entries, adjustments, dayOverrides, ratesByTech)}
           margin={computeMargin(getIds(selWeekPeriodStart, selWeekPeriodEnd), lines)}
@@ -441,7 +452,7 @@ export default async function AccountingDashboard(props) {
         <PeriodSection
           id="mes-seleccionado"
           label={<MonthPeriodSelector year={selMonthYear} month={selMonth} />}
-          revenue={computeRevenue(monthInvs, paymentsByInvoice)}
+          revenue={computeRevenue(monthInvs, paymentsByInvoice, retenidoByInvoice)}
           ivu={computeIVU(monthInvs)}
           payroll={computePayroll(monthPeriodStart, monthPeriodEnd, techs, entries, adjustments, dayOverrides, ratesByTech)}
           margin={computeMargin(getIds(monthPeriodStart, monthPeriodEnd), lines)}
@@ -452,7 +463,7 @@ export default async function AccountingDashboard(props) {
         <PeriodSection
           id="ano-seleccionado"
           label={<YearPeriodSelector year={selYear} />}
-          revenue={computeRevenue(yearInvs, paymentsByInvoice)}
+          revenue={computeRevenue(yearInvs, paymentsByInvoice, retenidoByInvoice)}
           ivu={computeIVU(yearInvs)}
           payroll={computePayroll(selYearPeriodStart, selYearPeriodEnd, techs, entries, adjustments, dayOverrides, ratesByTech)}
           margin={computeMargin(getIds(selYearPeriodStart, selYearPeriodEnd), lines)}
