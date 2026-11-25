@@ -8,6 +8,8 @@ import { fallbackLineItems } from '../../../lib/ivu';
 import { displayTitle } from '../../../lib/lineItemTitle';
 import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import { getTranslations } from 'next-intl/server';
+import { headers } from 'next/headers';
+import { isPdfRender } from '../../../lib/pdfRenderToken';
 import ThumbImg from '../../components/ThumbImg';
 import PdfButtons from '../../components/PdfButtons';
 
@@ -27,7 +29,10 @@ export default async function FacturaPublica(props) {
 
   // Trackear vista + notificar por email — nunca debe impedir que el cliente
   // vea su factura, así que cualquier fallo (incluyendo Resend sin configurar) se ignora.
-  if (inv) {
+  // Cuando quien abre la página es el generador de PDF (/factura/<id>/pdf),
+  // no es el cliente: no cuenta como vista.
+  const esPdf = isPdfRender(await headers(), `/factura/${id}`);
+  if (inv && !esPdf) {
     await supabase.from('invoice_views').insert([{ invoice_id: id }]);
     await supabase.from('inbox_notifications').insert([{
       type: 'invoice_viewed',
@@ -142,8 +147,7 @@ export default async function FacturaPublica(props) {
     <div style={{ background: '#fafafa', color: '#1b2230', minHeight: '100vh', padding: '32px 16px', fontFamily: '-apple-system,sans-serif' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
-        {/* Line items scroll sideways on a phone — capture at desktop width so the PDF isn't clipped. */}
-        <PdfButtons elementId="invoice-doc-public" filename={`${inv.invoice_number}.pdf`} pdfOptions={{ html2canvas: { windowWidth: 800 } }} />
+        <PdfButtons href={`/factura/${id}/pdf`} />
 
         {/* Invoice card */}
         <div id="invoice-doc-public" style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>

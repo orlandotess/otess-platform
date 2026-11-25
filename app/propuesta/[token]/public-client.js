@@ -7,15 +7,17 @@ import { useTranslations } from 'next-intl';
 
 const NAVY = '#16223d';
 const AMBER = '#e0972c';
-const PROPOSAL_PDF_OPTIONS = { margin: 0, pagebreak: { mode: 'css' } };
 
-export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl, taxRules, payments, companyInfo, primaryAddress }) {
+// pdfOptionId: only set when the server-side PDF renderer opens the page —
+// it starts on that option's detail (step 1), which is what gets printed.
+export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl, taxRules, payments, companyInfo, primaryAddress, pdfOptionId = null }) {
   const t = useTranslations('propuestas.publicClient');
   const STEP_LABELS = [t('steps.selectOption'), t('steps.reviewDetails'), t('steps.signApprove')];
   const GENERAL_AREA = t('generalArea');
-  const [step, setStep] = useState(0);
+  const pdfOption = pdfOptionId ? options.find(o => o.id === pdfOptionId) : null;
+  const [step, setStep] = useState(pdfOption ? 1 : 0);
   const [selectedId, setSelectedId] = useState(
-    options.find(o => o.is_recommended)?.id ?? options[0]?.id ?? null
+    pdfOption?.id ?? options.find(o => o.is_recommended)?.id ?? options[0]?.id ?? null
   );
   const [signedName, setSignedName] = useState('');
   const [approving, setApproving] = useState(false);
@@ -192,7 +194,7 @@ export default function PropuestaPublicClient({ proposal, options, coverPhotoUrl
           if (!opt) return null;
           return (
             <div>
-              <PdfButtons elementId="proposal-doc-public" filename={`${proposal.proposal_number}.pdf`} pdfOptions={PROPOSAL_PDF_OPTIONS} />
+              <PdfButtons href={`/propuesta/${proposal.public_token}/pdf?opcion=${selectedId}`} />
               <div id="proposal-doc-public" style={{ background: '#fff', borderRadius: 10, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>
                 <div style={{ overflowX: 'auto' }}>
                   <ProposalDocument proposal={proposal} option={opt} companyInfo={companyInfo} primaryAddress={primaryAddress} taxRules={taxRules} payments={payments} />

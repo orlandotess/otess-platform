@@ -7,9 +7,12 @@ import { formatDateTimePR } from '../../../lib/datetimeLocal';
 import PropuestaPublicClient from './public-client';
 import { getTranslations, getLocale } from 'next-intl/server';
 import { sinDatosInternos } from '../../../lib/publicLineItem';
+import { headers } from 'next/headers';
+import { isPdfRender } from '../../../lib/pdfRenderToken';
 
 export default async function PropuestaPublicPage(props) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const t = await getTranslations('propuestas.publicPage');
   const locale = await getLocale();
   const dateLocale = locale === 'en' ? 'en-US' : 'es-PR';
@@ -47,6 +50,42 @@ export default async function PropuestaPublicPage(props) {
   const rawAddr = proposal.clients?.client_addresses?.find(a => a.is_primary) ?? proposal.clients?.client_addresses?.[0] ?? null;
   const primaryAddress = rawAddr ? { street: rawAddr.line1, city: rawAddr.city, zip: rawAddr.zip } : null;
 
+  // El generador de PDF (/propuesta/<token>/pdf) abre esta página para
+  // imprimirla: no es el cliente, así que ni cambia el estado ni cuenta vista.
+  const esPdf = isPdfRender(await headers(), `/propuesta/${params.token}`);
+  if (!esPdf) await registrarVista(proposal);
+
+  const options = await Promise.all(
+    (proposal.proposal_options ?? []).sort((a, b) => a.sort_order - b.sort_order).map(async opt => {
+      const items = await Promise.all(
+        (opt.proposal_line_items ?? []).sort((a, b) => a.sort_order - b.sort_order).map(async raw => {
+          const it = sinDatosInternos(raw);
+          if (!it.photo_url) return it;
+          const { data } = await supabase.storage.from('Job-photos').createSignedUrl(it.photo_url, 3600);
+          return { ...it, photo_signed_url: data?.signedUrl ?? null };
+        })
+      );
+      const { proposal_line_items: _omit, ...optSinPartidas } = opt;
+      return { ...optSinPartidas, items };
+    })
+  );
+
+  let coverPhotoUrl = null;
+  if (proposal.cover_photo_url) {
+    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(proposal.cover_photo_url, 3600);
+    coverPhotoUrl = data?.signedUrl ?? null;
+  }
+
+  // `proposal` trae proposal_options → proposal_line_items crudos (con costo
+  // de suplidor); el cliente ya recibe las partidas limpias en `options`.
+  const { proposal_options: _omitOpts, ...proposalPublica } = proposal;
+
+  return <PropuestaPublicClient proposal={proposalPublica} options={options} coverPhotoUrl={coverPhotoUrl} taxRules={taxRules ?? []} payments={payments ?? []} companyInfo={companyInfo ?? null} primaryAddress={primaryAddress} pdfOptionId={esPdf ? (searchParams?.opcion ?? null) : null} />;
+}
+
+// Primera apertura → estado "vista"; cada apertura → historial de vistas,
+// aviso en la bandeja y correo. Solo cuando la abre una persona.
+async function registrarVista(proposal) {
   // Marcar como vista (solo la primera vez)
   if (!proposal.viewed_at) {
     await supabase.from('proposals').update({ viewed_at: new Date().toISOString(), status: proposal.status === 'enviada' ? 'vista' : proposal.status }).eq('id', proposal.id);
@@ -82,31 +121,4 @@ export default async function PropuestaPublicPage(props) {
   } catch (err) {
     console.error('Error notificando vista:', err);
   }
-
-  const options = await Promise.all(
-    (proposal.proposal_options ?? []).sort((a, b) => a.sort_order - b.sort_order).map(async opt => {
-      const items = await Promise.all(
-        (opt.proposal_line_items ?? []).sort((a, b) => a.sort_order - b.sort_order).map(async raw => {
-          const it = sinDatosInternos(raw);
-          if (!it.photo_url) return it;
-          const { data } = await supabase.storage.from('Job-photos').createSignedUrl(it.photo_url, 3600);
-          return { ...it, photo_signed_url: data?.signedUrl ?? null };
-        })
-      );
-      const { proposal_line_items: _omit, ...optSinPartidas } = opt;
-      return { ...optSinPartidas, items };
-    })
-  );
-
-  let coverPhotoUrl = null;
-  if (proposal.cover_photo_url) {
-    const { data } = await supabase.storage.from('Job-photos').createSignedUrl(proposal.cover_photo_url, 3600);
-    coverPhotoUrl = data?.signedUrl ?? null;
-  }
-
-  // `proposal` trae proposal_options → proposal_line_items crudos (con costo
-  // de suplidor); el cliente ya recibe las partidas limpias en `options`.
-  const { proposal_options: _omitOpts, ...proposalPublica } = proposal;
-
-  return <PropuestaPublicClient proposal={proposalPublica} options={options} coverPhotoUrl={coverPhotoUrl} taxRules={taxRules ?? []} payments={payments ?? []} companyInfo={companyInfo ?? null} primaryAddress={primaryAddress} />;
 }

@@ -49,7 +49,7 @@ export default async function ReporteBoletoPublico(props) {
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-          <ReporteActions filename={`${report.title}.pdf`} />
+          <ReporteActions href={`/reporte-boleto/${id}/pdf`} />
         </div>
 
         <div id="report-doc">

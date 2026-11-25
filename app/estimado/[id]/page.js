@@ -8,6 +8,8 @@ import AcceptEstimateButton from './AcceptEstimateButton';
 import { isEstimateExpired } from '../../../lib/estimateExpiry';
 import EstimatePdfButton from './EstimatePdfButton';
 import { getTranslations } from 'next-intl/server';
+import { headers } from 'next/headers';
+import { isPdfRender } from '../../../lib/pdfRenderToken';
 
 export default async function EstimaPublica(props) {
   const params = await props.params;
@@ -22,7 +24,10 @@ export default async function EstimaPublica(props) {
 
   // Trackear vista + notificar por email — nunca debe impedir que el cliente
   // vea su estimado, así que cualquier fallo (incluyendo Resend sin configurar) se ignora.
-  if (est) {
+  // Cuando quien abre la página es el generador de PDF (/estimado/<id>/pdf),
+  // no es el cliente: no cuenta como vista.
+  const esPdf = isPdfRender(await headers(), `/estimado/${id}`);
+  if (est && !esPdf) {
     await supabase.from('estimate_views').insert([{ estimate_id: id }]);
     await supabase.from('inbox_notifications').insert([{
       type: 'estimate_viewed',
@@ -121,7 +126,7 @@ export default async function EstimaPublica(props) {
 
         <AcceptEstimateButton estimateId={id} status={est.status} expired={isEstimateExpired(est.valid_until)} />
 
-        <EstimatePdfButton estimateNumber={est.estimate_number} />
+        <EstimatePdfButton estimateId={id} />
 
         <div id="estimate-doc-public" style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #eee', marginBottom: 20 }}>
 
