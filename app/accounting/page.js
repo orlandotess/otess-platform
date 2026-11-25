@@ -34,8 +34,6 @@ function computeRevenue(invs, paymentsByInvoice, retenidoByInvoice) {
     collected += paid;
     // Same net balance as the Facturas page: a logged retención was withheld
     // and remitted to Hacienda on the invoice's behalf, so it isn't still owed.
-    // A draft was never sent and a cancelled invoice is void: neither is owed.
-    if (i.status === 'draft' || i.status === 'cancelled') return;
     outstanding += Math.max(Number(i.total ?? 0) - paid - (retenidoByInvoice[i.id] ?? 0), 0);
   });
   const total = invs.reduce((a, i) => a + Number(i.total ?? 0), 0);
@@ -60,8 +58,8 @@ function computeIVU(invs) {
   invs.forEach(inv => {
     const b = computeInvoiceIVU(inv);
     ivuProducts += b.prodTax;
-    if (b.isB2B) ivuLaborB2B += b.laborTax;
-    else ivuLaborFinal += b.laborTax;
+    if (b.laborAtFinalRate) ivuLaborFinal += b.laborTax;
+    else ivuLaborB2B += b.laborTax;
   });
   const ivuEstatal = (ivuProducts + ivuLaborFinal) * (10.5 / 11.5);
   const ivuMunicipal = (ivuProducts + ivuLaborFinal) * (1 / 11.5);
@@ -387,7 +385,11 @@ export default async function AccountingDashboard(props) {
   });
   const fmt = n => `$${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const filterInvs = (start, end) => invoices.filter(i => i.issued_at && i.issued_at >= start.slice(0, 10) && i.issued_at <= end.slice(0, 10));
+  // A draft was never sent and a cancelled invoice is void, so neither counts
+  // toward any figure here (same rule as the Facturas page). The search box
+  // above still lists every invoice.
+  const billable = invoices.filter(i => i.status !== 'draft' && i.status !== 'cancelled');
+  const filterInvs = (start, end) => billable.filter(i => i.issued_at &&i.issued_at >= start.slice(0, 10) && i.issued_at <= end.slice(0, 10));
   const getIds = (start, end) => new Set(filterInvs(start, end).map(i => i.id));
 
   const weekInvs = filterInvs(selWeekPeriodStart, selWeekPeriodEnd);

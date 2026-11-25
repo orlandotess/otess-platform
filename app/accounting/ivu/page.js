@@ -101,8 +101,8 @@ export default async function AccountingIVU(props) {
     const f = inv.ivuFraction ?? 1;
     ivuByInvoice[inv.id] = {
       ivuProducts: b.prodTax * f,
-      ivuLaborFinal: (b.isB2B ? 0 : b.laborTax) * f,
-      ivuLaborB2B: (b.isB2B ? b.laborTax : 0) * f,
+      ivuLaborFinal: (b.laborAtFinalRate ? b.laborTax : 0) * f,
+      ivuLaborB2B: (b.laborAtFinalRate ? 0 : b.laborTax) * f,
     };
   });
 
@@ -133,8 +133,8 @@ export default async function AccountingIVU(props) {
       if (!inv) return;
       const b = computeInvoiceIVU(inv);
       mProd += b.prodTax * e.fraction;
-      mLaborFinal += (b.isB2B ? 0 : b.laborTax) * e.fraction;
-      mLaborB2B += (b.isB2B ? b.laborTax : 0) * e.fraction;
+      mLaborFinal += (b.laborAtFinalRate ? b.laborTax : 0) * e.fraction;
+      mLaborB2B += (b.laborAtFinalRate ? 0 : b.laborTax) * e.fraction;
     });
     const mFinal = mProd + mLaborFinal;
     return { name: m.slice(0, 3), mProd, mLaborFinal, mLaborB2B, mFinal, estatal: mFinal * (10.5 / 11.5), municipal: mFinal * (1 / 11.5), total: mFinal + mLaborB2B, idx: i };
